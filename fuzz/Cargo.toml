@@ -1,0 +1,51 @@
+# Fuzz targets. Deliberately NOT a member of the root workspace: `cargo-fuzz`
+# needs a nightly toolchain and builds with sanitizers, and pulling
+# `libfuzzer-sys` into the workspace would put both into every ordinary
+# `cargo build`. Its own `[workspace]` table below is what keeps it out.
+#
+#   cargo +nightly fuzz run import_mremoteng
+#   cargo +nightly fuzz run import_sshconfig
+#   cargo +nightly fuzz run import_csv
+#
+# `docs/development/testing-strategy.md`: fuzzing runs nightly and on any pull
+# request touching a parser, and a crash is a release blocker.
+
+[package]
+name = "remoter-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[workspace]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+remoter-import = { path = "../crates/remoter-import" }
+remoter-core = { path = "../crates/remoter-core" }
+
+[profile.release]
+debug = true
+
+[[bin]]
+name = "import_mremoteng"
+path = "fuzz_targets/import_mremoteng.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "import_sshconfig"
+path = "fuzz_targets/import_sshconfig.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "import_csv"
+path = "fuzz_targets/import_csv.rs"
+test = false
+doc = false
+bench = false
