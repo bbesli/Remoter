@@ -132,7 +132,10 @@ entity expansion, zip files with traversal paths, INI files with unbounded keys.
 
 ### T8 — Local unprivileged process
 
-- Vault file permissions `0600` on Unix, owner-only ACL on Windows
+- Vault file permissions `0600` on Unix — the vault, its temporary image and
+  every rolling backup, set at creation so there is no world-readable instant.
+  On Windows they currently inherit the containing directory's ACL; an
+  explicit owner-only ACL is **not yet implemented**
 - No secrets in command-line arguments (visible in `/proc` and Task Manager),
   no secrets in environment variables, no secrets in temporary files
 - When Remoter must hand a credential to an external helper, it uses a pipe or

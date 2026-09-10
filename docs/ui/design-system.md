@@ -72,15 +72,71 @@ code, which is why they need no sandbox
 ([plugin-system.md](../architecture/plugin-system.md)).
 
 Terminal themes are **separate** from application themes — a user may want a
-light interface and a dark terminal. Both ship with a set of well-known palettes
-and both accept user files.
+light interface and a dark terminal, and picking a terminal palette ignores the
+interface theme entirely. Both ship with a set of well-known palettes; the
+terminal's individual colours can then be overridden one at a time in
+Settings → Terminal, and each override is stored on its own so that changing
+palette moves everything that was left alone.
+
+A terminal palette is **not** a file the user can bring or take away. This
+paragraph used to say terminal themes "accept user files"; importing or
+exporting a palette is not built, and nothing in the interface offers it. The
+choice is one of the built-in palettes plus the user's own overrides, and that
+is all it is until an import is written and this line is amended with it.
+
+A terminal palette is also **not** a token override file. The built-in
+palettes, the user's overrides and the contrast arithmetic are data in
+`apps/desktop/ui/src/lib/terminalPalette.ts`; `features/sessions/terminals.ts`
+resolves them and writes the result onto the document element as `--term-bg`,
+`--term-fg`, `--term-red` and the rest. The token *names* are unchanged and
+still mean what they always did, so CSS that sits flush against a terminal
+reads them exactly as before — what moved is the values. It had to: a CSS
+custom property has no per-user value, so a colour picker has nothing to write
+into a stylesheet and a hex field has nothing to read back out of one
+(`features/sessions/terminalTokens.css` records the move).
+
+## Styling: CSS Modules, not Tailwind
+
+The original draft of this document specified Tailwind. Implementation changed
+that, and the reasoning belongs here rather than in a commit message.
+
+Remoter's interface is not a page of composed utilities. It is a fixed
+application chrome — a 38 px title bar, a 268 px sidebar, a 36 px tab strip —
+whose every dimension is a design token, wrapped around a session area that
+must give away as few pixels as possible. Expressed in Tailwind, almost every
+class would be an arbitrary value: `h-[var(--titlebar-h)]`,
+`bg-[var(--bg-surface)]`, `text-[13px]`. That is Tailwind being fought rather
+than used, and it puts a second naming layer between a design token and the
+rule that consumes it.
+
+So: **plain CSS Modules**, one `.module.css` beside each component, referencing
+the tokens directly. Vite handles the scoping with no additional dependency and
+no build configuration. The rule that matters is unchanged and is enforced in
+review — *components reference tokens, never literals*.
 
 ## Components
 
-Built on **Radix UI** primitives for correct accessibility semantics, styled
-with Tailwind against the tokens above. Radix handles focus management, escape
-handling, portalling and ARIA — the parts that are tedious to get right and
-embarrassing to get wrong.
+The document named **Radix UI** as the primitive for anything needing real
+accessibility semantics. Implementation did not use it, and a reviewer caught
+the gap: three overlays declared `aria-modal="true"` — telling a screen reader
+the background was inert — while Tab still walked straight into it.
+
+The fix was a shared focus trap of about thirty lines
+(`features/connections/focusTrap.ts`), used by the command palette, the
+connection editor and the delete confirmation. Adding Radix for one behaviour
+mid-milestone would have been more churn than the behaviour is worth, and the
+trap is small enough to read in one sitting.
+
+So the rule is now: **`aria-modal` is a promise, and whatever makes the promise
+must keep it.** Focus enters on open, Tab is trapped, Escape cancels, focus
+returns on close, and the handlers underneath are suppressed. A surface that
+declares `aria-modal` without all five is a defect, whether the mechanism is
+Radix or our own. If a future component needs menus, comboboxes or anything
+with real roving-focus semantics, adopt Radix then — as its own change, with
+the existing overlays migrated, not as an assumption.
+
+Simple controls stay plain elements; wrapping a button in a dependency buys
+nothing.
 
 | Component | Notes |
 |---|---|

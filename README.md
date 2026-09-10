@@ -14,9 +14,11 @@ RDP · SSH · VNC · SFTP · FTP — every session in a tab, every secret in a v
 
 ---
 
-> **Project status: design phase.** This repository currently contains the
-> specification, architecture and security design. No application code has been
-> written yet. See the [roadmap](docs/roadmap.md) for what lands when, and
+> **Project status: v0.1 in progress.** The specification came first and is in
+> [`docs/`](docs/); implementation of the v0.1 foundation — the encrypted vault,
+> the connection tree, and the vault picker, unlock and create-vault screens —
+> is underway. There are no live sessions yet; SSH and SFTP are the v0.2
+> milestone. See the [roadmap](docs/roadmap.md) for what lands when, and
 > [CONTRIBUTING.md](CONTRIBUTING.md) if you want to help build it.
 
 ## What is Remoter?
@@ -149,6 +151,26 @@ is recorded in [ADR-0001](docs/architecture/decisions/0001-technology-stack.md).
 | [Roadmap](docs/roadmap.md) | Milestones from v0.1 to v1.0 and beyond |
 | [Getting started](docs/development/getting-started.md) | Toolchain setup and first build |
 | [Glossary](docs/glossary.md) | Terms used throughout the docs |
+
+## Building from source
+
+You need Rust 1.85+, Node 22+, and your platform's WebView development
+packages — [docs/development/getting-started.md](docs/development/getting-started.md)
+lists them per distribution.
+
+```bash
+git clone https://github.com/bbesli/Remoter.git
+cd Remoter
+npm install --prefix apps/desktop/ui
+npm run tauri dev --prefix apps/desktop/ui
+```
+
+On Linux, `scripts/install-local.sh` builds a release binary and installs it for
+the current user, replacing any running instance:
+
+```bash
+scripts/install-local.sh
+```
 
 ## Contributing
 

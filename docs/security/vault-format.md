@@ -177,17 +177,37 @@ Parameters are stored per slot, so a vault created on a workstation still opens
 on a low-memory laptop — just more slowly. If a vault's parameters are below the
 current floor, Remoter offers to upgrade them on the next successful unlock.
 
+**Ceiling.** A reader also refuses parameters it will not spend the resources
+on: `m_cost` above 4 GiB, `t_cost` above 32, `p_cost` above 16, and more than
+four candidate slots of one kind per unlock attempt. This is not the floor in
+the other direction — the floor governs what may be *written*, the ceiling what
+may be *attempted*. It is needed because the cost parameters are read from the
+plaintext header before any integrity check is possible: the header MAC key is
+derived from the master key the KDF is about to produce. Without a ceiling,
+anyone able to rewrite the file — a colleague with access to a shared folder, a
+synchronisation service — can make the owner's next unlock exhaust memory or run
+for hours, and no tamper report is ever reached. A file declaring a cost outside
+these bounds is refused by name, saying what it declares and what this build
+allows.
+
 ### `recovery` slot
 
 Created automatically with every new vault. This is the answer to "what if I
 lose my password or my key file?".
 
 - 256 bits from the OS CSPRNG
-- Displayed as 8 groups of 6 characters in Crockford Base32 (excludes I, L, O, U
-  to avoid transcription errors), with a checksum group:
+- Displayed in groups of 4 characters in Crockford Base32 (which excludes I, L,
+  O and U to avoid transcription errors): **13 groups of key plus one checksum
+  group**, 56 characters in all.
+
+  The arithmetic is the constraint, and an earlier draft of this document got it
+  wrong. Crockford Base32 carries 5 bits per character, so 256 bits needs
+  ceil(256/5) = 52 characters. The draft said "8 groups of 6", which is 48
+  characters and 240 bits — it could not hold the key this same section
+  mandates. Groups of 4 also transcribe better than groups of 6.
 
   ```
-  RMTR-4K7P2M-9XQW3T-BF6HYN-58JVDC-EA2RG7-MZ4KP9-3WTXQB-H6NF5J
+  RMTR-4K7P-2M9X-QW3T-BF6H-YN58-JVDC-EA2R-G7MZ-4KP9-3WTX-QBH6-NF5J-7TQA-X2E9
   ```
 
 - Shown **exactly once**, at vault creation, on a dedicated screen
@@ -297,14 +317,26 @@ Every save is atomic and crash-safe:
 1. Serialise the in-memory SQLite database to bytes
 2. Generate a fresh `BODY_NONCE` — **never** reuse a nonce with the same CEK
 3. Encrypt, assemble the full file image in memory
-4. Write to `<vault>.tmp` in the same directory, `fsync` the file
+4. Write to a temporary file in the same directory, `fsync` the file. The name
+   carries the writing process's id and a random suffix, so two processes
+   saving the same vault cannot write into one another's half-finished image
 5. `rename()` over the original — atomic on POSIX and on NTFS via
    `ReplaceFileW`
 6. `fsync` the containing directory
 
+The vault file, its temporary image and every backup are created mode `0600` on
+Unix. On Windows they inherit the containing directory's ACL; an explicit
+owner-only ACL is not yet applied.
+
 Before overwriting, the previous file is rotated into a rolling backup
-(`<vault>.bak.1` … `.bak.N`, default N=3, configurable). A vault that fails to
-decrypt therefore has a recent, known-good predecessor.
+(`<vault>.bak.1` … `.bak.N`, default N=3, configurable, stored in the header so
+the setting survives a reopen). Rotation happens on the **first save of a
+session** and not again until the vault is reopened. Rotating on every save
+would measure the window in user actions rather than in time: every node
+mutation is a save, so with N=3 the image from before an editing mistake would
+be gone after four ordinary clicks. Rotating once a session makes `.bak.1` the
+file as it stood when the vault was opened, which is what "a recent, known-good
+predecessor" has to mean to be useful.
 
 **Nonce policy.** Random 192-bit nonces are used everywhere. At that size, the
 birthday bound is far beyond any realistic number of saves, which is precisely

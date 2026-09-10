@@ -38,7 +38,17 @@ russh channel ──▶ SessionEvent::Data(Bytes) ──▶ IPC ──▶ xterm.
   addons
 
 Terminal themes are separate from the application theme: a user may want a light
-UI and a dark terminal. Both are token-based and shareable as files.
+UI and a dark terminal, and any palette other than "follow the interface theme"
+ignores the interface theme entirely.
+
+The terminal's palette is data, not a token file: the built-in palettes and the
+user's per-colour overrides live in `apps/desktop/ui/src/lib/terminalPalette.ts`,
+and `terminals.ts` resolves them, publishes the result as the `--term-*` custom
+properties on the document element, and pushes it straight into every open
+`Terminal` — a palette change reaches sessions that are already open without a
+reconnect. The token names are still the CSS-side interface; only the values
+moved. The palette is not shareable as a file either: importing or exporting
+one is not built, and `docs/ui/design-system.md` says the same.
 
 ## Framebuffer rendering
 
@@ -131,6 +141,19 @@ That last row is not pedantry. WebKitGTK can create a WebGL2 context backed by a
 software rasteriser, so a context that initialises successfully proves nothing.
 The harness checks the renderer string, which is two lines of code and prevents
 a benchmark that measures the wrong thing.
+
+**This is not hypothetical.** The first Linux launch of the application, on
+Wayland with an NVIDIA GPU, did not render at all: WebKitGTK imports its frames
+through DMA-BUF, that import fails on the proprietary driver, and it surfaces as
+a fatal Wayland protocol error before the window appears. `remoter-desktop`
+now disables that path at startup under Wayland — accelerated compositing is
+retained; only the buffer's route to the compositor changes.
+
+Two consequences for the measurement. The harness must run with
+`REMOTER_KEEP_DMABUF=1` as well as without it, because the two configurations
+are different rendering paths with different costs. And the acceptance bar has
+to be met on the path users will actually get, which on NVIDIA + Wayland is the
+one without DMA-BUF.
 
 ### The presenter is an interface, and it is per-platform
 

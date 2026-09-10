@@ -194,6 +194,8 @@ an older build does not silently discard a newer protocol's settings.
 
 ```rust
 pub struct CredentialProps {
+    /// The connection this credential belongs to, or `None` when it is shared.
+    pub attached_to: Option<NodeId>,
     pub username: String,
     pub domain: Option<String>,
     pub secret: SecretKind,
@@ -230,6 +232,42 @@ pub struct EncryptedField {
 `Agent` is worth highlighting as the recommended option for SSH: the private key
 stays in the platform agent and never enters Remoter's address space at all.
 
+### Attached credentials
+
+Sharing one credential between two hundred connections is the feature that makes
+this model worth having. It must not become a tax on the person with one server
+and a password: typing a username and a password on a connection has to just
+work, and nobody should have to learn that credentials are nodes to connect to a
+machine.
+
+So a connection still has no username of its own — identity belongs to a
+credential, which is what makes it shareable — but an identity typed on a
+connection creates a credential **attached** to it: `attached_to: Some(that
+connection)`. It is a node like any other, with a real id, so nothing else in the
+system needs a special case for it; what the attachment adds is ownership.
+
+| Rule | Behaviour |
+|---|---|
+| Deleting the connection | Deletes the credential attached to it |
+| Moving the connection | Moves the credential with it |
+| Another node referencing it | Rejected: `CredentialAttachedElsewhere` |
+| Listing the tree | Presented as part of its connection, never as its own entry |
+
+The case that shapes the design is inheritance. When a connection resolves its
+credential from a folder, editing that credential would silently change every
+other connection under the folder. So setting a username there creates a *new*
+attached credential which overrides the inherited one — the same "override here"
+the rest of the editor offers — and the folder's credential is untouched. The
+same applies when the connection points at a shared credential: it gets one of
+its own, and the interface is told so, rather than the shared one being
+rewritten. Clearing the username and the secret removes the attached credential,
+so the inherited one applies again.
+
+An attached credential's `username` is what a connection's resolved username
+comes from, and it carries that credential's provenance: "set on this
+connection" for an attached one, "from 📁 Datacentre EU-West" for an inherited
+one.
+
 ## Groups
 
 A `Group` opens several connections at once, into a chosen layout.
@@ -254,6 +292,10 @@ while active, and is disabled entirely for sessions whose folder carries a
   dangling id, so the connection reports "credential deleted" rather than
   silently falling back to inherited values.
 - Deleting a connection used as a gateway hop: same treatment.
+- Deleting a connection also deletes the credential attached to it, and moving
+  the connection moves it. An attached credential belongs to one connection: no
+  other node may reference it, and one that outlived its connection would be
+  secret material owned by nothing.
 - Cycles in gateway chains are rejected at edit time and re-validated at connect
   time, with a depth limit of 8 hops.
 - Moving a node re-resolves inheritance for its whole subtree, and the UI shows a

@@ -94,9 +94,17 @@ contain a formatted value, and a formatted value can contain a secret.
 
 ### Unsafe
 
-`#![forbid(unsafe_code)]` at the top of every crate. Exceptions require an ADR
-and are limited to platform FFI. Each `unsafe` block carries a `// SAFETY:`
-comment naming the invariant it upholds.
+`unsafe_code = "forbid"` at the workspace level, so every crate inherits it.
+
+**One documented exception exists.** `remoter-desktop` downgrades the lint to
+`deny` and allows a single `unsafe` block: the Wayland/DMA-BUF workaround in
+`main.rs` calls `std::env::set_var`, which edition 2024 made unsafe. It runs as
+the first statement of `main`, before the Tokio runtime, before GTK
+initialisation and before any thread is spawned, so the data race the rule
+exists to prevent cannot occur. Any further exception needs an ADR.
+
+Each `unsafe` block carries a `// SAFETY:` comment naming the invariant it
+upholds.
 
 ### Lints
 
