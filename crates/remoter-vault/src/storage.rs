@@ -1790,6 +1790,12 @@ mod tests {
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test code"
+)]
 mod trust_pin_upsert_tests {
     use super::*;
 
@@ -1802,7 +1808,7 @@ mod trust_pin_upsert_tests {
     /// changed" warning could never fire for it again.
     #[test]
     fn replacing_a_pinned_key_updates_the_row_rather_than_adding_one() {
-        let mut store = Store::create_new(1).expect("a blank store");
+        let store = Store::create_new(1).expect("a blank store");
 
         store
             .trust_pin(
@@ -1850,7 +1856,7 @@ mod trust_pin_upsert_tests {
     /// still get its own row — the fix must not collapse everything into one.
     #[test]
     fn distinct_identities_still_get_their_own_rows() {
-        let mut store = Store::create_new(1).expect("a blank store");
+        let store = Store::create_new(1).expect("a blank store");
         store
             .trust_pin("a", 22, "ssh_hostkey", "ssh-ed25519", b"1", b"1", "user", 1)
             .expect("a");
