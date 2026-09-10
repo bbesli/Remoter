@@ -1,0 +1,101 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/remoter-core",
+    "crates/remoter-vault",
+    "crates/remoter-plugin-abi",
+    "crates/remoter-plugin-sdk",
+    "crates/remoter-import",
+    "crates/remoter-proto",
+    "crates/remoter-proto-ssh",
+    "crates/remoter-ipc",
+    "apps/desktop/src-tauri",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+authors = ["The Remoter contributors"]
+repository = "https://github.com/bbesli/Remoter"
+homepage = "https://github.com/bbesli/Remoter"
+
+[workspace.dependencies]
+# --- workspace crates ---
+remoter-core = { path = "crates/remoter-core" }
+remoter-vault = { path = "crates/remoter-vault" }
+remoter-plugin-abi = { path = "crates/remoter-plugin-abi" }
+remoter-import = { path = "crates/remoter-import" }
+remoter-proto = { path = "crates/remoter-proto" }
+remoter-proto-ssh = { path = "crates/remoter-proto-ssh" }
+remoter-ipc = { path = "crates/remoter-ipc" }
+
+# --- cryptography ---
+# API signatures verified against these exact versions; see
+# docs/development/verified-apis.md before changing any of them.
+argon2 = "0.6"
+chacha20poly1305 = "0.11"
+hkdf = "0.13"
+sha2 = "0.11"
+blake3 = "1.8"
+zeroize = { version = "1.9", features = ["derive"] }
+subtle = "2.6"
+getrandom = "0.4"
+
+# --- storage & serialisation ---
+rusqlite = { version = "0.40", features = ["bundled", "serialize", "uuid"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+ciborium = "0.2"
+uuid = { version = "1.26", features = ["v7", "serde"] }
+data-encoding = "2.11"
+quick-xml = "0.38"
+aes = "0.9"
+cbc = "0.2"
+pbkdf2 = "0.13"
+sha1 = "0.11"
+md-5 = "0.11"
+flate2 = "1"
+# MIT OR Apache-2.0, both GPL-3.0 compatible and already allowed in deny.toml.
+# Needed for the NFKC normalisation `docs/security/vault-format.md` promises.
+unicode-normalization = "0.1"
+
+# --- platform ---
+keyring = "4"
+directories = "6"
+
+# --- runtime & diagnostics ---
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros"] }
+parking_lot = "0.12"
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# --- dev ---
+proptest = "1"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+unreachable_pub = "warn"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+dbg_macro = "deny"
+print_stdout = "deny"
+print_stderr = "deny"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+strip = true
+panic = "unwind"          # deliberate — see ADR-0011
+
+[profile.release-debug]
+inherits = "release"
+strip = false
+debug = true
