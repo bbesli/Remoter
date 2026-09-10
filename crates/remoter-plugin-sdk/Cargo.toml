@@ -1,0 +1,16 @@
+[package]
+name = "remoter-plugin-sdk"
+description = "Guest-side helpers for writing Remoter plugins"
+# Permissively licensed on purpose — see remoter-plugin-abi and ADR-0009.
+license = "Apache-2.0 OR MIT"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[dependencies]
+remoter-plugin-abi = { path = "../remoter-plugin-abi", version = "0.1.0" }
+serde.workspace = true
+
+[lints]
+workspace = true

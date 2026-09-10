@@ -1,0 +1,43 @@
+[package]
+name = "remoter-import"
+description = "Importers for other connection managers: mRemoteNG, OpenSSH config, CSV"
+license = "GPL-3.0-or-later"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+remoter-core.workspace = true
+
+quick-xml.workspace = true
+data-encoding.workspace = true
+
+# mRemoteNG's own cipher suite, not ours. `docs/features/import-export.md`
+# lists the three schemes a confCons.xml can declare; these are the primitives
+# they are built from.
+aes.workspace = true
+cbc.workspace = true
+pbkdf2.workspace = true
+sha1.workspace = true
+md-5.workspace = true
+# AES-GCM is not in the workspace dependency table because nothing else in the
+# tree uses it — Remoter's own envelope is XChaCha20-Poly1305. It is here for
+# reading `BlockCipherMode="GCM"` files and for nothing else.
+# MIT OR Apache-2.0; both are already allowed in `deny.toml`.
+aes-gcm = "0.11"
+
+# Recovered plaintext lives in a `Zeroizing` buffer from the moment it leaves
+# the cipher until the vault seals it (threat model T8).
+zeroize.workspace = true
+
+serde.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

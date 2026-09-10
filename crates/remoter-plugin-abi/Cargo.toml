@@ -1,0 +1,17 @@
+[package]
+name = "remoter-plugin-abi"
+description = "Remoter plugin ABI: type definitions and wire format"
+# Permissively licensed on purpose: plugin authors compile against this crate,
+# and it must not pull them into GPL. See ADR-0009 and LICENSE-EXCEPTION.
+# A GPL dependency here silently breaks the licence exception. CI enforces it.
+license = "Apache-2.0 OR MIT"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[dependencies]
+serde.workspace = true
+
+[lints]
+workspace = true
