@@ -1,0 +1,31 @@
+.message {
+  margin: 0;
+  color: var(--fg-default);
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+
+/* Selectable: the diagnostic is the part a bug report needs verbatim. */
+.detail {
+  margin: var(--space-2) 0 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.actions {
+  margin: var(--space-2) 0 0;
+  padding-inline-start: var(--space-4);
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--fg-muted);
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}

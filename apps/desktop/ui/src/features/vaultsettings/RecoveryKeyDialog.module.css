@@ -1,0 +1,9 @@
+/* Why the way out is disabled, beside the disabled button. */
+.blocked {
+  flex: 1;
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--fg-muted);
+  text-align: end;
+  text-wrap: pretty;
+}

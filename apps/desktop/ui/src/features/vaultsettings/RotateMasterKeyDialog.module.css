@@ -1,0 +1,115 @@
+.cost {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--fg-muted);
+  text-wrap: pretty;
+}
+
+.costTitle {
+  color: var(--fg-default);
+}
+
+.slots {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.legend {
+  padding: 0 0 var(--space-2);
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+}
+
+.slot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--bg-canvas);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+/* A discarded slot stays in the list, dimmed: it is a decision, not a gap. */
+.slotOff {
+  border-style: dashed;
+  color: var(--fg-muted);
+}
+
+.slotHead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.slotName {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.slotKind {
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+}
+
+.slotIndex {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--fg-subtle);
+}
+
+.slotNote {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--fg-muted);
+  text-wrap: pretty;
+}
+
+.dropRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  cursor: pointer;
+}
+
+.problems {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding-inline-start: var(--space-4);
+  line-height: var(--leading-normal);
+}
+
+.busy {
+  padding: var(--space-3);
+  background: var(--bg-elevated);
+  border-radius: var(--radius-md);
+}
+
+.unchanged {
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+}
+
+.counts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding-inline-start: var(--space-4);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}

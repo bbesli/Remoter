@@ -1,0 +1,51 @@
+/*
+ * The status bar row.
+ *
+ * The bar keeps every pixel it had: the hint is a fixed-width cell after it,
+ * and the bar itself takes the rest. `:first-child` overrides the bar's own
+ * `flex: none` so a long address in it truncates instead of pushing the hint
+ * off the end of the window.
+ */
+
+.row {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  flex: none;
+}
+
+.row > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.indicator {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+  height: var(--statusbar-h);
+  padding-inline: var(--space-4);
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border-default);
+  border-inline-start: 1px solid var(--border-default);
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
+
+.keys {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.key {
+  padding-inline: var(--space-2);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--fg-strong);
+}

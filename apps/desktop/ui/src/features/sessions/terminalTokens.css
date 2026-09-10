@@ -1,0 +1,42 @@
+/*
+ * The terminal's own surface.
+ *
+ * This file used to hold the 41 colour tokens the terminal drew with, and
+ * `terminals.ts` read them back with getComputedStyle. That worked for exactly
+ * as long as the palette was fixed. It could not survive the palette becoming
+ * the user's: a CSS custom property has no per-user value, a colour picker has
+ * nothing to write into a stylesheet, and a hex field has nothing to read back
+ * out of one.
+ *
+ * So the values moved to `lib/terminalPalette.ts`, which is where the built-in
+ * palettes, the user's overrides and the contrast arithmetic all live, and
+ * `terminals.ts` writes the resolved set onto the document element as
+ * `--term-bg`, `--term-fg`, `--term-red` and the rest. The token *names* are
+ * unchanged and still mean what they always did — anything CSS-side that wants
+ * to sit flush against a terminal reads them exactly as before. What is gone
+ * is the second copy of the numbers.
+ *
+ * Two behaviours that were expressed here as selectors are now expressed there
+ * as data, so that they survive the move rather than being quietly dropped:
+ *
+ * - `docs/architecture/rendering.md`: "Terminal themes are separate from the
+ *   application theme." The default palette id is `"auto"`, which resolves to
+ *   the set that goes with the interface theme — and any other choice ignores
+ *   the interface theme entirely, which is the separation the document asks
+ *   for.
+ * - High contrast still reaches the terminal. A user who asked for maximum
+ *   contrast asked for it everywhere, and a "tasteful" palette inside the
+ *   session would be the application quietly overruling an accessibility
+ *   setting. Under `hc-light` or `hc-dark`, `"auto"` resolves to the
+ *   high-contrast palette, as the selector below used to do.
+ */
+
+/*
+ * The element xterm draws into. It is created by terminals.ts rather than by a
+ * component — React must not own the terminal's DOM — so its class is a plain
+ * global one rather than a CSS module's.
+ */
+.remoter-terminal-host {
+  width: 100%;
+  height: 100%;
+}

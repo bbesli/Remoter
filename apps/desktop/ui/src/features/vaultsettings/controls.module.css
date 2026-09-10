@@ -1,0 +1,273 @@
+/*
+ * The controls the three settings panels share: a switch, a choice card, a
+ * chip row, and the line that says a write is in flight.
+ *
+ * The switch is the application settings screen's, rebuilt on tokens rather
+ * than imported: a CSS module's class names are private to it, and reaching
+ * into another feature's stylesheet would couple two screens through a name
+ * neither of them exports.
+ */
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow: hidden;
+  background: var(--border-default);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-surface);
+}
+
+.rowText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.rowLabel {
+  font-size: var(--text-sm);
+}
+
+.rowHelp {
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--fg-subtle);
+  text-wrap: pretty;
+}
+
+.rowValue {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--fg-strong);
+}
+
+/* ------------------------------------------------------------- switch ---- */
+
+.switchRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  cursor: pointer;
+}
+
+.checkbox {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.track {
+  display: flex;
+  flex: none;
+  align-items: center;
+  width: 32px;
+  height: 18px;
+  padding: 2px;
+  background: var(--bg-inset);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-full);
+}
+
+.thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: var(--radius-full);
+  background: var(--fg-subtle);
+  transition: margin-inline-start var(--motion-fast) var(--ease);
+}
+
+.checkbox:checked ~ .track {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.checkbox:checked ~ .track .thumb {
+  margin-inline-start: auto;
+  background: var(--fg-on-accent);
+}
+
+.checkbox:focus-visible ~ .track {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+.checkbox:disabled ~ .track {
+  opacity: 0.6;
+}
+
+/* The word, not only the switch position: state is never shape alone. */
+.switchState {
+  flex: none;
+  min-width: 3ch;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+  text-align: end;
+}
+
+/* -------------------------------------------------------- choice cards ---- */
+
+.choices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.legend {
+  padding: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--fg-default);
+}
+
+.choice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.choiceOn {
+  background: var(--accent-tint);
+  border-color: var(--accent);
+}
+
+.radio {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.mark {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  margin-top: 2px;
+  border: 2px solid var(--border-strong);
+  border-radius: var(--radius-full);
+}
+
+.radio:checked ~ .mark {
+  border-color: var(--accent);
+}
+
+.radio:checked ~ .mark::after {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+}
+
+.radio:focus-visible ~ .mark {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+.choiceText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.choiceName {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.choiceHelp {
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--fg-muted);
+  text-wrap: pretty;
+}
+
+/* -------------------------------------------------------------- chips ---- */
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.chip {
+  display: flex;
+  align-items: center;
+  padding: var(--space-1) var(--space-3);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-full);
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+  cursor: pointer;
+}
+
+.chipOn {
+  background: var(--accent-tint);
+  border-color: var(--accent);
+  color: var(--fg-default);
+  font-weight: 600;
+}
+
+.chip:focus-within {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+/* --------------------------------------------------------------- misc ---- */
+
+.saving {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+}
+
+.note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--fg-subtle);
+  text-wrap: pretty;
+}

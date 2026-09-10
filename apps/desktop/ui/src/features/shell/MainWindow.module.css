@@ -1,0 +1,142 @@
+.window {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-canvas);
+  color: var(--fg-default);
+  overflow: hidden;
+}
+
+/* The one flexible row. `min-height: 0` is what keeps the bars above and below
+   at their budgeted heights instead of being pushed out by tall content. */
+.body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  min-width: 0;
+}
+
+.sidebar {
+  width: var(--sidebar-w);
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  background: var(--bg-surface);
+  border-inline-end: 1px solid var(--border-default);
+}
+
+.centre {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-canvas);
+}
+
+.session {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  background: var(--bg-inset);
+  overflow: hidden;
+}
+
+.placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-10);
+  text-align: center;
+  overflow-y: auto;
+}
+
+.placeholderKind {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+}
+
+.placeholderTitle {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: var(--leading-tight);
+  color: var(--fg-default);
+  overflow-wrap: anywhere;
+  max-width: 44ch;
+}
+
+.placeholderTarget {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-variant-ligatures: none;
+  font-size: var(--text-sm);
+  color: var(--fg-strong);
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.placeholderBody {
+  margin: 0;
+  max-width: 52ch;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--fg-muted);
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+
+/* A failure that belongs to a control in the bar above it, not to the session
+   area. It sits in the flex column, so it pushes nothing off the bottom. */
+.notice {
+  flex: none;
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-surface);
+  border-block-end: 1px solid var(--border-default);
+}
+
+/* Failures that replace the session area's content rather than sit above it. */
+.sessionNotice {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8);
+  overflow-y: auto;
+}
+
+.sessionNotice > * {
+  width: 100%;
+  max-width: 34rem;
+}
+
+.noticeBody {
+  margin: 0;
+  text-wrap: pretty;
+}
+
+.noticeActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+/* Stands in for the tree's rows while the vault is being read. Sized to the
+   session area's own width so the shape matches what will replace it. */
+.placeholderSkeleton {
+  width: min(52ch, 100%);
+  margin-block-start: var(--space-4);
+}

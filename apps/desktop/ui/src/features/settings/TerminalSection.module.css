@@ -1,0 +1,520 @@
+/*
+ * Terminal appearance.
+ *
+ * One rule here is the opposite of the rule everywhere else: inside `.preview`
+ * and inside the swatches, the colours come from inline styles rather than
+ * from tokens. That is deliberate and it is the only place in the application
+ * where it is allowed — those elements are painting a palette that is not the
+ * interface's, and a token there would resolve to the interface's own theme
+ * and show the user the wrong thing. Every colour that belongs to the chrome
+ * around them is still a token.
+ */
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* The native control stays in the accessibility tree and keeps arrow-key
+   behaviour; the card draws its own state from it. */
+.radio {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+/* The selection is a filled ring as well as a colour — never colour alone. */
+.mark {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border-strong);
+  border-radius: var(--radius-full);
+}
+
+.radio:checked ~ .mark,
+.radio:checked ~ .paletteLabel .mark,
+.radio:checked ~ .autoBody .mark {
+  border-color: var(--accent);
+}
+
+.radio:checked ~ .mark::after,
+.radio:checked ~ .paletteLabel .mark::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+}
+
+/* ------------------------------------------------------ follow the theme -- */
+
+.autoRow {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.autoRow:hover {
+  border-color: var(--border-strong);
+}
+
+.autoRow:has(.radio:checked) {
+  border-color: var(--accent);
+  background: var(--accent-tint);
+}
+
+.autoRow:has(.radio:focus-visible) {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+.autoBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.autoName {
+  font-size: var(--text-sm);
+}
+
+.radio:checked ~ .autoBody .autoName {
+  font-weight: 600;
+}
+
+.autoHint {
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--fg-muted);
+  text-wrap: pretty;
+}
+
+/* ------------------------------------------------------------- palettes -- */
+
+.paletteGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+@media (max-width: 60rem) {
+  .paletteGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 40rem) {
+  .paletteGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.paletteCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  cursor: pointer;
+}
+
+.paletteCard .preview {
+  border: 1px solid var(--border-default);
+  transition: border-color var(--motion-fast) var(--ease);
+}
+
+.paletteCard:hover .preview {
+  border-color: var(--border-strong);
+}
+
+.radio:checked ~ .preview {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.radio:focus-visible ~ .preview {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+.paletteLabel {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.paletteText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.paletteName {
+  font-size: var(--text-sm);
+  color: var(--fg-strong);
+}
+
+.radio:checked ~ .paletteLabel .paletteName {
+  font-weight: 600;
+  color: var(--fg-default);
+}
+
+.paletteCredit {
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--fg-muted);
+  text-wrap: pretty;
+}
+
+/* -------------------------------------------------------------- preview -- */
+
+/*
+ * A terminal, painted. Colours arrive as inline styles; everything structural
+ * is here.
+ */
+.preview {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: var(--space-3);
+  overflow-x: auto;
+  border-radius: var(--radius-md);
+  line-height: var(--leading-tight);
+  tab-size: 4;
+  white-space: pre;
+}
+
+.previewCompact {
+  padding: var(--space-2);
+  min-height: 74px;
+}
+
+.previewBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.previewHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.previewTitle {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.previewNote {
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+}
+
+.previewBlock .preview {
+  border: 1px solid var(--border-default);
+}
+
+/* ------------------------------------------------------------- contrast -- */
+
+.contrastClear {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+}
+
+.contrastClearIcon {
+  display: flex;
+  color: var(--success);
+}
+
+.contrastList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.contrastRow {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+}
+
+/* The swatch paints the colour on the chosen background, at the ratio being
+   reported — so the number and the thing it describes are side by side. */
+.contrastSwatch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.contrastName {
+  font-size: var(--text-sm);
+  color: var(--fg-strong);
+}
+
+.contrastValue {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A severity is a word and an icon, never a colour on its own. */
+.contrastTag {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.contrastTag.large {
+  background: var(--warning-tint);
+  color: var(--warning);
+}
+
+.contrastTag.fail {
+  background: var(--danger-tint);
+  color: var(--danger-text);
+}
+
+/* --------------------------------------------------------------- colours -- */
+
+.resetRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.resetHint {
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+}
+
+.colorGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2) var(--space-4);
+}
+
+@media (max-width: 46rem) {
+  .colorGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.colorRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.colorName {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--fg-strong);
+}
+
+.changedTag {
+  padding: 1px var(--space-2);
+  background: var(--accent-tint);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  color: var(--accent);
+}
+
+.colorControls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/*
+ * The platform colour control. Its own chrome differs per platform and cannot
+ * be restyled, so it is given a frame that matches the other fields and left
+ * alone inside it.
+ */
+.picker {
+  flex: none;
+  width: 34px;
+  height: 28px;
+  padding: 2px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.picker:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 1px;
+}
+
+.hexField {
+  flex: 1;
+  min-width: 7rem;
+}
+
+/* The ratio, beside the colour it belongs to. Tabular so the column reads. */
+.gradeChip {
+  flex: none;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-full);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.gradeChip.aaa,
+.gradeChip.aa {
+  background: var(--success-tint);
+  color: var(--success);
+}
+
+.gradeChip.large {
+  background: var(--warning-tint);
+  color: var(--warning);
+}
+
+.gradeChip.fail {
+  background: var(--danger-tint);
+  color: var(--danger-text);
+}
+
+.resetOne {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  color: var(--fg-muted);
+  cursor: pointer;
+  transition:
+    color var(--motion-fast) var(--ease),
+    border-color var(--motion-fast) var(--ease);
+}
+
+.resetOne:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  color: var(--fg-default);
+}
+
+.resetOne:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 1px;
+}
+
+.resetOne:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.colorError {
+  font-size: var(--text-xs);
+  color: var(--danger-text);
+}
+
+/* ------------------------------------------------------------------ font -- */
+
+.fontRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  align-items: flex-start;
+}
+
+.fontFamily {
+  flex: 1 1 22rem;
+  min-width: 0;
+}
+
+.fontSize {
+  flex: 0 1 12rem;
+  min-width: 0;
+}
+
+.sizeInput {
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  color: var(--fg-default);
+  font-family: var(--font-mono);
+  font-size: var(--text-base);
+  font-variant-numeric: tabular-nums;
+}
+
+.sizeInput:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 1px;
+  border-color: var(--border-focus);
+}
+
+/* --------------------------------------------------------------- footer -- */
+
+.saving {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+}
+
+.note {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--fg-muted);
+  text-wrap: pretty;
+}

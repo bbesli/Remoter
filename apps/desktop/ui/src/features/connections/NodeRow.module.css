@@ -1,0 +1,197 @@
+/*
+ * One row of the connection tree.
+ *
+ * The row height is composed from spacing tokens rather than written as a
+ * literal so that a change to the 4px base rescales the whole sidebar.
+ */
+
+.row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  height: calc(var(--space-6) + var(--space-1));
+  padding-inline: var(--space-2);
+  /* Each level costs one indent step; the chevron slot is inside that step. */
+  padding-inline-start: calc(var(--space-2) + var(--tree-depth, 0) * var(--space-4));
+  border: 0;
+  border-radius: var(--radius-sm);
+  border-inline-start: 2px solid transparent;
+  background: none;
+  color: var(--fg-strong);
+  font-size: var(--text-sm);
+  line-height: var(--leading-tight);
+  text-align: start;
+  cursor: default;
+  min-width: 0;
+}
+
+.row:hover {
+  background: var(--bg-elevated);
+}
+
+.cursored {
+  outline: 1px solid var(--border-strong);
+  outline-offset: -1px;
+}
+
+.selected {
+  background: var(--accent-tint);
+  border-inline-start-color: var(--accent);
+  color: var(--fg-default);
+}
+
+.selected:hover {
+  background: var(--accent-tint);
+}
+
+/* ---------------------------------------------------------- drag states -- */
+
+/*
+ * "Into" and "between" are different intentions and must not look alike. Into
+ * fills the row, because the row becomes a container. Between draws a rule in
+ * the gap at the depth the node would land at, because nothing is being
+ * entered — only ordered.
+ */
+
+.dragging {
+  opacity: 0.4;
+}
+
+.dropInto {
+  background: var(--accent-tint);
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.dropInto:hover {
+  background: var(--accent-tint);
+}
+
+.dropBefore::before,
+.dropAfter::after {
+  content: "";
+  position: absolute;
+  /* Matches the row's own text indent, so the line reads at the target depth. */
+  inset-inline-start: calc(var(--space-2) + var(--tree-depth, 0) * var(--space-4));
+  inset-inline-end: var(--space-2);
+  height: 2px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+}
+
+.dropBefore::before {
+  top: -1px;
+}
+
+.dropAfter::after {
+  bottom: -1px;
+}
+
+/* A move the tree already knows the core would reject. */
+.dropRefused {
+  background: var(--danger-tint);
+  outline: 1px dashed var(--danger);
+  outline-offset: -1px;
+}
+
+.dropRefused:hover {
+  background: var(--danger-tint);
+}
+
+.chevron {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--space-4);
+  height: var(--space-4);
+  border-radius: var(--radius-sm);
+  color: var(--fg-muted);
+}
+
+.chevron:hover {
+  color: var(--fg-default);
+}
+
+/* Keeps names aligned whether or not the row can expand. */
+.chevronSpacer {
+  flex: none;
+  width: var(--space-4);
+}
+
+.glyph {
+  display: flex;
+  align-items: center;
+  flex: none;
+  color: var(--fg-muted);
+}
+
+.protoSsh {
+  color: var(--accent);
+}
+
+.protoRdp {
+  color: var(--info);
+}
+
+.protoSftp {
+  color: var(--success);
+}
+
+.protoVnc {
+  color: var(--fg-strong);
+}
+
+.folderGlyph {
+  color: var(--warning);
+}
+
+.credentialGlyph {
+  color: var(--fg-strong);
+}
+
+.name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.folderName {
+  font-weight: 500;
+  color: var(--fg-default);
+}
+
+.spacer {
+  flex: 1 1 auto;
+  min-width: var(--space-2);
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex: none;
+}
+
+.protocol {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--fg-subtle);
+}
+
+/* A separator is a rule, not a target: it carries no name and no actions. */
+.separatorRow {
+  display: flex;
+  align-items: center;
+  height: var(--space-4);
+  padding-inline: var(--space-2);
+}
+
+.separatorLine {
+  flex: 1;
+  height: 1px;
+  background: var(--border-default);
+}

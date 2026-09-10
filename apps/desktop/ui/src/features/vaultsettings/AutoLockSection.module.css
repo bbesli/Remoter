@@ -1,0 +1,56 @@
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 45rem;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.description {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--fg-muted);
+  text-wrap: pretty;
+}
+
+/* Said in words, not by a colour: "never" is a choice, not an error. */
+.warn {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--warning);
+  text-wrap: pretty;
+}
+
+/* The switch and its failure are two rows of the list, not a nested box. */
+.rowGroup {
+  display: contents;
+}
+
+/*
+ * The line under a switch this build cannot honour.
+ *
+ * Warning-coloured rather than muted, and set at the same size as the help
+ * text it sits with: it is not a footnote. A user reading down the list has to
+ * see that this row is different from the two above it before they reach for
+ * the switch, not after.
+ */
+.unavailable {
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--warning);
+  text-wrap: pretty;
+}

@@ -1,0 +1,220 @@
+/*
+ * The slot list. Geometry from ui_parts/project_ui_design/08 Vault Settings —
+ * a card per slot, a dashed "add" row at the end, and the expensive operation
+ * set apart below a rule rather than hidden behind an "advanced" disclosure.
+ */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-width: 45rem;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.description {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--fg-muted);
+  text-wrap: pretty;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+}
+
+/* A recovery key that has never been used is the slot most likely to be lost,
+   so it is the one row that asks for attention before it is needed. */
+.rowAlert {
+  background: var(--warning-tint);
+  border-color: var(--warning);
+}
+
+.glyph {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  color: var(--fg-strong);
+}
+
+.glyphAlert {
+  background: var(--bg-surface);
+  color: var(--warning);
+}
+
+.rowBody {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.rowHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.rowName {
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+.rowDetail {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--fg-muted);
+  text-wrap: pretty;
+}
+
+.rowAlertNote {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--fg-strong);
+  text-wrap: pretty;
+}
+
+/* Why Remove is disabled, in the row rather than in a tooltip. */
+.rowRefusal {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--fg-subtle);
+  text-wrap: pretty;
+}
+
+.rowActions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.addRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  color: var(--fg-muted);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  text-align: start;
+}
+
+.addRow:hover {
+  border-color: var(--accent);
+  color: var(--fg-default);
+}
+
+.addRow:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+.addLabel {
+  font-weight: 500;
+}
+
+.addHint {
+  font-size: var(--text-xs);
+  color: var(--fg-subtle);
+}
+
+.divider {
+  height: 1px;
+  background: var(--border-default);
+}
+
+.expensive {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.expensiveLabel {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+}
+
+.rotateCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--bg-inset);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-lg);
+}
+
+.rotateTitle {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+.rotateBody {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--fg-muted);
+  text-wrap: pretty;
+}
+
+.rotateActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.rotateAside {
+  font-size: var(--text-xs);
+  color: var(--fg-subtle);
+}
+
+.dialogBody {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--fg-muted);
+  text-wrap: pretty;
+}

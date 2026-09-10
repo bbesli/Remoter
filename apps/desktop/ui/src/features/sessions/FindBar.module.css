@@ -1,0 +1,46 @@
+/* Sits over the terminal's top-right corner, out of the way of the prompt and
+   of anything the shell is drawing at the bottom of the screen. */
+.bar {
+  position: absolute;
+  inset-block-start: var(--space-2);
+  inset-inline-end: var(--space-4);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-2);
+}
+
+.glyph {
+  display: flex;
+  color: var(--fg-subtle);
+}
+
+.field {
+  width: 14rem;
+}
+
+.miss {
+  font-size: var(--text-xs);
+  color: var(--danger-text);
+  white-space: nowrap;
+}
+
+.control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  color: var(--fg-muted);
+}
+
+.control:hover {
+  background: var(--bg-inset);
+  color: var(--fg-default);
+}

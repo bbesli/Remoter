@@ -1,0 +1,103 @@
+@import "./tokens.css";
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg-canvas);
+  color: var(--fg-default);
+  font-family: var(--font-ui);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;               /* the shell manages its own scroll regions */
+  user-select: none;              /* a desktop app, not a document */
+}
+
+/* Content the user genuinely selects: terminal output, fingerprints, paths. */
+.selectable,
+input,
+textarea,
+code,
+pre,
+kbd {
+  user-select: text;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+/* A visible focus indicator on every interactive element is an accessibility
+   requirement, not a preference — see docs/ui/information-architecture.md. */
+:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+::selection {
+  background: var(--accent-tint);
+}
+
+/* Scrollbars: present, quiet, and never a layout shift. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: var(--radius-full);
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Logical properties throughout, so RTL is a `dir` attribute rather than a
+   parallel stylesheet. Direction-indicating icons mirror; object icons do not. */
+[dir="rtl"] .mirror-in-rtl {
+  transform: scaleX(-1);
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-variant-ligatures: none;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

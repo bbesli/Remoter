@@ -1,0 +1,239 @@
+/*
+ * The command palette.
+ *
+ * A 640px sheet 120px down from the top of the window, as the design draws it:
+ * high enough that the eye lands on the input, low enough that the tree behind
+ * it stays readable and the palette does not feel like a new screen.
+ */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: calc(var(--space-10) * 3) var(--space-4) var(--space-8);
+  background: var(--bg-overlay);
+}
+
+.sheet {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 40rem;
+  max-height: 100%;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-3);
+  overflow: hidden;
+}
+
+.inputRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: none;
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.inputGlyph {
+  display: flex;
+  align-items: center;
+  flex: none;
+  color: var(--fg-subtle);
+}
+
+.inputField {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.count {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--fg-subtle);
+  white-space: nowrap;
+}
+
+.results {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-2) 0;
+}
+
+.groupLabel {
+  padding: var(--space-1) var(--space-4);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-2) var(--space-4);
+  border-inline-start: 2px solid transparent;
+  color: var(--fg-strong);
+  font-size: var(--text-sm);
+  text-align: start;
+  min-width: 0;
+}
+
+.item:hover:not(:disabled) {
+  background: var(--bg-surface);
+}
+
+/* A running action: still readable, no longer pressable. */
+.item:disabled {
+  cursor: default;
+  color: var(--fg-muted);
+}
+
+.active {
+  background: var(--accent-tint);
+  border-inline-start-color: var(--accent);
+  color: var(--fg-default);
+}
+
+.active:hover {
+  background: var(--accent-tint);
+}
+
+.itemGlyph {
+  display: flex;
+  align-items: center;
+  flex: none;
+  color: var(--fg-muted);
+}
+
+.itemName {
+  flex: none;
+  max-width: 45%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.hit {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.subtitle {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--fg-subtle);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.itemSpacer {
+  flex: 1 1 auto;
+  min-width: var(--space-2);
+}
+
+.path {
+  flex: none;
+  font-size: var(--text-xs);
+  color: var(--fg-subtle);
+  max-width: 40%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.shortcut {
+  flex: none;
+  padding: 1px var(--space-2);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--fg-subtle);
+}
+
+.groupRule {
+  height: 1px;
+  margin: var(--space-2) 0;
+  background: var(--border-default);
+}
+
+.state {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-4);
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+}
+
+/* Result-row-sized blocks, so the first real result lands where the outline was. */
+.stateSkeleton {
+  display: flex;
+  flex-direction: column;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex: none;
+  flex-wrap: wrap;
+  padding: var(--space-2) var(--space-4);
+  border-top: 1px solid var(--border-default);
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+}
+
+.hint {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.key {
+  font-family: var(--font-mono);
+  color: var(--fg-subtle);
+}
+
+.chips {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.chip {
+  padding: 1px var(--space-1);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--fg-subtle);
+}
+
+.chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.footerSpacer {
+  flex: 1 1 auto;
+}
+
+.assurance {
+  color: var(--fg-subtle);
+}

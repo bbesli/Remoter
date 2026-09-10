@@ -1,0 +1,126 @@
+/*
+ * The modal shell. Geometry follows the connection editor's dialog so the two
+ * overlays in this application read as one thing.
+ */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: var(--space-10) var(--space-4) var(--space-8);
+  background: var(--bg-overlay);
+  overflow-y: auto;
+}
+
+.dialog {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 34rem;
+  max-height: 100%;
+  overflow: hidden;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-3);
+  color: var(--fg-default);
+}
+
+.wide {
+  max-width: 44rem;
+}
+
+.header {
+  display: flex;
+  flex: none;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.headings {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.lead {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--fg-muted);
+  text-wrap: pretty;
+}
+
+.close {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-md);
+  color: var(--fg-muted);
+}
+
+.close:hover:not(:disabled) {
+  background: var(--bg-elevated);
+  color: var(--fg-default);
+}
+
+.close:disabled {
+  color: var(--fg-subtle);
+  cursor: default;
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-height: 0;
+  padding: var(--space-4);
+  overflow-y: auto;
+  font-size: var(--text-sm);
+}
+
+.footer {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-canvas);
+  border-top: 1px solid var(--border-default);
+}
+
+/* Why Escape did not close this, next to the button that will. */
+.refusal {
+  flex: 1;
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--fg-muted);
+  text-wrap: pretty;
+}
+
+.footerActions {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}

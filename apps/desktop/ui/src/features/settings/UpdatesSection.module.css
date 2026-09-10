@@ -1,0 +1,235 @@
+.control {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+.switchRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  cursor: pointer;
+}
+
+.checkbox {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.checkbox:disabled ~ .switchLabel,
+.checkbox:disabled ~ .state {
+  opacity: 0.6;
+}
+
+.track {
+  display: flex;
+  flex: none;
+  align-items: center;
+  width: 32px;
+  height: 18px;
+  padding: 2px;
+  background: var(--bg-inset);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-full);
+  transition:
+    background var(--motion-fast) var(--ease),
+    border-color var(--motion-fast) var(--ease);
+}
+
+.thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: var(--radius-full);
+  background: var(--fg-subtle);
+  transition: margin-inline-start var(--motion-fast) var(--ease);
+}
+
+.checkbox:checked ~ .track .thumb {
+  margin-inline-start: auto;
+  background: var(--fg-on-accent);
+}
+
+.checkbox:checked ~ .track {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.checkbox:focus-visible ~ .track {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+.switchLabel {
+  flex: 1;
+  font-size: var(--text-sm);
+  color: var(--fg-default);
+}
+
+.state {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+}
+
+/* The consent sentence. Not smaller than the label it qualifies by more than
+   one step — what a setting sends is not secondary information. */
+.consent {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--fg-muted);
+  text-wrap: pretty;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.stamp {
+  font-size: var(--text-xs);
+  color: var(--fg-subtle);
+}
+
+.result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* Nothing found yet is nothing drawn: an empty live region must not leave a
+   gap that reads as a missing element. */
+.result:empty {
+  display: none;
+}
+
+.waiting {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+}
+
+.verdict {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--fg-default);
+  text-wrap: pretty;
+}
+
+.verdictWithAction {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.release {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--bg-inset);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+}
+
+.releaseHead {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.releaseTitle {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+.releaseMeta {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+}
+
+.notes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.notesHeading {
+  margin: 0;
+  font-size: var(--text-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+}
+
+/* Release notes are as long as their author made them. They scroll inside
+   their own box rather than pushing the buttons below off the panel. */
+.notesBody {
+  max-height: 14rem;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  overflow: auto;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--fg-strong);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+}
+
+.noSelfUpdate {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--fg-muted);
+  text-wrap: pretty;
+}
+
+.releaseActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.url {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--fg-strong);
+  word-break: break-all;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding-inline-start: var(--space-4);
+}
+
+.list li {
+  line-height: var(--leading-normal);
+}

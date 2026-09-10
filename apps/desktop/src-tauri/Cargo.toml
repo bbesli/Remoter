@@ -1,0 +1,39 @@
+[package]
+name = "remoter-desktop"
+description = "Remoter desktop application"
+license = "GPL-3.0-or-later"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+remoter-ipc.workspace = true
+
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+# The workspace forbids unsafe_code. This crate downgrades that to deny so the
+# Wayland/DMA-BUF workaround in main.rs can call std::env::set_var, which is
+# unsafe in edition 2024. It is the only unsafe block in the project; see
+# docs/development/coding-standards.md.
+[lints.rust]
+unsafe_code = "deny"
+unreachable_pub = "warn"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }
+unwrap_used = "deny"
+expect_used = "deny"
+todo = "deny"
+dbg_macro = "deny"
+print_stdout = "deny"
+print_stderr = "deny" 

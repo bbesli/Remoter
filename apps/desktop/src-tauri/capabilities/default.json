@@ -1,0 +1,27 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Permissions the Remoter window needs. Tauri v2 denies every command that is not granted here, so an omission shows up as a control that silently does nothing.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+
+    "core:window:allow-start-dragging",
+    "core:window:allow-minimize",
+    "core:window:allow-maximize",
+    "core:window:allow-unmaximize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-is-maximized",
+    "core:window:allow-close",
+    "core:window:allow-set-focus",
+    "core:window:allow-set-title",
+    "core:window:allow-start-resize-dragging",
+
+    "dialog:allow-open",
+    "dialog:allow-save",
+    "dialog:allow-message",
+    "dialog:allow-confirm",
+
+    "opener:allow-open-url"
+  ]
+}
