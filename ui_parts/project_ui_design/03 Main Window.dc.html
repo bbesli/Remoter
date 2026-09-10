@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"><style>html,body{margin:0;padding:0;background:#0d0e10}a{color:#3bb6c4;text-decoration:none}a:hover{color:#4fd0de}@keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}@keyframes spin{to{transform:rotate(360deg)}}</style></helmet>
+<div style="min-height:100vh;background:#0d0e10;padding:28px 24px 64px;box-sizing:border-box;font-family:system-ui,-apple-system,'Segoe UI',Roboto,'Noto Sans',sans-serif;display:flex;flex-direction:column;align-items:flex-start;gap:18px">
+
+<div style="width:1440px;max-width:100%;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+<div style="display:flex;align-items:baseline;gap:10px"><span style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#8a929a">03 · Main window</span><span style="font-size:12px;color:#8a929a">1440 × 900 · Linux</span></div>
+<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap" onClick="{{ onStateBar }}">
+<span style="font-size:11px;color:#8a929a;font-family:'JetBrains Mono',monospace;letter-spacing:.1em;text-transform:uppercase;margin-right:2px">State</span>
+<button type="button" data-view="session" style="appearance:none;border:1px solid #2a2e34;background:#1c1e22;color:#9aa1a9;font:500 12px system-ui,sans-serif;padding:5px 10px;border-radius:6px;cursor:pointer" style-hover="border-color:#3bb6c4;color:#e6e8ea">Connected</button>
+<button type="button" data-view="connecting" style="appearance:none;border:1px solid #2a2e34;background:#1c1e22;color:#9aa1a9;font:500 12px system-ui,sans-serif;padding:5px 10px;border-radius:6px;cursor:pointer" style-hover="border-color:#3bb6c4;color:#e6e8ea">Connecting</button>
+<button type="button" data-view="failed" style="appearance:none;border:1px solid #2a2e34;background:#1c1e22;color:#9aa1a9;font:500 12px system-ui,sans-serif;padding:5px 10px;border-radius:6px;cursor:pointer" style-hover="border-color:#3bb6c4;color:#e6e8ea">Failed</button>
+<button type="button" data-view="reconnecting" style="appearance:none;border:1px solid #2a2e34;background:#1c1e22;color:#9aa1a9;font:500 12px system-ui,sans-serif;padding:5px 10px;border-radius:6px;cursor:pointer" style-hover="border-color:#3bb6c4;color:#e6e8ea">Reconnecting</button>
+<button type="button" data-view="offline" style="appearance:none;border:1px solid #2a2e34;background:#1c1e22;color:#9aa1a9;font:500 12px system-ui,sans-serif;padding:5px 10px;border-radius:6px;cursor:pointer" style-hover="border-color:#3bb6c4;color:#e6e8ea">Offline</button>
+<button type="button" data-view="locked" style="appearance:none;border:1px solid #2a2e34;background:#1c1e22;color:#9aa1a9;font:500 12px system-ui,sans-serif;padding:5px 10px;border-radius:6px;cursor:pointer" style-hover="border-color:#3bb6c4;color:#e6e8ea">Locked</button>
+<button type="button" data-view="hostkey" style="appearance:none;border:1px solid #2a2e34;background:#1c1e22;color:#9aa1a9;font:500 12px system-ui,sans-serif;padding:5px 10px;border-radius:6px;cursor:pointer" style-hover="border-color:#e05252;color:#e6e8ea">Host key changed</button>
+<button type="button" data-view="broadcast" style="appearance:none;border:1px solid #2a2e34;background:#1c1e22;color:#9aa1a9;font:500 12px system-ui,sans-serif;padding:5px 10px;border-radius:6px;cursor:pointer" style-hover="border-color:#e05252;color:#e6e8ea">Broadcast</button>
+<button type="button" data-view="empty" style="appearance:none;border:1px solid #2a2e34;background:#1c1e22;color:#9aa1a9;font:500 12px system-ui,sans-serif;padding:5px 10px;border-radius:6px;cursor:pointer" style-hover="border-color:#3bb6c4;color:#e6e8ea">Empty vault</button>
+<button type="button" data-view="palette" style="appearance:none;border:1px solid #3bb6c4;background:rgba(59,182,196,.1);color:#3bb6c4;font:500 12px system-ui,sans-serif;padding:5px 10px;border-radius:6px;cursor:pointer" style-hover="background:rgba(59,182,196,.18)">⌘K palette</button>
+</div>
+</div>
+
+<div style="position:relative;width:1440px;flex:none;height:900px;background:#16171a;border:1px solid #2a2e34;border-radius:10px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.55);display:flex;flex-direction:column;color:#e6e8ea;font-size:14px">
+
+<div style="height:38px;flex:none;display:flex;align-items:center;gap:10px;padding:0 6px 0 12px;background:#1c1e22;border-bottom:1px solid #2a2e34">
+<div style="width:18px;height:18px;border-radius:5px;background:#3bb6c4;display:flex;align-items:center;justify-content:center;color:#08181b;font-family:'JetBrains Mono',monospace;font-weight:600;font-size:11px;flex:none">R</div>
+<span style="font-size:13px;font-weight:600;letter-spacing:-0.005em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">Remoter</span>
+<span style="color:#3a4048">—</span>
+<span style="font-size:13px;color:#c8ced4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">Acme Production</span>
+<div style="flex:1"></div>
+<sc-if value="{{ vaultUnlocked }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;align-items:center;gap:6px;height:22px;padding:0 9px;border-radius:11px;background:rgba(75,180,123,.12);border:1px solid rgba(75,180,123,.32)">
+<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#4bb47b" stroke-width="2.2" stroke-linecap="round"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0"></path></svg>
+<span style="font-size:11.5px;font-weight:500;color:#4bb47b;font-family:'JetBrains Mono',monospace">unlocked</span></div>
+</sc-if>
+<sc-if value="{{ vaultLocked }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;align-items:center;gap:6px;height:22px;padding:0 9px;border-radius:11px;background:rgba(224,163,61,.14);border:1px solid rgba(224,163,61,.4)">
+<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#e0a33d" stroke-width="2.2" stroke-linecap="round"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>
+<span style="font-size:11.5px;font-weight:500;color:#e0a33d;font-family:'JetBrains Mono',monospace">locked</span></div>
+</sc-if>
+<div style="width:8px"></div>
+<button type="button" title="Settings" style="width:26px;height:26px;border:none;background:transparent;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0" style-hover="background:#23262b"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9aa1a9" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h10M18 6h2M4 12h2M10 12h10M4 18h8M16 18h4"></path><circle cx="16" cy="6" r="2"></circle><circle cx="8" cy="12" r="2"></circle><circle cx="14" cy="18" r="2"></circle></svg></button>
+<button type="button" title="Shortcuts" style="width:26px;height:26px;border:none;background:transparent;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0" style-hover="background:#23262b"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9aa1a9" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M9.5 9.5a2.6 2.6 0 1 1 3.4 2.5c-.6.2-.9.7-.9 1.3v.4"></path><path d="M12 17h.01"></path></svg></button>
+<div style="width:10px"></div>
+<div style="display:flex;align-items:center;gap:2px">
+<button type="button" style="width:26px;height:26px;border:none;background:transparent;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0" style-hover="background:#23262b"><svg width="13" height="13" viewBox="0 0 24 24" stroke="#9aa1a9" stroke-width="2" stroke-linecap="round"><path d="M6 12h12"></path></svg></button>
+<button type="button" style="width:26px;height:26px;border:none;background:transparent;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0" style-hover="background:#23262b"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9aa1a9" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="1.5"></rect></svg></button>
+<button type="button" style="width:26px;height:26px;border:none;background:transparent;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0" style-hover="background:#e05252"><svg width="13" height="13" viewBox="0 0 24 24" stroke="#9aa1a9" stroke-width="2" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"></path></svg></button>
+</div>
+</div>
+
+<sc-if value="{{ broadcastOn }}" hint-placeholder-val="{{ false }}">
+<div style="flex:none;height:34px;display:flex;align-items:center;gap:10px;padding:0 14px;background:#e05252;color:#ffffff">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="2.5"></circle><path d="M7.8 7.8a6 6 0 0 0 0 8.4M16.2 7.8a6 6 0 0 1 0 8.4M4.9 4.9a10 10 0 0 0 0 14.2M19.1 4.9a10 10 0 0 1 0 14.2"></path></svg>
+<span style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">Broadcast typing is on.</span>
+<span style="font-size:13px;color:rgba(255,255,255,.88);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">Every keystroke goes to all 4 sessions in <span style="font-family:'JetBrains Mono',monospace;font-size:12.5px">Web tier</span>. This session is being recorded.</span>
+<div style="flex:1"></div>
+<button type="button" style="appearance:none;border:1px solid rgba(255,255,255,.55);background:rgba(255,255,255,.12);color:#fff;font:600 12px system-ui,sans-serif;padding:5px 12px;border-radius:5px;cursor:pointer" style-hover="background:rgba(255,255,255,.24)">Turn off broadcast</button>
+</div>
+</sc-if>
+
+<div style="flex:1;min-height:0;display:flex">
+
+<div style="width:268px;flex:none;background:#1c1e22;border-right:1px solid #2a2e34;display:flex;flex-direction:column;min-height:0">
+<div style="padding:8px 10px 6px;flex:none">
+<button type="button" onClick="{{ openPalette }}" style="width:100%;height:30px;display:flex;align-items:center;gap:8px;padding:0 9px;background:#16171a;border:1px solid #2a2e34;border-radius:6px;cursor:pointer;text-align:left" style-hover="border-color:#3a4048">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8a929a" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+<span style="flex:1;font-size:13px;color:#8a929a">Search connections…</span>
+<span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#8a929a;border:1px solid #2a2e34;border-radius:4px;padding:1px 5px">Ctrl K</span></button>
+</div>
+
+<div style="flex:1;min-height:0;overflow:hidden;position:relative;padding:2px 6px 8px" onClick="{{ onTreeClick }}">
+<div style="{{ selBarStyle }}"></div>
+
+<div style="display:flex;align-items:center;gap:6px;height:24px;padding:0 6px;margin-top:4px">
+<svg width="12" height="12" viewBox="0 0 24 24" fill="#e0a33d" stroke="none"><path d="M12 3l2.6 5.4 5.9.8-4.3 4.1 1 5.9L12 16.4 6.8 19.2l1-5.9L3.5 9.2l5.9-.8z"></path></svg>
+<span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#8a929a">Favourites</span></div>
+<div data-node="fav-web-01" data-tab="0" style="position:relative;display:flex;align-items:center;gap:7px;height:26px;padding:0 8px 0 22px;border-radius:5px;cursor:pointer" style-hover="background:#23262b">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4fd0de" stroke-width="1.9" stroke-linecap="round" style="flex:none"><path d="M4 8l4 4-4 4"></path><path d="M12 16h8"></path></svg>
+<span style="font-size:13px;color:#e6e8ea;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">web-01</span><span style="width:6px;height:6px;border-radius:3px;background:#4bb47b;flex:none"></span></div>
+<div data-node="fav-jump" style="position:relative;display:flex;align-items:center;gap:7px;height:26px;padding:0 8px 0 22px;border-radius:5px;cursor:pointer" style-hover="background:#23262b">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4fd0de" stroke-width="1.9" stroke-linecap="round" style="flex:none"><path d="M4 8l4 4-4 4"></path><path d="M12 16h8"></path></svg>
+<span style="font-size:13px;color:#c8ced4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">jump.acme.io</span></div>
+
+<div style="height:10px"></div>
+
+<div data-node="f-dc" style="position:relative;display:flex;align-items:center;gap:6px;height:26px;padding:0 8px;border-radius:5px;cursor:pointer" style-hover="background:#23262b">
+<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9aa1a9" stroke-width="2.4" stroke-linecap="round" style="flex:none"><path d="M8 5l7 7-7 7" transform="rotate(90 12 12)"></path></svg>
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#e0a33d" stroke-width="1.8" stroke-linejoin="round" style="flex:none"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
+<span style="font-size:13px;font-weight:500;color:#e6e8ea;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">Datacentre EU-West</span>
+<div style="flex:1"></div>
+<span title="This folder sets a credential and a gateway" style="display:flex;align-items:center;gap:3px;font-family:'JetBrains Mono',monospace;font-size:9.5px;color:#8a929a;border:1px solid #2a2e34;border-radius:3px;padding:1px 4px;white-space:nowrap;flex:none">inherits 3</span></div>
+
+<div data-node="f-web" style="position:relative;display:flex;align-items:center;gap:6px;height:26px;padding:0 8px 0 20px;border-radius:5px;cursor:pointer" style-hover="background:#23262b">
+<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9aa1a9" stroke-width="2.4" stroke-linecap="round" style="flex:none"><path d="M8 5l7 7-7 7" transform="rotate(90 12 12)"></path></svg>
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#e0a33d" stroke-width="1.8" stroke-linejoin="round" style="flex:none"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
+<span style="font-size:13px;color:#e6e8ea;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">Web tier</span></div>
+
+<div data-node="web-01" data-tab="0" style="position:relative;display:flex;align-items:center;gap:7px;height:26px;padding:0 8px 0 40px;border-radius:5px;cursor:pointer" style-hover="background:#23262b">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4fd0de" stroke-width="1.9" stroke-linecap="round" style="flex:none"><path d="M4 8l4 4-4 4"></path><path d="M12 16h8"></path></svg>
+<span style="font-size:13px;color:#e6e8ea;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">web-01</span>
+<div style="flex:1"></div>
+<span style="display:flex;align-items:center;gap:4px"><span style="font-size:10px;color:#4bb47b;font-family:'JetBrains Mono',monospace;white-space:nowrap;flex:none">1d 6h</span><span style="width:6px;height:6px;border-radius:3px;background:#4bb47b"></span></span></div>
+
+<div data-node="web-02" style="position:relative;display:flex;align-items:center;gap:7px;height:26px;padding:0 8px 0 40px;border-radius:5px;cursor:pointer" style-hover="background:#23262b">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4fd0de" stroke-width="1.9" stroke-linecap="round" style="flex:none"><path d="M4 8l4 4-4 4"></path><path d="M12 16h8"></path></svg>
+<span style="font-size:13px;color:#c8ced4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">web-02</span></div>
+
+<div data-node="web-03" style="position:relative;display:flex;align-items:center;gap:7px;height:26px;padding:0 8px 0 40px;border-radius:5px;cursor:pointer" style-hover="background:#23262b">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4fd0de" stroke-width="1.9" stroke-linecap="round" style="flex:none"><path d="M4 8l4 4-4 4"></path><path d="M12 16h8"></path></svg>
+<span style="font-size:13px;color:#c8ced4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">web-03</span>
+<div style="flex:1"></div>
+<span style="display:flex;align-items:center;gap:4px"><span style="font-size:10px;color:#f07b78;font-family:'JetBrains Mono',monospace;white-space:nowrap;flex:none">failed</span><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#e05252" stroke-width="2.6" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"></path></svg></span></div>
+
+<div data-node="f-db" style="position:relative;display:flex;align-items:center;gap:6px;height:26px;padding:0 8px 0 20px;border-radius:5px;cursor:pointer" style-hover="background:#23262b">
+<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9aa1a9" stroke-width="2.4" stroke-linecap="round" style="flex:none"><path d="M8 5l7 7-7 7" transform="rotate(90 12 12)"></path></svg>
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#e0a33d" stroke-width="1.8" stroke-linejoin="round" style="flex:none"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
+<span style="font-size:13px;color:#e6e8ea;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">DB tier</span>
+<div style="flex:1"></div>
+<span style="font-family:'JetBrains Mono',monospace;font-size:9.5px;color:#f07b78;background:rgba(224,82,82,.12);border:1px solid rgba(224,82,82,.35);border-radius:3px;padding:1px 4px;white-space:nowrap;flex:none">production</span></div>
+
+<div data-node="db-01" data-tab="1" style="position:relative;display:flex;align-items:center;gap:7px;height:26px;padding:0 8px 0 40px;border-radius:5px;cursor:pointer" style-hover="background:#23262b">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4fd0de" stroke-width="1.9" stroke-linecap="round" style="flex:none"><path d="M4 8l4 4-4 4"></path><path d="M12 16h8"></path></svg>
+<span style="font-size:13px;color:#e6e8ea;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">db-01</span>
+<div style="flex:1"></div>
+<span style="display:flex;align-items:center;gap:4px"><svg width="10" height="10" viewBox="0 0 24 24" fill="#e05252"><circle cx="12" cy="12" r="7"></circle></svg><span style="width:6px;height:6px;border-radius:3px;background:#4bb47b"></span></span></div>
+
+<div data-node="db-02" style="position:relative;display:flex;align-items:center;gap:7px;height:26px;padding:0 8px 0 40px;border-radius:5px;cursor:pointer" style-hover="background:#23262b">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8fa0f5" stroke-width="1.8" style="flex:none"><rect x="3" y="5" width="18" height="12" rx="1.6"></rect><path d="M9 21h6M12 17v4" stroke-linecap="round"></path></svg>
+<span style="font-size:13px;color:#c8ced4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">db-02 (console)</span></div>
+
+<div data-node="cred" style="position:relative;display:flex;align-items:center;gap:7px;height:26px;padding:0 8px 0 20px;border-radius:5px;cursor:pointer" style-hover="background:#23262b">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c8ced4" stroke-width="1.9" stroke-linecap="round" style="flex:none"><circle cx="8" cy="12" r="3.5"></circle><path d="M11.5 12H21M18 12v3M15 12v2.4"></path></svg>
+<span style="font-size:13px;color:#c8ced4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">svc-deploy</span>
+<div style="flex:1"></div>
+<span style="font-family:'JetBrains Mono',monospace;font-size:9.5px;color:#8a929a;white-space:nowrap;flex:none">used by 14</span></div>
+
+<div style="height:6px"></div>
+
+<div data-node="f-cust" style="position:relative;display:flex;align-items:center;gap:6px;height:26px;padding:0 8px;border-radius:5px;cursor:pointer" style-hover="background:#23262b">
+<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9aa1a9" stroke-width="2.4" stroke-linecap="round" style="flex:none"><path d="M8 5l7 7-7 7"></path></svg>
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#e0a33d" stroke-width="1.8" stroke-linejoin="round" style="flex:none"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
+<span style="font-size:13px;color:#e6e8ea;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">Customers</span>
+<div style="flex:1"></div>
+<span style="font-family:'JetBrains Mono',monospace;font-size:9.5px;color:#8a929a;white-space:nowrap;flex:none">218</span></div>
+
+<div data-node="f-contoso" style="position:relative;display:flex;align-items:center;gap:6px;height:26px;padding:0 8px 0 20px;border-radius:5px;cursor:pointer" style-hover="background:#23262b">
+<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9aa1a9" stroke-width="2.4" stroke-linecap="round" style="flex:none"><path d="M8 5l7 7-7 7" transform="rotate(90 12 12)"></path></svg>
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#e0a33d" stroke-width="1.8" stroke-linejoin="round" style="flex:none"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
+<span style="font-size:13px;color:#e6e8ea;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">Contoso</span></div>
+
+<div data-node="ctso-dc01" data-tab="2" style="position:relative;display:flex;align-items:center;gap:7px;height:26px;padding:0 8px 0 40px;border-radius:5px;cursor:pointer" style-hover="background:#23262b">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8fa0f5" stroke-width="1.8" style="flex:none"><rect x="3" y="5" width="18" height="12" rx="1.6"></rect><path d="M9 21h6M12 17v4" stroke-linecap="round"></path></svg>
+<span style="font-size:13px;color:#e6e8ea;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">ctso-dc01</span>
+<div style="flex:1"></div>
+<span style="width:6px;height:6px;border-radius:3px;background:#4bb47b"></span></div>
+
+<div data-node="ctso-files" style="position:relative;display:flex;align-items:center;gap:7px;height:26px;padding:0 8px 0 40px;border-radius:5px;cursor:pointer" style-hover="background:#23262b">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4bb47b" stroke-width="1.9" stroke-linecap="round" style="flex:none"><path d="M4 8h11l-3-3M20 16H9l3 3"></path></svg>
+<span style="font-size:13px;color:#c8ced4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">ctso-files</span>
+<div style="flex:1"></div>
+<span style="font-family:'JetBrains Mono',monospace;font-size:9.5px;color:#8a929a;white-space:nowrap;flex:none">sftp</span></div>
+
+<div data-node="ctso-cam" style="position:relative;display:flex;align-items:center;gap:7px;height:26px;padding:0 8px 0 40px;border-radius:5px;cursor:pointer" style-hover="background:#23262b">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c88ff5" stroke-width="1.8" style="flex:none"><rect x="3" y="5" width="18" height="12" rx="1.6" stroke-dasharray="3 2.4"></rect><circle cx="12" cy="11" r="2.2"></circle></svg>
+<span style="font-size:13px;color:#c8ced4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">kiosk-vnc</span>
+<div style="flex:1"></div>
+<span style="font-family:'JetBrains Mono',monospace;font-size:9.5px;color:#8a929a;white-space:nowrap;flex:none">vnc</span></div>
+</div>
+
+<div style="flex:none;border-top:1px solid #2a2e34;padding:6px;display:flex;gap:4px">
+<button type="button" style="flex:1;height:28px;display:flex;align-items:center;justify-content:center;gap:6px;background:#23262b;border:1px solid #2a2e34;border-radius:6px;color:#c8ced4;font:500 12.5px system-ui,sans-serif;cursor:pointer" style-hover="border-color:#3bb6c4;color:#e6e8ea"><svg width="13" height="13" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 6v12M6 12h12"></path></svg>New connection</button>
+<button type="button" title="Collapse sidebar" onClick="{{ toggleSidebar }}" style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:#23262b;border:1px solid #2a2e34;border-radius:6px;color:#9aa1a9;cursor:pointer" style-hover="color:#e6e8ea"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M9 4v16"></path></svg></button>
+</div>
+</div>
+
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;background:#16171a">
+
+<div style="height:36px;flex:none;display:flex;align-items:stretch;background:#1c1e22;border-bottom:1px solid #2a2e34;padding-left:2px" onClick="{{ onTabClick }}">
+<div data-tab="0" style="{{ tab0Style }}">
+<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4fd0de" stroke-width="2" stroke-linecap="round" style="flex:none"><path d="M4 8l4 4-4 4"></path><path d="M12 16h8"></path></svg>
+<span style="font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">web-01</span>
+<span style="width:6px;height:6px;border-radius:3px;background:#4bb47b;flex:none"></span>
+<svg width="13" height="13" viewBox="0 0 24 24" stroke="#8a929a" stroke-width="2" stroke-linecap="round" style="flex:none" style-hover="stroke:#e6e8ea"><path d="M7 7l10 10M17 7L7 17"></path></svg></div>
+<div data-tab="1" style="{{ tab1Style }}">
+<span style="position:absolute;left:0;top:0;bottom:0;width:2px;background:#e05252"></span>
+<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4fd0de" stroke-width="2" stroke-linecap="round" style="flex:none"><path d="M4 8l4 4-4 4"></path><path d="M12 16h8"></path></svg>
+<span style="font-size:12.5px;white-space:nowrap">db-01</span>
+<span style="font-family:'JetBrains Mono',monospace;font-size:9.5px;color:#f07b78;background:rgba(224,82,82,.14);border-radius:3px;padding:1px 4px;flex:none;white-space:nowrap;flex:none">prod</span>
+<svg width="10" height="10" viewBox="0 0 24 24" fill="#e05252" style="flex:none"><circle cx="12" cy="12" r="8"></circle></svg>
+<svg width="13" height="13" viewBox="0 0 24 24" stroke="#8a929a" stroke-width="2" stroke-linecap="round" style="flex:none"><path d="M7 7l10 10M17 7L7 17"></path></svg></div>
+<div data-tab="2" style="{{ tab2Style }}">
+<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8fa0f5" stroke-width="1.8" style="flex:none"><rect x="3" y="5" width="18" height="12" rx="1.6"></rect><path d="M9 21h6M12 17v4" stroke-linecap="round"></path></svg>
+<span style="font-size:12.5px;white-space:nowrap">ctso-dc01</span>
+<svg width="13" height="13" viewBox="0 0 24 24" stroke="#8a929a" stroke-width="2" stroke-linecap="round" style="flex:none"><path d="M7 7l10 10M17 7L7 17"></path></svg></div>
+<button type="button" title="Quick connect" style="width:34px;border:none;background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="background:#23262b"><svg width="14" height="14" viewBox="0 0 24 24" stroke="#9aa1a9" stroke-width="2" stroke-linecap="round"><path d="M12 6v12M6 12h12"></path></svg></button>
+<div style="flex:1"></div>
+<button type="button" onClick="{{ toggleInspector }}" title="Inspector · F4" style="width:34px;border:none;border-left:1px solid #2a2e34;background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="background:#23262b"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9aa1a9" stroke-width="1.9"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M15 4v16"></path></svg></button>
+</div>
+
+<div style="flex:1;min-height:0;position:relative;background:#101114">
+
+<sc-if value="{{ showTerminal }}" hint-placeholder-val="{{ true }}">
+<div style="position:absolute;inset:0;overflow:hidden;padding:12px 16px;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.55;color:#c8ced4;white-space:pre-wrap;box-sizing:border-box">
+<div style="color:#8a929a">Last login: Tue Sep  8 09:14:22 2026 from 10.0.4.2</div>
+<div><span style="color:#4bb47b">deploy@web-01</span><span style="color:#8a929a">:</span><span style="color:#7f9df0">~</span><span style="color:#8a929a">$ </span>systemctl status nginx --no-pager</div>
+<div><span style="color:#4bb47b">●</span> nginx.service - A high performance web server and a reverse proxy server</div>
+<div style="color:#9aa1a9">     Loaded: loaded (/lib/systemd/system/nginx.service; enabled; preset: enabled)</div>
+<div style="color:#9aa1a9">     Active: <span style="color:#4bb47b">active (running)</span> since Mon 2026-09-07 03:11:47 UTC; 1 day 6h ago</div>
+<div style="color:#9aa1a9">   Main PID: 1184 (nginx)</div>
+<div style="color:#9aa1a9">      Tasks: 5 (limit: 4915)</div>
+<div style="color:#9aa1a9">     Memory: 12.4M</div>
+<div style="height:8px"></div>
+<div><span style="color:#4bb47b">deploy@web-01</span><span style="color:#8a929a">:</span><span style="color:#7f9df0">~</span><span style="color:#8a929a">$ </span>tail -n 3 /var/log/nginx/error.log</div>
+<div style="color:#9aa1a9">2026/09/09 22:41:02 [<span style="color:#e0a33d">warn</span>] 1184#1184: *20481 upstream server temporarily disabled</div>
+<div style="color:#9aa1a9">2026/09/09 22:41:02 [<span style="color:#f07b78">error</span>] 1184#1184: *20481 connect() failed (111: Connection refused)</div>
+<div style="color:#9aa1a9">2026/09/09 22:41:07 [notice] 1184#1184: signal process started</div>
+<div style="height:8px"></div>
+<div><span style="color:#4bb47b">deploy@web-01</span><span style="color:#8a929a">:</span><span style="color:#7f9df0">~</span><span style="color:#8a929a">$ </span><span style="display:inline-block;width:8px;height:16px;background:#3bb6c4;vertical-align:text-bottom;animation:blink 1.1s step-end infinite"></span></div>
+</div>
+</sc-if>
+
+<sc-if value="{{ showFramebuffer }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#0b0c0e">
+<div style="width:76%;max-width:900px;aspect-ratio:16/10;border:1px dashed #3a4048;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:repeating-linear-gradient(135deg,#111216 0 12px,#131419 12px 24px)">
+<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#8a929a" stroke-width="1.4"><rect x="3" y="5" width="18" height="12" rx="1.6"></rect><path d="M9 21h6M12 17v4" stroke-linecap="round"></path></svg>
+<div style="font-size:13px;color:#8a929a;text-align:center;font-family:system-ui,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">RDP framebuffer · <span style="font-family:'JetBrains Mono',monospace">1920 × 1080 @ 30 fps</span><br><span style="font-size:12px;color:#8a929a">Placeholder — a real remote desktop capture goes here</span></div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ showConnecting }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:40px;box-sizing:border-box">
+<div style="width:520px;max-width:100%;background:#1c1e22;border:1px solid #2a2e34;border-radius:10px;padding:24px 26px;display:flex;flex-direction:column;gap:18px;box-shadow:0 4px 12px rgba(0,0,0,.3)">
+<div style="display:flex;align-items:center;gap:10px"><span style="width:8px;height:8px;border-radius:4px;background:#e0a33d;animation:pulse 1.2s ease-in-out infinite"></span><span style="font-size:15px;font-weight:600">Connecting to db-01</span><div style="flex:1"></div><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#8a929a">hop 2 of 3</span></div>
+<div style="display:flex;flex-direction:column;gap:0">
+<div style="display:grid;grid-template-columns:18px 1fr auto;align-items:center;gap:10px;padding:6px 0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4bb47b" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"></path></svg><span style="font-size:13px;color:#9aa1a9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">Resolved <span style="font-family:'JetBrains Mono',monospace;font-size:12.5px;color:#c8ced4">bastion.acme.io</span> → 203.0.113.9</span><span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#8a929a">28 ms</span></div>
+<div style="display:grid;grid-template-columns:18px 1fr auto;align-items:center;gap:10px;padding:6px 0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4bb47b" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"></path></svg><span style="font-size:13px;color:#9aa1a9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">Authenticated to <span style="font-family:'JetBrains Mono',monospace;font-size:12.5px;color:#c8ced4">bastion.acme.io</span> as <span style="font-family:'JetBrains Mono',monospace;font-size:12.5px;color:#c8ced4">svc-deploy</span></span><span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#8a929a">310 ms</span></div>
+<div style="display:grid;grid-template-columns:18px 1fr auto;align-items:center;gap:10px;padding:6px 0;background:rgba(224,163,61,.07);border-radius:5px;margin:2px -8px;padding-left:8px;padding-right:8px"><span style="width:14px;height:14px;border-radius:7px;border:2px solid #e0a33d;border-top-color:transparent;display:block;animation:spin 700ms linear infinite"></span><span style="font-size:13px;color:#e6e8ea;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">Opening channel through <span style="font-family:'JetBrains Mono',monospace;font-size:12.5px">jump-eu.internal</span></span><span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#e0a33d">4.2 s</span></div>
+<div style="display:grid;grid-template-columns:18px 1fr auto;align-items:center;gap:10px;padding:6px 0"><span style="width:6px;height:6px;border-radius:3px;background:#3a4048;margin-left:4px"></span><span style="font-size:13px;color:#8a929a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">Handshake with <span style="font-family:'JetBrains Mono',monospace;font-size:12.5px">db-01.internal</span></span><span></span></div>
+<div style="display:grid;grid-template-columns:18px 1fr auto;align-items:center;gap:10px;padding:6px 0"><span style="width:6px;height:6px;border-radius:3px;background:#3a4048;margin-left:4px"></span><span style="font-size:13px;color:#8a929a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">Authenticate</span><span></span></div>
+</div>
+<div style="display:flex;align-items:center;gap:10px;padding-top:4px;border-top:1px solid #2a2e34">
+<div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#e0a33d"><svg width="12" height="12" viewBox="0 0 24 24" fill="#e05252"><circle cx="12" cy="12" r="7"></circle></svg><span style="color:#9aa1a9">This session will be recorded</span></div>
+<div style="flex:1"></div>
+<button type="button" style="appearance:none;border:1px solid #3a4048;background:#23262b;color:#c8ced4;font:500 12.5px system-ui,sans-serif;padding:6px 14px;border-radius:6px;cursor:pointer" style-hover="border-color:#e05252;color:#e6e8ea">Cancel</button></div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ showFailed }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:40px;box-sizing:border-box">
+<div style="width:540px;max-width:100%;background:#1c1e22;border:1px solid #2a2e34;border-top:2px solid #e05252;border-radius:10px;padding:24px 26px;display:flex;flex-direction:column;gap:16px;box-shadow:0 4px 12px rgba(0,0,0,.3)">
+<div style="display:flex;gap:13px;align-items:flex-start">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#e05252" stroke-width="2" stroke-linecap="round" style="flex:none;margin-top:2px"><path d="M12 3.5L22 20H2z" stroke-linejoin="round"></path><path d="M12 10v4M12 17h.01"></path></svg>
+<div style="display:flex;flex-direction:column;gap:6px"><div style="font-size:15px;font-weight:600;letter-spacing:-0.005em">Could not reach the target through <span style="font-family:'JetBrains Mono',monospace;font-size:14px">jump-eu</span></div><div style="font-size:13.5px;color:#9aa1a9;line-height:1.5">Hop 2 of 3 failed. <span style="font-family:'JetBrains Mono',monospace;font-size:12.5px;color:#c8ced4">jump-eu.internal:22</span> did not respond within 30 s. Check the firewall or the gateway.</div></div>
+</div>
+<div style="background:#101114;border:1px solid #2a2e34;border-radius:6px;padding:12px 14px;display:flex;flex-direction:column;gap:7px">
+<div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#8a929a">Gateway chain</div>
+<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-family:'JetBrains Mono',monospace;font-size:12px">
+<span style="display:flex;align-items:center;gap:5px;color:#4bb47b"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#4bb47b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"></path></svg>bastion.acme.io</span>
+<span style="color:#3a4048">→</span>
+<span style="display:flex;align-items:center;gap:5px;color:#f07b78;background:rgba(224,82,82,.12);border:1px solid rgba(224,82,82,.35);border-radius:4px;padding:2px 7px"><svg width="10" height="10" viewBox="0 0 24 24" stroke="#e05252" stroke-width="3" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"></path></svg>jump-eu.internal</span>
+<span style="color:#3a4048">→</span>
+<span style="color:#8a929a">db-01.internal</span></div>
+</div>
+<div style="display:flex;align-items:center;gap:8px;padding-top:2px">
+<button type="button" style="appearance:none;border:none;background:#3bb6c4;color:#08181b;font:600 12.5px system-ui,sans-serif;padding:7px 15px;border-radius:6px;cursor:pointer" style-hover="background:#4fd0de">Retry</button>
+<button type="button" style="appearance:none;border:1px solid #3a4048;background:#23262b;color:#c8ced4;font:500 12.5px system-ui,sans-serif;padding:7px 14px;border-radius:6px;cursor:pointer" style-hover="color:#e6e8ea">Edit gateway chain</button>
+<button type="button" style="appearance:none;border:1px solid #3a4048;background:#23262b;color:#c8ced4;font:500 12.5px system-ui,sans-serif;padding:7px 14px;border-radius:6px;cursor:pointer" style-hover="color:#e6e8ea">Connect to jump-eu directly</button>
+<div style="flex:1"></div>
+<a href="#" style="font-size:12px;color:#8a929a">Copy diagnostics</a></div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ showReconnecting }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:40px;box-sizing:border-box">
+<div style="width:440px;max-width:100%;background:#1c1e22;border:1px solid #2a2e34;border-radius:10px;padding:22px 24px;display:flex;flex-direction:column;gap:14px;box-shadow:0 4px 12px rgba(0,0,0,.3)">
+<div style="display:flex;align-items:center;gap:10px"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#e0a33d" stroke-width="2" stroke-linecap="round" style="animation:spin 1.6s linear infinite"><path d="M20 12a8 8 0 1 1-2.3-5.6"></path><path d="M20 4v5h-5"></path></svg><span style="font-size:15px;font-weight:600">The server closed the connection</span></div>
+<div style="font-size:13.5px;color:#9aa1a9;line-height:1.5">Reconnecting to <span style="font-family:'JetBrains Mono',monospace;font-size:12.5px;color:#c8ced4">web-01</span> in <span style="font-family:'JetBrains Mono',monospace;font-size:13px;color:#e0a33d;font-weight:600">4 s</span> — attempt 3 of 8. Scrollback is kept.</div>
+<div style="height:3px;border-radius:2px;background:#2a2e34;overflow:hidden"><div style="height:100%;width:38%;background:#e0a33d;border-radius:2px"></div></div>
+<div style="display:flex;align-items:center;gap:8px"><button type="button" style="appearance:none;border:none;background:#3bb6c4;color:#08181b;font:600 12.5px system-ui,sans-serif;padding:7px 15px;border-radius:6px;cursor:pointer" style-hover="background:#4fd0de">Reconnect now</button><button type="button" style="appearance:none;border:1px solid #3a4048;background:#23262b;color:#c8ced4;font:500 12.5px system-ui,sans-serif;padding:7px 14px;border-radius:6px;cursor:pointer" style-hover="color:#e6e8ea">Stop trying</button></div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ showOffline }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:40px;box-sizing:border-box">
+<div style="width:470px;max-width:100%;display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center">
+<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#8a929a" stroke-width="1.7" stroke-linecap="round"><path d="M2 6l20 14M5 12.5a11 11 0 0 1 4-2.4M2.5 8.8a15 15 0 0 1 5-3M16.5 10.6a11 11 0 0 1 2.5 1.9M12 19h.01"></path></svg>
+<div style="font-size:16px;font-weight:600">Your network is unreachable</div>
+<div style="font-size:13.5px;color:#9aa1a9;line-height:1.55;max-width:44ch;text-wrap:pretty">This is your machine, not <span style="font-family:'JetBrains Mono',monospace;font-size:12.5px;color:#c8ced4">web-01</span>. All 3 sessions are suspended and will resume automatically. Nothing has been disconnected yet.</div>
+<div style="display:flex;align-items:center;gap:8px;margin-top:2px"><button type="button" style="appearance:none;border:1px solid #3a4048;background:#23262b;color:#c8ced4;font:500 12.5px system-ui,sans-serif;padding:7px 14px;border-radius:6px;cursor:pointer" style-hover="color:#e6e8ea">Check again</button><button type="button" style="appearance:none;border:1px solid #3a4048;background:#23262b;color:#c8ced4;font:500 12.5px system-ui,sans-serif;padding:7px 14px;border-radius:6px;cursor:pointer" style-hover="color:#e6e8ea">Disconnect all</button></div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ showLockedOverlay }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:0;background:rgba(13,14,16,.72);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:40px;box-sizing:border-box">
+<div style="width:460px;max-width:100%;background:#1c1e22;border:1px solid #2a2e34;border-radius:10px;padding:24px 26px;display:flex;flex-direction:column;gap:15px;box-shadow:0 4px 12px rgba(0,0,0,.4)">
+<div style="display:flex;align-items:center;gap:10px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e0a33d" stroke-width="2" stroke-linecap="round"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg><span style="font-size:15px;font-weight:600">The vault locked after 15 minutes idle</span></div>
+<div style="font-size:13.5px;color:#9aa1a9;line-height:1.55;text-wrap:pretty">Your 3 sessions are still running — <span style="font-family:'JetBrains Mono',monospace;font-size:12.5px;color:#c8ced4">web-01</span> is still producing output. Input is frozen until you unlock. Nothing was disconnected.</div>
+<div style="background:#101114;border:1px solid #2a2e34;border-radius:6px;padding:11px 13px;display:flex;align-items:center;gap:10px"><span style="font-size:12.5px;color:#8a929a">Policy for this vault:</span><span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#e0a33d;background:rgba(224,163,61,.12);border-radius:3px;padding:2px 7px">freeze input</span><div style="flex:1"></div><a href="#" style="font-size:12px">Change</a></div>
+<div style="display:flex;flex-direction:column;gap:7px"><label style="font-size:12px;color:#9aa1a9">Master password</label><div style="display:flex;gap:8px"><div style="flex:1;height:32px;background:#101114;border:1px solid #3bb6c4;border-radius:6px;display:flex;align-items:center;padding:0 11px;font-family:'JetBrains Mono',monospace;font-size:13px;color:#8a929a;letter-spacing:.18em">••••••••••<span style="display:inline-block;width:7px;height:15px;background:#3bb6c4;margin-left:2px;animation:blink 1.1s step-end infinite"></span></div><button type="button" style="appearance:none;border:none;background:#3bb6c4;color:#08181b;font:600 12.5px system-ui,sans-serif;padding:0 18px;border-radius:6px;cursor:pointer" style-hover="background:#4fd0de">Unlock</button></div></div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ showBroadcastGrid }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:0;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:1px;background:#2a2e34">
+<div style="background:#101114;display:flex;flex-direction:column;min-height:0"><div style="height:22px;flex:none;display:flex;align-items:center;gap:6px;padding:0 9px;background:#16171a;border-bottom:1px solid #2a2e34"><span style="width:5px;height:5px;border-radius:3px;background:#4bb47b"></span><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#c8ced4">web-01</span><div style="flex:1"></div><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#f07b78;white-space:nowrap;flex:none">rx</span></div><div style="flex:1;padding:8px 10px;font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.5;color:#9aa1a9;overflow:hidden"><div><span style="color:#4bb47b">deploy@web-01</span>:<span style="color:#7f9df0">~</span>$ sudo systemctl restart nginx</div><div><span style="color:#4bb47b">deploy@web-01</span>:<span style="color:#7f9df0">~</span>$ <span style="display:inline-block;width:7px;height:13px;background:#3bb6c4;vertical-align:text-bottom;animation:blink 1.1s step-end infinite"></span></div></div></div>
+<div style="background:#101114;display:flex;flex-direction:column;min-height:0"><div style="height:22px;flex:none;display:flex;align-items:center;gap:6px;padding:0 9px;background:#16171a;border-bottom:1px solid #2a2e34"><span style="width:5px;height:5px;border-radius:3px;background:#4bb47b"></span><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#c8ced4">web-02</span><div style="flex:1"></div><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#f07b78;white-space:nowrap;flex:none">rx</span></div><div style="flex:1;padding:8px 10px;font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.5;color:#9aa1a9;overflow:hidden"><div><span style="color:#4bb47b">deploy@web-02</span>:<span style="color:#7f9df0">~</span>$ sudo systemctl restart nginx</div><div><span style="color:#4bb47b">deploy@web-02</span>:<span style="color:#7f9df0">~</span>$ <span style="display:inline-block;width:7px;height:13px;background:#3bb6c4;vertical-align:text-bottom;animation:blink 1.1s step-end infinite"></span></div></div></div>
+<div style="background:#101114;display:flex;flex-direction:column;min-height:0"><div style="height:22px;flex:none;display:flex;align-items:center;gap:6px;padding:0 9px;background:#16171a;border-bottom:1px solid #2a2e34"><span style="width:5px;height:5px;border-radius:3px;background:#4bb47b"></span><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#c8ced4">web-03</span><div style="flex:1"></div><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#f07b78;white-space:nowrap;flex:none">rx</span></div><div style="flex:1;padding:8px 10px;font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.5;color:#9aa1a9;overflow:hidden"><div><span style="color:#4bb47b">deploy@web-03</span>:<span style="color:#7f9df0">~</span>$ sudo systemctl restart nginx</div><div style="color:#f07b78">Job for nginx.service failed. See "systemctl status nginx".</div><div><span style="color:#4bb47b">deploy@web-03</span>:<span style="color:#7f9df0">~</span>$ <span style="display:inline-block;width:7px;height:13px;background:#3bb6c4;vertical-align:text-bottom;animation:blink 1.1s step-end infinite"></span></div></div></div>
+<div style="background:#101114;display:flex;flex-direction:column;min-height:0"><div style="height:22px;flex:none;display:flex;align-items:center;gap:6px;padding:0 9px;background:#16171a;border-bottom:1px solid #2a2e34"><span style="width:5px;height:5px;border-radius:3px;background:#4bb47b"></span><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#c8ced4">web-04</span><div style="flex:1"></div><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#f07b78;white-space:nowrap;flex:none">rx</span></div><div style="flex:1;padding:8px 10px;font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.5;color:#9aa1a9;overflow:hidden"><div><span style="color:#4bb47b">deploy@web-04</span>:<span style="color:#7f9df0">~</span>$ sudo systemctl restart nginx</div><div><span style="color:#4bb47b">deploy@web-04</span>:<span style="color:#7f9df0">~</span>$ <span style="display:inline-block;width:7px;height:13px;background:#3bb6c4;vertical-align:text-bottom;animation:blink 1.1s step-end infinite"></span></div></div></div>
+</div>
+</sc-if>
+
+<sc-if value="{{ showEmpty }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:40px;box-sizing:border-box">
+<div style="width:560px;max-width:100%;display:flex;flex-direction:column;gap:22px">
+<div style="display:flex;flex-direction:column;gap:8px"><div style="font-size:20px;font-weight:600;letter-spacing:-0.015em">This vault is empty</div><div style="font-size:14px;color:#9aa1a9;line-height:1.55;text-wrap:pretty">Nothing is stored in <span style="font-family:'JetBrains Mono',monospace;font-size:13px;color:#c8ced4">acme-production.rvault</span> yet. Most people start by bringing across what they already have.</div></div>
+<div style="display:flex;flex-direction:column;gap:8px">
+<button type="button" style="display:flex;align-items:center;gap:13px;text-align:left;background:#1c1e22;border:1px solid #3bb6c4;border-radius:8px;padding:14px 16px;cursor:pointer;color:inherit;font:inherit" style-hover="background:#23262b">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3bb6c4" stroke-width="1.9" stroke-linecap="round" style="flex:none"><path d="M12 3v11M8 10l4 4 4-4"></path><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"></path></svg>
+<span style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13.5px;font-weight:600">Import from another tool</span><span style="font-size:12.5px;color:#9aa1a9">mRemoteNG, Royal TS, PuTTY, <span style="font-family:'JetBrains Mono',monospace;font-size:11.5px">~/.ssh/config</span>, CSV</span></span>
+<div style="flex:1"></div><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8a929a" stroke-width="2" stroke-linecap="round"><path d="M9 5l7 7-7 7"></path></svg></button>
+<button type="button" style="display:flex;align-items:center;gap:13px;text-align:left;background:#1c1e22;border:1px solid #2a2e34;border-radius:8px;padding:14px 16px;cursor:pointer;color:inherit;font:inherit" style-hover="border-color:#3a4048;background:#23262b">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9aa1a9" stroke-width="1.9" stroke-linecap="round" style="flex:none"><path d="M12 6v12M6 12h12"></path></svg>
+<span style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13.5px;font-weight:600">Create the first connection</span><span style="font-size:12.5px;color:#9aa1a9">Or just connect once from the address bar and keep it afterwards</span></span>
+<div style="flex:1"></div><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8a929a" stroke-width="2" stroke-linecap="round"><path d="M9 5l7 7-7 7"></path></svg></button>
+<button type="button" style="display:flex;align-items:center;gap:13px;text-align:left;background:#1c1e22;border:1px solid #2a2e34;border-radius:8px;padding:14px 16px;cursor:pointer;color:inherit;font:inherit" style-hover="border-color:#3a4048;background:#23262b">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9aa1a9" stroke-width="1.9" stroke-linejoin="round" style="flex:none"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
+<span style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13.5px;font-weight:600">Open a different vault</span><span style="font-size:12.5px;color:#9aa1a9">2 recent vaults on this machine</span></span>
+<div style="flex:1"></div><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8a929a" stroke-width="2" stroke-linecap="round"><path d="M9 5l7 7-7 7"></path></svg></button>
+</div>
+<div style="font-size:12.5px;color:#8a929a;font-family:'JetBrains Mono',monospace">Quick connect: ssh://root@10.0.0.5:2222</div>
+</div>
+</div>
+</sc-if>
+
+</div>
+
+<div style="height:28px;flex:none;display:flex;align-items:center;gap:14px;padding:0 14px;background:#1c1e22;border-top:1px solid #2a2e34;font-size:12px;color:#9aa1a9">
+<div style="display:flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:4px;background:#4bb47b"></span><span style="color:#c8ced4;font-weight:500">Connected</span></div>
+<span style="color:#2a2e34">·</span><span style="font-family:'JetBrains Mono',monospace;font-size:11.5px">10.0.4.12:22</span>
+<span style="color:#2a2e34">·</span><span style="font-family:'JetBrains Mono',monospace;font-size:11.5px">14 ms</span>
+<span style="display:flex;align-items:end;gap:1.5px;height:11px"><span style="width:2px;height:40%;background:#3a4048"></span><span style="width:2px;height:55%;background:#3a4048"></span><span style="width:2px;height:35%;background:#3a4048"></span><span style="width:2px;height:70%;background:#3a4048"></span><span style="width:2px;height:45%;background:#4bb47b"></span><span style="width:2px;height:50%;background:#4bb47b"></span><span style="width:2px;height:38%;background:#4bb47b"></span></span>
+<span style="color:#2a2e34">·</span><span style="font-family:'JetBrains Mono',monospace;font-size:11.5px">↓ 2.1 MB  ↑ 340 KB</span>
+<span style="color:#2a2e34">·</span><span style="font-family:'JetBrains Mono',monospace;font-size:11.5px">80×24</span>
+<div style="flex:1"></div>
+<div style="display:flex;align-items:center;gap:5px;color:#f07b78"><svg width="9" height="9" viewBox="0 0 24 24" fill="#e05252"><circle cx="12" cy="12" r="8"></circle></svg><span style="font-size:11.5px;font-weight:500">Recording · 06:14</span></div>
+<span style="color:#2a2e34">·</span>
+<div style="display:flex;align-items:center;gap:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#4bb47b" stroke-width="2" stroke-linecap="round"><path d="M4 12h6M14 12h6"></path><circle cx="12" cy="12" r="2"></circle></svg><span style="font-size:11.5px">Host key verified</span></div>
+</div>
+</div>
+
+<sc-if value="{{ inspectorOpen }}" hint-placeholder-val="{{ false }}">
+<div style="width:320px;flex:none;background:#1c1e22;border-left:1px solid #2a2e34;display:flex;flex-direction:column;min-height:0">
+<div style="height:36px;flex:none;display:flex;align-items:center;gap:8px;padding:0 6px 0 14px;border-bottom:1px solid #2a2e34"><span style="font-size:12.5px;font-weight:600">web-01</span><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#8a929a;border:1px solid #2a2e34;border-radius:3px;padding:1px 5px;white-space:nowrap;flex:none">ssh</span><div style="flex:1"></div><button type="button" onClick="{{ toggleInspector }}" style="width:24px;height:24px;border:none;background:transparent;border-radius:5px;display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="background:#23262b"><svg width="13" height="13" viewBox="0 0 24 24" stroke="#9aa1a9" stroke-width="2" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"></path></svg></button></div>
+<div style="flex:1;min-height:0;overflow:auto;padding:14px 14px 20px;display:flex;flex-direction:column;gap:18px">
+<div style="display:flex;flex-direction:column;gap:9px">
+<div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#8a929a;white-space:nowrap;flex:none">Effective values</div>
+<div style="display:flex;flex-direction:column;gap:3px"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px"><span style="font-size:12px;color:#9aa1a9">Host</span><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#e6e8ea">web-01.eu-west.acme</span></div><div style="display:flex;align-items:center;gap:5px"><span style="width:5px;height:5px;border-radius:3px;background:#3bb6c4"></span><span style="font-size:10.5px;color:#8a929a">set here</span></div></div>
+<div style="display:flex;flex-direction:column;gap:3px"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px"><span style="font-size:12px;color:#9aa1a9">Username</span><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#e6e8ea">svc-deploy</span></div><div style="display:flex;align-items:center;gap:5px"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#e0a33d" stroke-width="2" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg><span style="font-size:10.5px;color:#8a929a">from Datacentre EU-West</span></div></div>
+<div style="display:flex;flex-direction:column;gap:3px"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px"><span style="font-size:12px;color:#9aa1a9">Port</span><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#e6e8ea">2222</span></div><div style="display:flex;align-items:center;gap:5px"><span style="width:5px;height:5px;border-radius:3px;background:#3bb6c4"></span><span style="font-size:10.5px;color:#8a929a">overrides inherited 22</span></div></div>
+<div style="display:flex;flex-direction:column;gap:3px"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px"><span style="font-size:12px;color:#9aa1a9">Gateway</span><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#e6e8ea">bastion.acme.io</span></div><div style="display:flex;align-items:center;gap:5px"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#e0a33d" stroke-width="2" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg><span style="font-size:10.5px;color:#8a929a">from Datacentre EU-West</span></div></div>
+</div>
+<div style="display:flex;flex-direction:column;gap:9px">
+<div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#8a929a;white-space:nowrap;flex:none">This session</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+<div style="background:#16171a;border:1px solid #2a2e34;border-radius:6px;padding:9px 11px"><div style="font-size:10.5px;color:#8a929a">Uptime</div><div style="font-family:'JetBrains Mono',monospace;font-size:14px;color:#e6e8ea;margin-top:2px">1d 6h</div></div>
+<div style="background:#16171a;border:1px solid #2a2e34;border-radius:6px;padding:9px 11px"><div style="font-size:10.5px;color:#8a929a">Latency</div><div style="font-family:'JetBrains Mono',monospace;font-size:14px;color:#4bb47b;margin-top:2px">14 ms</div></div>
+<div style="background:#16171a;border:1px solid #2a2e34;border-radius:6px;padding:9px 11px"><div style="font-size:10.5px;color:#8a929a">Received</div><div style="font-family:'JetBrains Mono',monospace;font-size:14px;color:#e6e8ea;margin-top:2px">2.1 MB</div></div>
+<div style="background:#16171a;border:1px solid #2a2e34;border-radius:6px;padding:9px 11px"><div style="font-size:10.5px;color:#8a929a">Sent</div><div style="font-family:'JetBrains Mono',monospace;font-size:14px;color:#e6e8ea;margin-top:2px">340 KB</div></div>
+</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:9px">
+<div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#8a929a;white-space:nowrap;flex:none">Host key</div>
+<div style="background:#16171a;border:1px solid #2a2e34;border-radius:6px;padding:11px 12px;display:flex;flex-direction:column;gap:6px">
+<div style="display:flex;align-items:center;gap:6px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#4bb47b" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"></path></svg><span style="font-size:11.5px;color:#4bb47b">Verified by you · 12 Mar 2026</span></div>
+<div style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#9aa1a9;word-break:break-all;line-height:1.5">SHA256:9c8Fq2K1mZ7pRt4vXbN0eLdJhY3sWgA6uC5oP8iT2xE</div>
+</div></div>
+<div style="display:flex;flex-direction:column;gap:9px">
+<div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#8a929a;white-space:nowrap;flex:none">Tags</div>
+<div style="display:flex;flex-wrap:wrap;gap:5px"><span style="font-size:11px;background:rgba(127,157,240,.14);color:#8fa0f5;border-radius:4px;padding:3px 8px">eu-west</span><span style="font-size:11px;background:rgba(75,180,123,.13);color:#4bb47b;border-radius:4px;padding:3px 8px">web</span><span style="font-size:11px;background:rgba(224,163,61,.13);color:#e0a33d;border-radius:4px;padding:3px 8px">needs-patching</span></div>
+</div>
+</div>
+</div>
+</sc-if>
+
+</div>
+
+<div style="height:26px;flex:none;display:flex;align-items:center;gap:12px;padding:0 14px;background:#101114;border-top:1px solid #2a2e34;font-size:11.5px;color:#8a929a">
+<span><span style="color:#9aa1a9;font-family:'JetBrains Mono',monospace">3</span> sessions</span>
+<span style="color:#2a2e34">·</span>
+<span><span style="color:#9aa1a9;font-family:'JetBrains Mono',monospace">2</span> tunnels</span>
+<span style="color:#2a2e34">·</span>
+<span>vault locks in <span style="color:#e0a33d;font-family:'JetBrains Mono',monospace">12:04</span></span>
+<div style="flex:1"></div>
+<span style="font-family:'JetBrains Mono',monospace">Ctrl+Alt</span><span>prefix active in terminal</span>
+</div>
+
+<sc-if value="{{ showHostKey }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:0;background:rgba(13,14,16,.7);backdrop-filter:blur(2px);display:flex;align-items:center;justify-content:center;padding:40px;box-sizing:border-box;z-index:20">
+<div style="width:620px;max-width:100%;background:#1c1e22;border:1px solid #e05252;border-radius:10px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.5)">
+<div style="background:#e05252;color:#fff;padding:12px 20px;display:flex;align-items:center;gap:10px">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5L22 20H2z"></path><path d="M12 10v4M12 17h.01"></path></svg>
+<span style="font-size:14.5px;font-weight:600">The host key for db-01 has changed</span></div>
+<div style="padding:20px;display:flex;flex-direction:column;gap:16px">
+<div style="font-size:13.5px;color:#c8ced4;line-height:1.6;text-wrap:pretty">Someone may be intercepting this connection. The alternative is that the server was rebuilt and nobody told you. <strong style="color:#e6e8ea;font-weight:600">Remoter will not connect until you decide which it is.</strong></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+<div style="background:#101114;border:1px solid #2a2e34;border-radius:7px;padding:13px 14px;display:flex;flex-direction:column;gap:8px"><div style="display:flex;align-items:center;gap:6px"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#4bb47b" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"></path></svg><span style="font-size:11px;font-weight:600;color:#4bb47b;letter-spacing:.04em;text-transform:uppercase">Key you trusted</span></div><div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#9aa1a9;word-break:break-all;line-height:1.5">SHA256:4tRw9Kp2LmX7bQ0vZnE5cJdHy3sGaF6uT8iO1xP2wM</div><div style="font-size:11px;color:#8a929a">Verified 12 Mar 2026 · ed25519</div></div>
+<div style="background:rgba(224,82,82,.07);border:1px solid rgba(224,82,82,.4);border-radius:7px;padding:13px 14px;display:flex;flex-direction:column;gap:8px"><div style="display:flex;align-items:center;gap:6px"><svg width="11" height="11" viewBox="0 0 24 24" stroke="#e05252" stroke-width="3" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"></path></svg><span style="font-size:11px;font-weight:600;color:#f07b78;letter-spacing:.04em;text-transform:uppercase">Key offered now</span></div><div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#e6e8ea;word-break:break-all;line-height:1.5">SHA256:8bNc3Xv1QmL6pRt0wZkE9jYdH2sGaF7uT4iO5xP1qA</div><div style="font-size:11px;color:#9aa1a9">First seen 10 Sep 2026 · ed25519</div></div>
+</div>
+<div style="background:#101114;border:1px solid #2a2e34;border-radius:6px;padding:11px 13px;display:flex;gap:16px;align-items:center">
+<pre style="margin:0;font-family:'JetBrains Mono',monospace;font-size:9px;line-height:1.15;color:#8a929a">+--[ED25519 256]--+
+|      .o+=*B     |
+|     . +o.=.o    |
+|    o . o.o .    |
+|   . = .E+       |
+|    o o S=o      |
+|     . ..+o      |
++----[SHA256]-----+</pre>
+<div style="font-size:12px;color:#9aa1a9;line-height:1.5;text-wrap:pretty">Compare the randomart with what the server prints locally. If you cannot check it out of band, do not continue.</div>
+</div>
+<div style="display:flex;align-items:center;gap:8px;padding-top:2px">
+<button type="button" style="appearance:none;border:none;background:#3bb6c4;color:#08181b;font:600 13px system-ui,sans-serif;padding:9px 18px;border-radius:6px;cursor:pointer" style-hover="background:#4fd0de">Do not connect</button>
+<button type="button" style="appearance:none;border:1px solid #3a4048;background:#23262b;color:#c8ced4;font:500 12.5px system-ui,sans-serif;padding:9px 15px;border-radius:6px;cursor:pointer" style-hover="color:#e6e8ea">Show me the audit entry</button>
+<div style="flex:1"></div>
+<button type="button" style="appearance:none;border:1px solid rgba(224,82,82,.5);background:transparent;color:#f07b78;font:500 12.5px system-ui,sans-serif;padding:9px 15px;border-radius:6px;cursor:pointer" style-hover="background:rgba(224,82,82,.12)">Replace the key and connect</button>
+</div>
+<div style="font-size:11.5px;color:#8a929a;display:flex;align-items:center;gap:6px"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#8a929a" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5M12 16h.01"></path></svg>Whichever you choose is written to the audit log.</div>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ showPalette }}" hint-placeholder-val="{{ false }}">
+<div onClick="{{ closePalette }}" style="position:absolute;inset:0;background:rgba(13,14,16,.6);display:flex;align-items:flex-start;justify-content:center;padding-top:120px;box-sizing:border-box;z-index:25">
+<div style="width:640px;max-width:100%;background:#23262b;border:1px solid #3a4048;border-radius:10px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.5)">
+<div style="display:flex;align-items:center;gap:10px;padding:0 14px;height:46px;border-bottom:1px solid #2a2e34">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8a929a" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+<span style="font-family:'JetBrains Mono',monospace;font-size:14px;color:#e6e8ea">tag:production db<span style="display:inline-block;width:8px;height:16px;background:#3bb6c4;vertical-align:text-bottom;margin-left:1px;animation:blink 1.1s step-end infinite"></span></span>
+<div style="flex:1"></div><span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#8a929a">4 of 218</span></div>
+<div style="padding:6px 0">
+<div style="padding:3px 14px;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#8a929a;white-space:nowrap;flex:none">Connections</div>
+<div style="display:flex;align-items:center;gap:10px;padding:7px 14px;background:rgba(59,182,196,.13);border-left:2px solid #3bb6c4;cursor:pointer">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4fd0de" stroke-width="1.9" stroke-linecap="round" style="flex:none"><path d="M4 8l4 4-4 4"></path><path d="M12 16h8"></path></svg>
+<span style="font-size:13.5px;color:#e6e8ea"><span style="color:#3bb6c4;font-weight:600">db</span>-01</span>
+<span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#8a929a">svc-deploy@db-01.internal:5432</span>
+<span style="font-size:10.5px;background:rgba(224,82,82,.14);color:#f07b78;border-radius:3px;padding:1px 6px;font-family:'JetBrains Mono',monospace">production</span>
+<div style="flex:1"></div><span style="font-size:11px;color:#8a929a">Datacentre EU-West / DB tier</span><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#8a929a;border:1px solid #3a4048;border-radius:3px;padding:1px 5px;white-space:nowrap;flex:none">↵</span></div>
+<div style="display:flex;align-items:center;gap:10px;padding:7px 14px;cursor:pointer" style-hover="background:#2a2e34">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8fa0f5" stroke-width="1.8" style="flex:none"><rect x="3" y="5" width="18" height="12" rx="1.6"></rect><path d="M9 21h6M12 17v4" stroke-linecap="round"></path></svg>
+<span style="font-size:13.5px;color:#c8ced4"><span style="color:#3bb6c4;font-weight:600">db</span>-02 (console)</span>
+<span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#8a929a">admin@10.0.4.31</span>
+<span style="font-size:10.5px;background:rgba(224,82,82,.14);color:#f07b78;border-radius:3px;padding:1px 6px;font-family:'JetBrains Mono',monospace">production</span>
+<div style="flex:1"></div><span style="font-size:11px;color:#8a929a">2 days ago</span></div>
+<div style="display:flex;align-items:center;gap:10px;padding:7px 14px;cursor:pointer" style-hover="background:#2a2e34">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4bb47b" stroke-width="1.9" stroke-linecap="round" style="flex:none"><path d="M4 8h11l-3-3M20 16H9l3 3"></path></svg>
+<span style="font-size:13.5px;color:#c8ced4"><span style="color:#3bb6c4;font-weight:600">db</span>-backup-files</span>
+<span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#8a929a">sftp://backup@10.0.4.40</span>
+<span style="font-size:10.5px;background:rgba(224,82,82,.14);color:#f07b78;border-radius:3px;padding:1px 6px;font-family:'JetBrains Mono',monospace">production</span>
+<div style="flex:1"></div><span style="font-size:11px;color:#8a929a">last week</span></div>
+<div style="height:1px;background:#2a2e34;margin:6px 0"></div>
+<div style="padding:3px 14px;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#8a929a;white-space:nowrap;flex:none">Actions</div>
+<div style="display:flex;align-items:center;gap:10px;padding:7px 14px;cursor:pointer" style-hover="background:#2a2e34">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9aa1a9" stroke-width="1.9" stroke-linecap="round" style="flex:none"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>
+<span style="font-size:13.5px;color:#c8ced4">Lock vault</span><div style="flex:1"></div><span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#8a929a">Ctrl L</span></div>
+</div>
+<div style="border-top:1px solid #2a2e34;padding:7px 14px;display:flex;align-items:center;gap:16px;font-size:11px;color:#8a929a"><span><span style="font-family:'JetBrains Mono',monospace;color:#8a929a">↵</span> connect</span><span><span style="font-family:'JetBrains Mono',monospace;color:#8a929a">Ctrl ↵</span> edit</span><span><span style="font-family:'JetBrains Mono',monospace;color:#8a929a">tag:</span> <span style="font-family:'JetBrains Mono',monospace;color:#8a929a">proto:</span> <span style="font-family:'JetBrains Mono',monospace;color:#8a929a">host:</span> <span style="font-family:'JetBrains Mono',monospace;color:#8a929a">user:</span> filter</span><div style="flex:1"></div><span>Secrets are never searched</span></div>
+</div>
+</div>
+</sc-if>
+
+</div>
+
+<div style="width:1440px;max-width:100%;display:flex;flex-wrap:wrap;gap:10px">
+<div style="flex:1;min-width:260px;background:#131417;border:1px solid #23262b;border-radius:8px;padding:13px 15px;display:flex;flex-direction:column;gap:5px"><div style="font-size:12px;font-weight:600;color:#c8ced4">Try it</div><div style="font-size:12px;color:#8a929a;line-height:1.5">Click any connection in the tree to select it, click a tab to switch session, and use the State row above to walk the eight designed states. The inspector toggles from the button at the right of the tab strip.</div></div>
+<div style="flex:1;min-width:260px;background:#131417;border:1px solid #23262b;border-radius:8px;padding:13px 15px;display:flex;flex-direction:column;gap:5px"><div style="font-size:12px;font-weight:600;color:#c8ced4">Chrome budget</div><div style="font-size:12px;color:#8a929a;line-height:1.5">38 title + 36 tabs + 28 status + 26 footer vertically, 268 sidebar horizontally. With the inspector closed the session keeps 1172 × 772 of a 1440 × 900 window.</div></div>
+<div style="flex:1;min-width:260px;background:#131417;border:1px solid #23262b;border-radius:8px;padding:13px 15px;display:flex;flex-direction:column;gap:5px"><div style="font-size:12px;font-weight:600;color:#c8ced4">Not drawn</div><div style="font-size:12px;color:#8a929a;line-height:1.5">Drag-and-drop drop indicators, the move-diff confirmation, tab detach, split view, and the context menus. Say which of those you want next.</div></div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1500,&quot;height&quot;:1060},&quot;startState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;session&quot;,&quot;connecting&quot;,&quot;failed&quot;,&quot;reconnecting&quot;,&quot;offline&quot;,&quot;locked&quot;,&quot;hostkey&quot;,&quot;broadcast&quot;,&quot;empty&quot;,&quot;palette&quot;],&quot;default&quot;:&quot;session&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Prototype&quot;},&quot;inspectorOpen&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Prototype&quot;}}">
+class Component extends DCLogic {
+  state = { view: 'session', tab: 0, inspector: false, selTop: null, sidebar: true };
+
+  componentDidMount() {
+    const p = this.props;
+    const next = {};
+    if (p.startState) next.view = p.startState;
+    if (p.inspectorOpen) next.inspector = true;
+    if (Object.keys(next).length) this.setState(next);
+    this._key = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        this.setState(s => ({ view: s.view === 'palette' ? 'session' : 'palette' }));
+      } else if (e.key === 'Escape') {
+        this.setState(s => (s.view === 'palette' ? { view: 'session' } : null));
+      }
+    };
+    window.addEventListener('keydown', this._key);
+  }
+  componentWillUnmount() { window.removeEventListener('keydown', this._key); }
+
+  renderVals() {
+    const v = this.state.view;
+    const tab = this.state.tab;
+    const tabBase = 'position:relative;display:flex;align-items:center;gap:8px;padding:0 12px;cursor:pointer;border-right:1px solid #2a2e34;max-width:210px;';
+    const on = 'background:#16171a;box-shadow:inset 0 2px 0 #3bb6c4;color:#e6e8ea;';
+    const off = 'background:transparent;color:#9aa1a9;';
+    const busy = v === 'connecting' || v === 'failed' || v === 'reconnecting' || v === 'offline';
+    return {
+      vaultUnlocked: v !== 'locked',
+      vaultLocked: v === 'locked',
+      broadcastOn: v === 'broadcast',
+      showTerminal: (v === 'session' || v === 'locked' || v === 'hostkey' || v === 'palette') && tab !== 2,
+      showFramebuffer: (v === 'session' || v === 'hostkey' || v === 'palette') && tab === 2,
+      showConnecting: v === 'connecting',
+      showFailed: v === 'failed',
+      showReconnecting: v === 'reconnecting',
+      showOffline: v === 'offline',
+      showLockedOverlay: v === 'locked',
+      showBroadcastGrid: v === 'broadcast',
+      showEmpty: v === 'empty',
+      showHostKey: v === 'hostkey',
+      showPalette: v === 'palette',
+      inspectorOpen: this.state.inspector,
+      busy,
+      tab0Style: tabBase + (tab === 0 ? on : off),
+      tab1Style: tabBase + (tab === 1 ? on : off),
+      tab2Style: tabBase + (tab === 2 ? on : off),
+      selBarStyle: this.state.selTop == null
+        ? 'position:absolute;left:6px;right:6px;height:26px;border-radius:5px;background:rgba(59,182,196,.13);border-left:2px solid #3bb6c4;box-sizing:border-box;pointer-events:none;transition:top 140ms ease;opacity:0'
+        : 'position:absolute;left:6px;right:6px;height:26px;border-radius:5px;background:rgba(59,182,196,.13);border-left:2px solid #3bb6c4;box-sizing:border-box;pointer-events:none;transition:top 140ms ease;top:' + this.state.selTop + 'px',
+      onTreeClick: (e) => {
+        const row = e.target.closest && e.target.closest('[data-node]');
+        if (!row) return;
+        const next = { selTop: row.offsetTop };
+        const t = row.getAttribute('data-tab');
+        if (t != null) { next.tab = Number(t); next.view = 'session'; }
+        this.setState(next);
+      },
+      onTabClick: (e) => {
+        const t = e.target.closest && e.target.closest('[data-tab]');
+        if (!t) return;
+        this.setState({ tab: Number(t.getAttribute('data-tab')) });
+      },
+      onStateBar: (e) => {
+        const b = e.target.closest && e.target.closest('[data-view]');
+        if (!b) return;
+        this.setState({ view: b.getAttribute('data-view') });
+      },
+      openPalette: () => this.setState({ view: 'palette' }),
+      closePalette: () => this.setState({ view: 'session' }),
+      toggleInspector: () => this.setState(s => ({ inspector: !s.inspector })),
+      toggleSidebar: () => this.setState(s => ({ sidebar: !s.sidebar }))
+    };
+  }
+}
+</script>
+</body>
+</html>

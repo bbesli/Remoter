@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"><style>html,body{margin:0;padding:0;background:#0d0e10}a{color:#3bb6c4;text-decoration:none}a:hover{color:#4fd0de}</style></helmet>
+<div style="min-height:100vh;background:#0d0e10;padding:28px 24px 64px;box-sizing:border-box;font-family:system-ui,-apple-system,'Segoe UI',Roboto,'Noto Sans',sans-serif;display:flex;flex-direction:column;align-items:flex-start;gap:18px">
+
+<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+<span style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#8a929a">05 · Import wizard</span>
+<div style="display:flex;gap:6px;flex-wrap:wrap" onClick="{{ onBar }}">
+<button type="button" data-step="2" style="appearance:none;border:1px solid #2a2e34;background:#1c1e22;color:#9aa1a9;font:500 12px system-ui,sans-serif;padding:5px 10px;border-radius:6px;cursor:pointer" style-hover="border-color:#3bb6c4;color:#e6e8ea">2 · Secrets</button>
+<button type="button" data-step="4" style="appearance:none;border:1px solid #2a2e34;background:#1c1e22;color:#9aa1a9;font:500 12px system-ui,sans-serif;padding:5px 10px;border-radius:6px;cursor:pointer" style-hover="border-color:#3bb6c4;color:#e6e8ea">4 · Preview</button>
+<button type="button" data-step="5" style="appearance:none;border:1px solid #2a2e34;background:#1c1e22;color:#9aa1a9;font:500 12px system-ui,sans-serif;padding:5px 10px;border-radius:6px;cursor:pointer" style-hover="border-color:#3bb6c4;color:#e6e8ea">5 · Conflicts</button>
+<button type="button" data-step="8" style="appearance:none;border:1px solid #2a2e34;background:#1c1e22;color:#9aa1a9;font:500 12px system-ui,sans-serif;padding:5px 10px;border-radius:6px;cursor:pointer" style-hover="border-color:#3bb6c4;color:#e6e8ea">8 · Report</button>
+</div>
+</div>
+
+<div style="width:1060px;flex:none;height:740px;background:#16171a;border:1px solid #2a2e34;border-radius:10px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.55);display:flex;flex-direction:column;color:#e6e8ea;font-size:14px">
+
+<div style="height:44px;flex:none;display:flex;align-items:center;gap:10px;padding:0 8px 0 18px;background:#1c1e22;border-bottom:1px solid #2a2e34">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#3bb6c4" stroke-width="1.9" stroke-linecap="round"><path d="M12 3v11M8 10l4 4 4-4"></path><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"></path></svg>
+<span style="font-size:14px;font-weight:600">Import into Acme Production</span>
+<div style="flex:1"></div>
+<button type="button" style="width:28px;height:28px;border:none;background:transparent;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0" style-hover="background:#23262b"><svg width="14" height="14" viewBox="0 0 24 24" stroke="#9aa1a9" stroke-width="2" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"></path></svg></button>
+</div>
+
+<div style="height:52px;flex:none;display:flex;align-items:center;gap:0;padding:0 18px;background:#131417;border-bottom:1px solid #2a2e34;overflow:hidden">
+<div style="{{ s1 }}"><span style="{{ n1 }}">1</span>Source</div><div style="{{ c1 }}"></div>
+<div style="{{ s2 }}"><span style="{{ n2 }}">2</span>Secrets</div><div style="{{ c2 }}"></div>
+<div style="{{ s3 }}"><span style="{{ n3 }}">3</span>Parse</div><div style="{{ c3 }}"></div>
+<div style="{{ s4 }}"><span style="{{ n4 }}">4</span>Preview</div><div style="{{ c4 }}"></div>
+<div style="{{ s5 }}"><span style="{{ n5 }}">5</span>Conflicts</div><div style="{{ c5 }}"></div>
+<div style="{{ s6 }}"><span style="{{ n6 }}">6</span>Destination</div><div style="{{ c6 }}"></div>
+<div style="{{ s7 }}"><span style="{{ n7 }}">7</span>Commit</div><div style="{{ c7 }}"></div>
+<div style="{{ s8 }}"><span style="{{ n8 }}">8</span>Report</div>
+</div>
+
+<div style="flex:1;min-height:0;overflow:auto;padding:26px 30px">
+
+<sc-if value="{{ isStep2 }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;flex-direction:column;gap:22px;max-width:680px">
+<div style="display:flex;flex-direction:column;gap:6px">
+<h2 style="margin:0;font-size:18px;font-weight:600;letter-spacing:-0.01em">The file is encrypted</h2>
+<p style="margin:0;font-size:13.5px;color:#9aa1a9;line-height:1.55;text-wrap:pretty">Remoter needs the document password to read the credentials inside. Everything happens in a sandboxed parser; nothing is written to your vault until step 7.</p>
+</div>
+
+<div style="background:#1c1e22;border:1px solid #2a2e34;border-radius:9px;padding:18px 20px;display:flex;flex-direction:column;gap:16px">
+<div style="display:flex;align-items:center;gap:12px;padding-bottom:14px;border-bottom:1px solid #2a2e34">
+<div style="width:34px;height:34px;border-radius:8px;background:#23262b;display:flex;align-items:center;justify-content:center;flex:none"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#9aa1a9" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v5h5"></path><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path></svg></div>
+<div style="display:flex;flex-direction:column;gap:2px;min-width:0">
+<div style="font-family:'JetBrains Mono',monospace;font-size:13px">confCons.xml</div>
+<div style="font-size:11.5px;color:#8a929a">2.4 MB · modified 14 Aug 2026 · <span style="color:#c8ced4">mRemoteNG 1.77</span>, detected from the file</div></div>
+<div style="flex:1"></div>
+<button type="button" style="appearance:none;border:1px solid #2a2e34;background:#23262b;color:#9aa1a9;font:500 11.5px system-ui,sans-serif;padding:5px 11px;border-radius:5px;cursor:pointer;flex:none" style-hover="color:#e6e8ea">Not this? Choose source</button></div>
+
+<div style="display:flex;flex-direction:column;gap:8px">
+<label style="font-size:12.5px;color:#9aa1a9">Document password</label>
+<div style="height:34px;background:#101114;border:1px solid #3bb6c4;border-radius:6px;display:flex;align-items:center;gap:8px;padding:0 6px 0 11px;max-width:340px">
+<span style="flex:1;font-family:'JetBrains Mono',monospace;font-size:14px;color:#c8ced4;letter-spacing:.2em">••••••••</span>
+<button type="button" style="width:24px;height:24px;border:none;background:transparent;border-radius:5px;display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="background:#23262b"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8a929a" stroke-width="1.8"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6z"></path><circle cx="12" cy="12" r="2.6"></circle></svg></button></div>
+</div>
+
+<div style="background:rgba(224,82,82,.06);border:1px solid rgba(224,82,82,.35);border-radius:7px;padding:13px 15px;display:flex;gap:11px;align-items:flex-start">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e05252" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:1px"><path d="M12 3.5L22 20H2z"></path><path d="M12 10v4M12 17h.01"></path></svg>
+<div style="display:flex;flex-direction:column;gap:5px">
+<div style="font-size:13px;font-weight:600">This file uses legacy AES-CBC with an MD5-derived key</div>
+<div style="font-size:12.5px;color:#c8ced4;line-height:1.55;text-wrap:pretty">Remoter can read it. You should know that anyone who has had a copy of this file could have read it too, without much effort. Consider the credentials inside it exposed and rotate them after the import.</div>
+<div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#9aa1a9;margin-top:2px">BlockCipherMode="CBC" · KdfIterations=1000</div>
+</div></div>
+
+<div style="display:flex;flex-direction:column;gap:9px">
+<div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#8a929a">Also found alongside</div>
+<div style="display:flex;align-items:center;gap:10px"><span style="width:15px;height:15px;border-radius:4px;background:#3bb6c4;display:flex;align-items:center;justify-content:center;flex:none"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#08181b" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"></path></svg></span><span style="font-size:13px">4 PuTTY private keys</span><span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#8a929a">.ppk v2 · one is passphrase-protected</span></div>
+<div style="display:flex;align-items:center;gap:10px"><span style="width:15px;height:15px;border-radius:4px;background:#3bb6c4;display:flex;align-items:center;justify-content:center;flex:none"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#08181b" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"></path></svg></span><span style="font-size:13px">known_hosts</span><span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#8a929a">312 entries · marked accepted_by: import</span></div>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isStep4 }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:18px">
+<div style="display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap">
+<div style="display:flex;flex-direction:column;gap:5px">
+<h2 style="margin:0;font-size:18px;font-weight:600;letter-spacing:-0.01em">This is what you will get</h2>
+<p style="margin:0;font-size:13.5px;color:#9aa1a9">Nothing has been written yet. Untick anything you do not want.</p></div>
+<div style="flex:1"></div>
+<div style="display:flex;gap:20px">
+<div style="display:flex;flex-direction:column;gap:2px"><span style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:600;color:#e6e8ea">412</span><span style="font-size:11px;color:#8a929a">connections</span></div>
+<div style="display:flex;flex-direction:column;gap:2px"><span style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:600;color:#e6e8ea">38</span><span style="font-size:11px;color:#8a929a">folders</span></div>
+<div style="display:flex;flex-direction:column;gap:2px"><span style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:600;color:#e6e8ea">27</span><span style="font-size:11px;color:#8a929a">credentials</span></div>
+<div style="display:flex;flex-direction:column;gap:2px"><span style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:600;color:#e0a33d">9</span><span style="font-size:11px;color:#8a929a">need attention</span></div>
+</div>
+</div>
+
+<div style="display:flex;gap:14px;align-items:stretch">
+<div style="flex:1;min-width:0;background:#1c1e22;border:1px solid #2a2e34;border-radius:9px;overflow:hidden;display:flex;flex-direction:column">
+<div style="height:34px;flex:none;display:flex;align-items:center;gap:9px;padding:0 13px;background:#131417;border-bottom:1px solid #2a2e34"><span style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#8a929a">Tree as it will be created</span><div style="flex:1"></div><span style="font-size:11px;color:#8a929a">inheritance preserved</span></div>
+<div style="padding:8px 10px;display:flex;flex-direction:column;gap:1px;font-size:13px">
+<div style="display:flex;align-items:center;gap:8px;height:25px;padding:0 6px"><span style="width:14px;height:14px;border-radius:4px;background:#3bb6c4;display:flex;align-items:center;justify-content:center;flex:none"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#08181b" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"></path></svg></span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#e0a33d" stroke-width="1.8" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg><span>Production</span><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#8a929a">184</span></div>
+<div style="display:flex;align-items:center;gap:8px;height:25px;padding:0 6px 0 24px"><span style="width:14px;height:14px;border-radius:4px;background:#3bb6c4;display:flex;align-items:center;justify-content:center;flex:none"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#08181b" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"></path></svg></span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#e0a33d" stroke-width="1.8" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg><span>EU-West</span><span style="font-family:'JetBrains Mono',monospace;font-size:9.5px;color:#4bb47b;background:rgba(75,180,123,.1);border-radius:3px;padding:1px 5px">credential + gateway inherited</span></div>
+<div style="display:flex;align-items:center;gap:8px;height:25px;padding:0 6px 0 42px"><span style="width:14px;height:14px;border-radius:4px;background:#3bb6c4;display:flex;align-items:center;justify-content:center;flex:none"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#08181b" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"></path></svg></span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4fd0de" stroke-width="1.9" stroke-linecap="round"><path d="M4 8l4 4-4 4"></path><path d="M12 16h8"></path></svg><span style="color:#c8ced4">web-01</span></div>
+<div style="display:flex;align-items:center;gap:8px;height:25px;padding:0 6px 0 42px"><span style="width:14px;height:14px;border-radius:4px;background:#3bb6c4;display:flex;align-items:center;justify-content:center;flex:none"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#08181b" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"></path></svg></span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4fd0de" stroke-width="1.9" stroke-linecap="round"><path d="M4 8l4 4-4 4"></path><path d="M12 16h8"></path></svg><span style="color:#c8ced4">web-02</span></div>
+<div style="display:flex;align-items:center;gap:8px;height:25px;padding:0 6px 0 42px;background:rgba(224,163,61,.06);border-radius:4px"><span style="width:14px;height:14px;border-radius:4px;background:#3bb6c4;display:flex;align-items:center;justify-content:center;flex:none"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#08181b" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"></path></svg></span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8fa0f5" stroke-width="1.8"><rect x="3" y="5" width="18" height="12" rx="1.6"></rect><path d="M9 21h6M12 17v4" stroke-linecap="round"></path></svg><span style="color:#c8ced4">ctso-dc01</span><div style="flex:1"></div><span style="font-family:'JetBrains Mono',monospace;font-size:9.5px;color:#e0a33d">ProxyCommand kept as custom field</span></div>
+<div style="display:flex;align-items:center;gap:8px;height:25px;padding:0 6px 0 24px"><span style="width:14px;height:14px;border-radius:4px;background:#3bb6c4;display:flex;align-items:center;justify-content:center;flex:none"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#08181b" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"></path></svg></span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#e0a33d" stroke-width="1.8" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg><span>US-East</span><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#8a929a">96</span></div>
+<div style="display:flex;align-items:center;gap:8px;height:25px;padding:0 6px"><span style="width:14px;height:14px;border-radius:4px;background:#3bb6c4;display:flex;align-items:center;justify-content:center;flex:none"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#08181b" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"></path></svg></span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#e0a33d" stroke-width="1.8" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg><span>Customers</span><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#8a929a">218</span></div>
+<div style="display:flex;align-items:center;gap:8px;height:25px;padding:0 6px;opacity:.5"><span style="width:14px;height:14px;border-radius:4px;border:1.5px solid #3a4048;box-sizing:border-box;flex:none"></span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8a929a" stroke-width="1.8" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg><span style="color:#8a929a">Archive 2019</span><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#8a929a">10</span></div>
+</div>
+</div>
+
+<div style="width:330px;flex:none;display:flex;flex-direction:column;gap:10px">
+<div style="background:#1c1e22;border:1px solid #2a2e34;border-radius:9px;padding:14px 15px;display:flex;flex-direction:column;gap:11px">
+<div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#8a929a">Needs attention</div>
+<div style="display:flex;gap:9px;align-items:flex-start"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#e05252" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:2px"><path d="M12 3.5L22 20H2z"></path><path d="M12 10v4M12 17h.01"></path></svg><div style="font-size:12.5px;color:#c8ced4;line-height:1.5">This file was protected with mRemoteNG's <span style="color:#e6e8ea;font-weight:600">well-known default password</span>. It was not really protected.</div></div>
+<div style="display:flex;gap:9px;align-items:flex-start"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#e0a33d" stroke-width="2" stroke-linecap="round" style="flex:none;margin-top:2px"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5M12 16h.01"></path></svg><div style="font-size:12.5px;color:#c8ced4;line-height:1.5">6 connections use <span style="font-family:'JetBrains Mono',monospace;font-size:11.5px">ProxyCommand</span>, which has no direct equivalent. The command is preserved verbatim in a custom field.</div></div>
+<div style="display:flex;gap:9px;align-items:flex-start"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#e0a33d" stroke-width="2" stroke-linecap="round" style="flex:none;margin-top:2px"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5M12 16h.01"></path></svg><div style="font-size:12.5px;color:#c8ced4;line-height:1.5">3 connections request <span style="font-family:'JetBrains Mono',monospace;font-size:11.5px">ssh-rsa</span> (SHA-1). They will import, but will not connect until the servers are updated.</div></div>
+</div>
+<div style="background:#1c1e22;border:1px solid #2a2e34;border-radius:9px;padding:14px 15px;display:flex;flex-direction:column;gap:9px">
+<div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#8a929a">Mapped cleanly</div>
+<div style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:#9aa1a9"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#4bb47b" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"></path></svg>38 folders with their inheritance</div>
+<div style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:#9aa1a9"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#4bb47b" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"></path></svg>27 credential objects and their links</div>
+<div style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:#9aa1a9"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#4bb47b" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"></path></svg>14 jump-host chains from ProxyJump</div>
+<div style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:#9aa1a9"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#4bb47b" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"></path></svg>312 known_hosts entries</div>
+</div>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isStep5 }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:18px;max-width:820px">
+<div style="display:flex;flex-direction:column;gap:5px">
+<h2 style="margin:0;font-size:18px;font-weight:600;letter-spacing:-0.01em">11 items already exist in this vault</h2>
+<p style="margin:0;font-size:13.5px;color:#9aa1a9">Decide each one, or set them all at once.</p></div>
+<div style="display:flex;align-items:center;gap:8px;padding-bottom:2px">
+<span style="font-size:12.5px;color:#8a929a">Apply to all:</span>
+<button type="button" style="appearance:none;border:1px solid #2a2e34;background:#23262b;color:#9aa1a9;font:500 11.5px system-ui,sans-serif;padding:5px 11px;border-radius:5px;cursor:pointer" style-hover="color:#e6e8ea">Skip</button>
+<button type="button" style="appearance:none;border:1px solid #2a2e34;background:#23262b;color:#9aa1a9;font:500 11.5px system-ui,sans-serif;padding:5px 11px;border-radius:5px;cursor:pointer" style-hover="color:#e6e8ea">Replace</button>
+<button type="button" style="appearance:none;border:1px solid #2a2e34;background:#23262b;color:#9aa1a9;font:500 11.5px system-ui,sans-serif;padding:5px 11px;border-radius:5px;cursor:pointer" style-hover="color:#e6e8ea">Keep both</button>
+<button type="button" style="appearance:none;border:1px solid #2a2e34;background:#23262b;color:#9aa1a9;font:500 11.5px system-ui,sans-serif;padding:5px 11px;border-radius:5px;cursor:pointer" style-hover="color:#e6e8ea">Merge</button>
+</div>
+
+<div style="border:1px solid #2a2e34;border-radius:9px;overflow:hidden">
+<div style="display:grid;grid-template-columns:1fr 1fr 250px;background:#131417;border-bottom:1px solid #2a2e34;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#8a929a">
+<div style="padding:9px 14px">In your vault</div><div style="padding:9px 14px;border-left:1px solid #2a2e34">Coming from the file</div><div style="padding:9px 14px;border-left:1px solid #2a2e34">Decision</div></div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr 250px;border-bottom:1px solid #23262b;background:#1c1e22">
+<div style="padding:12px 14px;display:flex;flex-direction:column;gap:3px"><span style="font-size:13px">web-01</span><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#8a929a">web-01.eu-west.acme:2222 · svc-deploy</span></div>
+<div style="padding:12px 14px;border-left:1px solid #23262b;display:flex;flex-direction:column;gap:3px"><span style="font-size:13px">web-01</span><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#8a929a">web-01.eu-west.acme:<span style="color:#e0a33d">22</span> · svc-deploy</span></div>
+<div style="padding:10px 14px;border-left:1px solid #23262b;display:flex;align-items:center;gap:5px">
+<span style="font-size:11.5px;background:#3bb6c4;color:#08181b;border-radius:5px;padding:4px 9px;font-weight:600">Keep mine</span>
+<span style="font-size:11.5px;color:#8a929a;border:1px solid #2a2e34;border-radius:5px;padding:4px 9px;cursor:pointer">Replace</span>
+<span style="font-size:11.5px;color:#8a929a;border:1px solid #2a2e34;border-radius:5px;padding:4px 9px;cursor:pointer">Both</span></div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr 250px;border-bottom:1px solid #23262b;background:#1c1e22">
+<div style="padding:12px 14px;display:flex;flex-direction:column;gap:3px"><span style="font-size:13px">svc-deploy</span><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#8a929a">credential · ed25519 key</span></div>
+<div style="padding:12px 14px;border-left:1px solid #23262b;display:flex;flex-direction:column;gap:3px"><span style="font-size:13px">svc-deploy</span><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#8a929a">credential · <span style="color:#e0a33d">password</span></span></div>
+<div style="padding:10px 14px;border-left:1px solid #23262b;display:flex;align-items:center;gap:5px">
+<span style="font-size:11.5px;color:#8a929a;border:1px solid #2a2e34;border-radius:5px;padding:4px 9px;cursor:pointer">Keep mine</span>
+<span style="font-size:11.5px;color:#8a929a;border:1px solid #2a2e34;border-radius:5px;padding:4px 9px;cursor:pointer">Replace</span>
+<span style="font-size:11.5px;background:#3bb6c4;color:#08181b;border-radius:5px;padding:4px 9px;font-weight:600">Both</span></div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr 250px;background:#1c1e22">
+<div style="padding:12px 14px;display:flex;flex-direction:column;gap:3px"><span style="font-size:13px">Customers</span><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#8a929a">folder · 218 children</span></div>
+<div style="padding:12px 14px;border-left:1px solid #23262b;display:flex;flex-direction:column;gap:3px"><span style="font-size:13px">Customers</span><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#8a929a">folder · 218 children</span></div>
+<div style="padding:10px 14px;border-left:1px solid #23262b;display:flex;align-items:center;gap:5px">
+<span style="font-size:11.5px;color:#8a929a;border:1px solid #2a2e34;border-radius:5px;padding:4px 9px;cursor:pointer">Keep mine</span>
+<span style="font-size:11.5px;color:#8a929a;border:1px solid #2a2e34;border-radius:5px;padding:4px 9px;cursor:pointer">Replace</span>
+<span style="font-size:11.5px;background:#3bb6c4;color:#08181b;border-radius:5px;padding:4px 9px;font-weight:600">Merge</span></div>
+</div>
+</div>
+<div style="font-size:12px;color:#8a929a">8 more · <a href="#">show all</a></div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isStep8 }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:20px;max-width:720px">
+<div style="display:flex;align-items:center;gap:13px">
+<span style="width:34px;height:34px;border-radius:17px;background:rgba(75,180,123,.14);border:1px solid rgba(75,180,123,.4);display:flex;align-items:center;justify-content:center;flex:none"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#4bb47b" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"></path></svg></span>
+<div style="display:flex;flex-direction:column;gap:3px"><h2 style="margin:0;font-size:18px;font-weight:600;letter-spacing:-0.01em">403 connections are in your vault</h2><p style="margin:0;font-size:13px;color:#9aa1a9">Written as one transaction in 1.2 s. This whole import is a single undo step.</p></div>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+<div style="background:#1c1e22;border:1px solid #2a2e34;border-radius:8px;padding:13px 15px"><div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:600;color:#4bb47b">403</div><div style="font-size:11.5px;color:#8a929a;margin-top:2px">imported</div></div>
+<div style="background:#1c1e22;border:1px solid #2a2e34;border-radius:8px;padding:13px 15px"><div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:600;color:#9aa1a9">9</div><div style="font-size:11.5px;color:#8a929a;margin-top:2px">skipped by you</div></div>
+<div style="background:#1c1e22;border:1px solid #2a2e34;border-radius:8px;padding:13px 15px"><div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:600;color:#e0a33d">6</div><div style="font-size:11.5px;color:#8a929a;margin-top:2px">need a look</div></div>
+<div style="background:#1c1e22;border:1px solid #2a2e34;border-radius:8px;padding:13px 15px"><div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:600;color:#e6e8ea">0</div><div style="font-size:11.5px;color:#8a929a;margin-top:2px">dropped</div></div>
+</div>
+
+<div style="background:rgba(224,82,82,.06);border:1px solid rgba(224,82,82,.35);border-radius:8px;padding:15px 17px;display:flex;gap:12px;align-items:flex-start">
+<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#e05252" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:1px"><path d="M12 3.5L22 20H2z"></path><path d="M12 10v4M12 17h.01"></path></svg>
+<div style="display:flex;flex-direction:column;gap:6px"><div style="font-size:13.5px;font-weight:600">Rotate these credentials</div><div style="font-size:12.5px;color:#c8ced4;line-height:1.55;text-wrap:pretty">27 passwords came out of a file encrypted with mRemoteNG's default password and legacy AES-CBC. Treat every one of them as known to anyone who has held a copy of that file.</div><button type="button" style="appearance:none;border:1px solid rgba(224,82,82,.5);background:transparent;color:#f07b78;font:500 12px system-ui,sans-serif;padding:6px 12px;border-radius:5px;cursor:pointer;align-self:flex-start;margin-top:3px" style-hover="background:rgba(224,82,82,.12)">Tag all 27 as needs-rotation</button></div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:9px">
+<div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#8a929a">Kept but not interpreted</div>
+<div style="background:#101114;border:1px solid #2a2e34;border-radius:7px;padding:12px 14px;display:flex;flex-direction:column;gap:7px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#9aa1a9;line-height:1.6">
+<div>custom_fields.ProxyCommand   6 connections   verbatim</div>
+<div>custom_fields.RDGatewayHostname   2 connections   verbatim</div>
+<div>custom_fields.mRemoteNG.RenderingEngine   184 connections   verbatim</div>
+</div>
+<div style="font-size:12px;color:#8a929a;line-height:1.5">Nothing was discarded. If a later version of Remoter learns to read these, they will be there.</div>
+</div>
+
+<div style="display:flex;gap:8px"><button type="button" style="appearance:none;border:1px solid #2a2e34;background:#23262b;color:#c8ced4;font:500 12.5px system-ui,sans-serif;padding:8px 14px;border-radius:6px;cursor:pointer" style-hover="color:#e6e8ea">Save this report</button><button type="button" style="appearance:none;border:1px solid #2a2e34;background:#23262b;color:#c8ced4;font:500 12.5px system-ui,sans-serif;padding:8px 14px;border-radius:6px;cursor:pointer" style-hover="color:#e6e8ea">Undo the whole import</button></div>
+</div>
+</sc-if>
+
+</div>
+
+<div style="height:58px;flex:none;display:flex;align-items:center;gap:10px;padding:0 24px;background:#1c1e22;border-top:1px solid #2a2e34">
+<div style="{{ commitNote }}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg><span>{{ commitText }}</span></div>
+<div style="flex:1"></div>
+<button type="button" style="appearance:none;border:1px solid #3a4048;background:#23262b;color:#c8ced4;font:500 13px system-ui,sans-serif;padding:8px 16px;border-radius:6px;cursor:pointer" style-hover="color:#e6e8ea">Back</button>
+<button type="button" style="appearance:none;border:none;background:#3bb6c4;color:#08181b;font:600 13px system-ui,sans-serif;padding:8px 22px;border-radius:6px;cursor:pointer" style-hover="background:#4fd0de">{{ nextLabel }}</button>
+</div>
+</div>
+
+<div style="width:1060px;display:flex;flex-wrap:wrap;gap:10px">
+<div style="flex:1;min-width:250px;background:#131417;border:1px solid #23262b;border-radius:8px;padding:13px 15px;display:flex;flex-direction:column;gap:5px"><div style="font-size:12px;font-weight:600;color:#c8ced4">The preview is the point</div><div style="font-size:12px;color:#8a929a;line-height:1.5">Somebody bringing 400 connections across needs to see exactly what they are about to get, and to untick the archive folder before it lands.</div></div>
+<div style="flex:1;min-width:250px;background:#131417;border:1px solid #23262b;border-radius:8px;padding:13px 15px;display:flex;flex-direction:column;gap:5px"><div style="font-size:12px;font-weight:600;color:#c8ced4">Bad news arrives early</div><div style="font-size:12px;color:#8a929a;line-height:1.5">"Your file used the default password" appears at step 2, not buried in the final report. It changes what the user does next.</div></div>
+<div style="flex:1;min-width:250px;background:#131417;border:1px solid #23262b;border-radius:8px;padding:13px 15px;display:flex;flex-direction:column;gap:5px"><div style="font-size:12px;font-weight:600;color:#c8ced4">Steps 1, 3, 6, 7 are drawn but thin</div><div style="font-size:12px;color:#8a929a;line-height:1.5">Source selection, parsing progress, destination folder and the commit transaction are simple screens. Ask if you want them fleshed out.</div></div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1120,&quot;height&quot;:920},&quot;step&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;2&quot;,&quot;4&quot;,&quot;5&quot;,&quot;8&quot;],&quot;default&quot;:&quot;2&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Prototype&quot;}}">
+class Component extends DCLogic {
+  state = { step: 2 };
+  renderVals() {
+    const cur = this.state.step;
+    const out = {
+      isStep2: cur === 2, isStep4: cur === 4, isStep5: cur === 5, isStep8: cur === 8,
+      nextLabel: cur === 8 ? 'Done' : (cur === 5 ? 'Choose destination' : 'Continue'),
+      commitText: cur === 8 ? 'Written to the vault as one transaction' : 'Nothing is written to your vault until step 7',
+      commitNote: cur === 8
+        ? 'display:flex;align-items:center;gap:7px;font-size:12.5px;color:#4bb47b'
+        : 'display:flex;align-items:center;gap:7px;font-size:12.5px;color:#9aa1a9',
+      onBar: (e) => {
+        const b = e.target.closest && e.target.closest('[data-step]');
+        if (b) this.setState({ step: Number(b.getAttribute('data-step')) });
+      }
+    };
+    const labels = [1, 2, 3, 4, 5, 6, 7, 8];
+    labels.forEach(i => {
+      const done = i < cur, active = i === cur;
+      out['s' + i] = 'display:flex;align-items:center;gap:7px;font-size:12.5px;white-space:nowrap;'
+        + (active ? 'color:#e6e8ea;font-weight:600' : done ? 'color:#9aa1a9' : 'color:#8a929a');
+      out['n' + i] = 'width:19px;height:19px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-family:JetBrains Mono,monospace;font-size:10.5px;flex:none;'
+        + (active ? 'background:#3bb6c4;color:#08181b;font-weight:600'
+          : done ? 'background:rgba(75,180,123,.16);color:#4bb47b'
+            : 'border:1px solid #2a2e34;color:#8a929a');
+      if (i < 8) out['c' + i] = 'flex:1;height:1px;margin:0 10px;background:' + (i < cur ? '#3a4048' : '#23262b');
+    });
+    return out;
+  }
+}
+</script>
+</body>
+</html>

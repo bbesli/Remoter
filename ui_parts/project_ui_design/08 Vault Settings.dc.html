@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"><style>html,body{margin:0;padding:0;background:#0d0e10}a{color:#3bb6c4;text-decoration:none}a:hover{color:#4fd0de}</style></helmet>
+<div style="min-height:100vh;background:#0d0e10;padding:28px 24px 64px;box-sizing:border-box;font-family:system-ui,-apple-system,'Segoe UI',Roboto,'Noto Sans',sans-serif;display:flex;flex-direction:column;align-items:flex-start;gap:18px">
+
+<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+<span style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#8a929a">08 · Vault settings</span>
+<div style="display:flex;gap:6px" onClick="{{ onBar }}">
+<button type="button" data-sec="slots" style="appearance:none;border:1px solid #2a2e34;background:#1c1e22;color:#9aa1a9;font:500 12px system-ui,sans-serif;padding:5px 10px;border-radius:6px;cursor:pointer" style-hover="border-color:#3bb6c4;color:#e6e8ea">Key slots</button>
+<button type="button" data-sec="lock" style="appearance:none;border:1px solid #2a2e34;background:#1c1e22;color:#9aa1a9;font:500 12px system-ui,sans-serif;padding:5px 10px;border-radius:6px;cursor:pointer" style-hover="border-color:#3bb6c4;color:#e6e8ea">Auto-lock &amp; recording</button>
+</div>
+</div>
+
+<div style="width:1080px;flex:none;height:720px;background:#16171a;border:1px solid #2a2e34;border-radius:10px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.55);display:flex;flex-direction:column;color:#e6e8ea;font-size:14px">
+
+<div style="height:44px;flex:none;display:flex;align-items:center;gap:10px;padding:0 8px 0 18px;background:#1c1e22;border-bottom:1px solid #2a2e34">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#3bb6c4" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="6" width="18" height="14" rx="2.5"></rect><path d="M3 10h18"></path><circle cx="12" cy="15" r="1.6"></circle></svg>
+<span style="font-size:14px;font-weight:600">Acme Production</span><span style="font-size:13px;color:#8a929a">·</span><span style="font-size:13px;color:#9aa1a9">Vault settings</span>
+<div style="flex:1"></div>
+<button type="button" style="width:28px;height:28px;border:none;background:transparent;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0" style-hover="background:#23262b"><svg width="14" height="14" viewBox="0 0 24 24" stroke="#9aa1a9" stroke-width="2" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"></path></svg></button>
+</div>
+
+<div style="flex:1;min-height:0;display:flex">
+<div style="width:200px;flex:none;background:#1c1e22;border-right:1px solid #2a2e34;padding:12px 8px;display:flex;flex-direction:column;gap:2px">
+<div style="{{ navSlots }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="8" cy="12" r="3.5"></circle><path d="M11.5 12H21M18 12v3"></path></svg>Key slots<span style="flex:1"></span><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#8a929a">4</span></div>
+<div style="{{ navLock }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>Auto-lock</div>
+<div style="display:flex;align-items:center;gap:9px;height:30px;padding:0 10px;border-radius:6px;font-size:13px;color:#9aa1a9;cursor:pointer" style-hover="background:#23262b;color:#e6e8ea"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"></circle></svg>Recording policy</div>
+<div style="display:flex;align-items:center;gap:9px;height:30px;padding:0 10px;border-radius:6px;font-size:13px;color:#9aa1a9;cursor:pointer" style-hover="background:#23262b;color:#e6e8ea"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M20 12a8 8 0 1 1-2.3-5.6"></path><path d="M20 4v5h-5"></path></svg>Backups</div>
+<div style="display:flex;align-items:center;gap:9px;height:30px;padding:0 10px;border-radius:6px;font-size:13px;color:#9aa1a9;cursor:pointer" style-hover="background:#23262b;color:#e6e8ea"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3.5L20 7v6c0 4.4-3.2 7.6-8 8.5-4.8-.9-8-4.1-8-8.5V7z"></path></svg>Trust store<span style="flex:1"></span><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#8a929a">312</span></div>
+<div style="display:flex;align-items:center;gap:9px;height:30px;padding:0 10px;border-radius:6px;font-size:13px;color:#9aa1a9;cursor:pointer" style-hover="background:#23262b;color:#e6e8ea"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3v11M8 10l4 4 4-4"></path><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"></path></svg>Export</div>
+</div>
+
+<div style="flex:1;min-width:0;overflow:auto;padding:24px 28px 30px">
+
+<sc-if value="{{ showSlots }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;flex-direction:column;gap:20px;max-width:700px">
+<div style="display:flex;flex-direction:column;gap:6px">
+<h2 style="margin:0;font-size:18px;font-weight:600;letter-spacing:-0.01em">Key slots</h2>
+<p style="margin:0;font-size:13.5px;color:#9aa1a9;line-height:1.55;text-wrap:pretty">Each slot independently unwraps the same vault key. Adding or removing one does not re-encrypt anything, so it is fast and safe to change your mind.</p>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:8px">
+
+<div style="background:#1c1e22;border:1px solid #2a2e34;border-radius:9px;padding:15px 17px;display:flex;align-items:center;gap:14px">
+<div style="width:34px;height:34px;border-radius:8px;background:#23262b;display:flex;align-items:center;justify-content:center;flex:none"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#c8ced4" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg></div>
+<div style="display:flex;flex-direction:column;gap:3px;min-width:0">
+<div style="display:flex;align-items:center;gap:8px"><span style="font-size:14px;font-weight:600">Master password</span><span style="font-family:'JetBrains Mono',monospace;font-size:9.5px;color:#8a929a;border:1px solid #2a2e34;border-radius:3px;padding:1px 5px">slot 0</span></div>
+<div style="font-size:12.5px;color:#9aa1a9">With key file <span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#c8ced4">prod.pem</span> · Argon2id, 256 MiB, t=3 · changed 12 Mar 2026</div>
+</div>
+<div style="flex:1"></div>
+<button type="button" style="appearance:none;border:1px solid #2a2e34;background:#23262b;color:#c8ced4;font:500 11.5px system-ui,sans-serif;padding:6px 11px;border-radius:5px;cursor:pointer;flex:none" style-hover="border-color:#3bb6c4;color:#e6e8ea">Change</button>
+</div>
+
+<div style="background:#1c1e22;border:1px solid #2a2e34;border-radius:9px;padding:15px 17px;display:flex;align-items:center;gap:14px">
+<div style="width:34px;height:34px;border-radius:8px;background:rgba(59,182,196,.12);display:flex;align-items:center;justify-content:center;flex:none"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#3bb6c4" stroke-width="1.7" stroke-linecap="round"><path d="M8 11V6.5a2 2 0 1 1 4 0V11"></path><path d="M12 11V8.5a1.8 1.8 0 1 1 3.6 0V11"></path><path d="M15.6 11v-1a1.8 1.8 0 1 1 3.6 0v5.5a5.5 5.5 0 0 1-5.5 5.5h-2a5 5 0 0 1-4.3-2.4L4 13.6a1.9 1.9 0 0 1 3.2-2L8.4 13"></path></svg></div>
+<div style="display:flex;flex-direction:column;gap:3px;min-width:0">
+<div style="display:flex;align-items:center;gap:8px"><span style="font-size:14px;font-weight:600">YubiKey 5C</span><span style="font-family:'JetBrains Mono',monospace;font-size:9.5px;color:#8a929a;border:1px solid #2a2e34;border-radius:3px;padding:1px 5px">slot 2</span><span style="font-family:'JetBrains Mono',monospace;font-size:9.5px;color:#4bb47b;background:rgba(75,180,123,.1);border-radius:3px;padding:1px 5px">last used today</span></div>
+<div style="font-size:12.5px;color:#9aa1a9">FIDO2 · hmac-secret · enrolled 12 Mar 2026</div>
+</div>
+<div style="flex:1"></div>
+<button type="button" style="appearance:none;border:1px solid #2a2e34;background:#23262b;color:#c8ced4;font:500 11.5px system-ui,sans-serif;padding:6px 11px;border-radius:5px;cursor:pointer;flex:none" style-hover="border-color:#e05252;color:#e6e8ea">Revoke</button>
+</div>
+
+<div style="background:#1c1e22;border:1px solid #2a2e34;border-radius:9px;padding:15px 17px;display:flex;align-items:center;gap:14px">
+<div style="width:34px;height:34px;border-radius:8px;background:#23262b;display:flex;align-items:center;justify-content:center;flex:none"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#9aa1a9" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M7 9h4M7 13h7"></path></svg></div>
+<div style="display:flex;flex-direction:column;gap:3px;min-width:0">
+<div style="display:flex;align-items:center;gap:8px"><span style="font-size:14px;font-weight:600">Remember on this device</span><span style="font-family:'JetBrains Mono',monospace;font-size:9.5px;color:#8a929a;border:1px solid #2a2e34;border-radius:3px;padding:1px 5px">slot 3</span></div>
+<div style="font-size:12.5px;color:#9aa1a9">GNOME Keyring · <span style="font-family:'JetBrains Mono',monospace;font-size:11.5px">thinkpad-x1</span> only · unlocks without a prompt while you are logged in</div>
+</div>
+<div style="flex:1"></div>
+<button type="button" style="appearance:none;border:1px solid #2a2e34;background:#23262b;color:#c8ced4;font:500 11.5px system-ui,sans-serif;padding:6px 11px;border-radius:5px;cursor:pointer;flex:none" style-hover="border-color:#e05252;color:#e6e8ea">Remove</button>
+</div>
+
+<div style="background:rgba(224,163,61,.05);border:1px solid rgba(224,163,61,.35);border-radius:9px;padding:15px 17px;display:flex;align-items:center;gap:14px">
+<div style="width:34px;height:34px;border-radius:8px;background:rgba(224,163,61,.13);display:flex;align-items:center;justify-content:center;flex:none"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#e0a33d" stroke-width="1.8" stroke-linecap="round"><path d="M12 3.5L20 7v6c0 4.4-3.2 7.6-8 8.5-4.8-.9-8-4.1-8-8.5V7z"></path><path d="M12 10v4"></path></svg></div>
+<div style="display:flex;flex-direction:column;gap:3px;min-width:0">
+<div style="display:flex;align-items:center;gap:8px"><span style="font-size:14px;font-weight:600">Recovery key</span><span style="font-family:'JetBrains Mono',monospace;font-size:9.5px;color:#8a929a;border:1px solid #2a2e34;border-radius:3px;padding:1px 5px">slot 1</span></div>
+<div style="font-size:12.5px;color:#c8ced4">Generated 12 Mar 2026 and never used. If you cannot find it, rotate it now — there is no way to recover the vault without one of these slots.</div>
+</div>
+<div style="flex:1"></div>
+<button type="button" style="appearance:none;border:1px solid rgba(224,163,61,.5);background:transparent;color:#e0a33d;font:500 11.5px system-ui,sans-serif;padding:6px 11px;border-radius:5px;cursor:pointer;flex:none" style-hover="background:rgba(224,163,61,.12)">Rotate</button>
+</div>
+
+<button type="button" style="display:flex;align-items:center;gap:9px;background:transparent;border:1px dashed #3a4048;border-radius:9px;padding:14px 17px;cursor:pointer;color:#9aa1a9;font:500 13px system-ui,sans-serif" style-hover="border-color:#3bb6c4;color:#e6e8ea"><svg width="15" height="15" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round"><path d="M12 6v12M6 12h12"></path></svg>Add a slot<span style="font-size:12px;color:#8a929a">second security key · another key file</span></button>
+</div>
+
+<div style="height:1px;background:#23262b"></div>
+
+<div style="display:flex;flex-direction:column;gap:12px">
+<div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#8a929a">Expensive operation</div>
+<div style="background:#101114;border:1px solid rgba(224,82,82,.3);border-radius:9px;padding:16px 18px;display:flex;flex-direction:column;gap:10px">
+<div style="font-size:14px;font-weight:600">Rotate the vault master key</div>
+<div style="font-size:13px;color:#9aa1a9;line-height:1.55;text-wrap:pretty">This is the right answer to <span style="color:#c8ced4">"a copy of this file may have leaked while one of my keys was compromised"</span>. A new master key is generated, every slot is re-wrapped, and the whole body is re-encrypted. 218 connections, about 4 seconds.</div>
+<div style="display:flex;align-items:center;gap:9px;padding-top:2px">
+<button type="button" style="appearance:none;border:1px solid rgba(224,82,82,.5);background:transparent;color:#f07b78;font:500 12.5px system-ui,sans-serif;padding:7px 14px;border-radius:6px;cursor:pointer" style-hover="background:rgba(224,82,82,.12)">Rotate the master key</button>
+<span style="font-size:12px;color:#8a929a">Old copies of the file stay readable with the old keys. Delete them.</span></div>
+</div>
+</div>
+
+<div style="display:flex;gap:11px;align-items:flex-start;background:#131417;border:1px solid #23262b;border-radius:8px;padding:14px 16px">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8a929a" stroke-width="2" stroke-linecap="round" style="flex:none;margin-top:1px"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5M12 16h.01"></path></svg>
+<div style="font-size:12.5px;color:#9aa1a9;line-height:1.55;text-wrap:pretty">A vault must keep at least one usable slot. Remoter will not let you delete the last one, and deleting the recovery slot needs a typed confirmation. There is no escrow key and no support override: if every slot is lost, the file cannot be opened by anyone, including us.</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ showLock }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:22px;max-width:700px">
+<div style="display:flex;flex-direction:column;gap:6px">
+<h2 style="margin:0;font-size:18px;font-weight:600;letter-spacing:-0.01em">Auto-lock</h2>
+<p style="margin:0;font-size:13.5px;color:#9aa1a9;line-height:1.55;text-wrap:pretty">Locking zeroizes every key and cached secret and drops the in-memory database. Reopening needs a full unlock.</p>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:1px;background:#23262b;border:1px solid #2a2e34;border-radius:9px;overflow:hidden">
+<div style="display:flex;align-items:center;gap:14px;padding:13px 16px;background:#1c1e22"><span style="font-size:13.5px;flex:1">After idle for</span><div style="display:flex;align-items:center;gap:9px"><div style="width:150px;height:4px;border-radius:2px;background:#2a2e34;position:relative"><div style="position:absolute;left:0;top:0;bottom:0;width:36%;background:#3bb6c4;border-radius:2px"></div><div style="position:absolute;left:36%;top:50%;width:13px;height:13px;border-radius:7px;background:#3bb6c4;border:2px solid #1c1e22;transform:translate(-50%,-50%)"></div></div><span style="font-family:'JetBrains Mono',monospace;font-size:12.5px;width:58px;text-align:right">15 min</span></div></div>
+<div style="display:flex;align-items:center;gap:14px;padding:13px 16px;background:#1c1e22"><span style="font-size:13.5px;flex:1">When the screen locks</span><span style="width:32px;height:18px;border-radius:9px;background:#3bb6c4;display:flex;align-items:center;padding:2px;box-sizing:border-box;flex:none"><span style="width:14px;height:14px;border-radius:7px;background:#08181b;margin-left:auto"></span></span></div>
+<div style="display:flex;align-items:center;gap:14px;padding:13px 16px;background:#1c1e22"><span style="font-size:13.5px;flex:1">On suspend or hibernate</span><span style="width:32px;height:18px;border-radius:9px;background:#3bb6c4;display:flex;align-items:center;padding:2px;box-sizing:border-box;flex:none"><span style="width:14px;height:14px;border-radius:7px;background:#08181b;margin-left:auto"></span></span></div>
+<div style="display:flex;align-items:center;gap:14px;padding:13px 16px;background:#1c1e22"><span style="display:flex;flex-direction:column;gap:2px;flex:1"><span style="font-size:13.5px">When the window is minimised</span><span style="font-size:11.5px;color:#8a929a">Off by default. Most people minimise far more often than they walk away.</span></span><span style="width:32px;height:18px;border-radius:9px;background:#2a2e34;display:flex;align-items:center;padding:2px;box-sizing:border-box;flex:none"><span style="width:14px;height:14px;border-radius:7px;background:#8a929a"></span></span></div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:11px">
+<div style="font-size:14px;font-weight:600">What happens to running sessions</div>
+<div style="display:flex;flex-direction:column;gap:7px">
+<label style="display:flex;align-items:flex-start;gap:11px;background:#1c1e22;border:1px solid #2a2e34;border-radius:8px;padding:13px 15px;cursor:pointer"><span style="width:16px;height:16px;border-radius:8px;border:2px solid #3a4048;flex:none;margin-top:1px"></span><span style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13.5px;font-weight:500">Keep them running</span><span style="font-size:12.5px;color:#9aa1a9">A long deployment should survive a coffee break. Output keeps arriving; you can watch it.</span></span></label>
+<label style="display:flex;align-items:flex-start;gap:11px;background:rgba(59,182,196,.06);border:1px solid #3bb6c4;border-radius:8px;padding:13px 15px;cursor:pointer"><span style="width:16px;height:16px;border-radius:8px;border:2px solid #3bb6c4;display:flex;align-items:center;justify-content:center;flex:none;margin-top:1px"><span style="width:7px;height:7px;border-radius:4px;background:#3bb6c4"></span></span><span style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13.5px;font-weight:500">Keep them running, freeze input</span><span style="font-size:12.5px;color:#9aa1a9">Sessions stay alive but nothing can be typed into them until you unlock. Tabs show a locked badge.</span></span></label>
+<label style="display:flex;align-items:flex-start;gap:11px;background:#1c1e22;border:1px solid #2a2e34;border-radius:8px;padding:13px 15px;cursor:pointer"><span style="width:16px;height:16px;border-radius:8px;border:2px solid #3a4048;flex:none;margin-top:1px"></span><span style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13.5px;font-weight:500">Disconnect everything</span><span style="font-size:12.5px;color:#9aa1a9">Strictest. Unsaved work in a session is lost, including transfers in progress.</span></span></label>
+</div>
+<div style="display:flex;align-items:center;gap:7px;font-size:12px;color:#8a929a"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8a929a" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5M12 16h.01"></path></svg>Changing this is written to the audit log.</div>
+</div>
+
+<div style="height:1px;background:#23262b"></div>
+
+<div style="display:flex;flex-direction:column;gap:11px">
+<div style="font-size:14px;font-weight:600">Recording policy</div>
+<div style="display:flex;flex-direction:column;gap:1px;background:#23262b;border:1px solid #2a2e34;border-radius:9px;overflow:hidden">
+<div style="display:flex;align-items:center;gap:14px;padding:13px 16px;background:#1c1e22"><span style="display:flex;flex-direction:column;gap:2px;flex:1"><span style="font-size:13.5px">Record every session in <span style="font-family:'JetBrains Mono',monospace;font-size:12.5px;color:#f07b78">production</span></span><span style="font-size:11.5px;color:#8a929a">The user is told before the session opens, never after.</span></span><span style="width:32px;height:18px;border-radius:9px;background:#3bb6c4;display:flex;align-items:center;padding:2px;box-sizing:border-box;flex:none"><span style="width:14px;height:14px;border-radius:7px;background:#08181b;margin-left:auto"></span></span></div>
+<div style="display:flex;align-items:center;gap:14px;padding:13px 16px;background:#1c1e22"><span style="font-size:13.5px;flex:1">Record graphical sessions (RDP, VNC)</span><span style="width:32px;height:18px;border-radius:9px;background:#3bb6c4;display:flex;align-items:center;padding:2px;box-sizing:border-box;flex:none"><span style="width:14px;height:14px;border-radius:7px;background:#08181b;margin-left:auto"></span></span></div>
+<div style="display:flex;align-items:center;gap:14px;padding:13px 16px;background:#1c1e22"><span style="font-size:13.5px;flex:1">Keep recordings for</span><span style="font-family:'JetBrains Mono',monospace;font-size:12.5px">90 days</span></div>
+<div style="display:flex;align-items:center;gap:14px;padding:13px 16px;background:#1c1e22"><span style="font-size:13.5px;flex:1">Recordings folder</span><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#9aa1a9">~/.local/share/remoter/rec</span><span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#8a929a">2.4 GB</span></div>
+</div>
+</div>
+</div>
+</sc-if>
+
+</div>
+</div>
+</div>
+
+<div style="width:1080px;display:flex;flex-wrap:wrap;gap:10px">
+<div style="flex:1;min-width:250px;background:#131417;border:1px solid #23262b;border-radius:8px;padding:13px 15px;display:flex;flex-direction:column;gap:5px"><div style="font-size:12px;font-weight:600;color:#c8ced4">Slots are objects, not checkboxes</div><div style="font-size:12px;color:#8a929a;line-height:1.5">Each one is a row with its own identity, enrolment date, last use and revoke button — so "which keys can open this vault" has a visual answer.</div></div>
+<div style="flex:1;min-width:250px;background:#131417;border:1px solid #23262b;border-radius:8px;padding:13px 15px;display:flex;flex-direction:column;gap:5px"><div style="font-size:12px;font-weight:600;color:#c8ced4">The unused recovery key is amber</div><div style="font-size:12px;color:#8a929a;line-height:1.5">"Generated and never used" is exactly the slot most likely to be lost. It nags gently rather than sitting quiet until the day it matters.</div></div>
+<div style="flex:1;min-width:250px;background:#131417;border:1px solid #23262b;border-radius:8px;padding:13px 15px;display:flex;flex-direction:column;gap:5px"><div style="font-size:12px;font-weight:600;color:#c8ced4">Master key rotation is offered in plain words</div><div style="font-size:12px;color:#8a929a;line-height:1.5">Not hidden under "advanced" — described by the situation that calls for it, which is how the docs asked for it.</div></div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1140,&quot;height&quot;:900},&quot;sec&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;slots&quot;,&quot;lock&quot;],&quot;default&quot;:&quot;slots&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Prototype&quot;}}">
+class Component extends DCLogic {
+  state = { sec: 'slots' };
+  renderVals() {
+    const s = this.state.sec;
+    const on = 'display:flex;align-items:center;gap:9px;height:30px;padding:0 10px;border-radius:6px;font-size:13px;background:rgba(59,182,196,.13);color:#3bb6c4;font-weight:500;cursor:pointer';
+    const off = 'display:flex;align-items:center;gap:9px;height:30px;padding:0 10px;border-radius:6px;font-size:13px;color:#9aa1a9;cursor:pointer';
+    return {
+      showSlots: s === 'slots',
+      showLock: s === 'lock',
+      navSlots: s === 'slots' ? on : off,
+      navLock: s === 'lock' ? on : off,
+      onBar: (e) => {
+        const b = e.target.closest && e.target.closest('[data-sec]');
+        if (b) this.setState({ sec: b.getAttribute('data-sec') });
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>

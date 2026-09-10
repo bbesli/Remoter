@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"><style>html,body{margin:0;padding:0;background:#0d0e10}a{color:#3bb6c4;text-decoration:none}a:hover{color:#4fd0de}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}</style></helmet>
+<div style="min-height:100vh;background:#0d0e10;padding:28px 24px 64px;box-sizing:border-box;font-family:system-ui,-apple-system,'Segoe UI',Roboto,'Noto Sans',sans-serif;display:flex;flex-direction:column;align-items:flex-start;gap:18px">
+
+<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+<span style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#8a929a">06 · Sessions &amp; tunnels</span>
+<div style="display:flex;gap:6px" onClick="{{ onBar }}">
+<button type="button" data-pane="sessions" style="appearance:none;border:1px solid #2a2e34;background:#1c1e22;color:#9aa1a9;font:500 12px system-ui,sans-serif;padding:5px 10px;border-radius:6px;cursor:pointer" style-hover="border-color:#3bb6c4;color:#e6e8ea">Sessions</button>
+<button type="button" data-pane="tunnels" style="appearance:none;border:1px solid #2a2e34;background:#1c1e22;color:#9aa1a9;font:500 12px system-ui,sans-serif;padding:5px 10px;border-radius:6px;cursor:pointer" style-hover="border-color:#3bb6c4;color:#e6e8ea">Tunnels</button>
+</div>
+</div>
+
+<div style="width:1100px;flex:none;height:660px;background:#16171a;border:1px solid #2a2e34;border-radius:10px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.55);display:flex;flex-direction:column;color:#e6e8ea;font-size:14px">
+
+<div onClick="{{ onBar }}" style="height:44px;flex:none;display:flex;align-items:stretch;gap:0;background:#1c1e22;border-bottom:1px solid #2a2e34;padding:0 8px 0 0">
+<div data-pane="sessions" style="{{ tabSessions }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M3 9h18"></path></svg>Sessions<span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;background:#2a2e34;color:#c8ced4;border-radius:9px;padding:1px 7px">4</span></div>
+<div data-pane="tunnels" style="{{ tabTunnels }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 12h5M15 12h5"></path><circle cx="12" cy="12" r="2.6"></circle></svg>Tunnels<span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;background:#2a2e34;color:#c8ced4;border-radius:9px;padding:1px 7px">4</span></div>
+<div style="flex:1"></div>
+<div style="display:flex;align-items:center;gap:8px">
+<div style="height:26px;background:#101114;border:1px solid #2a2e34;border-radius:6px;display:flex;align-items:center;gap:7px;padding:0 9px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8a929a" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg><span style="font-size:12px;color:#8a929a">Filter</span></div>
+<button type="button" style="width:26px;height:26px;border:none;background:transparent;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0" style-hover="background:#23262b"><svg width="13" height="13" viewBox="0 0 24 24" stroke="#9aa1a9" stroke-width="2" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"></path></svg></button></div>
+</div>
+
+<sc-if value="{{ showSessions }}" hint-placeholder-val="{{ true }}">
+<div style="flex:1;min-height:0;display:flex;flex-direction:column">
+<div style="display:grid;grid-template-columns:26px 1fr 96px 100px 92px 120px 130px 88px;gap:0;background:#131417;border-bottom:1px solid #2a2e34;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#8a929a">
+<div style="padding:9px 0 9px 14px"></div><div style="padding:9px 10px">Session</div><div style="padding:9px 10px">Protocol</div><div style="padding:9px 10px">Uptime</div><div style="padding:9px 10px">Latency</div><div style="padding:9px 10px">Transferred</div><div style="padding:9px 10px">Route</div><div style="padding:9px 10px">Recording</div></div>
+
+<div style="flex:1;min-height:0;overflow:auto">
+<div style="display:grid;grid-template-columns:26px 1fr 96px 100px 92px 120px 130px 88px;align-items:center;border-bottom:1px solid #1c1e22;background:rgba(59,182,196,.06);cursor:pointer">
+<div style="padding-left:14px"><span style="width:7px;height:7px;border-radius:4px;background:#4bb47b;display:block"></span></div>
+<div style="padding:11px 10px;display:flex;align-items:center;gap:8px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4fd0de" stroke-width="1.9" stroke-linecap="round" style="flex:none"><path d="M4 8l4 4-4 4"></path><path d="M12 16h8"></path></svg><span style="font-size:13.5px">web-01</span><span style="font-size:11.5px;color:#8a929a">Datacentre EU-West / Web tier</span></div>
+<div style="padding:11px 10px;font-family:'JetBrains Mono',monospace;font-size:12px;color:#9aa1a9">SSH</div>
+<div style="padding:11px 10px;font-family:'JetBrains Mono',monospace;font-size:12.5px">1d 6h</div>
+<div style="padding:11px 10px;display:flex;align-items:center;gap:6px"><span style="font-family:'JetBrains Mono',monospace;font-size:12.5px;color:#4bb47b">14 ms</span></div>
+<div style="padding:11px 10px;font-family:'JetBrains Mono',monospace;font-size:12px;color:#9aa1a9">↓2.1 MB ↑340 KB</div>
+<div style="padding:11px 10px;display:flex;align-items:center;gap:4px;font-family:'JetBrains Mono',monospace;font-size:11px;color:#8a929a"><span>bastion</span><span style="color:#3a4048">→</span><span style="color:#c8ced4">direct</span></div>
+<div style="padding:11px 10px;display:flex;align-items:center;gap:5px"><svg width="9" height="9" viewBox="0 0 24 24" fill="#e05252"><circle cx="12" cy="12" r="8"></circle></svg><span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#f07b78">06:14</span></div>
+</div>
+
+<div style="display:grid;grid-template-columns:26px 1fr 96px 100px 92px 120px 130px 88px;align-items:center;border-bottom:1px solid #1c1e22;cursor:pointer" style-hover="background:#1c1e22">
+<div style="padding-left:14px"><span style="width:7px;height:7px;border-radius:4px;background:#4bb47b;display:block"></span></div>
+<div style="padding:11px 10px;display:flex;align-items:center;gap:8px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4fd0de" stroke-width="1.9" stroke-linecap="round" style="flex:none"><path d="M4 8l4 4-4 4"></path><path d="M12 16h8"></path></svg><span style="font-size:13.5px">db-01</span><span style="font-family:'JetBrains Mono',monospace;font-size:9.5px;color:#f07b78;background:rgba(224,82,82,.12);border-radius:3px;padding:1px 5px">prod</span></div>
+<div style="padding:11px 10px;font-family:'JetBrains Mono',monospace;font-size:12px;color:#9aa1a9">SSH</div>
+<div style="padding:11px 10px;font-family:'JetBrains Mono',monospace;font-size:12.5px">3h 12m</div>
+<div style="padding:11px 10px;font-family:'JetBrains Mono',monospace;font-size:12.5px;color:#e0a33d">148 ms</div>
+<div style="padding:11px 10px;font-family:'JetBrains Mono',monospace;font-size:12px;color:#9aa1a9">↓18 MB ↑1.2 MB</div>
+<div style="padding:11px 10px;display:flex;align-items:center;gap:4px;font-family:'JetBrains Mono',monospace;font-size:11px;color:#8a929a"><span>bastion</span><span style="color:#3a4048">→</span><span>jump-eu</span></div>
+<div style="padding:11px 10px;display:flex;align-items:center;gap:5px"><svg width="9" height="9" viewBox="0 0 24 24" fill="#e05252"><circle cx="12" cy="12" r="8"></circle></svg><span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#f07b78">3:12:04</span></div>
+</div>
+
+<div style="display:grid;grid-template-columns:26px 1fr 96px 100px 92px 120px 130px 88px;align-items:center;border-bottom:1px solid #1c1e22;cursor:pointer" style-hover="background:#1c1e22">
+<div style="padding-left:14px"><span style="width:7px;height:7px;border-radius:4px;background:#4bb47b;display:block"></span></div>
+<div style="padding:11px 10px;display:flex;align-items:center;gap:8px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8fa0f5" stroke-width="1.8" style="flex:none"><rect x="3" y="5" width="18" height="12" rx="1.6"></rect><path d="M9 21h6M12 17v4" stroke-linecap="round"></path></svg><span style="font-size:13.5px">ctso-dc01</span><span style="font-size:11.5px;color:#8a929a">Customers / Contoso</span></div>
+<div style="padding:11px 10px;font-family:'JetBrains Mono',monospace;font-size:12px;color:#9aa1a9">RDP</div>
+<div style="padding:11px 10px;font-family:'JetBrains Mono',monospace;font-size:12.5px">41m</div>
+<div style="padding:11px 10px;font-family:'JetBrains Mono',monospace;font-size:12.5px;color:#4bb47b">22 ms</div>
+<div style="padding:11px 10px;font-family:'JetBrains Mono',monospace;font-size:12px;color:#9aa1a9">↓412 MB ↑8.4 MB</div>
+<div style="padding:11px 10px;font-family:'JetBrains Mono',monospace;font-size:11px;color:#c8ced4">direct</div>
+<div style="padding:11px 10px;display:flex;align-items:center;gap:5px"><svg width="9" height="9" viewBox="0 0 24 24" fill="#e05252"><circle cx="12" cy="12" r="8"></circle></svg><span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#f07b78">41:22</span></div>
+</div>
+
+<div style="display:grid;grid-template-columns:26px 1fr 96px 100px 92px 120px 130px 88px;align-items:center;border-bottom:1px solid #1c1e22;cursor:pointer" style-hover="background:#1c1e22">
+<div style="padding-left:14px"><span style="width:7px;height:7px;border-radius:4px;background:#e0a33d;display:block;animation:pulse 1.2s ease-in-out infinite"></span></div>
+<div style="padding:11px 10px;display:flex;align-items:center;gap:8px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4bb47b" stroke-width="1.9" stroke-linecap="round" style="flex:none"><path d="M4 8h11l-3-3M20 16H9l3 3"></path></svg><span style="font-size:13.5px">ctso-files</span><span style="font-size:11.5px;color:#e0a33d">uploading release-4.2.tar.gz</span></div>
+<div style="padding:11px 10px;font-family:'JetBrains Mono',monospace;font-size:12px;color:#9aa1a9">SFTP</div>
+<div style="padding:11px 10px;font-family:'JetBrains Mono',monospace;font-size:12.5px">2m</div>
+<div style="padding:11px 10px;font-family:'JetBrains Mono',monospace;font-size:12.5px;color:#4bb47b">19 ms</div>
+<div style="padding:11px 10px;display:flex;flex-direction:column;gap:3px"><span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#9aa1a9">↑ 1.4 / 3.8 GB</span><span style="height:3px;border-radius:2px;background:#2a2e34;overflow:hidden;display:block"><span style="display:block;height:100%;width:37%;background:#3bb6c4;border-radius:2px"></span></span></div>
+<div style="padding:11px 10px;font-family:'JetBrains Mono',monospace;font-size:11px;color:#c8ced4">direct</div>
+<div style="padding:11px 10px;font-size:11.5px;color:#8a929a">not recorded</div>
+</div>
+</div>
+
+<div style="flex:none;border-top:1px solid #2a2e34;padding:12px 16px;display:flex;align-items:center;gap:9px;background:#1c1e22">
+<span style="font-size:12.5px;color:#8a929a">With 1 selected:</span>
+<button type="button" style="appearance:none;border:1px solid #2a2e34;background:#23262b;color:#c8ced4;font:500 12px system-ui,sans-serif;padding:6px 12px;border-radius:6px;cursor:pointer" style-hover="border-color:#3bb6c4;color:#e6e8ea">Focus tab</button>
+<button type="button" style="appearance:none;border:1px solid #2a2e34;background:#23262b;color:#c8ced4;font:500 12px system-ui,sans-serif;padding:6px 12px;border-radius:6px;cursor:pointer" style-hover="border-color:#3bb6c4;color:#e6e8ea">Duplicate</button>
+<button type="button" style="appearance:none;border:1px solid #2a2e34;background:#23262b;color:#c8ced4;font:500 12px system-ui,sans-serif;padding:6px 12px;border-radius:6px;cursor:pointer" style-hover="border-color:#3bb6c4;color:#e6e8ea">Detach to window</button>
+<button type="button" style="appearance:none;border:1px solid #2a2e34;background:#23262b;color:#c8ced4;font:500 12px system-ui,sans-serif;padding:6px 12px;border-radius:6px;cursor:pointer" style-hover="border-color:#e05252;color:#e6e8ea">Disconnect</button>
+<div style="flex:1"></div>
+<div style="display:flex;align-items:center;gap:7px;font-size:12px;color:#8a929a"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8a929a" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5M12 16h.01"></path></svg>4 of 32 session slots used</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ showTunnels }}" hint-placeholder-val="{{ false }}">
+<div style="flex:1;min-height:0;display:flex;flex-direction:column">
+<div style="display:grid;grid-template-columns:26px 92px 1fr 130px 110px 96px;background:#131417;border-bottom:1px solid #2a2e34;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#8a929a">
+<div style="padding:9px 0 9px 14px"></div><div style="padding:9px 10px">Type</div><div style="padding:9px 10px">Forward</div><div style="padding:9px 10px">Via</div><div style="padding:9px 10px">Traffic</div><div style="padding:9px 10px">Conns</div></div>
+
+<div style="flex:1;min-height:0;overflow:auto">
+<div style="display:grid;grid-template-columns:26px 92px 1fr 130px 110px 96px;align-items:center;border-bottom:1px solid #1c1e22" style-hover="background:#1c1e22">
+<div style="padding-left:14px"><span style="width:7px;height:7px;border-radius:4px;background:#4bb47b;display:block"></span></div>
+<div style="padding:12px 10px;font-size:12.5px;color:#c8ced4">Local</div>
+<div style="padding:12px 10px;display:flex;align-items:center;gap:9px;font-family:'JetBrains Mono',monospace;font-size:12.5px"><span style="color:#e6e8ea">127.0.0.1:5432</span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4bb47b" stroke-width="2" stroke-linecap="round"><path d="M4 12h14M13 7l5 5-5 5"></path></svg><span style="color:#c8ced4">db-01.internal:5432</span></div>
+<div style="padding:12px 10px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#8a929a">db-01 session</div>
+<div style="padding:12px 10px;font-family:'JetBrains Mono',monospace;font-size:12px;color:#9aa1a9">1.2 MB</div>
+<div style="padding:12px 10px;font-family:'JetBrains Mono',monospace;font-size:12px;color:#9aa1a9">3</div>
+</div>
+
+<div style="display:grid;grid-template-columns:26px 92px 1fr 130px 110px 96px;align-items:center;border-bottom:1px solid #1c1e22" style-hover="background:#1c1e22">
+<div style="padding-left:14px"><span style="width:7px;height:7px;border-radius:4px;background:#4bb47b;display:block"></span></div>
+<div style="padding:12px 10px;font-size:12.5px;color:#c8ced4">Local</div>
+<div style="padding:12px 10px;display:flex;align-items:center;gap:9px;font-family:'JetBrains Mono',monospace;font-size:12.5px"><span style="color:#e6e8ea">127.0.0.1:8080</span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4bb47b" stroke-width="2" stroke-linecap="round"><path d="M4 12h14M13 7l5 5-5 5"></path></svg><span style="color:#c8ced4">grafana.internal:3000</span></div>
+<div style="padding:12px 10px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#8a929a">web-01 session</div>
+<div style="padding:12px 10px;font-family:'JetBrains Mono',monospace;font-size:12px;color:#9aa1a9">340 KB</div>
+<div style="padding:12px 10px;font-family:'JetBrains Mono',monospace;font-size:12px;color:#9aa1a9">1</div>
+</div>
+
+<div style="display:grid;grid-template-columns:26px 92px 1fr 130px 110px 96px;align-items:center;border-bottom:1px solid #1c1e22;opacity:.62" style-hover="background:#1c1e22">
+<div style="padding-left:14px"><span style="width:7px;height:7px;border-radius:4px;border:1.5px solid #8a929a;box-sizing:border-box;display:block"></span></div>
+<div style="padding:12px 10px;font-size:12.5px;color:#c8ced4">Dynamic</div>
+<div style="padding:12px 10px;display:flex;align-items:center;gap:9px;font-family:'JetBrains Mono',monospace;font-size:12.5px"><span style="color:#c8ced4">127.0.0.1:1080</span><span style="font-size:11.5px;color:#8a929a;font-family:system-ui,sans-serif">SOCKS5 proxy</span></div>
+<div style="padding:12px 10px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#8a929a">bastion (persistent)</div>
+<div style="padding:12px 10px;font-size:12px;color:#8a929a">inactive</div>
+<div style="padding:12px 10px;font-family:'JetBrains Mono',monospace;font-size:12px;color:#8a929a">—</div>
+</div>
+
+<div style="display:grid;grid-template-columns:26px 92px 1fr 130px 110px 96px;align-items:center;border-bottom:1px solid #1c1e22;background:rgba(224,82,82,.05)">
+<div style="padding-left:14px"><span style="width:7px;height:7px;border-radius:4px;background:#4bb47b;display:block"></span></div>
+<div style="padding:12px 10px;font-size:12.5px;color:#c8ced4">Remote</div>
+<div style="padding:12px 10px;display:flex;align-items:center;gap:9px;flex-wrap:wrap;font-family:'JetBrains Mono',monospace;font-size:12.5px"><span style="color:#f07b78">0.0.0.0:9000</span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#e05252" stroke-width="2" stroke-linecap="round"><path d="M20 12H6M11 7l-5 5 5 5"></path></svg><span style="color:#c8ced4">127.0.0.1:9000</span><span style="display:flex;align-items:center;gap:4px;font-family:system-ui,sans-serif;font-size:10.5px;font-weight:600;color:#f07b78;background:rgba(224,82,82,.14);border:1px solid rgba(224,82,82,.4);border-radius:4px;padding:2px 7px"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#e05252" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5L22 20H2z"></path><path d="M12 10v4M12 17h.01"></path></svg>exposed to the network</span></div>
+<div style="padding:12px 10px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#8a929a">web-01 session</div>
+<div style="padding:12px 10px;font-family:'JetBrains Mono',monospace;font-size:12px;color:#9aa1a9">88 KB</div>
+<div style="padding:12px 10px;font-family:'JetBrains Mono',monospace;font-size:12px;color:#9aa1a9">1</div>
+</div>
+
+<div style="display:grid;grid-template-columns:26px 92px 1fr 130px 110px 96px;align-items:center;border-bottom:1px solid #1c1e22">
+<div style="padding-left:14px"><span style="width:7px;height:7px;border-radius:4px;background:#e05252;display:block"></span></div>
+<div style="padding:12px 10px;font-size:12.5px;color:#c8ced4">Local</div>
+<div style="padding:12px 10px;display:flex;flex-direction:column;gap:4px"><span style="font-family:'JetBrains Mono',monospace;font-size:12.5px;color:#9aa1a9">127.0.0.1:3306 → mysql.internal:3306</span><span style="font-size:11.5px;color:#f07b78">Port 3306 is already in use on this machine. Nothing else changed.</span></div>
+<div style="padding:12px 10px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#8a929a">db-01 session</div>
+<div style="padding:12px 10px;font-size:12px;color:#f07b78">failed to bind</div>
+<div style="padding:12px 10px"><button type="button" style="appearance:none;border:1px solid #2a2e34;background:#23262b;color:#c8ced4;font:500 11px system-ui,sans-serif;padding:4px 9px;border-radius:5px;cursor:pointer" style-hover="border-color:#3bb6c4;color:#e6e8ea">Retry</button></div>
+</div>
+</div>
+
+<div style="flex:none;border-top:1px solid #2a2e34;padding:12px 16px;display:flex;align-items:center;gap:9px;background:#1c1e22">
+<button type="button" style="display:flex;align-items:center;gap:7px;background:#23262b;border:1px solid #2a2e34;border-radius:6px;padding:7px 13px;cursor:pointer;color:#c8ced4;font:500 12.5px system-ui,sans-serif" style-hover="border-color:#3bb6c4;color:#e6e8ea"><svg width="13" height="13" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round"><path d="M12 6v12M6 12h12"></path></svg>Add forward</button>
+<div style="flex:1"></div>
+<div style="display:flex;align-items:center;gap:7px;font-size:12px;color:#8a929a"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8a929a" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5M12 16h.01"></path></svg>New forwards bind to <span style="font-family:'JetBrains Mono',monospace;color:#9aa1a9">127.0.0.1</span> unless you change it</div>
+</div>
+</div>
+</sc-if>
+
+</div>
+
+<div style="width:1100px;display:flex;flex-wrap:wrap;gap:10px">
+<div style="flex:1;min-width:250px;background:#131417;border:1px solid #23262b;border-radius:8px;padding:13px 15px;display:flex;flex-direction:column;gap:5px"><div style="font-size:12px;font-weight:600;color:#c8ced4">Route is a column, not a tooltip</div><div style="font-size:12px;color:#8a929a;line-height:1.5">When a session goes through two bastions, that is the first thing you want to know when it gets slow. 148 ms next to "bastion → jump-eu" explains itself.</div></div>
+<div style="flex:1;min-width:250px;background:#131417;border:1px solid #23262b;border-radius:8px;padding:13px 15px;display:flex;flex-direction:column;gap:5px"><div style="font-size:12px;font-weight:600;color:#c8ced4">Exposed forwards are loud</div><div style="font-size:12px;color:#8a929a;line-height:1.5">A remote forward bound to <span style="font-family:'JetBrains Mono',monospace;font-size:11px">0.0.0.0</span> opens a path back into your machine. It gets a red row, a red address and a labelled badge — three signals, not one colour.</div></div>
+<div style="flex:1;min-width:250px;background:#131417;border:1px solid #23262b;border-radius:8px;padding:13px 15px;display:flex;flex-direction:column;gap:5px"><div style="font-size:12px;font-weight:600;color:#c8ced4">A bind failure says which port</div><div style="font-size:12px;color:#8a929a;line-height:1.5">"Port 3306 is already in use on this machine" and a retry button, rather than a red dot the user has to investigate.</div></div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1160,&quot;height&quot;:840},&quot;pane&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;sessions&quot;,&quot;tunnels&quot;],&quot;default&quot;:&quot;sessions&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Prototype&quot;}}">
+class Component extends DCLogic {
+  state = { pane: 'sessions' };
+  renderVals() {
+    const p = this.state.pane;
+    const on = 'display:flex;align-items:center;gap:8px;padding:0 16px;font-size:13px;font-weight:600;color:#e6e8ea;box-shadow:inset 0 -2px 0 #3bb6c4;cursor:pointer';
+    const off = 'display:flex;align-items:center;gap:8px;padding:0 16px;font-size:13px;color:#9aa1a9;cursor:pointer';
+    return {
+      showSessions: p === 'sessions',
+      showTunnels: p === 'tunnels',
+      tabSessions: p === 'sessions' ? on : off,
+      tabTunnels: p === 'tunnels' ? on : off,
+      onBar: (e) => {
+        const b = e.target.closest && e.target.closest('[data-pane]');
+        if (b) this.setState({ pane: b.getAttribute('data-pane') });
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>
