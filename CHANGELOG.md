@@ -10,7 +10,9 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 ### Added
 - Project specification: architecture, threat model, vault format, data model,
   session pipeline, rendering, plugin system, storage
-- Architecture Decision Records 0001–0008
+- Architecture Decision Records 0001–0012
+- `LICENSE-EXCEPTION`: GPL-3.0 §7 additional permission allowing WebAssembly
+  plugins to carry any licence
 - Feature specifications: connections, protocols, tunnelling, import/export,
   recording and audit, internationalisation
 - Interface specification: information architecture and design system

@@ -15,5 +15,9 @@ history.
 | [0006](0006-licensing.md) | GPL-3.0-or-later | Accepted |
 | [0007](0007-process-isolation.md) | Single process in v1, isolation deferred | Accepted |
 | [0008](0008-internationalisation.md) | Ten languages from v1, ICU MessageFormat, RTL | Accepted |
+| [0009](0009-plugin-licence-exception.md) | GPL-3.0 interface exception for WebAssembly plugins | Accepted |
+| [0010](0010-framebuffer-transport.md) | Budgeted adaptive encoding, per-platform presenter | Accepted |
+| [0011](0011-panic-strategy.md) | `panic = "unwind"` in release builds | Accepted |
+| [0012](0012-audit-log-integrity.md) | No hash chain in v1.0; forward-secure sealing later | Accepted |
 
 Copy [0000-template.md](0000-template.md) to start a new one.

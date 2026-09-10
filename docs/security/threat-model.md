@@ -198,6 +198,8 @@ rather than guessing — fail closed, never open.
 | Independent cryptographic review | **Required before v1.0.** Tracked in the roadmap |
 | Penetration test | Planned post-1.0 |
 
-`OPEN:` We intend to seek external review of the vault format before tagging
-v1.0. Contributors with applied-cryptography experience are specifically
-invited — see [SECURITY.md](../../SECURITY.md).
+Independent review of the vault format is a **release gate for v1.0**, not an
+aspiration: the tag does not happen until a review has been done and its
+findings addressed. The specification is public before implementation for
+exactly this reason. Contributors with applied-cryptography experience are
+specifically invited — see [SECURITY.md](../../SECURITY.md).

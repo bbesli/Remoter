@@ -25,7 +25,7 @@ New to the project? Read in this order:
 | [rendering.md](architecture/rendering.md) | Terminal and framebuffer rendering, IPC transport |
 | [plugin-system.md](architecture/plugin-system.md) | WebAssembly ABI, capabilities, sandbox |
 | [storage.md](architecture/storage.md) | SQLite schema, migrations, sync-readiness |
-| [decisions/](architecture/decisions/) | Architecture Decision Records |
+| [decisions/](architecture/decisions/) | Architecture Decision Records (0001–0012) |
 
 ### Security
 | Document | Contents |

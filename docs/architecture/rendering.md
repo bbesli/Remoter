@@ -99,32 +99,58 @@ The encoder chooses per rectangle based on size and entropy, and adapts to
 measured frontend decode time. If the WebView cannot keep up, the encoder shifts
 towards lossy encodings before it starts dropping frames.
 
-### If this is not fast enough
+**4 · A byte budget, so degradation is graceful.** The encoder targets a
+configurable per-second byte budget, default **12 MB/s**, tied to the
+connection's bandwidth profile. Within the budget it escalates towards lossy
+encodings rather than dropping frames. Under load the image softens; it does not
+stutter. For remote administration a slightly soft frame on time beats a sharp
+one late, and this inverts the failure mode from "unresponsive" to "less
+crisp".
 
-`OPEN:` **This is the project's principal technical risk.** The mitigation is to
-find out early rather than late.
+### Measuring this before building on it
 
-A spike in milestone v0.3 will measure, on all three platforms, at 1080p and
-1440p:
+Settled by [ADR-0010](decisions/0010-framebuffer-transport.md). The short
+version:
 
-- End-to-end latency, input event to rendered frame
-- Sustained frame rate under a video-playback workload
-- CPU cost, split between encode, IPC and decode
-- Memory behaviour over a one-hour session
+**A harness comes first.** `remoter-bench-framepath` is built in **v0.1**,
+before any RDP work, and replays synthetic and captured dirty-rectangle streams
+through the real transport and presenter. It needs no protocol implementation,
+which is precisely why it can run this early.
 
-If the WebView path cannot hold ~30 fps at 1080p with acceptable latency, the
-fallback is a **native surface overlay**: render the framebuffer with `wgpu`
-into a child window positioned beneath a transparent WebView that carries the UI
-chrome. This is a known technique, it is how high-performance Tauri applications
-handle video, and it costs us WebView conveniences inside the session area
-(no CSS effects over the pixels, more per-platform window code). It does not
-change any other layer of the architecture, which is why the decision can be
-deferred until there is data.
+**Acceptance bar**, at 1080p and 1440p on all three platforms:
 
-`OPEN:` Linux specifically needs early measurement. WebKitGTK's compositing path
-can silently fall back to software rasterisation, and Tauri's own documentation
-flags this. The spike must verify hardware acceleration is actually in use,
-rather than trusting that WebGL2 context creation succeeded.
+| Metric | Threshold |
+|---|---|
+| p95 input-to-photon latency | ≤ 80 ms |
+| Sustained frame rate, interactive workload | ≥ 30 fps |
+| Sustained frame rate, video workload | ≥ 24 fps |
+| Frame queue depth over a 10-minute run | Bounded, no growth |
+| Hardware acceleration | Confirmed in use, not merely available |
+
+That last row is not pedantry. WebKitGTK can create a WebGL2 context backed by a
+software rasteriser, so a context that initialises successfully proves nothing.
+The harness checks the renderer string, which is two lines of code and prevents
+a benchmark that measures the wrong thing.
+
+### The presenter is an interface, and it is per-platform
+
+```
+FrameEncoder ──▶ binary frame format ──▶ ┌ WebViewPresenter  (IPC → canvas/WebGL2)
+                                          └ NativePresenter   (wgpu → child surface)
+```
+
+The `NativePresenter` renders the framebuffer with `wgpu` into a child surface
+beneath a transparent WebView carrying the UI chrome. It costs WebView
+conveniences inside the session area and more per-platform window code.
+
+The important consequence: **the choice does not have to be the same on every
+platform.** WebView2 and WKWebView may clear the bar while WebKitGTK does not.
+Shipping the WebView presenter on Windows and macOS and the native presenter on
+Linux is a legitimate outcome, not a failure — and because only the presenter
+differs, nothing above it changes.
+
+**Decision gate: end of v0.2**, when the harness has numbers from real
+hardware.
 
 ## Input
 

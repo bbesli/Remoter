@@ -30,11 +30,38 @@ The log is queryable and filterable in the UI, exportable to JSON or CSV, and
 subject to a retention policy (default: keep everything; configurable to a time
 window, with the change itself logged).
 
-`OPEN:` The log is append-only by application convention, not cryptographically.
-A hash chain — each entry committing to its predecessor — would make tampering
-detectable by anyone holding the vault, at a small storage cost. Worth doing
-before v1.0 if any user needs the log as compliance evidence; tracked as an
-issue.
+### What the log's integrity actually guarantees
+
+Stated precisely, because the honest guarantee is narrower than the one a
+feature list would imply:
+
+> The audit log cannot be read or modified by anyone who cannot open the vault.
+> It is **not** tamper-evident against someone who can: a person with your
+> master password can edit the log, and Remoter cannot detect it.
+
+The log lives inside the vault body, which is encrypted and authenticated as one
+unit. That already stops anyone without the key from touching a byte of it — so
+a hash chain would add nothing there. And a hash chain keyed under a key the
+attacker holds is no obstacle to someone who *does* have the key: they can edit
+entries and recompute every link. It would defend against nobody.
+
+Remoter therefore ships **no hash chain** in v1.0, and says what is true instead
+of claiming tamper evidence it does not provide. The reasoning in full, and the
+forward-secure construction that *would* work, are in
+[ADR-0012](../architecture/decisions/0012-audit-log-integrity.md).
+
+That construction — an evolving log key, with each key destroyed after use, so
+that compromising the vault today cannot forge yesterday's entries — is
+specified and ready. It gets built when the log acquires a second reader: team
+synchronisation (v2), or a user with a concrete compliance requirement. In a
+single-user local tool the vault holder *is* the auditor, and a mechanism whose
+entire purpose is to constrain the vault holder has no one to protect.
+
+**For compliance users who need it before then**: an opt-in **external audit
+sink** writes entries to syslog or an append-only file outside the vault, sealed
+with the forward-secure scheme. It is off by default and warns clearly, because
+an external log is a copy of your connection inventory living outside the
+vault's protection. That trade is the user's to make knowingly.
 
 ## Terminal recording
 

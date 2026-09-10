@@ -15,7 +15,9 @@ Remoter/
 │   ├── remoter-tunnel/        Forwarding, jump host chains
 │   ├── remoter-import/        Foreign format parsers
 │   ├── remoter-record/        Recording, audit log
-│   ├── remoter-plugin/        WASM host
+│   ├── remoter-plugin/        WASM host                    (GPL-3.0)
+│   ├── remoter-plugin-abi/    Plugin ABI types and wire format  (Apache-2.0 OR MIT)
+│   ├── remoter-plugin-sdk/    Guest-side helpers for plugin authors (Apache-2.0 OR MIT)
 │   └── remoter-ipc/           Tauri command surface
 ├── apps/
 │   ├── desktop/
@@ -30,6 +32,7 @@ Remoter/
 ├── fuzz/                      cargo-fuzz targets
 ├── .github/workflows/         CI
 ├── deny.toml                  Licence and advisory policy
+├── LICENSE-EXCEPTION          GPL-3.0 §7 permission for WASM plugins
 ├── Cargo.toml                 Workspace root
 ├── CLAUDE.md                  Agent working guide
 ├── CONTRIBUTING.md
@@ -129,6 +132,7 @@ calling `invoke` directly is a review rejection.
 | A new protocol | `crates/remoter-proto-<name>/`, implementing `Protocol` |
 | A new import format | `crates/remoter-import/src/<source>.rs` + a fuzz target |
 | A new key slot type | `crates/remoter-vault/src/slots/<kind>.rs` |
+| A plugin ABI type or signature | `crates/remoter-plugin-abi/` — **must stay free of GPL dependencies**, enforced in CI |
 | A new screen | `apps/desktop/ui/src/features/<feature>/` |
 | A shared button variant | `apps/desktop/ui/src/components/` |
 | A new Tauri command | `crates/remoter-ipc/` + a wrapper in `lib/ipc.ts` |

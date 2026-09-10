@@ -40,7 +40,7 @@ opt-level = 3
 lto = "fat"
 codegen-units = 1
 strip = true
-panic = "abort"
+panic = "unwind"        # deliberate — see ADR-0011
 
 # For release builds we ship symbols separately rather than in the binary.
 [profile.release-debug]
@@ -49,14 +49,18 @@ strip = false
 debug = true
 ```
 
-`panic = "abort"` deserves a note: session tasks are wrapped in `catch_unwind`
-at the supervisor boundary, which `abort` disables. The decision is therefore
-deliberate — with `abort`, a decoder panic terminates the process rather than
-one tab. Before v1.0 we will measure whether `unwind` costs enough to matter; if
-not, `unwind` is the better choice for a tool where losing every session to one
-malformed frame is a worse outcome than a slightly larger binary.
+`panic = "unwind"` is deliberate and is settled by
+[ADR-0011](../architecture/decisions/0011-panic-strategy.md). `abort` would buy
+roughly 5–10 % smaller binaries and cost every open session whenever one
+protocol decoder hit a bug on a malformed frame. Twenty sessions, two tunnels
+and an in-flight transfer against a few megabytes of binary is not a close call.
 
-`OPEN:` Resolve this before v1.0 and record the decision here.
+Each session runs as its own `tokio::spawn`ed task, so a panic surfaces as
+`JoinError::is_panic()` rather than propagating — no `catch_unwind` is needed or
+used. A panicked session is **destroyed, never resumed**: its state is discarded
+whole, which is what answers the legitimate objection that continuing past a
+panic can mask corruption. A panic anywhere outside a session task is treated as
+fatal, because those components have no isolation boundary.
 
 ## Signing
 
@@ -107,6 +111,8 @@ and no crash upload. Crash reports are written locally and the user chooses
 whether to attach one to an issue — which means they can read it first, which
 matters when the process holds credentials.
 
-`OPEN:` Whether to ship a Linux distribution repository (APT/RPM) or rely on
-AppImage and Flathub. A repository is better for users and more work to
-maintain; decide before v1.0.
+**Linux distribution.** v1.0 ships AppImage, `.deb` and `.rpm` as direct
+downloads, plus Flathub. A hosted APT/RPM repository is better for users and a
+standing maintenance commitment; it is deferred until there is someone willing
+to own it, rather than started and left to rot. Downstream packaging by
+distribution maintainers is welcomed and supported.

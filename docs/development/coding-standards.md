@@ -70,6 +70,28 @@ Rules:
 - Bounded channels everywhere. An unbounded channel is an unbounded memory leak
   waiting for a fast remote host
 
+### Panics
+
+`panic = "unwind"` in every profile
+([ADR-0011](../architecture/decisions/0011-panic-strategy.md)). Two rules follow
+and both are enforced in review:
+
+- **A panicked session is destroyed, never resumed.** On
+  `JoinError::is_panic()`, the supervisor discards the whole session state,
+  closes its sockets, flushes its recorder and zeroizes its secrets. Any change
+  that tries to recover or reuse part of a panicked session's state reintroduces
+  precisely the state-corruption risk that made `abort` tempting
+- **A session task never holds a lock on shared state across decoder code.** The
+  vault is a single-writer task for this reason. `parking_lot` mutexes are used
+  where locks are needed, so there is no poisoning to reason about
+
+A panic anywhere outside a session task is fatal by design: those components
+have no isolation boundary, and continuing past a bug in them would mask
+corruption rather than contain it.
+
+The panic hook logs the panic **location**, never the payload — a payload can
+contain a formatted value, and a formatted value can contain a secret.
+
 ### Unsafe
 
 `#![forbid(unsafe_code)]` at the top of every crate. Exceptions require an ADR

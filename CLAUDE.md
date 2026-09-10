@@ -27,6 +27,12 @@ These rules override convenience, speed and personal preference.
    implementing a wire-level detail.
 5. **Do not add a dependency without checking its licence** against GPL-3.0
    compatibility and recording it in `deny.toml`. See §8.
+6. **Never resume a panicked session.** Discard its state whole. See §5.
+7. **`remoter-plugin-abi` and `remoter-plugin-sdk` must stay free of GPL
+   dependencies.** They are Apache-2.0 OR MIT so that plugin authors compile
+   against nothing copyleft; a GPL dependency there silently breaks the licence
+   exception in `LICENSE-EXCEPTION`. CI enforces it, but do not rely on CI to
+   catch what you already know.
 
 ---
 
@@ -55,6 +61,8 @@ unless the document has been amended first.
 | How is a connection modelled? | `docs/architecture/data-model.md` |
 | How does a session start? | `docs/architecture/session-pipeline.md` |
 | What can a plugin do? | `docs/architecture/plugin-system.md` |
+| What licence may a plugin use? | `docs/architecture/decisions/0009-plugin-licence-exception.md` |
+| Why unwind and not abort? | `docs/architecture/decisions/0011-panic-strategy.md` |
 | What ships when? | `docs/roadmap.md` |
 | What does this word mean? | `docs/glossary.md` |
 
@@ -80,6 +88,8 @@ crates/
   remoter-import/       mRemoteNG, Royal TS, PuTTY, RDCMan, ssh_config, CSV
   remoter-record/       asciicast v2 writer, framebuffer recorder, audit log
   remoter-plugin/       WebAssembly host, manifest parsing, capability grants
+  remoter-plugin-abi/   Plugin ABI types and wire format   (Apache-2.0 OR MIT)
+  remoter-plugin-sdk/   Guest-side helpers for plugin authors (Apache-2.0 OR MIT)
   remoter-ipc/          Tauri command surface — the ONLY crate Tauri touches
 apps/
   desktop/
@@ -170,9 +180,16 @@ with cancellation tokens; a closed tab must terminate its task and free its
 sockets deterministically. No `std::thread::sleep` in async code. No blocking
 I/O on the runtime — use `spawn_blocking`.
 
-**Panics.** A panic in a session task must not take down the process. Session
-tasks run under `catch_unwind` at the supervisor boundary, and a panicking
-session surfaces to the user as a failed tab with a copyable diagnostic.
+**Panics.** `panic = "unwind"` in every profile. Each session is its own
+`tokio::spawn`ed task, so a panic surfaces as `JoinError::is_panic()` rather
+than propagating — no `catch_unwind` is needed or used. A panicking session
+becomes one failed tab with a copyable diagnostic.
+
+**A panicked session is destroyed, never resumed.** Discard its state whole:
+sockets closed, recorder flushed, secrets zeroized. Recovering part of it
+reintroduces the state-corruption risk. A panic outside a session task is fatal
+by design. The panic hook logs the location, never the payload — payloads
+contain formatted values, and formatted values contain secrets.
 
 **Unsafe.** `#![forbid(unsafe_code)]` at the top of every crate except where a
 platform FFI genuinely requires it. Those exceptions are listed in

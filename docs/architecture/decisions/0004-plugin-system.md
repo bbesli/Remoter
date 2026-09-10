@@ -61,10 +61,11 @@ have to say no to them.
 the application and reviewed as such; the sandbox exists for code we have not
 reviewed.
 
-`OPEN:` The GPL-3.0 status of WASM plugins loaded over a published ABI needs a
-decision from the project owner before the ABI is published. The intent is to
-treat them as separate works, which likely requires an explicit licence
-exception. See [plugin-system.md](../plugin-system.md#licensing-note).
+**Resolved.** The GPL-3.0 status of WASM plugins is settled by
+[ADR-0009](0009-plugin-licence-exception.md): the ABI and guest SDK crates are
+Apache-2.0 OR MIT, and the host grants an explicit §7 additional permission for
+modules interacting solely through the published ABI. Plugins may carry any
+licence.
 
 ## Revisit if
 

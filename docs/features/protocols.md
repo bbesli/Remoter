@@ -137,9 +137,12 @@ non-private address raises a blocking warning.
 **Features**: view-only mode, clipboard synchronisation, `SetDesktopSize` where
 supported, and configurable JPEG quality for Tight encoding.
 
-`OPEN:` `vnc-rs` is younger than the other protocol crates. If it stalls, the
-fallback is a maintained fork — the adapter interface means that decision does
-not touch anything else.
+**On `vnc-rs` maturity.** It is younger than the other protocol crates, and
+that is a real dependency risk. The response is contingency rather than
+avoidance: the adapter interface confines VNC to one crate, so if upstream
+stalls we maintain a fork and nothing else in the codebase changes. The
+milestone exit criteria — working against TigerVNC, TightVNC, RealVNC and x11vnc
+— are what would surface the problem early enough to act on.
 
 ---
 

@@ -18,6 +18,11 @@ relative.
 - Connection tree: create, edit, move, delete, search
 - Light and dark themes
 - English only
+- `remoter-plugin-abi` and `remoter-plugin-sdk` crates established under
+  Apache-2.0 OR MIT, and `LICENSE-EXCEPTION` published
+  ([ADR-0009](architecture/decisions/0009-plugin-licence-exception.md))
+- **`remoter-bench-framepath`** — the framebuffer transport harness, built
+  before any protocol work ([ADR-0010](architecture/decisions/0010-framebuffer-transport.md))
 
 **Exit criteria**
 
@@ -26,6 +31,8 @@ relative.
 - Truncation fuzzing produces no panic at any byte offset
 - No secret appears in a `trace`-level log capture
 - A vault survives 1000 save/load cycles with no corruption
+- The frame path harness produces latency and throughput numbers on all three
+  platforms, with hardware acceleration confirmed in use
 
 ## v0.2 — SSH and SFTP
 
@@ -39,6 +46,9 @@ relative.
 - `remoter-tunnel`: local, remote and dynamic forwarding
 - Jump host chains
 - SSH agent integration
+- **Presenter decision gate**: per platform, WebView presenter or native
+  `wgpu` surface, decided from the v0.1 harness numbers against the acceptance
+  bar in [ADR-0010](architecture/decisions/0010-framebuffer-transport.md)
 
 **Exit criteria**
 
@@ -47,15 +57,19 @@ relative.
 - A 1 GB file transfers, is interrupted, and resumes correctly
 - Twenty concurrent sessions with no leaked tasks or sockets
 - Closing a tab releases every resource, verified under a leak checker
+- A panicking session task fails exactly one tab and leaves the other sessions,
+  tunnels and transfers running
+  ([ADR-0011](architecture/decisions/0011-panic-strategy.md))
+- The presenter choice is recorded per platform, with the measurements behind it
 
 ## v0.3 — RDP
 
-*The hard one.*
+*The hard one — but no longer the risky one, because the transport was measured
+in v0.1 and chosen in v0.2.*
 
-- **Rendering spike first** — measure the framebuffer path on all three
-  platforms before building on it
 - IronRDP integration: TLS, NLA/CredSSP with NTLM and Kerberos
-- Framebuffer rendering with dirty rectangles and adaptive encoding
+- Framebuffer rendering with dirty rectangles and budgeted adaptive encoding
+- Native `wgpu` presenter, on any platform the v0.2 gate selected it for
 - Dynamic resolution, scaling modes, HiDPI
 - Keyboard scancode translation, tested across the layout matrix
 - Clipboard synchronisation (text)
@@ -63,8 +77,9 @@ relative.
 
 **Exit criteria**
 
-- ≥ 30 fps at 1080p with < 80 ms input-to-photon latency on all three platforms,
-  **or** the native-surface fallback implemented and meeting the same bar
+- The [ADR-0010](architecture/decisions/0010-framebuffer-transport.md)
+  acceptance bar met on every platform, by whichever presenter that platform
+  selected
 - Connects to Windows Server 2019, 2022 and Windows 10/11
 - Turkish Q and F, German, French AZERTY, Spanish, Russian and Arabic keyboard
   layouts verified
@@ -112,7 +127,6 @@ relative.
 - **Independent cryptographic review of the vault format** — a release gate, not
   an aspiration
 - Performance pass and a memory-leak soak test
-- `panic` strategy decided and documented
 
 **Exit criteria**
 
@@ -123,8 +137,9 @@ relative.
 
 ## Post-1.0
 
-**v1.1** — plugin ABI (unstable), plugin manager, Telnet, serial, local shell,
-RDP audio and multi-monitor, RD Gateway, credential provider plugins
+**v1.1** — plugin ABI published (unstable), with the interface exception legally
+reviewed first; plugin manager; Telnet, serial, local shell; RDP audio and
+multi-monitor; RD Gateway; credential provider plugins
 
 **v1.2** — plugin ABI stabilised, scripted hooks, PowerShell Remoting,
 Kubernetes and Docker `exec`, RDP printing, HTTP panel
@@ -134,7 +149,9 @@ Kubernetes and Docker `exec`, RDP printing, HTTP panel
 **v2.0** — process isolation per protocol adapter
 ([ADR-0007](architecture/decisions/0007-process-isolation.md)); end-to-end
 encrypted team synchronisation with a self-hostable server; shared vaults and
-RBAC
+RBAC; forward-secure audit log sealing, which becomes meaningful once the log
+has a reader who is not its owner
+([ADR-0012](architecture/decisions/0012-audit-log-integrity.md))
 
 ## Deliberately not planned
 

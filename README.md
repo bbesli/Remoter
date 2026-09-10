@@ -164,6 +164,15 @@ public issue. Follow [SECURITY.md](SECURITY.md) instead.
 ## Licence
 
 Remoter is free software, licensed under the
-[GNU General Public License v3.0](LICENSE). You may use, study, share and modify
-it; if you distribute a modified version, it must remain free software under the
-same licence.
+[GNU General Public License v3.0 or later](LICENSE). You may use, study, share
+and modify it; if you distribute a modified version, it must remain free
+software under the same licence.
+
+**Plugins are exempt.** WebAssembly plugins that interact with Remoter solely
+through the published plugin ABI may carry any licence, including a proprietary
+one. This rests on two things: the crates a plugin author compiles against
+(`remoter-plugin-abi`, `remoter-plugin-sdk`) are Apache-2.0 OR MIT, and the host
+grants an explicit additional permission under GPL-3.0 §7, published as
+[LICENSE-EXCEPTION](LICENSE-EXCEPTION). The exception does not extend to forks
+of Remoter itself, which remain GPL in full. The reasoning is in
+[ADR-0009](docs/architecture/decisions/0009-plugin-licence-exception.md).

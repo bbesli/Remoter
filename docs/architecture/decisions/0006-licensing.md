@@ -74,10 +74,11 @@ practically be changed later without unanimous contributor agreement — the
 Contributor Licence Agreement question should be settled before the first
 external pull request is merged.
 
-`OPEN:` Whether WebAssembly plugins loaded over the published ABI are derivative
-works is unsettled. The project's intent is that they are separate works, which
-probably requires an explicit linking exception. This must be decided before the
-plugin ABI is published in v1.1. See ADR-0004.
+**Plugins.** WebAssembly plugins are covered by an explicit §7 additional
+permission and may carry any licence — see
+[ADR-0009](0009-plugin-licence-exception.md) and
+[`LICENSE-EXCEPTION`](../../../LICENSE-EXCEPTION). The core, and every fork of
+it, remains GPL.
 
 ## Revisit if
 

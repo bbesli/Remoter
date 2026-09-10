@@ -1,0 +1,54 @@
+REMOTER PLUGIN INTERFACE EXCEPTION
+Additional permission under GNU GPL version 3 section 7
+
+Copyright (C) 2026 Burak Besli and the Remoter contributors
+
+Remoter is licensed under the GNU General Public License, version 3 or (at
+your option) any later version, as published in the accompanying LICENSE
+file. The following additional permission is granted under section 7 of
+that licence.
+
+  GRANT
+
+  If you combine, or link, the Program with a WebAssembly module that
+  interacts with the Program solely through the published Remoter Plugin
+  ABI, you are granted additional permission to convey the resulting work,
+  and to license that WebAssembly module under terms of your choosing,
+  including terms that are not compatible with the GNU General Public
+  License.
+
+  This permission is granted with respect to the Remoter Plugin ABI
+  version or versions that the Program itself publishes and implements.
+
+  SCOPE AND LIMITS
+
+  This permission applies only to WebAssembly modules executed by the
+  Program's plugin runtime, and only where the module's interaction with
+  the Program occurs solely through the published Remoter Plugin ABI.
+
+  This permission does not apply to:
+
+    (a) any modified version of the Program itself, including any fork,
+        patch, or derivative of the Program's own source code, which
+        remains subject to the GNU General Public License in full;
+
+    (b) any work that incorporates source code of the Program other than
+        the interface definition and guest-side support crates that the
+        project publishes under permissive terms (`remoter-plugin-abi`
+        and `remoter-plugin-sdk`, licensed Apache-2.0 OR MIT);
+
+    (c) any native code loaded into the Program's process, by any
+        mechanism.
+
+  If you modify the Program, you may extend this permission to your
+  modified version, but you are not obliged to do so. If you do not wish
+  to extend it, you may remove this permission from your modified version.
+
+  NO OTHER RIGHTS
+
+  Nothing in this permission grants any right to use the name "Remoter",
+  or the names of its contributors, to endorse or promote products derived
+  from this software.
+
+  Except as expressly granted above, all terms of the GNU General Public
+  License version 3 apply in full.

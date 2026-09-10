@@ -178,20 +178,38 @@ runaway plugin fails its own sessions; it does not degrade the application.
   capability
 - Every plugin's id, version and hash appear in the audit log when it is loaded
 
-## Licensing note
+## Licensing
 
-`OPEN:` Remoter is GPL-3.0. Whether a WebAssembly plugin executed by the host
-constitutes a derivative work is not settled law, and reasonable people differ.
+**Plugins may carry any licence, including a proprietary one.** This is settled
+by [ADR-0009](decisions/0009-plugin-licence-exception.md) and rests on two
+things rather than on an argument about derivative works:
 
-The project's intent — to be stated in the plugin documentation and, if adopted,
-in a licence exception — is that plugins communicating solely through the
-published, versioned ABI are **separate works** and may carry any licence. This
-matches the treatment of, for example, kernel modules using stable interfaces,
-and is what makes a plugin ecosystem viable at all.
+1. **The crates a plugin author compiles against are permissively licensed.**
+   `remoter-plugin-abi` (types, signatures, wire format) and
+   `remoter-plugin-sdk` (guest-side helpers and macros) are **Apache-2.0 OR
+   MIT**. A plugin author never incorporates a line of GPL source. Only the
+   host-side runtime, `remoter-plugin`, is GPL-3.0.
 
-This needs a decision from the project owner before the ABI is published in
-v1.1, and it should be recorded as an ADR. Adding a linking exception later is
-possible; removing one is not.
+2. **An explicit additional permission under GPL-3.0 §7**, published as
+   [`LICENSE-EXCEPTION`](../../LICENSE-EXCEPTION) in the repository root,
+   granting permission to combine the Program with WebAssembly modules that
+   interact solely through the published ABI.
+
+The exception is deliberately narrow. It does **not** cover forks or
+modifications of Remoter itself, which remain GPL in full; it does **not** cover
+a plugin that incorporates Remoter source beyond the two permissive crates; and
+it does **not** cover native code loaded into the process, which is not
+supported.
+
+Why this was decided in v0.1 rather than at v1.1 when the ABI ships: an
+exception can be granted but never withdrawn, and granting one later requires
+unanimous consent from every copyright holder by that point. With one
+contributor it is a decision; after the first external pull request it is a
+negotiation.
+
+The exception text is modelled on additional permissions in wide use, but it is
+not legal advice and should be reviewed by a lawyer before the ABI is
+published.
 
 ## Internal protocols are not plugins
 
