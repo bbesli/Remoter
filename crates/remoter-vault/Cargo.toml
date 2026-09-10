@@ -1,0 +1,53 @@
+[package]
+name = "remoter-vault"
+description = "Encrypted vault: envelope cryptography, key slots, storage"
+license = "GPL-3.0-or-later"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+remoter-core.workspace = true
+
+argon2.workspace = true
+chacha20poly1305.workspace = true
+hkdf.workspace = true
+sha2.workspace = true
+blake3.workspace = true
+zeroize.workspace = true
+subtle.workspace = true
+getrandom.workspace = true
+
+rusqlite.workspace = true
+serde.workspace = true
+ciborium.workspace = true
+uuid.workspace = true
+data-encoding.workspace = true
+unicode-normalization.workspace = true
+
+keyring.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[features]
+# Lets `Vault::create` and `Vault::add_password_slot` accept
+# `KdfParams::low_cost_for_tests` verbatim, below the cost floor.
+#
+# Enabled only through this crate's own dev-dependency on itself, below, so the
+# test suite gets it and no ordinary build — `cargo build`, `cargo tauri dev`,
+# or any downstream crate depending on remoter-vault — can turn it on. It must
+# never appear in a dependency of a shipped binary.
+insecure-test-kdf = []
+
+[dev-dependencies]
+proptest.workspace = true
+tempfile = "3"
+# Self-dependency: the only way to enable a feature for this crate's own tests
+# without also enabling it for its ordinary builds. Feature resolution keeps
+# dev-dependency features out of a plain `cargo build`.
+remoter-vault = { path = ".", features = ["insecure-test-kdf"] }
+
+[lints]
+workspace = true
