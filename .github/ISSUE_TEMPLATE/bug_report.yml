@@ -1,0 +1,57 @@
+name: Bug report
+description: Something does not work as documented
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Do not report security vulnerabilities here.** See [SECURITY.md](../../SECURITY.md).
+
+        Before posting logs, check them for hostnames, usernames and credentials.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, what actually happened.
+    validations: { required: true }
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. …
+        2. …
+        3. …
+    validations: { required: true }
+  - type: input
+    id: version
+    attributes:
+      label: Remoter version
+    validations: { required: true }
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options: [Linux, Windows, macOS]
+    validations: { required: true }
+  - type: input
+    id: os
+    attributes:
+      label: OS version and desktop environment
+      placeholder: "Ubuntu 24.04, GNOME 46 / Windows 11 23H2 / macOS 15.1"
+  - type: dropdown
+    id: protocol
+    attributes:
+      label: Protocol involved
+      options: [None / not protocol-specific, SSH, SFTP, RDP, VNC, FTP, Other]
+  - type: input
+    id: server
+    attributes:
+      label: Remote server software and version
+      placeholder: "OpenSSH 9.6 / Windows Server 2022 / TigerVNC 1.13"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Redact hostnames and credentials first.
+      render: shell

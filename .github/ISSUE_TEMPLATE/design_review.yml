@@ -1,0 +1,32 @@
+name: Design review
+description: Feedback on a specification in docs/
+labels: ["design", "discussion"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Review of the design documents is one of the most valuable contributions
+        right now — particularly on the security specifications.
+
+        For an actual vulnerability in released code, use [SECURITY.md](../../SECURITY.md) instead.
+  - type: input
+    id: document
+    attributes:
+      label: Document
+      placeholder: "docs/security/vault-format.md"
+    validations: { required: true }
+  - type: textarea
+    id: concern
+    attributes:
+      label: The concern
+      description: What is wrong, unclear, or missing?
+    validations: { required: true }
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested change
+  - type: textarea
+    id: background
+    attributes:
+      label: Relevant background
+      description: Optional — experience or references that inform this.

@@ -1,0 +1,30 @@
+name: Translation issue
+description: A wrong, missing or awkward translation
+labels: ["i18n"]
+body:
+  - type: input
+    id: locale
+    attributes:
+      label: Language
+      placeholder: "tr, de, ar, …"
+    validations: { required: true }
+  - type: input
+    id: key
+    attributes:
+      label: Translation key or the English text
+    validations: { required: true }
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is wrong
+    validations: { required: true }
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested wording
+  - type: checkboxes
+    id: security
+    attributes:
+      label: Security-critical string
+      options:
+        - label: This string warns about data loss or a security risk

@@ -1,0 +1,29 @@
+name: Feature request
+description: Suggest a capability
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check the [roadmap](../../docs/roadmap.md) first — it may already be planned,
+        or listed under "deliberately not planned" with the reasoning.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do that Remoter makes hard or impossible?
+    validations: { required: true }
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations: { required: true }
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+  - type: textarea
+    id: prior-art
+    attributes:
+      label: How other tools do this
+      description: mRemoteNG, Royal TS, Termius, Remmina — what works well there?

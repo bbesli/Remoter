@@ -1,0 +1,70 @@
+# Rust
+/target/
+**/*.rs.bk
+*.pdb
+
+# Node
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+
+# Tauri
+/apps/desktop/src-tauri/target/
+/apps/desktop/src-tauri/gen/
+
+# ── Secrets and user data — never commit these ──────────────────────────
+*.rvault
+*.rvault.bak*
+*.rvault.tmp
+*.rvault.lock
+*.rmtr
+*.pem
+*.key
+*.ppk
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+id_ecdsa
+known_hosts
+.env
+.env.*
+!.env.example
+secrets/
+recordings/
+confCons.xml
+*.rtsz
+*.rtsx
+*.rdg
+
+# Fuzzing
+/fuzz/target/
+/fuzz/corpus/
+/fuzz/artifacts/
+
+# Coverage
+/coverage/
+*.profraw
+*.profdata
+lcov.info
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+*~
+.directory
+
+# Editors
+.idea/
+*.swp
+*.swo
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+
+# Build output
+/build/
+/out/
