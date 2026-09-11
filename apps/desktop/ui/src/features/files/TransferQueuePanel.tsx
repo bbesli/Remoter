@@ -76,6 +76,15 @@ const DECLINED_KEY = {
   upload: { notShorter: "queue.resume.declinedUploadNotShorter", unknownSize: "queue.resume.declinedUploadUnknownSize" },
 } as const;
 
+/** The tone each state carries, so the colour and the word agree. */
+const TONE = {
+  queued: "neutral",
+  running: "info",
+  completed: "success",
+  cancelled: "neutral",
+  failed: "danger",
+} as const;
+
 const STATE_KEY = {
   queued: "queue.state.queued",
   running: "queue.state.running",
@@ -355,13 +364,18 @@ function TransferRow({
   return (
     <li className={s.item}>
       <div className={s.itemHead}>
-        <Badge tone={status.direction === "download" ? "info" : "accent"}>
-          {status.direction === "download" ? t("queue.directionDownload") : t("queue.directionUpload")}
-        </Badge>
+        {/* The badge carries the STATE, not the direction.
+            It used to read "Downloading" or "Sending" whatever had happened —
+            a progressive verb on a transfer that had finished minutes ago —
+            with the real state in the quiet span beside it. The owner read a
+            completed download as one that was stuck, which is exactly what the
+            loudest element on the row was telling them. The direction is not
+            lost: the line below says "to C:\..." or "to /srv/...", which is
+            where it belongs anyway. */}
+        <Badge tone={TONE[status.state]}>{t(STATE_KEY[status.state])}</Badge>
         <span className={s.name} title={status.remoteDisplay}>
           {isolate(name)}
         </span>
-        <span className={s.state}>{t(STATE_KEY[status.state])}</span>
         <div className={s.spacer} />
         {live && (
           <Button
@@ -375,7 +389,9 @@ function TransferRow({
             {t("queue.cancel")}
           </Button>
         )}
-        {!live && (
+        {/* Only where something went wrong. Offering "Try again" beside a
+            transfer that completed says the opposite of what happened. */}
+        {(status.state === "failed" || status.state === "cancelled") && (
           <Button
             size="sm"
             variant="ghost"

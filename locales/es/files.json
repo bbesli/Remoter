@@ -1,6 +1,5 @@
 {
   "_comment_file": "The SFTP file manager: a remote directory browser, a local side driven by the system file picker, a transfer queue, and the dialogs that create, rename and delete. Almost every value this screen shows comes from a machine the user does not control — file names, owner names, group names, paths — so several strings below tell the reader that a name has been escaped and why. Those sentences are marked SECURITY-CRITICAL and must not be softened into 'this name looks unusual'. Protocol names (SSH, SFTP), POSIX mode strings (drwxr-xr-x) and paths are never translated.",
-
   "header": {
     "_comment_title": "The screen's name. A plural noun, not a verb.",
     "title": "Archivos",
@@ -9,12 +8,10 @@
     "_comment_close": "Puts the pane away again. Only on a pane docked under a session that also has a shell — a file session's own tab is closed by closing the tab, and shows no such control. The word is also the tooltip and the accessible name, so it says what closes rather than only 'Close'.",
     "close": "Cerrar el panel de archivos"
   },
-
   "host": {
     "_comment_label": "The accessible name of the tab area an SFTP session fills, so a screen reader moving between tabs is told which host's files these are. {name} is the connection's own name, wrapped in a bidi isolate at the call site.",
     "label": "Archivos en {name}"
   },
-
   "pane": {
     "_comment_opening": "While the file pane is being attached. Shown as a spinner's label and read aloud.",
     "opening": "Abriendo el panel de archivos…",
@@ -23,7 +20,6 @@
     "_comment_notConnectedTitle": "An SFTP tab that is still connecting, or one whose session has ended. A file pane is a channel on an authenticated connection; before there is one there is nothing to browse, and an empty browser would read as an empty server.",
     "notConnectedTitle": "Todavía sin conexión",
     "notConnectedBody": "El panel de archivos se abre en cuanto esta conexión se haya autenticado. Funciona sobre esa conexión en lugar de abrir una segunda.",
-
     "remote": {
       "_comment_title": "The heading of the remote half of the browser. {name} is the connection's name.",
       "title": "Remoto",
@@ -34,7 +30,6 @@
       "_comment_listFailed": "Heading over the core's failure for a directory listing. A listing can fail because the folder is larger than the cap the core enforces; the catalogue sentence for that code names the limit, which is why this heading does not try to.",
       "listFailed": "No se pudo leer esa carpeta"
     },
-
     "local": {
       "_comment_title": "The heading of the local half of the browser.",
       "title": "Este equipo",
@@ -62,7 +57,6 @@
       "rememberedFolder": "Recordada de la última vez, para todos los paneles de archivos."
     }
   },
-
   "nav": {
     "home": "Ir a la carpeta inicial",
     "up": "Ir a la carpeta de arriba",
@@ -85,7 +79,6 @@
     "_comment_keyboardHint": "SAID ONCE, UNDER THE LISTING. The listing is a grid and now behaves like one; a keyboard map nobody is told about is a keyboard map nobody uses. The key names are the ones printed on the keys and are translated the way that platform's keyboards label them, never transliterated.",
     "keyboardHint": "En la lista: las flechas mueven, Intro abre, Espacio selecciona, Mayús amplía la selección, Ctrl añade una fila, Retroceso sube una carpeta, F2 renombra, Supr elimina, y escribir unas letras salta a un nombre."
   },
-
   "columns": {
     "_comment_": "The listing's column headings. Each is also a sort control, so each is a short noun.",
     "name": "Nombre",
@@ -94,7 +87,6 @@
     "permissions": "Permisos",
     "owner": "Propietario"
   },
-
   "sort": {
     "_comment_": "Announced on the column header that is currently sorting. 'A to Z' is deliberately about order and not about the alphabet — the collation follows the reader's language, and several languages this ships in do not use A or Z.",
     "ascending": "Ordenado del primero al último. Elíjalo de nuevo para invertirlo.",
@@ -103,7 +95,6 @@
     "_comment_foldersFirst": "A toggle. Folders above files is what every file manager does, and turning it off is occasionally what a user wants.",
     "foldersFirst": "Carpetas primero"
   },
-
   "filter": {
     "_comment_label": "The accessible name of the box that narrows the listing.",
     "label": "Filtrar esta carpeta",
@@ -115,7 +106,6 @@
     "_comment_note": "Explains why filtering here does not fold letters the way search elsewhere in Remoter does. A file name is a string a machine chose; folding it under Turkish rules turns a capital I in a machine name into a letter that is not in it. See docs/features/i18n.md.",
     "note": "Los nombres se comparan exactamente como los escribió el servidor, ignorando solo mayúsculas y minúsculas."
   },
-
   "kind": {
     "_comment_": "What a row is. Used as the accessible name of the row's icon, so the reader is told 'folder' rather than hearing nothing.",
     "file": "Archivo",
@@ -123,12 +113,10 @@
     "symlink": "Enlace",
     "other": "Archivo especial"
   },
-
   "value": {
     "_comment_unknown": "Stands in for a field the server did not report — a size, a timestamp, an owner. Not 'none' and not a dash: the value exists on the server, it was simply not sent.",
     "unknown": "No informado"
   },
-
   "risk": {
     "_comment_": "SECURITY-CRITICAL. A file name may carry characters that make it read as something it is not: a right-to-left override can make report.exe draw itself as report.pdf, a control character can cut a row short, a zero-width character can make two different files look identical. Remoter shows such a name escaped, keeps the row visible, and marks it. Do not soften 'disguise' into 'look unusual', and do not imply the file is malicious — it may be perfectly ordinary and simply named strangely.",
     "badge": "Nombre disfrazado",
@@ -141,7 +129,6 @@
     "_comment_separatorNote": "Shown instead of the row's actions when the name is not a single path component. The core refuses to build a path from it, so there is nothing to offer.",
     "separatorNote": "Remoter no abrirá, moverá ni eliminará esta entrada: el servidor envió un nombre que no es un único nombre de archivo, que es la forma de conseguir que un clic dado en una carpeta toque otra."
   },
-
   "action": {
     "newFolder": "Nueva carpeta",
     "rename": "Renombrar",
@@ -159,7 +146,6 @@
     "_comment_properties": "The row action that opens the entry's own facts. A noun, because the dialog shows rather than does — the one thing it changes is named on its own button.",
     "properties": "Propiedades"
   },
-
   "drop": {
     "_comment_": "The overlay shown while something is being dragged over a pane.",
     "toRemote": "Suelte aquí para enviar al servidor",
@@ -169,7 +155,6 @@
     "_comment_noOsFiles": "HONESTY. Dragging a file in from the desktop cannot work here: a browser drop gives Remoter the file's contents, not its path on disk, and the transfer engine sends a path. Say what does work.",
     "noOsFiles": "Los archivos arrastrados desde su escritorio no se pueden enviar: Remoter necesita la ruta del archivo, y un arrastre no la lleva. Use Elegir archivos para enviar."
   },
-
   "newFolder": {
     "title": "Nueva carpeta",
     "label": "Nombre de la carpeta",
@@ -177,7 +162,6 @@
     "in": "Dentro de {path}",
     "create": "Crear carpeta"
   },
-
   "rename": {
     "_comment_title": "{name} is the escaped display form of the entry being renamed.",
     "title": "Renombrar {name}",
@@ -186,7 +170,6 @@
     "_comment_escapedWarning": "SECURITY-CRITICAL. Shown when the entry's current name carries hidden characters. The field is pre-filled with the escaped form, which is NOT the name on the server — typing over it renames the file to whatever was typed, which is usually what the user wants, but they must know the two differ.",
     "escapedWarning": "El nombre actual contiene caracteres ocultos y aquí se muestra escrito a la vista. Lo que usted escriba se usa exactamente tal cual."
   },
-
   "name": {
     "_comment_": "Why a typed name was refused, shown under the field. Each states the rule, not the mechanism.",
     "empty": "Escriba un nombre.",
@@ -196,7 +179,6 @@
     "control": "Un nombre no puede contener caracteres de control.",
     "unchanged": "Ese es el nombre que ya tiene."
   },
-
   "delete": {
     "_comment_title": "{name} is the escaped display form.",
     "title": "¿Eliminar {name}?",
@@ -223,7 +205,6 @@
     "_comment_emptyDirHint": "Shown when a folder with contents was chosen without the recursive option. SFTP refuses to remove a folder that is not empty, and the core says so by name.",
     "emptyDirHint": "Una carpeta tiene que estar vacía para poder eliminarla por sí sola.",
     "running": "Eliminando…",
-
     "report": {
       "_comment_": "What the removal actually did. The core reports rather than returning nothing, because a walk that is interrupted leaves the tree half-removed and 'done' would be a lie.",
       "complete": "Eliminados: {files, plural, =0 {ningún archivo} one {# archivo} many {# de archivos} other {# archivos}} y {folders, plural, =0 {ninguna carpeta} one {# carpeta} many {# de carpetas} other {# carpetas}}.",
@@ -235,7 +216,6 @@
       "failures": "Esto no se eliminó:"
     }
   },
-
   "queue": {
     "_comment_": "The transfer queue. Every entry has its own progress and its own cancel, and the list outlives leaving the screen — a two-gigabyte copy with no progress cannot be told from a hang.",
     "title": "Transferencias",
@@ -245,13 +225,9 @@
     "cancelAll": "Detener todo",
     "_comment_showFinished": "A local toggle. Finished entries are kept on purpose so the history of what happened stays readable; this only hides them from view.",
     "showFinished": "Mostrar las terminadas",
-    "_comment_directionUpload": "Read aloud as the row's first fact, and drawn as a short label.",
-    "directionUpload": "Enviando",
-    "directionDownload": "Descargando",
     "_comment_toLocal": "The destination line under a row's name. {path} is escaped and isolated at the call site.",
     "toLocal": "a {path}",
     "toRemote": "a {path}",
-
     "state": {
       "queued": "En espera",
       "running": "Transfiriendo",
@@ -259,24 +235,20 @@
       "cancelled": "Detenida",
       "failed": "Fallida"
     },
-
     "_comment_progress": "{done} and {total} are byte counts already formatted for the reader's locale. The pair is deliberate: a percentage alone tells you nothing about whether it is worth waiting for.",
     "progress": "{done} de {total}",
     "_comment_progressUnknown": "The server did not report a size. Common on a growing file and on some servers for every file.",
     "progressUnknown": "{done} hasta ahora — no se informó del tamaño total",
     "completedBytes": "{bytes} transferidos",
-
     "cancel": "Detener esta transferencia",
     "_comment_retry": "Queues a fresh transfer from this one's request. The finished entry stays where it is, so what happened stays readable.",
     "retry": "Reintentar",
     "_comment_failedTitle": "Heading over the core's failure for one transfer.",
     "failedTitle": "Esta transferencia falló",
-
     "_comment_resumeToggle": "The control that asks for an interrupted transfer to be continued rather than started over. Off by default, and the sentence under it says why.",
     "resumeToggle": "Continuar las transferencias interrumpidas",
     "_comment_resumeExplain": "SECURITY-ADJACENT HONESTY. There is no checksum: SFTP has no standard way to ask a server for one. A resumed transfer trusts that what is already on disk is the beginning of the same file. Do not soften this into 'resume is safe'.",
     "resumeExplain": "Una transferencia continuada da por supuesto que lo que ya hay en disco es el principio del mismo archivo. Nada lo comprueba, así que deje esto desactivado salvo que sepa que el archivo parcial salió de esta misma copia.",
-
     "resume": {
       "_comment_": "What the transfer decided about continuing, composed here from the facts the core reported rather than printed from the core's own sentence. {offset} is a formatted byte count.",
       "continued": "Continuada desde {offset}.",
@@ -286,7 +258,6 @@
       "declinedDownloadUnknownSize": "Se empezó de cero: el servidor no informó del tamaño del archivo, así que no había ningún desplazamiento en el que confiar.",
       "declinedUploadUnknownSize": "Se empezó de cero: no se pudo leer el tamaño del archivo de este equipo, así que no había ningún desplazamiento en el que confiar."
     },
-
     "_comment_enqueueFailed": "Heading over the core's failure when a batch was refused. The batch is resolved before any of it is queued, so nothing has started.",
     "enqueueFailed": "No se puso nada en cola",
     "enqueueFailedNote": "Todo el lote se comprobó antes de que empezara ninguna parte de él, así que no hay ninguna transferencia en marcha.",
@@ -308,7 +279,6 @@
     "_comment_stalled": "Said in words rather than shown as a speed of zero, because this is the answer the person watching the bar actually needs. It is not a failure: the transfer is still open and may move again, and the threshold is deliberately generous because progress is reported in 512 KiB steps and a slow link is not a stalled one.",
     "stalled": "Hace un rato que no se mueve nada. La transferencia sigue abierta."
   },
-
   "transferTo": {
     "_comment_needFolder": "Blocks a download with no destination. A download that chose its own folder would be a download that wrote somewhere the user did not choose.",
     "needFolder": "Elija una carpeta de este equipo en la que descargar.",

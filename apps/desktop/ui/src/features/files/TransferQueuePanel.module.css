@@ -107,11 +107,6 @@
   color: var(--fg-default);
 }
 
-.state {
-  flex: none;
-  font-size: var(--text-xs);
-  color: var(--fg-muted);
-}
 
 .destination {
   margin: 0;

@@ -1,6 +1,5 @@
 {
   "_comment_file": "The SFTP file manager: a remote directory browser, a local side driven by the system file picker, a transfer queue, and the dialogs that create, rename and delete. Almost every value this screen shows comes from a machine the user does not control — file names, owner names, group names, paths — so several strings below tell the reader that a name has been escaped and why. Those sentences are marked SECURITY-CRITICAL and must not be softened into 'this name looks unusual'. Protocol names (SSH, SFTP), POSIX mode strings (drwxr-xr-x) and paths are never translated. RUSSIAN: the vocabulary this file shares with the rest of the catalogue — «панель файлов» for the file pane, «папка» for a folder the user sees in the listing, «каталог» only where errors.json already says каталог, «передача» for a transfer, «очередь» for the queue, «скачать» / «отправить» for the two directions. Every count carries all four forms: one, few, many, other.",
-
   "header": {
     "_comment_title": "The screen's name. A plural noun, not a verb.",
     "title": "Файлы",
@@ -9,12 +8,10 @@
     "_comment_close": "Puts the pane away again. Only on a pane docked under a session that also has a shell — a file session's own tab is closed by closing the tab, and shows no such control. The word is also the tooltip and the accessible name, so it says what closes rather than only 'Close'.",
     "close": "Закрыть панель файлов"
   },
-
   "host": {
     "_comment_label": "The accessible name of the tab area an SFTP session fills, so a screen reader moving between tabs is told which host's files these are. {name} is the connection's own name, wrapped in a bidi isolate at the call site.",
     "label": "Файлы на «{name}»"
   },
-
   "pane": {
     "_comment_opening": "While the file pane is being attached. Shown as a spinner's label and read aloud.",
     "opening": "Открывается панель файлов…",
@@ -23,7 +20,6 @@
     "_comment_notConnectedTitle": "An SFTP tab that is still connecting, or one whose session has ended. A file pane is a channel on an authenticated connection; before there is one there is nothing to browse, and an empty browser would read as an empty server.",
     "notConnectedTitle": "Ещё не подключено",
     "notConnectedBody": "Панель файлов откроется, как только это подключение пройдёт аутентификацию. Она работает на этом подключении, а не создаёт второе.",
-
     "remote": {
       "_comment_title": "The heading of the remote half of the browser. {name} is the connection's name.",
       "title": "Удалённый компьютер",
@@ -34,7 +30,6 @@
       "_comment_listFailed": "Heading over the core's failure for a directory listing. A listing can fail because the folder is larger than the cap the core enforces; the catalogue sentence for that code names the limit, which is why this heading does not try to.",
       "listFailed": "Не удалось прочитать эту папку"
     },
-
     "local": {
       "_comment_title": "The heading of the local half of the browser.",
       "title": "Этот компьютер",
@@ -62,7 +57,6 @@
       "rememberedFolder": "Запомнена с прошлого раза — для всех файловых панелей."
     }
   },
-
   "nav": {
     "home": "Перейти в начальную папку",
     "up": "Перейти в папку выше",
@@ -85,7 +79,6 @@
     "_comment_keyboardHint": "SAID ONCE, UNDER THE LISTING. The listing is a grid and now behaves like one; a keyboard map nobody is told about is a keyboard map nobody uses. The key names are the ones printed on the keys and are translated the way that platform's keyboards label them, never transliterated.",
     "keyboardHint": "В списке: стрелки перемещают, Enter открывает, пробел выделяет, Shift расширяет выделение, Ctrl добавляет строку, Backspace поднимает на папку выше, F2 переименовывает, Delete удаляет, а несколько набранных букв переходят к имени."
   },
-
   "columns": {
     "_comment_": "The listing's column headings. Each is also a sort control, so each is a short noun.",
     "name": "Имя",
@@ -94,7 +87,6 @@
     "permissions": "Права",
     "owner": "Владелец"
   },
-
   "sort": {
     "_comment_": "Announced on the column header that is currently sorting. 'A to Z' is deliberately about order and not about the alphabet — the collation follows the reader's language, and several languages this ships in do not use A or Z.",
     "ascending": "Отсортировано от первого к последнему. Выберите ещё раз, чтобы развернуть порядок.",
@@ -103,7 +95,6 @@
     "_comment_foldersFirst": "A toggle. Folders above files is what every file manager does, and turning it off is occasionally what a user wants.",
     "foldersFirst": "Папки сверху"
   },
-
   "filter": {
     "_comment_label": "The accessible name of the box that narrows the listing.",
     "label": "Фильтровать эту папку",
@@ -115,7 +106,6 @@
     "_comment_note": "Explains why filtering here does not fold letters the way search elsewhere in Remoter does. A file name is a string a machine chose; folding it under Turkish rules turns a capital I in a machine name into a letter that is not in it. See docs/features/i18n.md.",
     "note": "Имена сопоставляются ровно так, как их написал сервер; единственное, что не учитывается, — регистр букв."
   },
-
   "kind": {
     "_comment_": "What a row is. Used as the accessible name of the row's icon, so the reader is told 'folder' rather than hearing nothing.",
     "file": "Файл",
@@ -123,12 +113,10 @@
     "symlink": "Ссылка",
     "other": "Особый файл"
   },
-
   "value": {
     "_comment_unknown": "Stands in for a field the server did not report — a size, a timestamp, an owner. Not 'none' and not a dash: the value exists on the server, it was simply not sent.",
     "unknown": "Не сообщено"
   },
-
   "risk": {
     "_comment_": "SECURITY-CRITICAL. A file name may carry characters that make it read as something it is not: a right-to-left override can make report.exe draw itself as report.pdf, a control character can cut a row short, a zero-width character can make two different files look identical. Remoter shows such a name escaped, keeps the row visible, and marks it. Do not soften 'disguise' into 'look unusual', and do not imply the file is malicious — it may be perfectly ordinary and simply named strangely.",
     "badge": "Имя замаскировано",
@@ -141,7 +129,6 @@
     "_comment_separatorNote": "Shown instead of the row's actions when the name is not a single path component. The core refuses to build a path from it, so there is nothing to offer.",
     "separatorNote": "Remoter не станет открывать, перемещать или удалять эту запись: сервер прислал имя, которое не является одним именем файла, — именно так щелчок в одной папке заставляют затронуть другую."
   },
-
   "action": {
     "newFolder": "Новая папка",
     "rename": "Переименовать",
@@ -159,7 +146,6 @@
     "_comment_properties": "The row action that opens the entry's own facts. A noun, because the dialog shows rather than does — the one thing it changes is named on its own button.",
     "properties": "Свойства"
   },
-
   "drop": {
     "_comment_": "The overlay shown while something is being dragged over a pane.",
     "toRemote": "Отпустите здесь, чтобы отправить на сервер",
@@ -169,7 +155,6 @@
     "_comment_noOsFiles": "HONESTY. Dragging a file in from the desktop cannot work here: a browser drop gives Remoter the file's contents, not its path on disk, and the transfer engine sends a path. Say what does work.",
     "noOsFiles": "Файлы, перетащенные с рабочего стола, отправить нельзя: Remoter нужен путь к файлу, а перетаскивание его не несёт. Воспользуйтесь кнопкой «Выбрать файлы для отправки»."
   },
-
   "newFolder": {
     "title": "Новая папка",
     "label": "Имя папки",
@@ -177,7 +162,6 @@
     "in": "Внутри {path}",
     "create": "Создать папку"
   },
-
   "rename": {
     "_comment_title": "{name} is the escaped display form of the entry being renamed.",
     "title": "Переименовать {name}",
@@ -186,7 +170,6 @@
     "_comment_escapedWarning": "SECURITY-CRITICAL. Shown when the entry's current name carries hidden characters. The field is pre-filled with the escaped form, which is NOT the name on the server — typing over it renames the file to whatever was typed, which is usually what the user wants, but they must know the two differ.",
     "escapedWarning": "В нынешнем имени есть скрытые символы, и здесь оно показано выписанным явно. То, что вы введёте, будет использовано ровно так, как введено."
   },
-
   "name": {
     "_comment_": "Why a typed name was refused, shown under the field. Each states the rule, not the mechanism.",
     "empty": "Введите имя.",
@@ -196,7 +179,6 @@
     "control": "В имени не может быть управляющих символов.",
     "unchanged": "Такое имя уже задано."
   },
-
   "delete": {
     "_comment_title": "{name} is the escaped display form.",
     "title": "Удалить {name}?",
@@ -223,7 +205,6 @@
     "_comment_emptyDirHint": "Shown when a folder with contents was chosen without the recursive option. SFTP refuses to remove a folder that is not empty, and the core says so by name.",
     "emptyDirHint": "Чтобы удалить папку саму по себе, она должна быть пуста.",
     "running": "Удаление…",
-
     "report": {
       "_comment_": "What the removal actually did. The core reports rather than returning nothing, because a walk that is interrupted leaves the tree half-removed and 'done' would be a lie.",
       "complete": "Удалено: {files, plural, =0 {ни одного файла} one {# файл} few {# файла} many {# файлов} other {# файла}} и {folders, plural, =0 {ни одной папки} one {# папка} few {# папки} many {# папок} other {# папки}}.",
@@ -235,7 +216,6 @@
       "failures": "Это не удалено:"
     }
   },
-
   "queue": {
     "_comment_": "The transfer queue. Every entry has its own progress and its own cancel, and the list outlives leaving the screen — a two-gigabyte copy with no progress cannot be told from a hang.",
     "title": "Передачи",
@@ -245,13 +225,9 @@
     "cancelAll": "Остановить всё",
     "_comment_showFinished": "A local toggle. Finished entries are kept on purpose so the history of what happened stays readable; this only hides them from view.",
     "showFinished": "Показывать завершённые",
-    "_comment_directionUpload": "Read aloud as the row's first fact, and drawn as a short label.",
-    "directionUpload": "Отправка",
-    "directionDownload": "Скачивание",
     "_comment_toLocal": "The destination line under a row's name. {path} is escaped and isolated at the call site.",
     "toLocal": "в {path}",
     "toRemote": "в {path}",
-
     "state": {
       "queued": "Ожидает",
       "running": "Идёт",
@@ -259,24 +235,20 @@
       "cancelled": "Остановлена",
       "failed": "Не удалась"
     },
-
     "_comment_progress": "{done} and {total} are byte counts already formatted for the reader's locale. The pair is deliberate: a percentage alone tells you nothing about whether it is worth waiting for.",
     "progress": "{done} из {total}",
     "_comment_progressUnknown": "The server did not report a size. Common on a growing file and on some servers for every file.",
     "progressUnknown": "{done} на данный момент — общий размер не сообщён",
     "completedBytes": "Передано {bytes}",
-
     "cancel": "Остановить эту передачу",
     "_comment_retry": "Queues a fresh transfer from this one's request. The finished entry stays where it is, so what happened stays readable.",
     "retry": "Попробовать снова",
     "_comment_failedTitle": "Heading over the core's failure for one transfer.",
     "failedTitle": "Эта передача не удалась",
-
     "_comment_resumeToggle": "The control that asks for an interrupted transfer to be continued rather than started over. Off by default, and the sentence under it says why.",
     "resumeToggle": "Продолжать прерванные передачи",
     "_comment_resumeExplain": "SECURITY-ADJACENT HONESTY. There is no checksum: SFTP has no standard way to ask a server for one. A resumed transfer trusts that what is already on disk is the beginning of the same file. Do not soften this into 'resume is safe'.",
     "resumeExplain": "Продолженная передача исходит из того, что уже лежащее на диске — это начало того же самого файла. Никто этого не проверяет, поэтому оставьте это выключенным, если только вы не знаете, что неполный файл остался от той же самой копии.",
-
     "resume": {
       "_comment_": "What the transfer decided about continuing, composed here from the facts the core reported rather than printed from the core's own sentence. {offset} is a formatted byte count.",
       "continued": "Продолжено с {offset}.",
@@ -286,7 +258,6 @@
       "declinedDownloadUnknownSize": "Начато заново: сервер не сообщил размер файла, поэтому не было смещения, которому стоило бы доверять.",
       "declinedUploadUnknownSize": "Начато заново: размер файла на этом компьютере прочитать не удалось, поэтому не было смещения, которому стоило бы доверять."
     },
-
     "_comment_enqueueFailed": "Heading over the core's failure when a batch was refused. The batch is resolved before any of it is queued, so nothing has started.",
     "enqueueFailed": "В очередь ничего не поставлено",
     "enqueueFailedNote": "Вся пачка проверялась целиком, прежде чем хоть что-то началось, поэтому ни одна передача не выполняется.",
@@ -308,7 +279,6 @@
     "_comment_stalled": "Said in words rather than shown as a speed of zero, because this is the answer the person watching the bar actually needs. It is not a failure: the transfer is still open and may move again, and the threshold is deliberately generous because progress is reported in 512 KiB steps and a slow link is not a stalled one.",
     "stalled": "Уже некоторое время ничего не двигается. Передача всё ещё открыта."
   },
-
   "transferTo": {
     "_comment_needFolder": "Blocks a download with no destination. A download that chose its own folder would be a download that wrote somewhere the user did not choose.",
     "needFolder": "Выберите на этом компьютере папку, в которую скачивать.",
