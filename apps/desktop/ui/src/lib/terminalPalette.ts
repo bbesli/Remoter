@@ -119,16 +119,40 @@ export type TerminalPaletteId = "auto" | BuiltInPaletteId;
 
 export interface TerminalPalette {
   id: BuiltInPaletteId;
-  name: string;
-  /**
-   * Whose work this is. A palette is a design someone published; naming the
-   * author is the least the interface can do, and it is also how a user knows
-   * that "Nord" here is the Nord they know from elsewhere.
-   */
-  credit: string;
   /** The interface theme it is built to sit beside. */
   ground: "dark" | "light";
   colors: TerminalColors;
+}
+
+/**
+ * Where the palette's visible name and its credit live: the `settings`
+ * catalogue, under the palette's own id.
+ *
+ * They used to be two string fields on the palette above, and they were the
+ * last hardcoded English on this screen — "Remoter — the palette this
+ * application shipped with" is a sentence, and CLAUDE.md §6 has no exception
+ * for a sentence that happens to sit in a data table. Moving the strings out
+ * rather than adding a `nameKey` field keeps the palette a pure description of
+ * colours, and makes a palette whose catalogue entry is missing a *compile*
+ * error: the return type below is a union of the eight keys, and `t()` only
+ * accepts keys the English catalogue actually declares.
+ *
+ * The credit is translated copy for a reason that is easy to get backwards. The
+ * author names and licence abbreviations inside it are not translated — "Ethan
+ * Schoonover, MIT" is the same in every language — but the words around them
+ * are, and so is the whole of the two Remoter credits, which are descriptions
+ * rather than attributions. The catalogue note says which is which.
+ */
+export function paletteNameKey(
+  id: BuiltInPaletteId,
+): `terminal.palettes.${BuiltInPaletteId}.name` {
+  return `terminal.palettes.${id}.name`;
+}
+
+export function paletteCreditKey(
+  id: BuiltInPaletteId,
+): `terminal.palettes.${BuiltInPaletteId}.credit` {
+  return `terminal.palettes.${id}.credit`;
 }
 
 /**
@@ -142,8 +166,6 @@ export interface TerminalPalette {
  */
 const REMOTER_DARK: TerminalPalette = {
   id: "remoter-dark",
-  name: "Remoter Dark",
-  credit: "Remoter — the palette this application shipped with",
   ground: "dark",
   colors: {
     background: "#131417",
@@ -183,8 +205,6 @@ export const TERMINAL_PALETTES: readonly TerminalPalette[] = [
   REMOTER_DARK,
   {
     id: "remoter-light",
-    name: "Remoter Light",
-    credit: "Remoter — the light counterpart, tuned to clear AA on its ground",
     ground: "light",
     colors: {
       background: "#fbfbfc",
@@ -212,8 +232,6 @@ export const TERMINAL_PALETTES: readonly TerminalPalette[] = [
   },
   {
     id: "solarized-dark",
-    name: "Solarized Dark",
-    credit: "Ethan Schoonover, MIT",
     ground: "dark",
     colors: {
       background: "#002b36",
@@ -241,8 +259,6 @@ export const TERMINAL_PALETTES: readonly TerminalPalette[] = [
   },
   {
     id: "solarized-light",
-    name: "Solarized Light",
-    credit: "Ethan Schoonover, MIT",
     ground: "light",
     colors: {
       background: "#fdf6e3",
@@ -270,8 +286,6 @@ export const TERMINAL_PALETTES: readonly TerminalPalette[] = [
   },
   {
     id: "gruvbox-dark",
-    name: "Gruvbox Dark",
-    credit: "Pavel Pertsev, MIT",
     ground: "dark",
     colors: {
       background: "#282828",
@@ -299,8 +313,6 @@ export const TERMINAL_PALETTES: readonly TerminalPalette[] = [
   },
   {
     id: "nord",
-    name: "Nord",
-    credit: "Arctic Ice Studio and Sven Greb, MIT",
     ground: "dark",
     colors: {
       background: "#2e3440",
@@ -328,8 +340,6 @@ export const TERMINAL_PALETTES: readonly TerminalPalette[] = [
   },
   {
     id: "tomorrow-night",
-    name: "Tomorrow Night",
-    credit: "Chris Kempson, MIT",
     ground: "dark",
     colors: {
       background: "#1d1f21",
@@ -357,8 +367,6 @@ export const TERMINAL_PALETTES: readonly TerminalPalette[] = [
   },
   {
     id: "high-contrast",
-    name: "High contrast",
-    credit: "Remoter — the palette the high-contrast interface themes use",
     ground: "dark",
     colors: {
       background: "#000000",

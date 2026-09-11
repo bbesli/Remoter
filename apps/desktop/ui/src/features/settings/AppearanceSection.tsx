@@ -25,6 +25,7 @@ import type { ThemeName } from "@/lib/ipc";
 import { useApp } from "@/stores/app";
 
 import { SettingsSection } from "./SettingsSection";
+import { useT } from "@/i18n";
 import {
   PREVIEW_THEMES,
   paletteStyle,
@@ -35,43 +36,26 @@ import {
 import type { SectionProps } from "./types";
 import s from "./AppearanceSection.module.css";
 
-const TEXT = {
-  title: "Theme",
-  description:
-    "A theme is a token override file. The high-contrast pair meets WCAG 2.2 AA at every size, not only for body text.",
 
-  light: "Light",
-  dark: "Dark",
-  hcLight: "High contrast light",
-  hcDark: "High contrast dark",
-
-  system: "Follow the system",
-  systemNow: (resolved: string) => `Your desktop is currently reporting ${resolved}.`,
-  systemLight: "light",
-  systemDark: "dark",
-
-  previewUnavailable: "Preview unavailable",
-  saving: "Saving the theme…",
-  saveFailed: "The theme was not saved.",
-  retry: "Save again",
-
-  terminalNote:
-    "The terminal has its own colours and font, on the Terminal tab: eight palettes, per-colour editing and a contrast check. Its palette follows the theme you pick here until you choose one there.",
-} as const;
-
-const THEME_LABELS: Record<PreviewTheme, string> = {
-  light: TEXT.light,
-  dark: TEXT.dark,
-  "hc-light": TEXT.hcLight,
-  "hc-dark": TEXT.hcDark,
-};
+/**
+ * Catalogue keys rather than labels: this map is module-level, and a label
+ * resolved at import would keep the language the application started in.
+ */
+const THEME_LABEL_KEYS = {
+  light: "appearance.light",
+  dark: "appearance.dark",
+  "hc-light": "appearance.hcLight",
+  "hc-dark": "appearance.hcDark",
+} as const satisfies Record<PreviewTheme, string>;
 
 /** The miniature: a title bar, a sidebar and a content pane, as in the design. */
 function ThemePreview({ palette }: { palette: ThemePalette | undefined }) {
+  const t = useT("settings");
+
   if (palette === undefined) {
     return (
       <div className={s.previewMissing}>
-        <span>{TEXT.previewUnavailable}</span>
+        <span>{t("appearance.previewUnavailable")}</span>
       </div>
     );
   }
@@ -106,6 +90,8 @@ export function AppearanceSection({
   failure,
   onRetrySave,
 }: SectionProps) {
+  const t = useT("settings");
+  const tCommon = useT("common");
   const setTheme = useApp((state) => state.setTheme);
   const systemTheme = useSystemTheme();
 
@@ -124,8 +110,8 @@ export function AppearanceSection({
   }
 
   return (
-    <SettingsSection title={TEXT.title} description={TEXT.description}>
-      <div className={s.group} role="radiogroup" aria-label={TEXT.title}>
+    <SettingsSection title={t("appearance.title")} description={t("appearance.description")}>
+      <div className={s.group} role="radiogroup" aria-label={t("appearance.title")}>
         <div className={s.grid}>
           {PREVIEW_THEMES.map((theme) => (
             <label key={theme} className={s.card}>
@@ -138,12 +124,12 @@ export function AppearanceSection({
                 onChange={() => choose(theme)}
                 // The label's own text is a miniature plus a name; naming the
                 // control here keeps what is announced short and exact.
-                aria-label={THEME_LABELS[theme]}
+                aria-label={t(THEME_LABEL_KEYS[theme])}
               />
               <ThemePreview palette={palettes.get(theme)} />
               <span className={s.cardLabel}>
                 <span className={s.mark} aria-hidden="true" />
-                <span className={s.cardName}>{THEME_LABELS[theme]}</span>
+                <span className={s.cardName}>{t(THEME_LABEL_KEYS[theme])}</span>
               </span>
             </label>
           ))}
@@ -157,29 +143,34 @@ export function AppearanceSection({
             value="system"
             checked={settings.theme === "system"}
             onChange={() => choose("system")}
-            aria-label={TEXT.system}
+            aria-label={t("appearance.system")}
           />
           <span className={s.mark} aria-hidden="true" />
-          <span className={s.systemName}>{TEXT.system}</span>
+          <span className={s.systemName}>{t("appearance.system")}</span>
           <span className={s.systemHint}>
-            {TEXT.systemNow(systemTheme === "light" ? TEXT.systemLight : TEXT.systemDark)}
+            {t("appearance.systemNow", {
+              resolved:
+                systemTheme === "light"
+                  ? t("appearance.systemLight")
+                  : t("appearance.systemDark"),
+            })}
           </span>
         </label>
       </div>
 
       {saving && (
         <p className={s.saving}>
-          <Spinner size={14} label={TEXT.saving} />
-          {TEXT.saving}
+          <Spinner size={14} label={t("appearance.saving")} />
+          {t("appearance.saving")}
         </p>
       )}
 
       {themeFailure !== null && (
         <FailureNotice
           failure={themeFailure}
-          title={TEXT.saveFailed}
+          title={t("appearance.saveFailed")}
           onRetry={onRetrySave}
-          retryLabel={TEXT.retry}
+          retryLabel={tCommon("action.saveAgain")}
         />
       )}
 
@@ -189,7 +180,7 @@ export function AppearanceSection({
           here does change the terminal until somebody picks a palette over
           there — saying only "they are separate" would be the same kind of
           wrong sentence this line replaced. */}
-      <p className={s.note}>{TEXT.terminalNote}</p>
+      <p className={s.note}>{t("appearance.terminalNote")}</p>
     </SettingsSection>
   );
 }

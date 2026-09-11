@@ -10,7 +10,12 @@
 import { describe, expect, it } from "vitest";
 import { IntlMessageFormat } from "intl-messageformat";
 
-import { ENGLISH_CATALOGUES, SHIPPED_NAMESPACES, isLocaleAvailable } from "./catalogues";
+import {
+  ENGLISH_CATALOGUES,
+  SHIPPED_NAMESPACES,
+  availableLocales,
+  isLocaleAvailable,
+} from "./catalogues";
 import { NAMESPACES, SOURCE_LOCALE, SUPPORTED_LOCALES } from "./locales";
 
 /** Every leaf string in a catalogue, with its dotted key. */
@@ -130,21 +135,92 @@ describe("translator comments", () => {
   });
 });
 
+/**
+ * What each locale directory actually holds, read from the directory itself.
+ *
+ * The expectation has to come from somewhere other than a list written in this
+ * file. A list is a snapshot of which languages were finished on the day it was
+ * typed: the previous version of these tests asserted that every locale but
+ * English was unavailable, which was true when it was written and became a
+ * failing test — on correct code — the day the translations landed. A test that
+ * has to be edited every time a catalogue ships is a test that gets deleted by
+ * whoever is in a hurry.
+ *
+ * So this globs `locales/` a second time, independently of `catalogues.ts`, and
+ * the assertions below are about the *rule*: available means "every namespace
+ * English ships is present", for whichever languages that happens to be today.
+ * `import.meta.glob` without `eager` returns loaders, so this costs a list of
+ * paths and reads no files.
+ */
+const ON_DISK: ReadonlyMap<string, ReadonlySet<string>> = (() => {
+  const out = new Map<string, Set<string>>();
+  for (const path of Object.keys(import.meta.glob("../../../../../locales/*/*.json"))) {
+    const match = /\/locales\/([^/]+)\/([^/]+)\.json$/.exec(path);
+    const locale = match?.[1];
+    const namespace = match?.[2];
+    if (locale === undefined || namespace === undefined) continue;
+    const seen = out.get(locale) ?? new Set<string>();
+    seen.add(namespace);
+    out.set(locale, seen);
+  }
+  return out;
+})();
+
+/** Does this locale's directory hold every namespace English ships? */
+function isCompleteOnDisk(code: string): boolean {
+  const seen = ON_DISK.get(code);
+  return seen !== undefined && SHIPPED_NAMESPACES.every((ns) => seen.has(ns));
+}
+
 describe("locale availability", () => {
   it("is measured from the directory, not declared", () => {
     // The bug this replaces: a hardcoded `available: false` on nine languages,
     // which would have kept saying "Not yet available" after the catalogues
-    // landed. Any locale with a complete directory is available; English
-    // always is.
-    expect(isLocaleAvailable(SOURCE_LOCALE)).toBe(true);
+    // landed. The assertion is the rule rather than the answer — a catalogue
+    // arriving or a namespace being added to English moves both sides of this
+    // comparison together, and nobody has to come back and edit it.
     for (const locale of SUPPORTED_LOCALES) {
-      if (locale.code === SOURCE_LOCALE) continue;
-      // Presence of every namespace English ships is the whole test.
-      expect(isLocaleAvailable(locale.code)).toBe(false);
+      expect(isLocaleAvailable(locale.code), locale.code).toBe(isCompleteOnDisk(locale.code));
     }
   });
 
-  it("refuses a locale that is not in the registry at all", () => {
+  it("offers English whatever else is translated", () => {
+    // Not a measurement: English is the source and the fallback for every
+    // other language, so it is selectable even if `locales/en/` were empty.
+    expect(isLocaleAvailable(SOURCE_LOCALE)).toBe(true);
+    expect(availableLocales()).toContain(SOURCE_LOCALE);
+  });
+
+  it("offers every language whose catalogues are all present", () => {
+    const complete = SUPPORTED_LOCALES.map((l) => l.code).filter(isCompleteOnDisk);
+    // Guards against the whole check passing vacuously if the glob above ever
+    // stops matching: there is always at least English.
+    expect(complete.length).toBeGreaterThan(0);
+    for (const code of complete) {
+      expect(availableLocales(), code).toContain(code);
+    }
+  });
+
+  it("refuses a language that is short of even one namespace", () => {
+    // The state every language is in while it is being translated. Half a
+    // catalogue is not a choice: picking it would leave most of the interface
+    // in English, which is the failure the Language screen used to have.
+    for (const code of ON_DISK.keys()) {
+      if (code === SOURCE_LOCALE || isCompleteOnDisk(code)) continue;
+      expect(isLocaleAvailable(code), code).toBe(false);
+      expect(availableLocales(), code).not.toContain(code);
+    }
+  });
+
+  it("refuses a locale with no directory at all", () => {
     expect(isLocaleAvailable("xx-YY")).toBe(false);
+    expect(availableLocales()).not.toContain("xx-YY");
+  });
+
+  it("never offers a language the registry does not list", () => {
+    const registered = SUPPORTED_LOCALES.map((l) => l.code);
+    for (const code of availableLocales()) {
+      expect(registered, code).toContain(code);
+    }
   });
 });

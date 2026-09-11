@@ -157,6 +157,29 @@
     "explained": "الطرفية التي عليها التركيز تستقبل كل ضغطة مفتاح تقريبًا. للوصول إلى اختصارات Remoter أضف هذه البادئة ما دامت الجلسة مستحوذة على لوحة المفاتيح."
   },
 
+  "strength": {
+    "_comment_": "How a password's strength is described while it is being typed. The core sends one number — an entropy estimate in bits — and the interface turns it into these words (apps/desktop/ui/src/i18n/strength.ts), so that the wording follows the reader's language and the digits follow the locale's numbering system. Nothing here may echo the password itself.",
+    "_comment_label": "The four bands, from the same bit thresholds the core scores with. One word each: they sit beside a five-segment meter, not in a sentence.",
+    "label": {
+      "weak": "ضعيفة",
+      "fair": "مقبولة",
+      "good": "جيدة",
+      "strong": "قوية"
+    },
+    "_comment_consequence": "What the bit count means as time, at a billion guesses a second. This is the part that changes behaviour — a bit count on its own changes nobody's. The rate is deliberately pessimistic (the vault's own Argon2id makes the real rate orders of magnitude lower) because a reused password is eventually hashed somewhere far weaker, so keep the rate in the sentence.",
+    "consequence": {
+      "instant": "تُخمَّن فورًا بمعدل مليار محاولة في الثانية.",
+      "seconds": "{count, plural, zero {أقل من ثانية تخمين بمعدل مليار محاولة في الثانية.} one {نحو ثانية واحدة من التخمين بمعدل مليار محاولة في الثانية.} two {نحو ثانيتين من التخمين بمعدل مليار محاولة في الثانية.} few {نحو # ثوانٍ من التخمين بمعدل مليار محاولة في الثانية.} many {نحو # ثانية من التخمين بمعدل مليار محاولة في الثانية.} other {نحو # ثانية من التخمين بمعدل مليار محاولة في الثانية.}}",
+      "minutes": "{count, plural, zero {أقل من دقيقة تخمين بمعدل مليار محاولة في الثانية.} one {نحو دقيقة واحدة من التخمين بمعدل مليار محاولة في الثانية.} two {نحو دقيقتين من التخمين بمعدل مليار محاولة في الثانية.} few {نحو # دقائق من التخمين بمعدل مليار محاولة في الثانية.} many {نحو # دقيقة من التخمين بمعدل مليار محاولة في الثانية.} other {نحو # دقيقة من التخمين بمعدل مليار محاولة في الثانية.}}",
+      "hours": "{count, plural, zero {أقل من ساعة تخمين بمعدل مليار محاولة في الثانية.} one {نحو ساعة واحدة من التخمين بمعدل مليار محاولة في الثانية.} two {نحو ساعتين من التخمين بمعدل مليار محاولة في الثانية.} few {نحو # ساعات من التخمين بمعدل مليار محاولة في الثانية.} many {نحو # ساعة من التخمين بمعدل مليار محاولة في الثانية.} other {نحو # ساعة من التخمين بمعدل مليار محاولة في الثانية.}}",
+      "days": "{count, plural, zero {أقل من يوم تخمين بمعدل مليار محاولة في الثانية.} one {نحو يوم واحد من التخمين بمعدل مليار محاولة في الثانية.} two {نحو يومين من التخمين بمعدل مليار محاولة في الثانية.} few {نحو # أيام من التخمين بمعدل مليار محاولة في الثانية.} many {نحو # يومًا من التخمين بمعدل مليار محاولة في الثانية.} other {نحو # يوم من التخمين بمعدل مليار محاولة في الثانية.}}",
+      "months": "{count, plural, zero {أقل من شهر تخمين بمعدل مليار محاولة في الثانية.} one {نحو شهر واحد من التخمين بمعدل مليار محاولة في الثانية.} two {نحو شهرين من التخمين بمعدل مليار محاولة في الثانية.} few {نحو # أشهر من التخمين بمعدل مليار محاولة في الثانية.} many {نحو # شهرًا من التخمين بمعدل مليار محاولة في الثانية.} other {نحو # شهر من التخمين بمعدل مليار محاولة في الثانية.}}",
+      "years": "{count, plural, zero {أقل من سنة تخمين بمعدل مليار محاولة في الثانية.} one {نحو سنة واحدة من التخمين بمعدل مليار محاولة في الثانية.} two {نحو سنتين من التخمين بمعدل مليار محاولة في الثانية.} few {نحو # سنوات من التخمين بمعدل مليار محاولة في الثانية.} many {نحو # سنة من التخمين بمعدل مليار محاولة في الثانية.} other {نحو # سنة من التخمين بمعدل مليار محاولة في الثانية.}}",
+      "centuries": "قرون من التخمين بمعدل مليار محاولة في الثانية.",
+      "universe": "أطول من عمر الكون بمعدل مليار محاولة في الثانية."
+    }
+  },
+
   "punctuation": {
     "_comment_chainSeparator": "Joins the hops of a jump-host chain: bastion → gateway → db-01. A locale whose readers expect a different glyph may change it; the arrow is NOT flipped for right-to-left, because each hop is wrapped in a Unicode isolate and the chain reads in the document's direction.",
     "chainSeparator": " → ",

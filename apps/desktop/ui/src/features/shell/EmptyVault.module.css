@@ -39,14 +39,11 @@
   text-wrap: pretty;
 }
 
-.path {
-  font-family: var(--font-mono);
-  font-variant-ligatures: none;
-  font-size: var(--text-sm);
-  color: var(--fg-strong);
-  overflow-wrap: anywhere;
-  user-select: text;
-}
+/* `.path` used to set the vault's file name in mono inside the sentence above.
+   It went when the sentence became one translatable message: a name styled
+   mid-sentence has to sit at a fixed position in it, and languages do not
+   agree on where that position is. The name is still the recognisable part of
+   the sentence; it is no longer the differently-typeset part. */
 
 .choices {
   display: flex;

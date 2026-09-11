@@ -24,38 +24,22 @@ import { asFailure, ipc, type ForwardDirection, type TunnelSpec } from "@/lib/ip
 import { qk } from "@/lib/queryKeys";
 import { useFocusTrap } from "@/features/connections/focusTrap";
 import { useModalRegistration } from "@/hooks/useModalRegistration";
+import { useT } from "@/i18n";
 
 import s from "./AddForwardDialog.module.css";
 
-const TEXT = {
-  title: "Open a port forward",
-  lead: "The forward runs on a connection of its own, so it stays up whether or not a session is open to that host.",
-  connection: "Connection",
-  connectionHelp: "The forward is authenticated as this connection, hop by hop.",
-  direction: "Direction",
-  directions: {
-    local: "Local (-L) — a port here reaches a host as the remote sees it",
-    remote: "Remote (-R) — a port on the remote reaches a host as we see it",
-    dynamic: "Dynamic (-D) — a SOCKS5 proxy here, exiting through the remote",
-  } as const,
-  bindAddress: "Bind address",
-  bindAddressHelp: "Leave empty for the loopback default, 127.0.0.1.",
-  bindPort: "Bind port",
-  destinationHost: "Destination host",
-  destinationHostHelp: "Resolved by the remote host, not by this machine.",
-  destinationPort: "Destination port",
-  exposed: "Bind beyond loopback, and accept that the local network can reach this forward",
-  exposedHelp:
-    "A forward bound to 0.0.0.0 opens a path into this machine from every device on the network. The core refuses the bind unless this is ticked.",
-  cancel: "Cancel",
-  open: "Open the forward",
-  opening: "Opening…",
-  failed: "The forward was not opened",
-  noConnections: "This vault has no connections to open a forward on.",
-  portInvalid: "A port is a number from 1 to 65535.",
-  hostRequired: "A destination host is required.",
-  close: "Close",
-} as const;
+/**
+ * The three kinds of forward, in the order the select offers them.
+ *
+ * A record rather than a key built from the value, so a direction added to
+ * `ForwardDirection` without a description is a compile error rather than an
+ * option nobody can read.
+ */
+const DIRECTION_KEYS = {
+  local: "forward.directionOption.local",
+  remote: "forward.directionOption.remote",
+  dynamic: "forward.directionOption.dynamic",
+} as const satisfies Record<ForwardDirection, string>;
 
 const DIRECTIONS: readonly ForwardDirection[] = ["local", "remote", "dynamic"];
 
@@ -73,6 +57,8 @@ interface AddForwardDialogProps {
 }
 
 export function AddForwardDialog({ defaultNodeId, onClose, onOpened }: AddForwardDialogProps) {
+  const t = useT("sessions");
+  const tCommon = useT("common");
   const dialogRef = useRef<HTMLDivElement>(null);
   const ids = useId();
 
@@ -138,6 +124,7 @@ export function AddForwardDialog({ defaultNodeId, onClose, onOpened }: AddForwar
 
   const failure = open.error === null ? null : asFailure(open.error);
   const titleId = `${ids}-title`;
+  const portInvalid = t("forward.portInvalid");
 
   return (
     <div
@@ -156,17 +143,21 @@ export function AddForwardDialog({ defaultNodeId, onClose, onOpened }: AddForwar
       >
         <header className={s.header}>
           <h2 className={s.title} id={titleId}>
-            {TEXT.title}
+            {t("forward.title")}
           </h2>
-          <p className={s.lead}>{TEXT.lead}</p>
+          <p className={s.lead}>{t("forward.lead")}</p>
         </header>
 
         <div className={s.body}>
           {connections.length === 0 ? (
-            <p className={s.empty}>{TEXT.noConnections}</p>
+            <p className={s.empty}>{t("forward.noConnections")}</p>
           ) : (
             <>
-              <Field label={TEXT.connection} help={TEXT.connectionHelp} htmlFor={`${ids}-node`}>
+              <Field
+                label={t("forward.connection")}
+                help={t("forward.connectionHelp")}
+                htmlFor={`${ids}-node`}
+              >
                 <select
                   id={`${ids}-node`}
                   className={s.select}
@@ -182,7 +173,7 @@ export function AddForwardDialog({ defaultNodeId, onClose, onOpened }: AddForwar
                 </select>
               </Field>
 
-              <Field label={TEXT.direction} htmlFor={`${ids}-direction`}>
+              <Field label={t("forward.direction")} htmlFor={`${ids}-direction`}>
                 <select
                   id={`${ids}-direction`}
                   className={s.select}
@@ -191,7 +182,7 @@ export function AddForwardDialog({ defaultNodeId, onClose, onOpened }: AddForwar
                 >
                   {DIRECTIONS.map((value) => (
                     <option key={value} value={value}>
-                      {TEXT.directions[value]}
+                      {t(DIRECTION_KEYS[value])}
                     </option>
                   ))}
                 </select>
@@ -199,8 +190,8 @@ export function AddForwardDialog({ defaultNodeId, onClose, onOpened }: AddForwar
 
               <div className={s.pair}>
                 <Field
-                  label={TEXT.bindAddress}
-                  help={TEXT.bindAddressHelp}
+                  label={t("forward.bindAddress")}
+                  help={t("forward.bindAddressHelp")}
                   htmlFor={`${ids}-bind-address`}
                 >
                   <TextInput
@@ -212,9 +203,9 @@ export function AddForwardDialog({ defaultNodeId, onClose, onOpened }: AddForwar
                   />
                 </Field>
                 <Field
-                  label={TEXT.bindPort}
+                  label={t("forward.bindPort")}
                   htmlFor={`${ids}-bind-port`}
-                  {...(bindPort !== "" && bind === null ? { error: TEXT.portInvalid } : {})}
+                  {...(bindPort !== "" && bind === null ? { error: portInvalid } : {})}
                 >
                   <TextInput
                     id={`${ids}-bind-port`}
@@ -230,23 +221,23 @@ export function AddForwardDialog({ defaultNodeId, onClose, onOpened }: AddForwar
               {needsDestination && (
                 <div className={s.pair}>
                   <Field
-                    label={TEXT.destinationHost}
-                    help={TEXT.destinationHostHelp}
+                    label={t("forward.destinationHost")}
+                    help={t("forward.destinationHostHelp")}
                     htmlFor={`${ids}-dest-host`}
                   >
                     <TextInput
                       id={`${ids}-dest-host`}
                       value={destinationHost}
                       onChange={setDestinationHost}
-                      placeholder="db-01.internal"
+                      placeholder={t("forward.destinationHostPlaceholder")}
                       mono
                     />
                   </Field>
                   <Field
-                    label={TEXT.destinationPort}
+                    label={t("forward.destinationPort")}
                     htmlFor={`${ids}-dest-port`}
                     {...(destinationPort !== "" && destPort === null
-                      ? { error: TEXT.portInvalid }
+                      ? { error: portInvalid }
                       : {})}
                   >
                     <TextInput
@@ -269,14 +260,14 @@ export function AddForwardDialog({ defaultNodeId, onClose, onOpened }: AddForwar
                   onChange={(event) => setExposed(event.target.checked)}
                 />
                 <span>
-                  <span className={s.checkLabel}>{TEXT.exposed}</span>
-                  <span className={s.checkHelp}>{TEXT.exposedHelp}</span>
+                  <span className={s.checkLabel}>{t("forward.exposed")}</span>
+                  <span className={s.checkHelp}>{t("forward.exposedHelp")}</span>
                 </span>
               </label>
 
               {failure !== null && (
                 <div className={s.failure}>
-                  <FailureNotice failure={failure} title={TEXT.failed} />
+                  <FailureNotice failure={failure} title={t("forward.failed")} />
                 </div>
               )}
             </>
@@ -285,10 +276,10 @@ export function AddForwardDialog({ defaultNodeId, onClose, onOpened }: AddForwar
 
         <footer className={s.footer}>
           <Button variant="ghost" onClick={onClose}>
-            {TEXT.cancel}
+            {tCommon("action.cancel")}
           </Button>
           <Button variant="primary" onClick={submit} disabled={!ready || open.isPending}>
-            {open.isPending ? TEXT.opening : TEXT.open}
+            {open.isPending ? tCommon("action.opening") : t("forward.open")}
           </Button>
         </footer>
       </div>

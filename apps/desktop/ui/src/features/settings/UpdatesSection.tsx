@@ -45,6 +45,7 @@ import { Button } from "@/components/Button";
 import { Callout } from "@/components/Callout";
 import { FailureNotice } from "@/components/FailureNotice";
 import { Spinner } from "@/components/Spinner";
+import { formatDate, formatRelativeTime, useLocale, useT } from "@/i18n";
 import { asFailure, ipc } from "@/lib/ipc";
 import type { AppSettings, IpcFailure, UpdateCheck } from "@/lib/ipc";
 import { qk } from "@/lib/queryKeys";
@@ -53,54 +54,6 @@ import { SettingsSection } from "./SettingsSection";
 import { pickUpdate } from "./version";
 import s from "./UpdatesSection.module.css";
 
-const TEXT = {
-  title: "Updates",
-  description:
-    "Remoter can look for a newer release. It does not install one, and it contacts nothing unless you ask it to.",
-
-  switchLabel: "Look for a newer release automatically",
-  switchOn: "On",
-  switchOff: "Off",
-  consent:
-    "With this on, Remoter contacts github.com at most once a day — once when you turn it on, and after that when you open this screen — and sends one thing: this build's version string. No identifier, no locale, no telemetry, no usage data. With it off, nothing is contacted until you press Check now.",
-  switchSaving: "Saving…",
-  switchFailed: "That preference was not saved.",
-  switchRetry: "Save again",
-
-  checkNow: "Check now",
-  checking: "Asking GitHub what has been released…",
-  lastCheckedNever: "This machine has never checked.",
-  lastChecked: (when: string) => `Last checked ${when}.`,
-
-  checkFailed: "The update check did not finish.",
-  checkRetry: "Try again",
-
-  current: (version: string) => `You are running ${version}, and it is the newest release.`,
-  none: (version: string) =>
-    `No release has been published yet. You are running ${version}.`,
-  unknown: (version: string) =>
-    `This build reports its version as ${version}, which is not a version that can be compared. Open the releases page and check by eye.`,
-
-  updateHeading: (version: string) => `Version ${version} is available`,
-  updateRunning: (version: string) => `You are running ${version}.`,
-  published: (when: string) => `Published ${when}.`,
-  notesHeading: "What changed",
-  notesNone: "This release was published without notes.",
-  openRelease: "Open the release page",
-  openReleases: "Open the releases page",
-
-  noSelfUpdate:
-    "Remoter does not install updates itself. Releases are not signed yet, and running an unsigned binary is not something a credential manager should ask you to do — so the button opens the release page in your browser and you install it yourself.",
-
-  openFailed: "The system browser did not open.",
-
-  promiseTitle: "Remoter does not phone home",
-  promises: [
-    "No telemetry. No usage reporting. No analytics of any kind, at any setting.",
-    "No crash upload. A crash report is written to your machine and you decide whether to attach it to an issue — which means you can read it first, and that matters when the process holds credentials.",
-    "The update check is the only request Remoter makes that is not a session you opened. It reads the public release list and sends this build's version. It downloads nothing.",
-  ],
-} as const;
 
 /** Where the browser goes when there is no one release to point at. */
 const RELEASES_URL = "https://github.com/bbesli/Remoter/releases";
@@ -113,19 +66,27 @@ const RELEASES_URL = "https://github.com/bbesli/Remoter/releases";
  */
 const CHECK_INTERVAL_SECONDS = 24 * 60 * 60;
 
-const STAMP = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
-const DAY = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
-
 const CONSENT_ID = "settings-updates-consent";
 
-/** Formats an RFC 3339 stamp, or gives nothing back if it is not one. */
-function publishedOn(rfc3339: string | null): string | null {
+/**
+ * Formats an RFC 3339 stamp, or gives nothing back if it is not one.
+ *
+ * The locale is a parameter. It used to be an `Intl.DateTimeFormat` built at
+ * module scope with `undefined` for the locale, which means two things that
+ * are both wrong: the format followed the operating system rather than the
+ * language chosen in this application, and it was fixed at import, so changing
+ * the language left the date behind in the old one.
+ */
+function publishedOn(locale: string, rfc3339: string | null): string | null {
   if (rfc3339 === null || rfc3339 === "") return null;
   const at = new Date(rfc3339);
-  return Number.isNaN(at.getTime()) ? null : DAY.format(at);
+  return Number.isNaN(at.getTime()) ? null : formatDate(locale, at);
 }
 
 export function UpdatesSection() {
+  const t = useT("settings");
+  const tCommon = useT("common");
+  const { code: locale } = useLocale();
   const queryClient = useQueryClient();
   const [openFailure, setOpenFailure] = useState<IpcFailure | null>(null);
 
@@ -201,10 +162,10 @@ export function UpdatesSection() {
   const found = check.data;
   const verdict = found === undefined ? null : pickUpdate(found.currentVersion, found.releases);
   const release = verdict !== null && verdict.kind === "update" ? verdict.release : null;
-  const published = release === null ? null : publishedOn(release.publishedAt);
+  const published = release === null ? null : publishedOn(locale, release.publishedAt);
 
   return (
-    <SettingsSection title={TEXT.title} description={TEXT.description}>
+    <SettingsSection title={t("updates.title")} description={t("updates.description")}>
       <div className={s.control}>
         <label className={s.switchRow}>
           <input
@@ -219,24 +180,28 @@ export function UpdatesSection() {
           <span className={s.track} aria-hidden="true">
             <span className={s.thumb} />
           </span>
-          <span className={s.switchLabel}>{TEXT.switchLabel}</span>
+          <span className={s.switchLabel}>{t("updates.switchLabel")}</span>
           {/* The word, not only the switch position — state is never colour or
               shape alone. */}
           <span className={s.state}>
-            {consent.isPending ? TEXT.switchSaving : enabled ? TEXT.switchOn : TEXT.switchOff}
+            {consent.isPending
+              ? t("updates.switchSaving")
+              : enabled
+                ? tCommon("toggle.on")
+                : tCommon("toggle.off")}
           </span>
         </label>
 
         <p className={s.consent} id={CONSENT_ID}>
-          {TEXT.consent}
+          {t("updates.consent")}
         </p>
 
         {consent.isError && (
           <FailureNotice
             failure={asFailure(consent.error)}
-            title={TEXT.switchFailed}
+            title={t("updates.switchFailed")}
             onRetry={() => consent.mutate(!enabled)}
-            retryLabel={TEXT.switchRetry}
+            retryLabel={tCommon("action.saveAgain")}
           />
         )}
       </div>
@@ -244,12 +209,17 @@ export function UpdatesSection() {
       <div className={s.control}>
         <div className={s.actions}>
           <Button variant="secondary" size="sm" onClick={() => runCheck()} disabled={check.isPending}>
-            {TEXT.checkNow}
+            {t("updates.checkNow")}
           </Button>
           <span className={s.stamp}>
             {lastCheckedAt === null
-              ? TEXT.lastCheckedNever
-              : TEXT.lastChecked(STAMP.format(new Date(lastCheckedAt * 1000)))}
+              ? t("updates.lastCheckedNever")
+              : // Relative where a person reads it as relative ("yesterday"),
+                // with the exact stamp in the tooltip. Both follow the chosen
+                // language rather than the operating system's.
+                t("updates.lastChecked", {
+                  when: formatRelativeTime(locale, lastCheckedAt * 1000),
+                })}
           </span>
         </div>
 
@@ -258,37 +228,37 @@ export function UpdatesSection() {
         <div className={s.result} aria-live="polite">
           {check.isPending && (
             <p className={s.waiting}>
-              <Spinner size={16} label={TEXT.checking} />
-              {TEXT.checking}
+              <Spinner size={16} label={t("updates.checking")} />
+              {t("updates.checking")}
             </p>
           )}
 
           {check.isError && (
             <FailureNotice
               failure={asFailure(check.error)}
-              title={TEXT.checkFailed}
+              title={t("updates.checkFailed")}
               onRetry={() => runCheck()}
-              retryLabel={TEXT.checkRetry}
+              retryLabel={tCommon("action.retry")}
             >
               <Button size="sm" variant="ghost" onClick={() => void open(RELEASES_URL)}>
-                {TEXT.openReleases}
+                {t("updates.openReleases")}
               </Button>
             </FailureNotice>
           )}
 
           {!check.isPending && verdict !== null && verdict.kind === "current" && (
-            <p className={s.verdict}>{TEXT.current(verdict.version)}</p>
+            <p className={s.verdict}>{t("updates.current", { version: verdict.version })}</p>
           )}
 
           {!check.isPending && verdict !== null && verdict.kind === "none" && (
-            <p className={s.verdict}>{TEXT.none(verdict.version)}</p>
+            <p className={s.verdict}>{t("updates.none", { version: verdict.version })}</p>
           )}
 
           {!check.isPending && verdict !== null && verdict.kind === "unknown" && (
             <div className={s.verdictWithAction}>
-              <p className={s.verdict}>{TEXT.unknown(verdict.version)}</p>
+              <p className={s.verdict}>{t("updates.unknown", { version: verdict.version })}</p>
               <Button size="sm" onClick={() => void open(RELEASES_URL)}>
-                {TEXT.openReleases}
+                {t("updates.openReleases")}
               </Button>
             </div>
           )}
@@ -296,28 +266,28 @@ export function UpdatesSection() {
           {!check.isPending && verdict !== null && verdict.kind === "update" && release !== null && (
             <div className={s.release}>
               <div className={s.releaseHead}>
-                <h3 className={s.releaseTitle}>{TEXT.updateHeading(verdict.version)}</h3>
+                <h3 className={s.releaseTitle}>{t("updates.updateHeading", { version: verdict.version })}</h3>
                 <p className={s.releaseMeta}>
-                  {TEXT.updateRunning(found?.currentVersion ?? "")}
-                  {published !== null && ` ${TEXT.published(published)}`}
+                  {t("updates.updateRunning", { version: found?.currentVersion ?? "" })}
+                  {published !== null && ` ${t("updates.published", { when: published })}`}
                 </p>
               </div>
 
               <div className={s.notes}>
-                <p className={s.notesHeading}>{TEXT.notesHeading}</p>
+                <p className={s.notesHeading}>{t("updates.notesHeading")}</p>
                 {/* Remote text, written by whoever published the release. It is
                     rendered as text — never as markup — and is selectable so it
                     can be copied into an issue. */}
                 <pre className={["selectable", s.notesBody].join(" ")}>
-                  {release.notes.trim() === "" ? TEXT.notesNone : release.notes}
+                  {release.notes.trim() === "" ? t("updates.notesNone") : release.notes}
                 </pre>
               </div>
 
-              <p className={s.noSelfUpdate}>{TEXT.noSelfUpdate}</p>
+              <p className={s.noSelfUpdate}>{t("updates.noSelfUpdate")}</p>
 
               <div className={s.releaseActions}>
                 <Button variant="primary" size="sm" onClick={() => void open(release.url)}>
-                  {TEXT.openRelease}
+                  {t("updates.openRelease")}
                 </Button>
                 {/* Shown as well as opened: a user whose desktop cannot launch a
                     browser from here can still copy it. */}
@@ -327,16 +297,19 @@ export function UpdatesSection() {
           )}
 
           {openFailure !== null && (
-            <FailureNotice failure={openFailure} title={TEXT.openFailed} />
+            <FailureNotice failure={openFailure} title={t("updates.openFailed")} />
           )}
         </div>
       </div>
 
-      <Callout tone="info" title={TEXT.promiseTitle}>
+      {/* Three separate keys rather than one array. A translator sees each
+          promise on its own with its own comment, and a catalogue that loses
+          one loses one line rather than silently shortening the list. */}
+      <Callout tone="info" title={t("updates.promiseTitle")}>
         <ul className={s.list}>
-          {TEXT.promises.map((line) => (
-            <li key={line}>{line}</li>
-          ))}
+          <li>{t("updates.promiseTelemetry")}</li>
+          <li>{t("updates.promiseCrash")}</li>
+          <li>{t("updates.promiseCheck")}</li>
         </ul>
       </Callout>
     </SettingsSection>

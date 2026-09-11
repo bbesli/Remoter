@@ -12,6 +12,20 @@
  * without a GPU — which is the only way it can be tested at all in jsdom.
  */
 
+import type { TFunction } from "i18next";
+
+import { isolate } from "@/i18n";
+
+/**
+ * Why the terminal is not on the GPU.
+ *
+ * A code rather than a sentence. The sentence is in `locales/en/sessions.json`
+ * under `renderer.reason`, because it is read by a user and therefore has to be
+ * readable in their language; keeping the English here would put a string this
+ * module cannot translate into the middle of a translated line.
+ */
+export type RendererReason = "noContext" | "software" | "addonRefused";
+
 /** What the terminal is drawing with, and why. */
 export interface RendererReport {
   /** What ended up being used. */
@@ -19,7 +33,7 @@ export interface RendererReport {
   /** The unmasked renderer string, when the browser would give one. */
   renderer: string | null;
   /** Why the fallback happened. Null when WebGL was taken. */
-  reason: string | null;
+  reason: RendererReason | null;
 }
 
 /**
@@ -55,14 +69,39 @@ export function isSoftwareRenderer(renderer: string | null | undefined): boolean
   return SOFTWARE.some((name) => lower.includes(name));
 }
 
-/** Human-readable, for the session panel. Never a raw driver string alone. */
-export function describeRenderer(report: RendererReport | null): string {
-  if (report === null) return "not started";
+/**
+ * Human-readable, for the session panel. Never a raw driver string alone.
+ *
+ * Takes `t` rather than returning a key: the four shapes differ in whether they
+ * carry an adapter name or a reason, and a caller handed a key would have to
+ * know which of them it got in order to supply the right argument.
+ */
+export function describeRenderer(t: TFunction<"sessions">, report: RendererReport | null): string {
+  if (report === null) return t("renderer.notStarted");
   if (report.kind === "webgl") {
-    return report.renderer === null ? "WebGL" : `WebGL · ${report.renderer}`;
+    // The adapter name comes from the graphics driver. It is isolated for the
+    // same reason a hostname is: it is not ours, and one strong right-to-left
+    // character in it would reorder the line around it.
+    return report.renderer === null
+      ? t("renderer.webgl")
+      : t("renderer.webglNamed", { adapter: isolate(report.renderer) });
   }
-  return report.reason === null ? "DOM renderer" : `DOM renderer · ${report.reason}`;
+  return report.reason === null
+    ? t("renderer.dom")
+    : t("renderer.domWithReason", { reason: REASON_KEYS[report.reason](t) });
 }
+
+/**
+ * The reason codes, each bound to the message that says it.
+ *
+ * A record rather than a template-literal key, so adding a code without adding
+ * its sentence is a compile error rather than a humanised key on screen.
+ */
+const REASON_KEYS: Record<RendererReason, (t: TFunction<"sessions">) => string> = {
+  noContext: (t) => t("renderer.reason.noContext"),
+  software: (t) => t("renderer.reason.software"),
+  addonRefused: (t) => t("renderer.reason.addonRefused"),
+};
 
 /**
  * Reads the WebGL2 renderer string, or null when there is no usable context.
@@ -109,14 +148,10 @@ export function probeWebglRenderer(): { available: boolean; renderer: string | n
 export function chooseRenderer(): RendererReport {
   const probe = probeWebglRenderer();
   if (!probe.available) {
-    return { kind: "dom", renderer: null, reason: "no WebGL2 context" };
+    return { kind: "dom", renderer: null, reason: "noContext" };
   }
   if (isSoftwareRenderer(probe.renderer)) {
-    return {
-      kind: "dom",
-      renderer: probe.renderer,
-      reason: "the WebGL context is software-rasterised",
-    };
+    return { kind: "dom", renderer: probe.renderer, reason: "software" };
   }
   return { kind: "webgl", renderer: probe.renderer, reason: null };
 }

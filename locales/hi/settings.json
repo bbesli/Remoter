@@ -38,8 +38,8 @@
   "language": {
     "title": "भाषा",
     "description": "1.0 के लिए दस भाषाएँ तय हैं। दाएँ-से-बाएँ लिखी जाने वाली भाषाओं में सिर्फ़ टेक्स्ट नहीं, पूरा लेआउट पलट जाता है।",
-    "_comment_progress": "PLURAL, on the number of languages that actually have catalogues. The count is measured from the locales/ directory rather than hardcoded, so this sentence stops claiming 'only English' the day a second catalogue lands.",
-    "progress": "{available, plural, one {अभी तक सिर्फ़ अंग्रेज़ी का अनुवाद हुआ है।} other {अभी तक # भाषाओं का अनुवाद हो चुका है।}} बाक़ी भाषाएँ इसलिए दिखाई गई हैं कि उनका अनुवाद चल रहा है; हर भाषा तब चुनी जा सकेगी जब उसका कैटलॉग पूरा हो जाएगा, और तब तक उसे चुनने से कुछ नहीं बदलेगा।",
+    "_comment_progress": "PLURAL, on the number of languages that actually have catalogues. The count is measured from the locales/ directory rather than hardcoded, so the sentence follows the directory instead of a hand-maintained flag. The second sentence is deliberately conditional — 'any language still being translated' — because every language listed is selectable today, and the wording has to stay true both now and if an eleventh language is listed before its catalogue exists. Do not turn it back into a claim that some of the languages shown cannot be chosen: that claim was true once, was translated faithfully into nine languages, and was wrong in all ten by the time anyone read it.",
+    "progress": "{available, plural, one {अभी तक सिर्फ़ अंग्रेज़ी का अनुवाद हुआ है।} other {# भाषाओं का अनुवाद हो चुका है, और इनमें से हर एक को अभी चुना जा सकता है।}} जिस भाषा का अनुवाद अब भी चल रहा है, वह भी यहीं सूचीबद्ध रहती है और उसका कैटलॉग पूरा होते ही चुनी जा सकेगी।",
     "notReady": "अभी उपलब्ध नहीं",
     "_comment_unavailableLabel": "The accessible name of a row that cannot be chosen. {name} is the language's own name, in its own script, and is never translated.",
     "unavailableLabel": "{name} — अभी उपलब्ध नहीं",

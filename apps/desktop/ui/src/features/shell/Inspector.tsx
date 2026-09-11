@@ -8,38 +8,17 @@
  * names the ancestor by the name the user gave it.
  */
 
+import type { TFunction } from "i18next";
 import type { ReactNode } from "react";
 
 import { Badge } from "@/components/Badge";
 import { FailureNotice } from "@/components/FailureNotice";
 import { Icon } from "@/components/Icon";
 import { Spinner } from "@/components/Spinner";
+import { isolate, useT } from "@/i18n";
 import type { EffectiveConnection, IpcFailure, ResolvedField, TreeNode } from "@/lib/ipc";
 import s from "./Inspector.module.css";
 
-const TEXT = {
-  title: "Effective values",
-  close: "Close the inspector",
-  nothingSelected: "Nothing selected",
-  nothingSelectedBody: "Choose a connection in the tree to see its resolved settings.",
-  notAConnection: "Folders have no effective values of their own.",
-  notAConnectionBody:
-    "What a folder sets is shown on the connections beneath it, as the source of an inherited value.",
-  resolving: "Resolving",
-  failed: "Could not resolve this connection",
-  retry: "Resolve again",
-  notAsked: "Effective values were not requested",
-  notAskedBody:
-    "Resolution runs against an open vault. This one is locked, so there is nothing to resolve against yet.",
-  unset: "not set",
-  setHere: "set here",
-  fromDefault: "protocol default",
-  credentialOwn: "this connection's own",
-  credentialShared: "set here · shared with other entries",
-  gateway: "Gateway chain",
-  tags: "Tags",
-  noFields: "This connection resolves to no fields.",
-} as const;
 
 interface InspectorProps {
   node: TreeNode | undefined;
@@ -71,20 +50,29 @@ interface InspectorProps {
  * the difference is the whole reason editing one is safe and editing the other
  * would change what every connection using it logs in as.
  */
-function provenance(f: ResolvedField, credentialAttached: boolean): string {
+function provenance(
+  f: ResolvedField,
+  credentialAttached: boolean,
+  // Passed in rather than looked up: this is a pure function called from a
+  // map, and `useT` is a hook.
+  t: TFunction<"shell">,
+): string {
   if (f.overrides !== null && f.overrides !== "") {
-    return `overrides inherited ${f.overrides}`;
+    return t("inspector.overridesInherited", { field: f.overrides });
   }
   if (f.field === "credential" && f.origin === "own" && f.value !== null) {
-    return credentialAttached ? TEXT.credentialOwn : TEXT.credentialShared;
+    return credentialAttached ? t("inspector.credentialOwn") : t("inspector.credentialShared");
   }
   switch (f.origin) {
     case "own":
-      return TEXT.setHere;
+      return t("inspector.setHere");
     case "inherited":
-      return f.sourceName === null ? "inherited" : `from ${f.sourceName}`;
+      return f.sourceName === null
+        ? t("inspector.inherited")
+        : // A folder name is user data in an unknown script.
+          t("inspector.fromSource", { source: isolate(f.sourceName) });
     case "default":
-      return TEXT.fromDefault;
+      return t("inspector.fromDefault");
   }
 }
 
@@ -101,14 +89,20 @@ export function Inspector({
   onRetry,
   onClose,
 }: InspectorProps) {
+  const t = useT("shell");
   const isConnection = node?.kind === "connection";
   const protocol = node?.protocol ?? null;
 
   return (
-    <aside className={s.inspector} aria-label={TEXT.title}>
+    <aside className={s.inspector} aria-label={t("inspector.title")}>
       <div className={s.head}>
-        <span className={s.headName} title={node?.name ?? TEXT.nothingSelected}>
-          {node?.name ?? TEXT.nothingSelected}
+        {/* The node's own name: user data, isolated so a Hebrew or Arabic
+            connection name does not reverse the header around it. */}
+        <span
+          className={s.headName}
+          title={node === undefined ? t("inspector.nothingSelected") : isolate(node.name)}
+        >
+          {node === undefined ? t("inspector.nothingSelected") : isolate(node.name)}
         </span>
         {protocol !== null && (
           <Badge tone="neutral" mono>
@@ -120,8 +114,8 @@ export function Inspector({
           type="button"
           className={s.closeButton}
           onClick={onClose}
-          title={TEXT.close}
-          aria-label={TEXT.close}
+          title={t("inspector.close")}
+          aria-label={t("inspector.close")}
         >
           <Icon name="x" size={13} />
         </button>
@@ -130,39 +124,39 @@ export function Inspector({
       <div className={s.body}>
         {node === undefined ? (
           <Panel>
-            <p className={s.emptyTitle}>{TEXT.nothingSelected}</p>
-            <p className={s.emptyBody}>{TEXT.nothingSelectedBody}</p>
+            <p className={s.emptyTitle}>{t("inspector.nothingSelected")}</p>
+            <p className={s.emptyBody}>{t("inspector.nothingSelectedBody")}</p>
           </Panel>
         ) : !isConnection ? (
           <Panel>
-            <p className={s.emptyTitle}>{TEXT.notAConnection}</p>
-            <p className={s.emptyBody}>{TEXT.notAConnectionBody}</p>
+            <p className={s.emptyTitle}>{t("inspector.notAConnection")}</p>
+            <p className={s.emptyBody}>{t("inspector.notAConnectionBody")}</p>
           </Panel>
         ) : error !== null ? (
           <FailureNotice
             failure={error}
-            title={TEXT.failed}
-            {...(onRetry === undefined ? {} : { onRetry, retryLabel: TEXT.retry })}
+            title={t("inspector.failed")}
+            {...(onRetry === undefined ? {} : { onRetry, retryLabel: t("inspector.retry") })}
           />
         ) : loading || (enabled && effective === undefined) ? (
           <div className={s.loading}>
-            <Spinner size={14} label={TEXT.resolving} />
-            <span>{TEXT.resolving}…</span>
+            <Spinner size={14} label={t("inspector.resolving")} />
+            <span>{t("inspector.resolving")}…</span>
           </div>
         ) : effective === undefined ? (
           // Not loading, not failed, and still nothing to show: the query was
           // never started. A spinner here would wait for something that is not
           // coming.
           <Panel>
-            <p className={s.emptyTitle}>{TEXT.notAsked}</p>
-            <p className={s.emptyBody}>{TEXT.notAskedBody}</p>
+            <p className={s.emptyTitle}>{t("inspector.notAsked")}</p>
+            <p className={s.emptyBody}>{t("inspector.notAskedBody")}</p>
           </Panel>
         ) : (
           <>
             <section className={s.section}>
-              <h2 className={s.sectionTitle}>{TEXT.title}</h2>
+              <h2 className={s.sectionTitle}>{t("inspector.title")}</h2>
               {effective.fields.length === 0 ? (
-                <p className={s.emptyBody}>{TEXT.noFields}</p>
+                <p className={s.emptyBody}>{t("inspector.noFields")}</p>
               ) : (
                 <div className={s.fields}>
                   {effective.fields.map((f) => (
@@ -171,9 +165,9 @@ export function Inspector({
                         <span className={s.fieldName}>{f.field}</span>
                         <span
                           className={f.value === null ? s.fieldUnset : s.fieldValue}
-                          title={f.value ?? TEXT.unset}
+                          title={f.value ?? t("inspector.unset")}
                         >
-                          {f.value ?? TEXT.unset}
+                          {f.value ?? t("inspector.unset")}
                         </span>
                       </div>
                       <div className={s.origin}>
@@ -188,7 +182,7 @@ export function Inspector({
                           />
                         )}
                         <span className={s.originText}>
-                          {provenance(f, effective.credentialAttached)}
+                          {provenance(f, effective.credentialAttached, t)}
                         </span>
                       </div>
                     </div>
@@ -199,12 +193,12 @@ export function Inspector({
 
             {effective.gatewayChain.length > 0 && (
               <section className={s.section}>
-                <h2 className={s.sectionTitle}>{TEXT.gateway}</h2>
+                <h2 className={s.sectionTitle}>{t("inspector.gateway")}</h2>
                 <ol className={s.chain}>
                   {effective.gatewayChain.map((hop, i) => (
                     <li className={s.hop} key={`${String(i)}-${hop}`}>
                       <span className={s.hopIndex}>{i + 1}</span>
-                      <span className={s.hopName}>{hop}</span>
+                      <span className={s.hopName}>{isolate(hop)}</span>
                     </li>
                   ))}
                 </ol>
@@ -213,11 +207,11 @@ export function Inspector({
 
             {effective.tags.length > 0 && (
               <section className={s.section}>
-                <h2 className={s.sectionTitle}>{TEXT.tags}</h2>
+                <h2 className={s.sectionTitle}>{t("inspector.tags")}</h2>
                 <div className={s.tags}>
                   {effective.tags.map((tag) => (
                     <Badge key={tag} tone="info">
-                      {tag}
+                      {isolate(tag)}
                     </Badge>
                   ))}
                 </div>

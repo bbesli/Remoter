@@ -50,6 +50,13 @@ ruleTester.run("no-literal-jsx-text", plugin.rules["no-literal-jsx-text"], {
     { code: "const A = () => <button title={t('shell.titleBar.lock')} />;" },
     // Interpolation of data, not copy.
     { code: "const A = () => <span title={`${host}:${port}`} />;" },
+    // Copy props holding a value rather than a literal. This is every one of
+    // them in this codebase today, and it is why widening the attribute list
+    // is safe: the rule reports literals, not prop names.
+    { code: "const A = () => <Dialog lead={t('removeSlot.lead')} warning={warning} />;" },
+    { code: "const A = () => <Boundary where={where} refusal={refusal} />;" },
+    // A prop that ends in a copy word only by coincidence, in lower case.
+    { code: "const A = () => <Field relabel='name' subtext={x} />;" },
   ],
   invalid: [
     {
@@ -79,6 +86,67 @@ ruleTester.run("no-literal-jsx-text", plugin.rules["no-literal-jsx-text"], {
         },
     {
       code: "const A = () => <p>{`Connected to ${host}`}</p>;",
+      errors: [{ messageId: "hardcoded" }],
+        },
+    {
+      // The probe that found the blind spot. Every one of these three props
+      // draws words on screen and not one of them was in the attribute list,
+      // so the whole element passed. Only empty strings were being passed on
+      // the day it was noticed, which made the gap latent rather than absent —
+      // it would have gone live the first time someone filled one in.
+      code:
+        "const A = () => <Widget heading='Recent vaults' emptyText='No vaults yet' " +
+        "confirmLabel='Delete for ever' />;",
+      errors: [
+        { messageId: "hardcoded" },
+        { messageId: "hardcoded" },
+        { messageId: "hardcoded" },
+      ],
+        },
+    {
+      // The rest of the props this codebase uses for copy, in the shapes it
+      // uses them in. Listing them individually is the point: a regression
+      // that drops one from the attribute list should fail on that one line
+      // rather than on a single case that covers all of them.
+      code: "const A = () => <Notice body='Nothing to restore.' />;",
+      errors: [{ messageId: "hardcoded" }],
+        },
+    {
+      code: "const A = () => <Busy note='This can take a minute.' />;",
+      errors: [{ messageId: "hardcoded" }],
+        },
+    {
+      code: "const A = () => <Step footNote='Write it down now.' busyNote='Hashing…' />;",
+      errors: [{ messageId: "hardcoded" }, { messageId: "hardcoded" }],
+        },
+    {
+      code: "const A = () => <Bar unobservedNote='Nobody was watching.' />;",
+      errors: [{ messageId: "hardcoded" }],
+        },
+    {
+      code: "const A = () => <Heading lead='Pick where the vault lives.' />;",
+      errors: [{ messageId: "hardcoded" }],
+        },
+    {
+      code: "const A = () => <Slots warning='This is the last key slot.' />;",
+      errors: [{ messageId: "hardcoded" }],
+        },
+    {
+      code: "const A = () => <Form error='That did not work.' dialogError='Neither did that.' />;",
+      errors: [{ messageId: "hardcoded" }, { messageId: "hardcoded" }],
+        },
+    {
+      code:
+        "const A = () => <Dialog reason='The vault is locked.' " +
+        "dismissBlockedReason='Still rotating the key.' />;",
+      errors: [{ messageId: "hardcoded" }, { messageId: "hardcoded" }],
+        },
+    {
+      code: "const A = () => <Slots refusal='The core would not do it.' />;",
+      errors: [{ messageId: "hardcoded" }],
+        },
+    {
+      code: "const A = () => <Boundary where='the connection tree' />;",
       errors: [{ messageId: "hardcoded" }],
         },
   ],

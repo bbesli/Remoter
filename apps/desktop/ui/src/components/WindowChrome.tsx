@@ -16,27 +16,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { useT } from "@/i18n";
 import { useBlockingReason } from "@/hooks/useModalRegistration";
 import s from "./WindowChrome.module.css";
-
-const TEXT = {
-  /** Shown when closing the window would destroy something unrecoverable. */
-  confirmClose: (atStake: string) =>
-    `Close Remoter and lose ${atStake}? This cannot be undone.`,
-  minimise: "Minimise",
-  maximise: "Maximise",
-  restore: "Restore",
-  close: "Close",
-
-  /**
-   * These three buttons are the whole of the window's chrome. If one refuses
-   * and says nothing, the window looks stuck — which is how the missing
-   * controls were noticed in the first place.
-   */
-  controlFailed: (action: string) => `${action} was refused by the window manager.`,
-  noWindow:
-    "This page is not running inside the Remoter window, so the window controls do nothing here.",
-} as const;
 
 interface WindowHandle {
   minimize(): Promise<void>;
@@ -45,9 +27,17 @@ interface WindowHandle {
 }
 
 export function WindowControls() {
+  const t = useT("common");
   const [maximised, setMaximised] = useState(false);
   const atStake = useBlockingReason();
   const [failure, setFailure] = useState<string | null>(null);
+
+  // Each label is three things at once: the accessible name, the tooltip, and
+  // the subject of the sentence shown if the window manager refuses. Read once
+  // here so those three can never drift into naming different controls.
+  const minimise = t("window.minimise");
+  const close = t("window.close");
+  const resize = maximised ? t("window.restore") : t("window.maximise");
 
   useEffect(() => {
     let cancelled = false;
@@ -93,18 +83,20 @@ export function WindowControls() {
         } catch {
           // See above: there is no window to drive. Said out loud, because a
           // control that silently does nothing reads as a defect.
-          setFailure(TEXT.noWindow);
+          setFailure(t("window.noWindow"));
           return;
         }
         try {
           await fn(win);
           setFailure(null);
         } catch {
-          setFailure(TEXT.controlFailed(action));
+          // Interpolated rather than concatenated: the control's name is the
+          // subject of the sentence, and languages differ on where that goes.
+          setFailure(t("window.controlFailed", { action }));
         }
       })();
     },
-    [],
+    [t],
   );
 
   return (
@@ -117,9 +109,9 @@ export function WindowControls() {
       <button
         type="button"
         className={s.control}
-        onClick={() => withWindow(TEXT.minimise, (w) => w.minimize())}
-        aria-label={TEXT.minimise}
-        title={TEXT.minimise}
+        onClick={() => withWindow(minimise, (w) => w.minimize())}
+        aria-label={minimise}
+        title={minimise}
         >
           <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
             <path d="M0 5h10" stroke="currentColor" strokeWidth="1.2" />
@@ -128,11 +120,9 @@ export function WindowControls() {
       <button
         type="button"
         className={s.control}
-        onClick={() =>
-          withWindow(maximised ? TEXT.restore : TEXT.maximise, (w) => w.toggleMaximize())
-        }
-        aria-label={maximised ? TEXT.restore : TEXT.maximise}
-        title={maximised ? TEXT.restore : TEXT.maximise}
+        onClick={() => withWindow(resize, (w) => w.toggleMaximize())}
+        aria-label={resize}
+        title={resize}
         >
           {maximised ? (
             <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
@@ -165,11 +155,11 @@ export function WindowControls() {
           // own close button, and still be defeated by this control. That
           // matters for exactly one thing today, and it is the worst thing to
           // lose: a recovery key is shown once and cannot be asked for again.
-          if (atStake !== null && !window.confirm(TEXT.confirmClose(atStake))) return;
-          withWindow(TEXT.close, (w) => w.close());
+          if (atStake !== null && !window.confirm(t("window.confirmClose", { atStake }))) return;
+          withWindow(close, (w) => w.close());
         }}
-        aria-label={TEXT.close}
-        title={TEXT.close}
+        aria-label={close}
+        title={close}
         >
           <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
             <path d="M0.7 0.7l8.6 8.6M9.3 0.7L0.7 9.3" stroke="currentColor" strokeWidth="1.2" />

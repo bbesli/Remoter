@@ -4382,7 +4382,6 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "bytes",
- "flate2",
  "parking_lot",
  "remoter-core",
  "remoter-proto",

@@ -29,6 +29,7 @@
  * refused value is not left sitting in the editor waiting to be sent again.
  */
 
+import type { TFunction } from "i18next";
 import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/Button";
@@ -40,6 +41,7 @@ import { Spinner } from "@/components/Spinner";
 import { TextInput } from "@/components/TextInput";
 import { applyTerminalAppearance } from "@/features/sessions";
 import { useSystemTheme } from "@/hooks/useSystemTheme";
+import { formatNumber, useLocale, useT } from "@/i18n";
 import type { AppSettings as AppSettingsDto, IpcFailure, TerminalAppearance } from "@/lib/ipc";
 import {
   MAX_TERMINAL_FONT_SIZE,
@@ -54,6 +56,8 @@ import {
   normaliseHex,
   opaqueHex,
   paletteById,
+  paletteCreditKey,
+  paletteNameKey,
   parseHexColor,
   pruneOverrides,
   resolvePaletteId,
@@ -96,88 +100,36 @@ function sameAppearance(a: TerminalAppearance, b: TerminalAppearance): boolean {
   return keys.every((key) => a.overrides[key] === b.overrides[key]);
 }
 
-const TEXT = {
-  paletteTitle: "Terminal palette",
-  paletteDescription:
-    "The colours every session in this window is drawn in. Separate from the interface theme, so a light interface can have a dark terminal. Changes reach sessions that are already open — nothing needs reconnecting.",
 
-  auto: "Follow the interface theme",
-  autoCredit: "Remoter Dark with a dark interface, Remoter Light with a light one, and the high-contrast palette when the interface is high contrast",
-  autoResolved: (name: string) => `Right now that is ${name}.`,
-
-  previewLabel: "Preview",
-  previewNote: "Real output, in the palette and font about to be applied.",
-
-  contrastTitle: "Contrast",
-  contrastDescription:
-    "Every colour a program prints text in, measured against your background. WCAG 2.2 AA asks for 4.5:1 at this size. Nothing here is blocked — it is your terminal — but these are the colours that will be hard to read.",
-  contrastClear: "Every colour clears 4.5:1 against this background.",
-  contrastHard: "Hard to read",
-  contrastUnreadable: "Unreadable",
-  contrastRatio: (ratio: number) => `${ratio.toFixed(1)}:1`,
-  contrastAgainstBackground: (ratio: string) => `${ratio} against the background`,
-  contrastCount: (n: number) =>
-    n === 1 ? "1 colour falls below 4.5:1" : `${n} colours fall below 4.5:1`,
-  contrastWarning:
-    "Change the colour, change the background, or leave it as it is — this is a measurement, not a refusal.",
-  contrastBlacks:
-    "Colour 0 and colour 8 are the two a shell normally uses as a background or as dimmed decoration rather than as text, which is why they fall short in almost every palette ever published, including this one.",
-
-  coloursTitle: "Individual colours",
-  coloursDescription:
-    "Pick a colour, or paste a hex value — #rgb, #rrggbb and #rrggbbaa are all accepted. A colour you have changed shows a reset beside it. The platform's colour picker has no transparency, so a colour that had some keeps it; the hex field, as #rrggbbaa, is where transparency is changed.",
-  hexLabel: (name: string) => `${name}, hex value`,
-  pickLabel: (name: string) => `${name}, colour picker`,
-  resetOne: (name: string) => `Reset ${name} to the palette's own colour`,
-  resetAll: "Reset every colour",
-  resetAllNone: "Nothing is overridden",
-  overridden: "Changed",
-  overriddenCount: (n: number) =>
-    n === 1 ? "1 colour differs from the palette" : `${n} colours differ from the palette`,
-  invalidHex: "That is not a colour. Write it as #1a1c20.",
-
-  fontTitle: "Terminal font",
-  fontDescription:
-    "Separate from the interface font. The interface stays at its own size when you change this.",
-  fontFamilyLabel: "Font family",
-  fontFamilyPlaceholder: "JetBrains Mono",
-  fontFamilyHelp:
-    "The name of a font installed on this machine. Remoter cannot list the fonts you have, and it cannot tell you whether this one was found — the preview above is set in it, so an empty-looking change means the name did not match. Whatever you type falls back to the interface's monospace stack, so a typo never leaves you without a monospace terminal.",
-  fontFamilyDefault: "Leave it empty to use the interface's monospace stack.",
-  fontSizeLabel: "Size",
-  fontSizeHelp: `Pixels, ${MIN_TERMINAL_FONT_SIZE} to ${MAX_TERMINAL_FONT_SIZE}. The session resizes itself and tells the remote host the new geometry.`,
-
-  scope:
-    "These settings belong to this machine, not to the vault, and they apply to every session rather than to one connection.",
-
-  saving: "Saving the terminal appearance…",
-  saveFailed: "The terminal appearance was not saved.",
-  retry: "Save again",
-} as const;
-
-/** What each editable colour is called, in the order the editor lists them. */
-const COLOR_LABELS: Record<TerminalColorKey, string> = {
-  background: "Background",
-  foreground: "Foreground",
-  cursor: "Cursor",
-  cursorAccent: "Text under the cursor",
-  selection: "Selection",
-  black: "0 Black",
-  red: "1 Red",
-  green: "2 Green",
-  yellow: "3 Yellow",
-  blue: "4 Blue",
-  magenta: "5 Magenta",
-  cyan: "6 Cyan",
-  white: "7 White",
-  brightBlack: "8 Bright black",
-  brightRed: "9 Bright red",
-  brightGreen: "10 Bright green",
-  brightYellow: "11 Bright yellow",
-  brightBlue: "12 Bright blue",
-  brightMagenta: "13 Bright magenta",
-  brightCyan: "14 Bright cyan",
-  brightWhite: "15 Bright white",
+/**
+ * The catalogue key naming each editable colour.
+ *
+ * Keys, not labels: the map is module-level, and a label resolved at import
+ * would keep the language the application started in for the rest of the
+ * session.
+ */
+const COLOUR_LABEL_KEYS: Record<TerminalColorKey, `terminal.colours.${TerminalColorKey}`> = {
+  background: "terminal.colours.background",
+  foreground: "terminal.colours.foreground",
+  cursor: "terminal.colours.cursor",
+  cursorAccent: "terminal.colours.cursorAccent",
+  selection: "terminal.colours.selection",
+  black: "terminal.colours.black",
+  red: "terminal.colours.red",
+  green: "terminal.colours.green",
+  yellow: "terminal.colours.yellow",
+  blue: "terminal.colours.blue",
+  magenta: "terminal.colours.magenta",
+  cyan: "terminal.colours.cyan",
+  white: "terminal.colours.white",
+  brightBlack: "terminal.colours.brightBlack",
+  brightRed: "terminal.colours.brightRed",
+  brightGreen: "terminal.colours.brightGreen",
+  brightYellow: "terminal.colours.brightYellow",
+  brightBlue: "terminal.colours.brightBlue",
+  brightMagenta: "terminal.colours.brightMagenta",
+  brightCyan: "terminal.colours.brightCyan",
+  brightWhite: "terminal.colours.brightWhite",
 };
 
 /** The keys that name a colour a program prints text in. */
@@ -212,6 +164,15 @@ interface PreviewProps {
  * `aria-hidden` because it is a picture of colours — the substance for anyone
  * not looking at it is the contrast report below, which is text.
  */
+/*
+ * The strings below are a mock-up of what a remote shell prints: a prompt, an
+ * `ls --color` listing, a diff, a systemd failure. Terminal output belongs to
+ * the host and is never translated — docs/features/i18n.md, "What is never
+ * translated" — so a translated preview would be a picture of something that
+ * cannot happen. It is `aria-hidden` for the same reason: the substance for a
+ * screen-reader user is the contrast report below, which is real text.
+ */
+/* eslint-disable remoter-i18n/no-literal-jsx-text -- simulated remote output, see above */
 function TerminalPreview({ colors, fontFamily, fontSize, compact = false }: PreviewProps) {
   const frame = {
     background: colors.background,
@@ -296,6 +257,19 @@ function TerminalPreview({ colors, fontFamily, fontSize, compact = false }: Prev
   );
 }
 
+/* eslint-enable remoter-i18n/no-literal-jsx-text */
+
+/**
+ * A contrast ratio, as `4.5:1`.
+ *
+ * The number goes through `Intl` — a German reader writes it `4,5` — and the
+ * `:1` comes from the catalogue, because it is notation a locale could
+ * conceivably write differently and is not ours to hardcode at the call site.
+ */
+function contrastRatioText(locale: string, t: TFunction<"settings">, ratio: number): string {
+  return t("terminal.contrastRatio", { ratio: formatNumber(locale, ratio, 1) });
+}
+
 // ---------------------------------------------------------------- section ---
 
 export function TerminalSection({
@@ -305,6 +279,9 @@ export function TerminalSection({
   failure,
   onRetrySave,
 }: TerminalSectionProps) {
+  const t = useT("settings");
+  const tCommon = useT("common");
+  const { code: locale } = useLocale();
   const theme = useApp((state) => state.theme);
   const systemTheme = useSystemTheme();
   const interfaceTheme: InterfaceTheme = theme === "system" ? systemTheme : theme;
@@ -474,8 +451,8 @@ export function TerminalSection({
 
   return (
     <>
-      <SettingsSection title={TEXT.paletteTitle} description={TEXT.paletteDescription}>
-        <div className={s.group} role="radiogroup" aria-label={TEXT.paletteTitle}>
+      <SettingsSection title={t("terminal.paletteTitle")} description={t("terminal.paletteDescription")}>
+        <div className={s.group} role="radiogroup" aria-label={t("terminal.paletteTitle")}>
           <label className={s.autoRow}>
             <input
               className={s.radio}
@@ -484,15 +461,15 @@ export function TerminalSection({
               value="auto"
               checked={draft.palette === "auto"}
               onChange={() => choosePalette("auto")}
-              aria-label={TEXT.auto}
+              aria-label={t("terminal.auto")}
             />
             <span className={s.mark} aria-hidden="true" />
             <span className={s.autoBody}>
-              <span className={s.autoName}>{TEXT.auto}</span>
+              <span className={s.autoName}>{t("terminal.auto")}</span>
               <span className={s.autoHint}>
-                {TEXT.autoCredit}.{" "}
+                {t("terminal.autoCredit")}.{" "}
                 {resolvedPalette !== undefined && draft.palette === "auto"
-                  ? TEXT.autoResolved(resolvedPalette.name)
+                  ? t("terminal.autoResolved", { name: t(paletteNameKey(resolvedPalette.id)) })
                   : ""}
               </span>
             </span>
@@ -508,7 +485,15 @@ export function TerminalSection({
                   value={palette.id}
                   checked={draft.palette === palette.id}
                   onChange={() => choosePalette(palette.id)}
-                  aria-label={`${palette.name} — ${palette.credit}`}
+                  // Name and credit are joined through a message rather than
+                  // with a template literal: the separator between a title and
+                  // its attribution is not an em dash in every language, and
+                  // concatenating copy is the one thing the catalogue rules
+                  // forbid outright (docs/features/i18n.md).
+                  aria-label={t("terminal.paletteLabel", {
+                    name: t(paletteNameKey(palette.id)),
+                    credit: t(paletteCreditKey(palette.id)),
+                  })}
                 />
                 <TerminalPreview
                   colors={palette.colors}
@@ -519,8 +504,8 @@ export function TerminalSection({
                 <span className={s.paletteLabel}>
                   <span className={s.mark} aria-hidden="true" />
                   <span className={s.paletteText}>
-                    <span className={s.paletteName}>{palette.name}</span>
-                    <span className={s.paletteCredit}>{palette.credit}</span>
+                    <span className={s.paletteName}>{t(paletteNameKey(palette.id))}</span>
+                    <span className={s.paletteCredit}>{t(paletteCreditKey(palette.id))}</span>
                   </span>
                 </span>
               </label>
@@ -530,8 +515,8 @@ export function TerminalSection({
 
         <div className={s.previewBlock}>
           <p className={s.previewHead}>
-            <span className={s.previewTitle}>{TEXT.previewLabel}</span>
-            <span className={s.previewNote}>{TEXT.previewNote}</span>
+            <span className={s.previewTitle}>{t("terminal.previewLabel")}</span>
+            <span className={s.previewNote}>{t("terminal.previewNote")}</span>
           </p>
           <TerminalPreview
             colors={colors}
@@ -542,38 +527,38 @@ export function TerminalSection({
 
         {saving && (
           <p className={s.saving}>
-            <Spinner size={14} label={TEXT.saving} />
-            {TEXT.saving}
+            <Spinner size={14} label={t("terminal.saving")} />
+            {t("terminal.saving")}
           </p>
         )}
 
         {failure !== null && (
           <FailureNotice
             failure={failure}
-            title={TEXT.saveFailed}
+            title={t("terminal.saveFailed")}
             onRetry={onRetrySave}
-            retryLabel={TEXT.retry}
+            retryLabel={tCommon("action.saveAgain")}
           />
         )}
 
-        <p className={s.note}>{TEXT.scope}</p>
+        <p className={s.note}>{t("terminal.scope")}</p>
       </SettingsSection>
 
-      <SettingsSection title={TEXT.contrastTitle} description={TEXT.contrastDescription}>
+      <SettingsSection title={t("terminal.contrastTitle")} description={t("terminal.contrastDescription")}>
         {failures.length === 0 ? (
           <p className={s.contrastClear}>
             <span className={s.contrastClearIcon} aria-hidden="true">
               <Icon name="check" size={14} />
             </span>
-            {TEXT.contrastClear}
+            {t("terminal.contrastClear")}
           </p>
         ) : (
           <>
             <Callout
               tone={onlyBlacks ? "neutral" : "warning"}
-              title={TEXT.contrastCount(failures.length)}
+              title={t("terminal.contrastCount", { count: failures.length })}
             >
-              {onlyBlacks ? TEXT.contrastBlacks : TEXT.contrastWarning}
+              {onlyBlacks ? t("terminal.contrastBlacks") : t("terminal.contrastWarning")}
             </Callout>
             <ul className={s.contrastList}>
               {failures.map((entry) => (
@@ -583,13 +568,13 @@ export function TerminalSection({
                     style={{ background: colors.background, color: colors[entry.key] }}
                     aria-hidden="true"
                   >
-                    Aa
+                    {t("terminal.contrastSample")}
                   </span>
-                  <span className={s.contrastName}>{COLOR_LABELS[entry.key]}</span>
-                  <span className={s.contrastValue}>{TEXT.contrastRatio(entry.ratio)}</span>
+                  <span className={s.contrastName}>{t(COLOUR_LABEL_KEYS[entry.key])}</span>
+                  <span className={s.contrastValue}>{contrastRatioText(locale, t, entry.ratio)}</span>
                   <span className={[s.contrastTag, s[entry.grade]].join(" ")}>
                     <Icon name="alert" size={12} />
-                    {entry.grade === "fail" ? TEXT.contrastUnreadable : TEXT.contrastHard}
+                    {entry.grade === "fail" ? t("terminal.contrastUnreadable") : t("terminal.contrastHard")}
                   </span>
                 </li>
               ))}
@@ -598,19 +583,19 @@ export function TerminalSection({
         )}
       </SettingsSection>
 
-      <SettingsSection title={TEXT.coloursTitle} description={TEXT.coloursDescription}>
+      <SettingsSection title={t("terminal.coloursTitle")} description={t("terminal.coloursDescription")}>
         <div className={s.resetRow}>
           <Button size="sm" variant="secondary" onClick={resetAll} disabled={overriddenCount === 0}>
-            {TEXT.resetAll}
+            {t("terminal.resetAll")}
           </Button>
           <span className={s.resetHint}>
-            {overriddenCount === 0 ? TEXT.resetAllNone : TEXT.overriddenCount(overriddenCount)}
+            {overriddenCount === 0 ? t("terminal.resetAllNone") : t("terminal.overriddenCount", { count: overriddenCount })}
           </span>
         </div>
 
         <div className={s.colorGrid}>
           {TERMINAL_COLOR_KEYS.map((key) => {
-            const label = COLOR_LABELS[key];
+            const label = t(COLOUR_LABEL_KEYS[key]);
             const current = colors[key];
             const typed = typing[key];
             const shown = typed ?? current;
@@ -625,7 +610,7 @@ export function TerminalSection({
               <div key={key} className={s.colorRow}>
                 <span className={s.colorName}>
                   {label}
-                  {changed && <span className={s.changedTag}>{TEXT.overridden}</span>}
+                  {changed && <span className={s.changedTag}>{t("terminal.overridden")}</span>}
                 </span>
 
                 <span className={s.colorControls}>
@@ -634,14 +619,14 @@ export function TerminalSection({
                     type="color"
                     value={opaqueHex(current)}
                     onChange={(event) => setFromPicker(key, event.target.value)}
-                    aria-label={TEXT.pickLabel(label)}
+                    aria-label={t("terminal.pickLabel", { name: label })}
                   />
                   <span className={s.hexField}>
                     <TextInput
                       value={shown}
                       mono
                       invalid={invalid}
-                      ariaLabel={TEXT.hexLabel(label)}
+                      ariaLabel={t("terminal.hexLabel", { name: label })}
                       onChange={(value) => {
                         setTyping((fields) => ({ ...fields, [key]: value }));
                         setColor(key, value);
@@ -651,9 +636,9 @@ export function TerminalSection({
                   {grade !== null && (
                     <span
                       className={[s.gradeChip, s[grade]].join(" ")}
-                      title={TEXT.contrastAgainstBackground(TEXT.contrastRatio(ratio))}
+                      title={t("terminal.contrastAgainstBackground", { ratio: contrastRatioText(locale, t, ratio) })}
                     >
-                      {TEXT.contrastRatio(ratio)}
+                      {contrastRatioText(locale, t, ratio)}
                     </span>
                   )}
                   <button
@@ -661,8 +646,8 @@ export function TerminalSection({
                     className={s.resetOne}
                     onClick={() => resetColor(key)}
                     disabled={!changed}
-                    aria-label={TEXT.resetOne(label)}
-                    title={TEXT.resetOne(label)}
+                    aria-label={t("terminal.resetOne", { name: label })}
+                    title={t("terminal.resetOne", { name: label })}
                   >
                     <Icon name="arrow-left" size={13} />
                   </button>
@@ -670,7 +655,7 @@ export function TerminalSection({
 
                 {invalid && (
                   <span className={s.colorError} role="alert">
-                    {TEXT.invalidHex}
+                    {t("terminal.invalidHex")}
                   </span>
                 )}
               </div>
@@ -679,25 +664,28 @@ export function TerminalSection({
         </div>
       </SettingsSection>
 
-      <SettingsSection title={TEXT.fontTitle} description={TEXT.fontDescription}>
+      <SettingsSection title={t("terminal.fontTitle")} description={t("terminal.fontDescription")}>
         <div className={s.fontRow}>
           <div className={s.fontFamily}>
             <Field
-              label={TEXT.fontFamilyLabel}
-              help={`${TEXT.fontFamilyDefault} ${TEXT.fontFamilyHelp}`}
+              label={t("terminal.fontFamilyLabel")}
+              help={`${t("terminal.fontFamilyDefault")} ${t("terminal.fontFamilyHelp")}`}
             >
               <TextInput
                 value={draft.fontFamily}
                 mono
-                placeholder={TEXT.fontFamilyPlaceholder}
-                ariaLabel={TEXT.fontFamilyLabel}
+                placeholder={t("terminal.fontFamilyPlaceholder")}
+                ariaLabel={t("terminal.fontFamilyLabel")}
                 onChange={(value) => commit({ ...draft, fontFamily: value })}
               />
             </Field>
           </div>
 
           <div className={s.fontSize}>
-            <Field label={TEXT.fontSizeLabel} help={TEXT.fontSizeHelp}>
+            <Field label={t("terminal.fontSizeLabel")} help={t("terminal.fontSizeHelp", {
+                min: MIN_TERMINAL_FONT_SIZE,
+                max: MAX_TERMINAL_FONT_SIZE,
+              })}>
               <input
                 className={s.sizeInput}
                 type="number"
@@ -706,7 +694,7 @@ export function TerminalSection({
                 max={MAX_TERMINAL_FONT_SIZE}
                 step={1}
                 value={draft.fontSize}
-                aria-label={TEXT.fontSizeLabel}
+                aria-label={t("terminal.fontSizeLabel")}
                 onChange={(event) => {
                   const size = Number.parseInt(event.target.value, 10);
                   if (Number.isNaN(size)) return;

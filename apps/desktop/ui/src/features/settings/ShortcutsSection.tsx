@@ -22,6 +22,7 @@
  * A control that cannot do what it says must not be drawn as though it can.
  */
 
+import type { TFunction } from "i18next";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -32,6 +33,7 @@ import { Field } from "@/components/Field";
 import { Icon } from "@/components/Icon";
 import { Spinner } from "@/components/Spinner";
 import { TextInput } from "@/components/TextInput";
+import { formatList, useLocale, useT } from "@/i18n";
 import { asFailure, ipc } from "@/lib/ipc";
 import type { AppSettings as AppSettingsDto, AppSettingsPatch } from "@/lib/ipc";
 import { qk } from "@/lib/queryKeys";
@@ -55,72 +57,15 @@ import {
 import { SettingsSection } from "./SettingsSection";
 import s from "./ShortcutsSection.module.css";
 
-const TEXT = {
-  title: "Shortcuts",
-  description:
-    "Every binding below is what the application actually listens for. A focused terminal must receive almost every keystroke, so application shortcuts inside a session go through a prefix.",
 
-  loading: "Reading your shortcut map…",
-  loadFailed: "Your shortcut map could not be read.",
-  retry: "Try again",
-  loadFallback:
-    "These are the shipped defaults. Any binding you changed is not shown, and cannot be changed here until the settings file can be read.",
-
-  prefixTitle: "Terminal prefix",
-  prefixBody:
-    "Ctrl+C, Ctrl+D and Alt+F belong to the remote host, so Remoter does not take them. Inside a session, hold the prefix as well.",
-  prefixLegend: "The prefix held with an application shortcut inside a session",
-  prefixSaving: "Saving the prefix…",
-  prefixFailed: "The prefix was not changed.",
-
-  searchLabel: "Search shortcuts",
-  searchPlaceholder: "Filter by action or key",
-
-  caption: "Keyboard shortcuts, with what each one can and cannot reach",
-  colAction: "Action",
-  colShortcut: "Shortcut",
-  colScope: "Where it works",
-
-  scopeUniversal: "Everywhere",
-  scopeApplication: "Prefixed in a session",
-  scopeContext: "Only where it is typed",
-  scopeNowhere: "Nowhere",
-
-  inSession: (keys: string) => `Inside a focused session: ${keys}`,
-
-  edit: (action: string, keys: string) => `Change the shortcut for ${action}, currently ${keys}`,
-  capturing: "Press the keys…",
-  capturingHint: "Press the combination you want, or Esc to cancel.",
-  fixed: (action: string) => `The shortcut for ${action} cannot be changed`,
-  saving: "Saving…",
-
-  reset: (action: string) => `Reset ${action} to its shipped keys`,
-  resetAll: "Reset every shortcut",
-  resetAllBusy: "Resetting…",
-  resetAllNone: "Every editable shortcut is already at its shipped default.",
-  saveFailed: "The shortcut was not saved.",
-
-  count: (shown: number, total: number) => `Showing ${shown} of ${total} shortcuts.`,
-  empty: "No shortcut matches that.",
-
-  conflictDuplicate: (titles: string[]) =>
-    `Already held by ${titles.join(", ")}. Only one of them can fire, so change one of the two.`,
-  conflictReservedUniversal:
-    "The remote shell needs these keys, so a focused session keeps them and this shortcut never fires there.",
-  conflictReservedApplication:
-    "These keys belong to the remote shell and to copy-and-paste. The prefix keeps them clear inside a session, but outside one Remoter takes them.",
-  conflictDesktop:
-    "Some desktops take this combination for their own window switcher and win. Where that happens the press never reaches Remoter.",
-
-  refusedInvalid: "That is not a combination Remoter can bind.",
-  refusedReserved: (keys: string) =>
-    `${keys} belongs to the remote host: a focused terminal has to receive it, so binding it here would stop it reaching the shell.`,
-  refusedDuplicate: (keys: string, title: string) =>
-    `${keys} is already held by ${title}. Nothing was changed — free it there first, or pick another combination.`,
-  refusedUnknown: "This build does not carry that action.",
-} as const;
-
-/** How each prefix choice is written on its own button. */
+/**
+ * How each prefix choice is written on its own button.
+ *
+ * Key names, and key names are not translated in any language — the keycap
+ * says Ctrl whatever the interface is set to. docs/features/i18n.md, "What is
+ * never translated".
+ */
+// eslint-disable-next-line remoter-i18n/no-text-constant -- key names, see above
 const PREFIX_LABELS: Readonly<Record<string, string>> = {
   "ctrl+alt": "Ctrl + Alt",
   "ctrl+shift": "Ctrl + Shift",
@@ -152,32 +97,43 @@ function fold(value: string): string {
   return value.toLocaleLowerCase("en-US");
 }
 
-/** The one sentence a row's scope cell carries. */
-function scopeLabel(entry: ResolvedShortcut): string {
+/**
+ * The one sentence a row's scope cell carries.
+ *
+ * `t` is a parameter on this and the two helpers below: they are pure
+ * functions called from a render loop, and `useT` is a hook.
+ */
+function scopeLabel(entry: ResolvedShortcut, t: TFunction<"settings">): string {
   switch (entry.action.owner) {
     case "none":
-      return TEXT.scopeNowhere;
+      return t("shortcuts.scopeNowhere");
     case "context":
-      return TEXT.scopeContext;
+      return t("shortcuts.scopeContext");
     default:
-      return entry.action.scope === "universal" ? TEXT.scopeUniversal : TEXT.scopeApplication;
+      return entry.action.scope === "universal" ? t("shortcuts.scopeUniversal") : t("shortcuts.scopeApplication");
   }
 }
 
 /** Everything the row must say beyond its keys, worst first. */
-function rowNotes(entry: ResolvedShortcut): string[] {
+function rowNotes(entry: ResolvedShortcut, t: TFunction<"settings">, locale: string): string[] {
   const notes: string[] = [];
   const conflict = entry.conflict;
 
   if (conflict !== null) {
-    if (conflict.kind === "duplicate") notes.push(TEXT.conflictDuplicate(conflict.withTitles));
+    if (conflict.kind === "duplicate") {
+      // Intl.ListFormat, not `join(", ")`: English says "a, b and c", German
+      // says "a, b und c", and Chinese and Arabic differ again.
+      notes.push(
+        t("shortcuts.conflictDuplicate", { holders: formatList(locale, conflict.withTitles) }),
+      );
+    }
     else if (conflict.kind === "terminal-reserved") {
       notes.push(
         entry.action.scope === "universal"
-          ? TEXT.conflictReservedUniversal
-          : TEXT.conflictReservedApplication,
+          ? t("shortcuts.conflictReservedUniversal")
+          : t("shortcuts.conflictReservedApplication"),
       );
-    } else notes.push(TEXT.conflictDesktop);
+    } else notes.push(t("shortcuts.conflictDesktop"));
   }
 
   if (entry.action.reachNote !== null) notes.push(entry.action.reachNote);
@@ -188,28 +144,37 @@ function rowNotes(entry: ResolvedShortcut): string[] {
 }
 
 /** The refusal, in the user's terms. */
-function describeRefusal(refusal: BindingRefusal): string {
+function describeRefusal(refusal: BindingRefusal, t: TFunction<"settings">): string {
   switch (refusal.kind) {
     case "invalid":
-      return TEXT.refusedInvalid;
+      return t("shortcuts.refusedInvalid");
     case "terminal-reserved":
-      return TEXT.refusedReserved(acceleratorLabel(refusal.accelerator));
+      return t("shortcuts.refusedReserved", { keys: acceleratorLabel(refusal.accelerator) });
     case "duplicate":
-      return TEXT.refusedDuplicate(acceleratorLabel(refusal.accelerator), refusal.withTitle);
+      return t("shortcuts.refusedDuplicate", {
+        keys: acceleratorLabel(refusal.accelerator),
+        action: refusal.withTitle,
+      });
     case "not-editable":
       return refusal.reason;
     case "unknown-action":
-      return TEXT.refusedUnknown;
+      return t("shortcuts.refusedUnknown");
   }
 }
 
-function haystack(entry: ResolvedShortcut): string {
+/**
+ * What the filter searches.
+ *
+ * It searches the translated text, not the English source: a German user
+ * filtering on "Sitzung" has to find the rows whose scope cell says it.
+ */
+function haystack(entry: ResolvedShortcut, t: TFunction<"settings">, locale: string): string {
   return fold(
     [
       entry.action.title,
       acceleratorLabel(entry.accelerator, entry.action.seriesLen),
-      scopeLabel(entry),
-      ...rowNotes(entry),
+      scopeLabel(entry, t),
+      ...rowNotes(entry, t, locale),
     ]
       .join(" ")
       .replace(/\+/g, " "),
@@ -217,6 +182,9 @@ function haystack(entry: ResolvedShortcut): string {
 }
 
 export function ShortcutsSection() {
+  const t = useT("settings");
+  const tCommon = useT("common");
+  const { code: locale } = useLocale();
   const queryClient = useQueryClient();
   const [query, setQuery] = useState("");
 
@@ -243,8 +211,8 @@ export function ShortcutsSection() {
   const matches = useMemo(() => {
     const needle = fold(query.trim());
     if (needle === "") return resolved;
-    return resolved.filter((entry) => haystack(entry).includes(needle));
-  }, [query, resolved]);
+    return resolved.filter((entry) => haystack(entry, t, locale).includes(needle));
+  }, [query, resolved, t, locale]);
 
   const customisedCount = resolved.filter((entry) => entry.customised).length;
 
@@ -253,7 +221,7 @@ export function ShortcutsSection() {
       setCapturing(null);
       const refusal = checkBinding(actionId, chord, overrides);
       if (refusal !== null) {
-        setRefused({ actionId, message: describeRefusal(refusal) });
+        setRefused({ actionId, message: describeRefusal(refusal, t) });
         return;
       }
       setRefused(null);
@@ -262,7 +230,7 @@ export function ShortcutsSection() {
         patch: { shortcuts: { [actionId]: chord } },
       });
     },
-    [overrides, save],
+    [overrides, save, t],
   );
 
   /*
@@ -339,14 +307,14 @@ export function ShortcutsSection() {
    */
   if (settings.isPending) {
     return (
-      <SettingsSection title={TEXT.title} description={TEXT.description}>
-        <BusyStatus label={TEXT.loading} size={16} />
+      <SettingsSection title={t("shortcuts.title")} description={t("shortcuts.description")}>
+        <BusyStatus label={t("shortcuts.loading")} size={16} />
       </SettingsSection>
     );
   }
 
   return (
-    <SettingsSection title={TEXT.title} description={TEXT.description}>
+    <SettingsSection title={t("shortcuts.title")} description={t("shortcuts.description")}>
 
       {/*
        * A failed read is said out loud, and the table below still renders the
@@ -357,23 +325,23 @@ export function ShortcutsSection() {
         <>
           <FailureNotice
             failure={asFailure(settings.error)}
-            title={TEXT.loadFailed}
+            title={t("shortcuts.loadFailed")}
             onRetry={() => void settings.refetch()}
-            retryLabel={TEXT.retry}
+            retryLabel={tCommon("action.retry")}
           />
-          <p className={s.note}>{TEXT.loadFallback}</p>
+          <p className={s.note}>{t("shortcuts.loadFallback")}</p>
         </>
       )}
 
       <div className={s.prefix}>
         <div className={s.prefixText}>
-          <span className={s.prefixTitle}>{TEXT.prefixTitle}</span>
-          <span className={s.prefixBody}>{TEXT.prefixBody}</span>
+          <span className={s.prefixTitle}>{t("shortcuts.prefixTitle")}</span>
+          <span className={s.prefixBody}>{t("shortcuts.prefixBody")}</span>
         </div>
         <div
           className={s.prefixChoices}
           role="radiogroup"
-          aria-label={TEXT.prefixLegend}
+          aria-label={t("shortcuts.prefixLegend")}
           aria-busy={savingTarget?.kind === "prefix"}
         >
           {TERMINAL_PREFIX_CHOICES.map((choice) => (
@@ -389,65 +357,65 @@ export function ShortcutsSection() {
               {PREFIX_LABELS[choice.value] ?? choice.value}
             </button>
           ))}
-          {savingTarget?.kind === "prefix" && <Spinner size={13} label={TEXT.prefixSaving} />}
+          {savingTarget?.kind === "prefix" && <Spinner size={13} label={t("shortcuts.prefixSaving")} />}
         </div>
       </div>
 
       {saveFailure !== null && failedTarget?.kind === "prefix" && (
         <FailureNotice
           failure={saveFailure}
-          title={TEXT.prefixFailed}
+          title={t("shortcuts.prefixFailed")}
           onRetry={() => {
             const last = save.variables;
             if (last !== undefined) save.mutate(last);
           }}
-          retryLabel={TEXT.retry}
+          retryLabel={tCommon("action.retry")}
         />
       )}
 
-      <Field label={TEXT.searchLabel} htmlFor="settings-shortcut-search">
+      <Field label={t("shortcuts.searchLabel")} htmlFor="settings-shortcut-search">
         <TextInput
           id="settings-shortcut-search"
           value={query}
           onChange={setQuery}
-          placeholder={TEXT.searchPlaceholder}
+          placeholder={t("shortcuts.searchPlaceholder")}
         />
       </Field>
 
       <div className={s.toolbar}>
         <p className={s.count} role="status">
-          {TEXT.count(matches.length, resolved.length)}
+          {t("shortcuts.count", { shown: matches.length, total: resolved.length })}
         </p>
         <span className={s.toolbarSpacer} />
         <Button
           size="sm"
           variant="ghost"
           disabled={customisedCount === 0 || save.isPending || settings.data === undefined}
-          title={customisedCount === 0 ? TEXT.resetAllNone : undefined}
+          title={customisedCount === 0 ? t("shortcuts.resetAllNone") : undefined}
           onClick={onResetAll}
         >
-          {savingTarget?.kind === "reset-all" ? TEXT.resetAllBusy : TEXT.resetAll}
+          {savingTarget?.kind === "reset-all" ? t("shortcuts.resetAllBusy") : t("shortcuts.resetAll")}
         </Button>
       </div>
 
       {saveFailure !== null && failedTarget?.kind === "reset-all" && (
-        <FailureNotice failure={saveFailure} title={TEXT.saveFailed} />
+        <FailureNotice failure={saveFailure} title={t("shortcuts.saveFailed")} />
       )}
 
       <div className={s.tableWrap}>
         <table className={s.table}>
-          <caption className="visually-hidden">{TEXT.caption}</caption>
+          <caption className="visually-hidden">{t("shortcuts.caption")}</caption>
           <thead>
             <tr>
-              <th scope="col">{TEXT.colAction}</th>
-              <th scope="col">{TEXT.colShortcut}</th>
-              <th scope="col">{TEXT.colScope}</th>
+              <th scope="col">{t("shortcuts.colAction")}</th>
+              <th scope="col">{t("shortcuts.colShortcut")}</th>
+              <th scope="col">{t("shortcuts.colScope")}</th>
             </tr>
           </thead>
           <tbody>
             {matches.map((entry) => {
               const action = entry.action;
-              const notes = rowNotes(entry);
+              const notes = rowNotes(entry, t, locale);
               const caps = acceleratorCaps(entry.accelerator, action.seriesLen);
               const label = acceleratorLabel(entry.accelerator, action.seriesLen);
               const isCapturing = capturing === action.id;
@@ -483,7 +451,7 @@ export function ShortcutsSection() {
                     )}
                     {rowFailure !== null && (
                       <span className={s.refusal} role="alert">
-                        {TEXT.saveFailed} {rowFailure.message}
+                        {t("shortcuts.saveFailed")} {rowFailure.message}
                       </span>
                     )}
                   </th>
@@ -494,9 +462,9 @@ export function ShortcutsSection() {
                         <button
                           type="button"
                           className={isCapturing ? [s.keysButton, s.capturing].join(" ") : s.keysButton}
-                          aria-label={TEXT.edit(action.title, label)}
+                          aria-label={t("shortcuts.edit", { action: action.title, keys: label })}
                           title={
-                            sessionForm === null ? TEXT.edit(action.title, label) : TEXT.inSession(sessionForm)
+                            sessionForm === null ? t("shortcuts.edit", { action: action.title, keys: label }) : t("shortcuts.inSession", { keys: sessionForm })
                           }
                           disabled={save.isPending || settings.data === undefined}
                           onClick={() => {
@@ -505,9 +473,9 @@ export function ShortcutsSection() {
                           }}
                         >
                           {isCapturing ? (
-                            <span className={s.capturingLabel}>{TEXT.capturing}</span>
+                            <span className={s.capturingLabel}>{t("shortcuts.capturing")}</span>
                           ) : isSaving ? (
-                            <Spinner size={13} label={TEXT.saving} />
+                            <Spinner size={13} label={t("shortcuts.saving")} />
                           ) : (
                             <span className={s.keys}>
                               {caps.map((cap) => (
@@ -527,7 +495,7 @@ export function ShortcutsSection() {
                          */
                         <span
                           className={s.keysFixed}
-                          title={action.unrebindableReason ?? TEXT.fixed(action.title)}
+                          title={action.unrebindableReason ?? t("shortcuts.fixed", { action: action.title })}
                         >
                           <span className={s.keys}>
                             {caps.map((cap) => (
@@ -543,8 +511,8 @@ export function ShortcutsSection() {
                         <button
                           type="button"
                           className={s.resetButton}
-                          title={TEXT.reset(action.title)}
-                          aria-label={TEXT.reset(action.title)}
+                          title={t("shortcuts.reset", { action: action.title })}
+                          aria-label={t("shortcuts.reset", { action: action.title })}
                           disabled={save.isPending}
                           onClick={() => onResetOne(action.id)}
                         >
@@ -554,19 +522,19 @@ export function ShortcutsSection() {
                     </span>
                     {isCapturing && (
                       <span className={s.captureHint} role="status">
-                        {TEXT.capturingHint}
+                        {t("shortcuts.capturingHint")}
                       </span>
                     )}
                   </td>
 
-                  <td className={s.scopeCell}>{scopeLabel(entry)}</td>
+                  <td className={s.scopeCell}>{scopeLabel(entry, t)}</td>
                 </tr>
               );
             })}
             {matches.length === 0 && (
               <tr>
                 <td className={s.empty} colSpan={3}>
-                  {TEXT.empty}
+                  {t("shortcuts.empty")}
                 </td>
               </tr>
             )}

@@ -10,6 +10,8 @@
 
 import { describe, expect, it } from "vitest";
 
+import englishSettings from "../../../../../locales/en/settings.json";
+
 import type { TerminalAppearance } from "./ipc";
 import {
   DEFAULT_TERMINAL_APPEARANCE,
@@ -25,11 +27,28 @@ import {
   normaliseHex,
   opaqueHex,
   paletteById,
+  paletteCreditKey,
+  paletteNameKey,
   parseHexColor,
   pruneOverrides,
   resolvePaletteId,
   resolveTerminalColors,
 } from "./terminalPalette";
+
+/**
+ * Follows a dotted catalogue key into the English `settings` catalogue, the way
+ * `t()` does. Resolving the key the screen actually passes is the point: a
+ * helper that returns a well-formed key naming nothing would pass a comparison
+ * against itself and render a humanised key on the card.
+ */
+function lookupEnglish(key: string): unknown {
+  let current: unknown = englishSettings;
+  for (const segment of key.split(".")) {
+    if (typeof current !== "object" || current === null) return undefined;
+    current = (current as Record<string, unknown>)[segment];
+  }
+  return current;
+}
 
 describe("hex parsing", () => {
   it("accepts the forms people actually paste", () => {
@@ -123,9 +142,33 @@ describe("the shipped palettes", () => {
     }
   });
 
-  it("name their author, because a palette is someone's work", () => {
+  it("name themselves and their author through the catalogue", () => {
+    // The name and the credit were two string fields here until the
+    // localisation pass: "Remoter — the palette this application shipped with"
+    // is a sentence on screen, and a sentence on screen comes from a catalogue
+    // (CLAUDE.md §6). What can go wrong now is a palette added to the table
+    // with no catalogue entry behind it — which renders a humanised key on the
+    // card and looks, at a glance, deliberate. So the keys are resolved rather
+    // than merely constructed.
     for (const palette of TERMINAL_PALETTES) {
-      expect(palette.credit.length, palette.id).toBeGreaterThan(0);
+      const name = lookupEnglish(paletteNameKey(palette.id));
+      const credit = lookupEnglish(paletteCreditKey(palette.id));
+      expect(typeof name, `${palette.id} name`).toBe("string");
+      expect(typeof credit, `${palette.id} credit`).toBe("string");
+      expect(String(name).trim().length, `${palette.id} name`).toBeGreaterThan(0);
+      expect(String(credit).trim().length, `${palette.id} credit`).toBeGreaterThan(0);
+    }
+  });
+
+  it("carry no English of their own any more", () => {
+    // The regression this stops is the easy one: someone adds a palette by
+    // copying the entry above it, and puts `name: "Ayu Mirage"` back on it
+    // because that is where a name obviously goes. The lint rule cannot see a
+    // string in a data table that never reaches JSX as a literal.
+    for (const palette of TERMINAL_PALETTES) {
+      // Sorted, so reordering the declaration is not a failure. Only a new
+      // field is.
+      expect([...Object.keys(palette)].sort(), palette.id).toEqual(["colors", "ground", "id"]);
     }
   });
 

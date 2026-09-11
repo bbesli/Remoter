@@ -21,34 +21,45 @@
 import { useEffect, useState } from "react";
 
 import { Icon } from "@/components/Icon";
+import { isolate, isolateChain, isolateLtr, useLocale, useT } from "@/i18n";
+import type { RecordingPolicy } from "@/lib/ipc";
 import { formatBytes, formatSize, formatUptime } from "./format";
 import { describeRenderer } from "./renderer";
+import type { ConnectPhase } from "./stages";
 import type { SessionRecord } from "./store";
 
 import s from "./SessionStatus.module.css";
 
-const TEXT = {
-  state: {
-    preparing: "Connecting",
-    connecting: "Connecting",
-    verifying: "Waiting on a host key decision",
-    authenticating: "Authenticating",
-    running: "Connected",
-    failed: "Failed",
-    closed: "Ended",
-  } as const,
-  echo: "echo",
-  echoTitle: "Time from the last keystroke sent to the next frame of output. Not a network round trip: the core reports no latency sample.",
-  hostKeyVerified: "Host key verified",
-  hostKeyTitle: "The handshake completed against a key this vault trusts.",
-  recordingPolicy: (policy: string) => `recording policy: ${policy.replace(/_/g, " ")}`,
-  recordingTitle:
-    "The connection's resolved recording policy. This build has no recorder, so nothing is being written.",
-  rendererTitle:
-    "Which renderer the terminal got. WebKitGTK can hand out a software-rasterised WebGL context, so this is the checked answer rather than the assumed one.",
-  uptime: "uptime",
-  auth: "authenticated by",
-} as const;
+/**
+ * The phase in words, capitalised: this is the head of the bar rather than a
+ * fragment inside a label, so it is a different set from `tab.state.*`.
+ *
+ * A record and not a key built from the phase, so a new phase without a word
+ * for it stops the build rather than reaching the status bar as a key.
+ */
+const STATE_KEYS = {
+  preparing: "status.state.preparing",
+  connecting: "status.state.connecting",
+  verifying: "status.state.verifying",
+  authenticating: "status.state.authenticating",
+  running: "status.state.running",
+  failed: "status.state.failed",
+  closed: "status.state.closed",
+} as const satisfies Record<ConnectPhase, string>;
+
+/**
+ * The resolved recording policy in words.
+ *
+ * The core's own values are `never`, `on_request` and `always`; the old code
+ * printed them with the underscore swapped for a space, which is not a
+ * translation strategy — `on_request` is "on request" in English and something
+ * else everywhere else.
+ */
+const RECORDING_KEYS = {
+  never: "status.recordingPolicy.never",
+  on_request: "status.recordingPolicy.on_request",
+  always: "status.recordingPolicy.always",
+} as const satisfies Record<RecordingPolicy, string>;
 
 /** Which state token the dot takes. */
 function dotState(record: SessionRecord): "connected" | "connecting" | "failed" | "idle" {
@@ -65,6 +76,10 @@ function dotState(record: SessionRecord): "connected" | "connecting" | "failed" 
 }
 
 export function SessionStatus({ record }: { record: SessionRecord }) {
+  const t = useT("sessions");
+  const tCommon = useT("common");
+  const { code: locale } = useLocale();
+
   // Uptime has to move on an idle session too, and an idle session pushes no
   // metrics. The clock is state rather than a `Date.now()` in the body, which
   // would make the render impure.
@@ -80,18 +95,22 @@ export function SessionStatus({ record }: { record: SessionRecord }) {
   const via = opened?.via ?? [];
   const running = record.phase === "running";
   const started = opened?.startedAtMs ?? record.startedAt;
+  // Address, username and jump-host chain all come from the vault or the far
+  // end. Each is isolated so a right-to-left character in one cannot reorder
+  // the bar around it; the chain keeps its own order. See src/i18n/bidi.ts.
+  const hopChain = isolateChain(via, tCommon("punctuation.chainSeparator"));
 
   return (
     <>
       <span className={s.dot} data-state={dotState(record)} aria-hidden="true" />
-      <span className={s.state}>{TEXT.state[record.phase]}</span>
+      <span className={s.state}>{t(STATE_KEYS[record.phase])}</span>
 
       {record.target !== null && (
         <>
           <span className={s.sep} aria-hidden="true">
             ·
           </span>
-          <span className={s.mono}>{record.target}</span>
+          <span className={s.mono}>{isolateLtr(record.target)}</span>
         </>
       )}
 
@@ -100,8 +119,11 @@ export function SessionStatus({ record }: { record: SessionRecord }) {
           <span className={s.sep} aria-hidden="true">
             ·
           </span>
-          <span className={s.mono} title={`${TEXT.auth} ${opened.authMethod}`}>
-            {opened.username}
+          <span
+            className={s.mono}
+            title={t("status.authTitle", { method: isolate(opened.authMethod) })}
+          >
+            {isolate(opened.username)}
           </span>
         </>
       )}
@@ -111,9 +133,9 @@ export function SessionStatus({ record }: { record: SessionRecord }) {
           <span className={s.sep} aria-hidden="true">
             ·
           </span>
-          <span className={s.hops} title={via.join(" → ")}>
+          <span className={s.hops} title={hopChain}>
             <Icon name="shield" size={12} />
-            <span className={s.mono}>{via.join(" → ")}</span>
+            <span className={s.mono}>{hopChain}</span>
           </span>
         </>
       )}
@@ -123,17 +145,20 @@ export function SessionStatus({ record }: { record: SessionRecord }) {
           <span className={s.sep} aria-hidden="true">
             ·
           </span>
-          <span className={s.mono} title={TEXT.echoTitle}>
+          <span className={s.mono} title={t("status.echoTitle")}>
             {record.metrics.echoMs === null
-              ? `— ${TEXT.echo}`
-              : `${String(record.metrics.echoMs)} ms ${TEXT.echo}`}
+              ? t("status.echoUnknown")
+              : t("status.echo", { milliseconds: record.metrics.echoMs })}
           </span>
 
           <span className={s.sep} aria-hidden="true">
             ·
           </span>
           <span className={s.mono}>
-            ↓ {formatBytes(record.metrics.bytesIn)} ↑ {formatBytes(record.metrics.bytesOut)}
+            {t("status.transfer", {
+              in: formatBytes(locale, record.metrics.bytesIn),
+              out: formatBytes(locale, record.metrics.bytesOut),
+            })}
           </span>
 
           {record.metrics.cols > 0 && (
@@ -141,15 +166,17 @@ export function SessionStatus({ record }: { record: SessionRecord }) {
               <span className={s.sep} aria-hidden="true">
                 ·
               </span>
-              <span className={s.mono}>{formatSize(record.metrics.cols, record.metrics.rows)}</span>
+              <span className={s.mono}>
+                {formatSize(locale, record.metrics.cols, record.metrics.rows)}
+              </span>
             </>
           )}
 
           <span className={s.sep} aria-hidden="true">
             ·
           </span>
-          <span className={s.mono} title={TEXT.uptime}>
-            {formatUptime(now - started)}
+          <span className={s.mono} title={t("status.uptimeTitle")}>
+            {formatUptime(t, locale, now - started)}
           </span>
         </>
       )}
@@ -157,21 +184,21 @@ export function SessionStatus({ record }: { record: SessionRecord }) {
       <span className={s.spacer} />
 
       {record.renderer !== null && (
-        <span className={s.note} title={TEXT.rendererTitle}>
-          {describeRenderer(record.renderer)}
+        <span className={s.note} title={t("status.rendererTitle")}>
+          {describeRenderer(t, record.renderer)}
         </span>
       )}
 
       {opened !== null && opened.recording !== "never" && (
-        <span className={s.recording} title={TEXT.recordingTitle}>
-          {TEXT.recordingPolicy(opened.recording)}
+        <span className={s.recording} title={t("status.recordingTitle")}>
+          {t("status.recording", { policy: t(RECORDING_KEYS[opened.recording]) })}
         </span>
       )}
 
       {running && (
-        <span className={s.verified} title={TEXT.hostKeyTitle}>
+        <span className={s.verified} title={t("status.hostKeyTitle")}>
           <Icon name="shield" size={12} />
-          {TEXT.hostKeyVerified}
+          {t("status.hostKeyVerified")}
         </span>
       )}
     </>

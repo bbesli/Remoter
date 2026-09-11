@@ -16,26 +16,11 @@
 import { FailureNotice } from "@/components/FailureNotice";
 import { Icon, type IconName } from "@/components/Icon";
 import { Spinner } from "@/components/Spinner";
+import { isolate, useT } from "@/i18n";
 import type { IpcFailure } from "@/lib/ipc";
 import { useApp } from "@/stores/app";
 import s from "./EmptyVault.module.css";
 
-const TEXT = {
-  title: "This vault is empty",
-  bodyBefore: "Nothing is stored in ",
-  bodyAfter: " yet. Most people start by bringing across what they already have.",
-  unnamedVault: "this vault",
-  importTitle: "Import from another tool",
-  importBody: "mRemoteNG, ~/.ssh/config, CSV",
-  createTitle: "Create the first connection",
-  createBody: "A host, a protocol and a credential is enough to start.",
-  createBusy: "Opening the connection editor…",
-  openTitle: "Open a different vault",
-  openBody: "Locks this vault and returns to the vault picker.",
-  openBusy: "Locking this vault…",
-  openFailed: "This vault was not locked, so the picker did not open.",
-  retry: "Try again",
-} as const;
 
 interface EmptyVaultProps {
   vaultPath: string | null;
@@ -89,9 +74,14 @@ function Choice({ icon, title, body, onClick, primary = false, busy = false, dis
   );
 }
 
-/** The file name is the part the user recognises; the directory is noise here. */
-function basename(path: string | null): string {
-  if (path === null || path === "") return TEXT.unnamedVault;
+/**
+ * The file name is the part the user recognises; the directory is noise here.
+ *
+ * Returns `null` rather than a placeholder so the placeholder can be a
+ * translated string: this is a pure function and `t()` is a hook.
+ */
+function basename(path: string | null): string | null {
+  if (path === null || path === "") return null;
   const parts = path.split(/[\\/]/);
   const last = parts[parts.length - 1];
   return last === undefined || last === "" ? path : last;
@@ -105,51 +95,62 @@ export function EmptyVault({
   openingAnother = false,
   openAnotherFailure = null,
 }: EmptyVaultProps) {
+  const t = useT("shell");
+  const tCommon = useT("common");
   const go = useApp((st) => st.go);
+  // A file name is user data in an unknown script; isolating it keeps the
+  // sentence around it running the document's way.
+  const vaultName = basename(vaultPath);
 
   return (
     <div className={s.wrap}>
       <div className={s.card}>
         <div className={s.heading}>
-          <h1 className={s.title}>{TEXT.title}</h1>
+          <h1 className={s.title}>{t("emptyVault.title")}</h1>
+          {/* One message with the name inside it, not three fragments joined
+              at render: languages do not agree on where the subject of this
+              sentence goes, and a sentence assembled from halves cannot be
+              reordered by a translator. The name loses its own styling as a
+              result, which is the price of a sentence that survives
+              translation. */}
           <p className={s.body}>
-            {TEXT.bodyBefore}
-            <span className={s.path}>{basename(vaultPath)}</span>
-            {TEXT.bodyAfter}
+            {t("emptyVault.body", {
+              vault: isolate(vaultName ?? t("emptyVault.unnamedVault")),
+            })}
           </p>
         </div>
 
         <div className={s.choices}>
           <Choice
             icon="plus"
-            title={TEXT.createTitle}
-            body={TEXT.createBody}
+            title={t("emptyVault.createTitle")}
+            body={t("emptyVault.createBody")}
             onClick={onCreateConnection}
             primary
             busy={creating}
-            disabledReason={TEXT.createBusy}
+            disabledReason={t("emptyVault.createBusy")}
           />
           <Choice
             icon="download"
-            title={TEXT.importTitle}
-            body={TEXT.importBody}
+            title={t("emptyVault.importTitle")}
+            body={t("emptyVault.importBody")}
             onClick={() => go({ name: "import" })}
           />
           <Choice
             icon="folder"
-            title={TEXT.openTitle}
-            body={TEXT.openBody}
+            title={t("emptyVault.openTitle")}
+            body={t("emptyVault.openBody")}
             onClick={onOpenAnother}
             busy={openingAnother}
-            disabledReason={TEXT.openBusy}
+            disabledReason={t("emptyVault.openBusy")}
           />
 
           {openAnotherFailure !== null && (
             <FailureNotice
               failure={openAnotherFailure}
-              title={TEXT.openFailed}
+              title={t("emptyVault.openFailed")}
               onRetry={onOpenAnother}
-              retryLabel={TEXT.retry}
+              retryLabel={tCommon("action.retry")}
             />
           )}
         </div>

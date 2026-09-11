@@ -24,6 +24,7 @@ import {
   type SessionOpened,
   type TreeNode,
 } from "@/lib/ipc";
+import { i18n } from "@/i18n";
 
 import { failureFromClose, newTabId, useSessions } from "./store";
 import {
@@ -83,7 +84,11 @@ export function reconnect(tabId: string): void {
   // The scrollback is kept — the design's reconnect notice promises it — so
   // the terminal needs a mark saying where the old session stopped. Otherwise
   // the new session's first output looks like a continuation of the old one.
-  writeNotice(tabId, "\r\n── reconnecting ──\r\n");
+  // No component around this, so the instance is asked directly rather than
+  // through `useT`. The rules and the line breaks are decoration and stay
+  // here; the word is copy and comes from the catalogue.
+  const notice = i18n().t("sessions:surface.reconnectNotice");
+  writeNotice(tabId, `\r\n── ${notice} ──\r\n`);
   startAttempt(tabId);
 }
 

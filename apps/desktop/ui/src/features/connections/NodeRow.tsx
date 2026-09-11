@@ -19,18 +19,10 @@ import clsx from "clsx";
 
 import { Badge } from "@/components/Badge";
 import { Icon, type IconName } from "@/components/Icon";
+import { useT } from "@/i18n";
 import type { TreeNode } from "@/lib/ipc";
 
 import s from "./NodeRow.module.css";
-
-const TEXT = {
-  expand: "Expand",
-  collapse: "Collapse",
-  inherits: (n: number) => `inherits ${n}`,
-  inheritsTitle: "Fields this folder sets that everything beneath it inherits",
-  usedBy: (n: number) => `used by ${n}`,
-  usedByTitle: "Connections that take their credential from this entry",
-} as const;
 
 /**
  * The drag payload carries a node id under a private type.
@@ -165,6 +157,7 @@ export const NodeRow = memo(function NodeRow({
   onDropRow,
   onDragEndRow,
 }: NodeRowProps) {
+  const t = useT("connections");
   const indent = { "--tree-depth": String(depth) } as CSSProperties;
 
   if (node.kind === "separator") {
@@ -255,7 +248,7 @@ export const NodeRow = memo(function NodeRow({
         <button
           type="button"
           className={s.chevron}
-          aria-label={expanded ? TEXT.collapse : TEXT.expand}
+          aria-label={expanded ? t("row.collapse") : t("row.expand")}
           tabIndex={-1}
           onClick={(e) => {
             e.stopPropagation();
@@ -290,13 +283,13 @@ export const NodeRow = memo(function NodeRow({
           on a credential the number of nodes that take their login from it.
         */}
         {isFolder && node.inheritedFieldCount > 0 && (
-          <Badge mono title={TEXT.inheritsTitle}>
-            {TEXT.inherits(node.inheritedFieldCount)}
+          <Badge mono title={t("row.inheritsHint")}>
+            {t("row.inheritsCount", { count: node.inheritedFieldCount })}
           </Badge>
         )}
         {node.kind === "credential" && (
-          <Badge mono title={TEXT.usedByTitle}>
-            {TEXT.usedBy(node.inheritedFieldCount)}
+          <Badge mono title={t("row.usedByHint")}>
+            {t("row.usedByCount", { count: node.inheritedFieldCount })}
           </Badge>
         )}
         {node.kind === "connection" && node.protocol !== null && (

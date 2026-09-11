@@ -30,6 +30,7 @@ import { Button } from "@/components/Button";
 import { Callout } from "@/components/Callout";
 import { FailureNotice } from "@/components/FailureNotice";
 import { Icon } from "@/components/Icon";
+import { isolate, useLocale, useT } from "@/i18n";
 import { asFailure, ipc } from "@/lib/ipc";
 import type {
   AddPasswordSlot,
@@ -51,57 +52,12 @@ import { RotateMasterKeyDialog, RotationSummaryDialog } from "./RotateMasterKeyD
 import { invalidateAfterSlotChange } from "./keys";
 import {
   SLOT_KIND_ICON,
-  SLOT_KIND_LABEL,
   removalRefusal,
   removalWarning,
   slotDetail,
+  slotKindLabel,
 } from "./slots";
 import s from "./KeySlotsSection.module.css";
-
-const TEXT = {
-  title: "Key slots",
-  description:
-    "Each slot independently unwraps the same vault key. Adding or removing one does not re-encrypt anything, so it is fast and safe to change your mind.",
-
-  openedWith: "opened this session",
-  neverUsed: "never used",
-
-  change: "Change",
-  rotate: "Rotate",
-  remove: "Remove",
-
-  add: "Add a slot",
-  addHint: "another password · a recovery key · this device",
-
-  unusedRecoveryTitle: "This recovery key has never been used",
-  unusedRecoveryBody:
-    "Generated and never used is exactly the slot most likely to be lost. If you cannot put your hands on it, rotate it now — there is no way into this vault without one of these slots.",
-
-  invariantTitle: "A vault must keep at least one usable slot",
-  invariantBody:
-    "Remoter will not let you delete the last one, and deleting the recovery slot needs a typed confirmation. There is no escrow key and no support override: if every slot is lost, the file cannot be opened by anyone, including us.",
-
-  rotateRecoveryTitle: "Rotate this recovery key",
-  rotateRecoveryLead:
-    "The slot is replaced with a new key. The one you hold today stops working the moment this succeeds, and the new one is shown exactly once.",
-  rotateRecoveryBody:
-    "The master key does not change, so nothing is re-encrypted and every other slot keeps working.",
-  rotateRecoveryConfirm: "Rotate the key",
-  rotateRecoveryBusy: "Generating…",
-  rotateRecoveryBlocked:
-    "The new key is being generated. Closing now would lose it: it is shown once and nothing can reissue it.",
-  rotateRecoveryFailed: "The recovery key was not rotated.",
-  cancel: "Cancel",
-
-  expensive: "Expensive operation",
-  rotateMasterTitle: "Rotate the vault master key",
-  rotateMasterBody:
-    'This is the right answer to "a copy of this file may have leaked while one of my keys was compromised". A new master key is generated, every slot is re-wrapped and the whole body is re-encrypted.',
-  rotateMasterButton: "Rotate the master key",
-  rotateMasterAside: "Old copies of the file stay readable with the old keys. Delete them.",
-
-  removeFailed: "The slot was not removed.",
-} as const;
 
 interface KeySlotsSectionProps {
   vaultSlots: VaultSlots;
@@ -113,6 +69,9 @@ interface KeySlotsSectionProps {
 type AddKind = "password" | "recovery" | "keychain";
 
 export function KeySlotsSection({ vaultSlots, vaultPath, kdfSummary }: KeySlotsSectionProps) {
+  const t = useT("vaultsettings");
+  const tCommon = useT("common");
+  const { code: locale } = useLocale();
   const queryClient = useQueryClient();
   const slots = vaultSlots.slots;
 
@@ -230,7 +189,7 @@ export function KeySlotsSection({ vaultSlots, vaultPath, kdfSummary }: KeySlotsS
           ? asFailure(addKeychain.error)
           : null;
 
-  const refusal = removalRefusal(slots);
+  const refusal = removalRefusal(slots, t);
   const pendingKey = keyQueue[0];
 
   function closeAdd() {
@@ -244,8 +203,8 @@ export function KeySlotsSection({ vaultSlots, vaultPath, kdfSummary }: KeySlotsS
   return (
     <section className={s.section}>
       <div className={s.header}>
-        <h2 className={s.title}>{TEXT.title}</h2>
-        <p className={s.description}>{TEXT.description}</p>
+        <h2 className={s.title}>{t("slots.title")}</h2>
+        <p className={s.description}>{t("slots.description")}</p>
       </div>
 
       <div className={s.list}>
@@ -262,28 +221,32 @@ export function KeySlotsSection({ vaultSlots, vaultPath, kdfSummary }: KeySlotsS
 
               <div className={s.rowBody}>
                 <div className={s.rowHead}>
-                  <span className={s.rowName}>{slot.label}</span>
-                  <Badge mono>slot {slot.index}</Badge>
-                  <Badge tone="neutral">{SLOT_KIND_LABEL[slot.kind]}</Badge>
+                  {/* The name the user gave this slot, isolated so its script
+                      cannot reorder the badges beside it. */}
+                  <span className={s.rowName}>{isolate(slot.label)}</span>
+                  <Badge mono>{t("slot.indexBadge", { index: slot.index })}</Badge>
+                  <Badge tone="neutral">{slotKindLabel(slot.kind, t)}</Badge>
                   {vaultSlots.openedWith === slot.index && (
-                    <Badge tone="success">{TEXT.openedWith}</Badge>
+                    <Badge tone="success">{t("slots.openedWithBadge")}</Badge>
                   )}
-                  {unusedRecovery && <Badge tone="warning">{TEXT.neverUsed}</Badge>}
+                  {unusedRecovery && <Badge tone="warning">{t("slots.neverUsedBadge")}</Badge>}
                 </div>
-                <p className={s.rowDetail}>{slotDetail(slot)}</p>
-                {unusedRecovery && <p className={s.rowAlertNote}>{TEXT.unusedRecoveryBody}</p>}
+                <p className={s.rowDetail}>{slotDetail(slot, { t, tCommon, locale })}</p>
+                {unusedRecovery && (
+                  <p className={s.rowAlertNote}>{t("slots.unusedRecoveryBody")}</p>
+                )}
                 {refusal !== null && <p className={s.rowRefusal}>{refusal}</p>}
               </div>
 
               <div className={s.rowActions}>
                 {slot.kind === "password" && (
                   <Button size="sm" onClick={() => setChanging(slot)}>
-                    {TEXT.change}
+                    {t("slots.change")}
                   </Button>
                 )}
                 {slot.kind === "recovery" && (
                   <Button size="sm" onClick={() => setRotatingRecovery(slot)}>
-                    {TEXT.rotate}
+                    {t("slots.rotate")}
                   </Button>
                 )}
                 <Button
@@ -293,7 +256,7 @@ export function KeySlotsSection({ vaultSlots, vaultPath, kdfSummary }: KeySlotsS
                   title={refusal ?? undefined}
                   onClick={() => setRemoving(slot)}
                 >
-                  {TEXT.remove}
+                  {t("slots.remove")}
                 </Button>
               </div>
             </div>
@@ -302,8 +265,8 @@ export function KeySlotsSection({ vaultSlots, vaultPath, kdfSummary }: KeySlotsS
 
         <button type="button" className={s.addRow} onClick={() => setAdding(true)}>
           <Icon name="plus" size={15} />
-          <span className={s.addLabel}>{TEXT.add}</span>
-          <span className={s.addHint}>{TEXT.addHint}</span>
+          <span className={s.addLabel}>{t("slots.add")}</span>
+          <span className={s.addHint}>{t("slots.addHint")}</span>
         </button>
       </div>
 
@@ -311,30 +274,30 @@ export function KeySlotsSection({ vaultSlots, vaultPath, kdfSummary }: KeySlotsS
       {removeSlot.error !== null && removing === null && (
         <FailureNotice
           failure={asFailure(removeSlot.error)}
-          title={TEXT.removeFailed}
+          title={t("slots.removeFailed")}
           onRetry={() => removeSlot.reset()}
-          retryLabel={TEXT.cancel}
+          retryLabel={tCommon("action.cancel")}
         />
       )}
 
       <div className={s.divider} />
 
       <div className={s.expensive}>
-        <span className={s.expensiveLabel}>{TEXT.expensive}</span>
+        <span className={s.expensiveLabel}>{t("expensive.label")}</span>
         <div className={s.rotateCard}>
-          <h3 className={s.rotateTitle}>{TEXT.rotateMasterTitle}</h3>
-          <p className={s.rotateBody}>{TEXT.rotateMasterBody}</p>
+          <h3 className={s.rotateTitle}>{t("rotateMaster.cardTitle")}</h3>
+          <p className={s.rotateBody}>{t("rotateMaster.cardBody")}</p>
           <div className={s.rotateActions}>
             <Button variant="danger" onClick={() => setRotatingMaster(true)}>
-              {TEXT.rotateMasterButton}
+              {t("rotateMaster.cardButton")}
             </Button>
-            <span className={s.rotateAside}>{TEXT.rotateMasterAside}</span>
+            <span className={s.rotateAside}>{t("rotateMaster.cardAside")}</span>
           </div>
         </div>
       </div>
 
-      <Callout tone="info" title={TEXT.invariantTitle}>
-        {TEXT.invariantBody}
+      <Callout tone="info" title={t("slots.invariantTitle")}>
+        {t("slots.invariantBody")}
       </Callout>
 
       {adding && (
@@ -389,7 +352,7 @@ export function KeySlotsSection({ vaultSlots, vaultPath, kdfSummary }: KeySlotsS
         <RemoveSlotDialog
           slot={removing}
           refusal={refusal}
-          warning={removalWarning(slots, removing, vaultSlots.openedWith)}
+          warning={removalWarning(slots, removing, vaultSlots.openedWith, t)}
           busy={removeSlot.isPending}
           failure={removeSlot.error === null ? null : asFailure(removeSlot.error)}
           onConfirm={() => removeSlot.mutate(removing.index)}
@@ -405,8 +368,8 @@ export function KeySlotsSection({ vaultSlots, vaultPath, kdfSummary }: KeySlotsS
       {rotatingRecovery !== null && (
         <Dialog
           id="vault-rotate-recovery"
-          title={TEXT.rotateRecoveryTitle}
-          lead={TEXT.rotateRecoveryLead}
+          title={t("rotateRecovery.title")}
+          lead={t("rotateRecovery.lead")}
           onDismiss={
             rotateRecovery.isPending
               ? null
@@ -415,7 +378,7 @@ export function KeySlotsSection({ vaultSlots, vaultPath, kdfSummary }: KeySlotsS
                   setRotatingRecovery(null);
                 }
           }
-          dismissBlockedReason={TEXT.rotateRecoveryBlocked}
+          dismissBlockedReason={t("rotateRecovery.blocked")}
           footer={
             <>
               <Button
@@ -426,24 +389,24 @@ export function KeySlotsSection({ vaultSlots, vaultPath, kdfSummary }: KeySlotsS
                   setRotatingRecovery(null);
                 }}
               >
-                {TEXT.cancel}
+                {tCommon("action.cancel")}
               </Button>
               <BusyButton
                 variant="danger"
                 busy={rotateRecovery.isPending}
-                busyLabel={TEXT.rotateRecoveryBusy}
+                busyLabel={t("rotateRecovery.busy")}
                 onClick={() => rotateRecovery.mutate(rotatingRecovery.index)}
               >
-                {TEXT.rotateRecoveryConfirm}
+                {t("rotateRecovery.confirm")}
               </BusyButton>
             </>
           }
         >
-          <p className={s.dialogBody}>{TEXT.rotateRecoveryBody}</p>
+          <p className={s.dialogBody}>{t("rotateRecovery.body")}</p>
           {rotateRecovery.error !== null && (
             <FailureNotice
               failure={asFailure(rotateRecovery.error)}
-              title={TEXT.rotateRecoveryFailed}
+              title={t("rotateRecovery.failed")}
               onRetry={() => rotateRecovery.mutate(rotatingRecovery.index)}
             />
           )}

@@ -38,8 +38,8 @@
   "language": {
     "title": "Idioma",
     "description": "Dez idiomas estão planejados para a versão 1.0. Idiomas escritos da direita para a esquerda espelham o layout inteiro, não apenas o texto.",
-    "_comment_progress": "PLURAL, on the number of languages that actually have catalogues. The count is measured from the locales/ directory rather than hardcoded, so this sentence stops claiming 'only English' the day a second catalogue lands.",
-    "progress": "{available, plural, one {Até agora, só o inglês está traduzido.} other {Até agora, # idiomas estão traduzidos.}} Os demais aparecem na lista porque a tradução está em andamento; cada um fica selecionável quando seu catálogo estiver completo, e até lá escolhê-lo não mudaria nada.",
+    "_comment_progress": "PLURAL, on the number of languages that actually have catalogues. The count is measured from the locales/ directory rather than hardcoded, so the sentence follows the directory instead of a hand-maintained flag. The second sentence is deliberately conditional — 'any language still being translated' — because every language listed is selectable today, and the wording has to stay true both now and if an eleventh language is listed before its catalogue exists. Do not turn it back into a claim that some of the languages shown cannot be chosen: that claim was true once, was translated faithfully into nine languages, and was wrong in all ten by the time anyone read it.",
+    "progress": "{available, plural, one {Até agora, só o inglês está traduzido.} other {# idiomas estão traduzidos, e qualquer um deles já pode ser escolhido.}} Qualquer idioma que ainda esteja sendo traduzido também aparece na lista e fica selecionável assim que seu catálogo estiver completo.",
     "notReady": "Ainda não disponível",
     "_comment_unavailableLabel": "The accessible name of a row that cannot be chosen. {name} is the language's own name, in its own script, and is never translated.",
     "unavailableLabel": "{name} — ainda não disponível",

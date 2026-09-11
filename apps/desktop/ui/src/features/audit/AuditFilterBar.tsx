@@ -15,9 +15,10 @@ import clsx from "clsx";
 import { Button } from "@/components/Button";
 import { Icon } from "@/components/Icon";
 import { Skeleton } from "@/components/Busy";
+import { isolate, isolateLtr, useT } from "@/i18n";
 import type { AuditFilters, TreeNode } from "@/lib/ipc";
 
-import { categoryLabel, formatCount, outcomeLabel } from "./format";
+import { categoryLabel, outcomeLabel, type AuditT } from "./format";
 import {
   DEFAULT_FILTERS,
   isNarrowed,
@@ -27,30 +28,6 @@ import {
   type TimeRange,
 } from "./filters";
 import s from "./AuditFilterBar.module.css";
-
-const TEXT = {
-  region: "Audit log filters",
-  range: "Time",
-  rangeLabels: {
-    "24h": "Last 24 hours",
-    "7d": "Last 7 days",
-    "30d": "Last 30 days",
-    "90d": "Last 90 days",
-    all: "Everything",
-  } as Record<TimeRange, string>,
-
-  categories: "Event category",
-  outcomes: "Outcome",
-  loadingVocabulary: "Reading the log's own filter list…",
-
-  node: "Node",
-  anyNode: "Any node",
-  nodesLoading: "Reading the tree…",
-
-  clear: "Clear filters",
-  matching: (n: string) => `${n} matching`,
-  matchingOne: "1 matching",
-} as const;
 
 interface AuditFilterBarProps {
   value: AuditFilterState;
@@ -63,6 +40,8 @@ interface AuditFilterBarProps {
 }
 
 export function AuditFilterBar({ value, onChange, available, nodes, total }: AuditFilterBarProps) {
+  const t = useT("audit");
+
   const nodeOptions = (nodes ?? [])
     // A separator concerns nothing and is never the subject of an audit row.
     .filter((node) => node.kind !== "separator")
@@ -70,9 +49,9 @@ export function AuditFilterBar({ value, onChange, available, nodes, total }: Aud
     .sort((a, b) => a.name.localeCompare(b.name));
 
   return (
-    <div className={s.bar} role="group" aria-label={TEXT.region}>
+    <div className={s.bar} role="group" aria-label={t("filters.region")}>
       <label className={s.control}>
-        <span className={s.controlLabel}>{TEXT.range}</span>
+        <span className={s.controlLabel}>{t("filters.timeLabel")}</span>
         <select
           className={s.select}
           value={value.range}
@@ -80,15 +59,15 @@ export function AuditFilterBar({ value, onChange, available, nodes, total }: Aud
         >
           {TIME_RANGES.map((range) => (
             <option key={range} value={range}>
-              {TEXT.rangeLabels[range]}
+              {rangeLabel(t, range)}
             </option>
           ))}
         </select>
       </label>
 
-      <div className={s.chips} role="group" aria-label={TEXT.categories}>
+      <div className={s.chips} role="group" aria-label={t("filters.categories")}>
         {available === undefined ? (
-          <ChipSkeletons count={4} label={TEXT.loadingVocabulary} />
+          <ChipSkeletons count={4} label={t("filters.loadingVocabulary")} />
         ) : (
           available.categories.map((category) => {
             const on = value.categories.includes(category);
@@ -101,16 +80,16 @@ export function AuditFilterBar({ value, onChange, available, nodes, total }: Aud
                 onClick={() => onChange({ ...value, categories: toggle(value.categories, category) })}
               >
                 {category === "warning" && <Icon name="alert" size={12} />}
-                {categoryLabel(category)}
+                {categoryLabel(t, category)}
               </button>
             );
           })
         )}
       </div>
 
-      <div className={s.chips} role="group" aria-label={TEXT.outcomes}>
+      <div className={s.chips} role="group" aria-label={t("filters.outcomes")}>
         {available === undefined ? (
-          <ChipSkeletons count={3} label={TEXT.loadingVocabulary} />
+          <ChipSkeletons count={3} label={t("filters.loadingVocabulary")} />
         ) : (
           available.outcomes.map((outcome) => {
             const on = value.outcomes.includes(outcome);
@@ -122,7 +101,7 @@ export function AuditFilterBar({ value, onChange, available, nodes, total }: Aud
                 className={clsx(s.chip, on && s.chipOn)}
                 onClick={() => onChange({ ...value, outcomes: toggle(value.outcomes, outcome) })}
               >
-                {outcomeLabel(outcome)}
+                {outcomeLabel(t, outcome)}
               </button>
             );
           })
@@ -130,20 +109,30 @@ export function AuditFilterBar({ value, onChange, available, nodes, total }: Aud
       </div>
 
       <label className={s.control}>
-        <span className={s.controlLabel}>{TEXT.node}</span>
+        <span className={s.controlLabel}>{t("filters.nodeLabel")}</span>
         <select
           className={s.select}
           value={value.nodeId ?? ""}
           disabled={nodes === undefined}
-          title={nodes === undefined ? TEXT.nodesLoading : undefined}
+          title={nodes === undefined ? t("filters.nodesLoading") : undefined}
           onChange={(e) =>
             onChange({ ...value, nodeId: e.target.value === "" ? null : e.target.value })
           }
         >
-          <option value="">{TEXT.anyNode}</option>
+          <option value="">{t("filters.anyNode")}</option>
           {nodeOptions.map((node) => (
             <option key={node.id} value={node.id}>
-              {node.host === null || node.host === "" ? node.name : `${node.name} — ${node.host}`}
+              {node.host === null || node.host === ""
+                ? node.name
+                : // Two values from the vault, in either script, joined by a
+                  // separator the catalogue owns. Both are isolated so that an
+                  // Arabic entry name cannot drag the hostname across the dash
+                  // — the host is isolateLtr because a hostname reads
+                  // left-to-right whatever characters happen to be in it.
+                  t("filters.nodeOption", {
+                    name: isolate(node.name),
+                    host: isolateLtr(node.host),
+                  })}
             </option>
           ))}
         </select>
@@ -152,18 +141,40 @@ export function AuditFilterBar({ value, onChange, available, nodes, total }: Aud
       <div className={s.spacer} />
 
       {total !== null && (
-        <span className={s.total}>
-          {total === 1 ? TEXT.matchingOne : TEXT.matching(formatCount(total))}
-        </span>
+        // A plural, not a formatted number with a word after it: the count and
+        // its noun are one phrase in the languages that inflect one on the
+        // other. `#` inside the message formats the number for the locale.
+        <span className={s.total}>{t("filters.matching", { count: total })}</span>
       )}
 
       {isNarrowed(value) && (
         <Button variant="ghost" size="sm" onClick={() => onChange(DEFAULT_FILTERS)}>
-          {TEXT.clear}
+          {t("filters.clear")}
         </Button>
       )}
     </div>
   );
+}
+
+/**
+ * The label for one time window.
+ *
+ * A switch rather than a computed key so that adding a range to `TIME_RANGES`
+ * without adding its message is a compile error rather than a marker on screen.
+ */
+function rangeLabel(t: AuditT, range: TimeRange): string {
+  switch (range) {
+    case "24h":
+      return t("filters.range.24h");
+    case "7d":
+      return t("filters.range.7d");
+    case "30d":
+      return t("filters.range.30d");
+    case "90d":
+      return t("filters.range.90d");
+    case "all":
+      return t("filters.range.all");
+  }
 }
 
 function ChipSkeletons({ count, label }: { count: number; label: string }) {

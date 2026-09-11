@@ -33,6 +33,7 @@ import { FailureNotice } from "@/components/FailureNotice";
 import { Field } from "@/components/Field";
 import { Icon } from "@/components/Icon";
 import { TextInput } from "@/components/TextInput";
+import { useT } from "@/i18n";
 import { asFailure, ipc } from "@/lib/ipc";
 import type { VaultState } from "@/lib/ipc";
 import { qk } from "@/lib/queryKeys";
@@ -42,45 +43,10 @@ import { splitPath } from "@/features/vault/VaultPicker";
 
 import s from "./KdfUpgradeBar.module.css";
 
-const TEXT = {
-  /** One sentence, in the user's terms. No Argon2id, no parameter names. */
-  offer:
-    "This vault's key derivation is weaker than the current standard. Strengthening it takes a moment and needs no new password.",
-  strengthen: "Strengthen it",
-  notNow: "Not now",
-  dismissLabel: "Dismiss this suggestion until the next unlock",
-
-  password: "Master password",
-  passwordHelp:
-    "The same password you just unlocked with. Each key slot is rebuilt around it, so it has to be entered again.",
-  cancel: "Cancel",
-  confirm: "Strengthen",
-  /** Short enough that reserving room for it does not widen the idle button. */
-  working: "Strengthening…",
-  workingStage: "Deriving the key again, at the stronger cost…",
-
-  reading: "Reading the vault header…",
-  readFailed: "This vault's header could not be read, so the key slots cannot be strengthened.",
-  retry: "Try again",
-
-  keyfile: "Key file",
-  keyfileBrowse: "Browse",
-  keyfileBrowsing: "Opening…",
-  keyfileMissing: "This vault's password slot also needs its key file.",
-  keyfileDialog: "Choose the key file for this vault",
-  keyfileDialogFailed:
-    "The system file browser did not open, so no key file could be chosen. Nothing was sent to the vault.",
-
-  failed: "The key slots were not strengthened.",
-
-  done: "Done. This vault's key slots are at the current cost.",
-  doneDismiss: "Dismiss",
-
-  blockedPassword: "Type the master password.",
-  blockedKeyfile: "Choose the key file this vault needs.",
-} as const;
 
 export function KdfUpgradeBar({ vault }: { vault: VaultState | undefined }) {
+  const t = useT("shell");
+  const tCommon = useT("common");
   const queryClient = useQueryClient();
 
   const [expanded, setExpanded] = useState(false);
@@ -143,14 +109,14 @@ export function KdfUpgradeBar({ vault }: { vault: VaultState | undefined }) {
     setKeyfileBrowsing(true);
     try {
       picked = await open({
-        title: TEXT.keyfileDialog,
+        title: t("kdfUpgrade.keyfileDialog"),
         multiple: false,
         directory: false,
         filters: keyfileFilters(),
         defaultPath: probe.data?.rememberedKeyfile ?? folderOf(path ?? ""),
       });
     } catch {
-      setKeyfileDialogError(TEXT.keyfileDialogFailed);
+      setKeyfileDialogError(t("kdfUpgrade.keyfileDialogFailed"));
       return;
     } finally {
       setKeyfileBrowsing(false);
@@ -169,9 +135,9 @@ export function KdfUpgradeBar({ vault }: { vault: VaultState | undefined }) {
         <span className={s.icon} aria-hidden="true">
           <Icon name="check" size={15} />
         </span>
-        <p className={s.text}>{TEXT.done}</p>
+        <p className={s.text}>{t("kdfUpgrade.done")}</p>
         <Button variant="ghost" size="sm" onClick={() => setDone(false)}>
-          {TEXT.doneDismiss}
+          {tCommon("action.dismiss")}
         </Button>
       </div>
     );
@@ -185,17 +151,17 @@ export function KdfUpgradeBar({ vault }: { vault: VaultState | undefined }) {
         <span className={s.icon} aria-hidden="true">
           <Icon name="shield" size={15} />
         </span>
-        <p className={s.text}>{TEXT.offer}</p>
+        <p className={s.text}>{t("kdfUpgrade.offer")}</p>
         <Button variant="secondary" size="sm" onClick={() => setExpanded(true)}>
-          {TEXT.strengthen}
+          {t("kdfUpgrade.strengthen")}
         </Button>
         <Button
           variant="ghost"
           size="sm"
           onClick={() => setDismissed(true)}
-          ariaLabel={TEXT.dismissLabel}
+          ariaLabel={t("kdfUpgrade.dismissLabel")}
         >
-          {TEXT.notNow}
+          {t("kdfUpgrade.notNow")}
         </Button>
       </div>
     );
@@ -207,9 +173,9 @@ export function KdfUpgradeBar({ vault }: { vault: VaultState | undefined }) {
   const blockedBecause = canSubmit || upgrade.isPending
     ? null
     : keyfileBlocked
-      ? TEXT.blockedKeyfile
+      ? t("kdfUpgrade.blockedKeyfile")
       : password.length === 0
-        ? TEXT.blockedPassword
+        ? t("kdfUpgrade.blockedPassword")
         : null;
 
   return (
@@ -220,11 +186,11 @@ export function KdfUpgradeBar({ vault }: { vault: VaultState | undefined }) {
         if (canSubmit) upgrade.mutate();
       }}
     >
-      <p className={s.text}>{TEXT.offer}</p>
+      <p className={s.text}>{t("kdfUpgrade.offer")}</p>
 
       {probe.isPending ? (
         <div className={s.loading}>
-          <BusyStatus label={TEXT.reading} size={14} />
+          <BusyStatus label={t("kdfUpgrade.reading")} size={14} />
           <SkeletonRows count={1} height="var(--space-8)" widths={["100%"]} />
         </div>
       ) : probe.isError ? (
@@ -232,15 +198,15 @@ export function KdfUpgradeBar({ vault }: { vault: VaultState | undefined }) {
         // key file, so the form cannot be filled in honestly.
         <FailureNotice
           failure={asFailure(probe.error)}
-          title={TEXT.readFailed}
+          title={t("kdfUpgrade.readFailed")}
           onRetry={() => void probe.refetch()}
-          retryLabel={TEXT.retry}
+          retryLabel={tCommon("action.retry")}
         />
       ) : (
         // Capped rather than window-wide: a password field the width of a
         // 2560px monitor reads as a search bar, not as a credential.
         <div className={s.fields}>
-          <Field label={TEXT.password} help={TEXT.passwordHelp} htmlFor="kdf-upgrade-password">
+          <Field label={t("kdfUpgrade.password")} help={t("kdfUpgrade.passwordHelp")} htmlFor="kdf-upgrade-password">
             <TextInput
               id="kdf-upgrade-password"
               value={password}
@@ -249,16 +215,16 @@ export function KdfUpgradeBar({ vault }: { vault: VaultState | undefined }) {
               autoFocus
               disabled={upgrade.isPending}
               invalid={upgrade.isError}
-              ariaLabel={TEXT.password}
+              ariaLabel={t("kdfUpgrade.password")}
             />
           </Field>
 
           {needsKeyfile && (
             <div className={s.keyfile}>
-              <span className={s.keyfileLabel}>{TEXT.keyfile}</span>
+              <span className={s.keyfileLabel}>{t("kdfUpgrade.keyfile")}</span>
               <span className={s.keyfileValue}>
                 {keyfilePath === null ? (
-                  <span className={s.keyfileEmpty}>{TEXT.keyfileMissing}</span>
+                  <span className={s.keyfileEmpty}>{t("kdfUpgrade.keyfileMissing")}</span>
                 ) : (
                   <>
                     <Icon name="file" size={13} />
@@ -271,11 +237,11 @@ export function KdfUpgradeBar({ vault }: { vault: VaultState | undefined }) {
                 size="sm"
                 type="button"
                 busy={keyfileBrowsing}
-                busyLabel={TEXT.keyfileBrowsing}
+                busyLabel={tCommon("action.opening")}
                 disabled={upgrade.isPending}
                 onClick={() => void chooseKeyfile()}
               >
-                {TEXT.keyfileBrowse}
+                {tCommon("action.browse")}
               </BusyButton>
             </div>
           )}
@@ -296,13 +262,13 @@ export function KdfUpgradeBar({ vault }: { vault: VaultState | undefined }) {
       )}
 
       {upgrade.isError && (
-        <FailureNotice failure={asFailure(upgrade.error)} title={TEXT.failed} />
+        <FailureNotice failure={asFailure(upgrade.error)} title={t("kdfUpgrade.failed")} />
       )}
 
       {/* Argon2id runs again here, so the wait is the same wait the unlock
           screen just explained — in the same words, from the same function. */}
       {upgrade.isPending && (
-        <BusyStatus label={TEXT.workingStage} note={kdfNote(summary)} size={16} />
+        <BusyStatus label={t("kdfUpgrade.workingStage")} note={kdfNote(summary)} size={16} />
       )}
 
       <div className={s.actions}>
@@ -318,18 +284,18 @@ export function KdfUpgradeBar({ vault }: { vault: VaultState | undefined }) {
             upgrade.reset();
           }}
         >
-          {TEXT.cancel}
+          {tCommon("action.cancel")}
         </Button>
         <BusyButton
           variant="primary"
           size="sm"
           type="submit"
           busy={upgrade.isPending}
-          busyLabel={TEXT.working}
+          busyLabel={t("kdfUpgrade.working")}
           disabled={!canSubmit}
           {...(blockedBecause === null ? {} : { title: blockedBecause })}
         >
-          {TEXT.confirm}
+          {t("kdfUpgrade.confirm")}
         </BusyButton>
       </div>
     </form>

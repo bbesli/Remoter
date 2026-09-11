@@ -66,6 +66,32 @@
      end, or its rightmost control sits underneath the overlay — which has a
      higher z-index, so the click closes the application instead. */
   --window-controls-w: 100px;
+
+  /* ---- direction ----
+
+     Layout direction is a `dir` attribute on <html> and nothing else: every
+     rule in the application is written in logical properties, so the sidebar,
+     the tab strip's edges, the inspector and the window-control reservation
+     all mirror without a second stylesheet. These two tokens cover the cases
+     that logical properties do not reach.
+
+     `--dir-flip` is the horizontal sign, for a transform. Multiply an X
+     translation by it — `translateX(calc(var(--dir-flip) * 8px))` — and a
+     panel that slides in from the inline start slides the right way in both
+     directions. Never write a bare `translateX(8px)` on a chrome element.
+
+     `--dir-arrow` is the glyph a chain of hops is joined with. It is a token
+     rather than a literal so that a right-to-left interface joins with an
+     arrow pointing the way its reader reads. It belongs to CSS content and
+     the equivalent for interface copy is `common.punctuation.chainSeparator`
+     in the catalogue, which a translator can change on its own. */
+  --dir-flip: 1;
+  --dir-arrow: "\2192";                /* U+2192 RIGHTWARDS ARROW */
+}
+
+:root[dir="rtl"] {
+  --dir-flip: -1;
+  --dir-arrow: "\2190";                /* U+2190 LEFTWARDS ARROW */
 }
 
 /* ---------------------------------------------------------------- dark ---- */

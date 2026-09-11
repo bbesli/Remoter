@@ -15,9 +15,33 @@ import type { ImportSource } from "@/lib/ipc";
 
 export type StepNumber = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 
+/**
+ * A rail label's key in the `import` catalogue.
+ *
+ * Spelled out rather than left as a template type: `t()` is typed against the
+ * catalogue's own keys, and only an exact literal proves the key is one of
+ * them. A renamed entry in `locales/en/import.json` is then a compile error
+ * here rather than a humanised key on screen.
+ */
+export type StepLabelKey =
+  | "rail.step.source"
+  | "rail.step.secrets"
+  | "rail.step.parse"
+  | "rail.step.preview"
+  | "rail.step.report"
+  | "rail.step.destination"
+  | "rail.step.commit"
+  | "rail.step.result";
+
 export interface StepDefinition {
   n: StepNumber;
-  label: string;
+  /**
+   * A key rather than a sentence, because this module is pure and `useT` is a
+   * hook: the wizard translates it where it draws it. Every gate below does
+   * the same, which is also what lets `steps.test.ts` assert on the rule
+   * rather than on a particular language's wording.
+   */
+  labelKey: StepLabelKey;
 }
 
 /**
@@ -28,14 +52,14 @@ export interface StepDefinition {
  * to do instead.
  */
 export const STEPS: readonly StepDefinition[] = [
-  { n: 1, label: "Source" },
-  { n: 2, label: "Secrets" },
-  { n: 3, label: "Parse" },
-  { n: 4, label: "Preview" },
-  { n: 5, label: "Report" },
-  { n: 6, label: "Destination" },
-  { n: 7, label: "Commit" },
-  { n: 8, label: "Result" },
+  { n: 1, labelKey: "rail.step.source" },
+  { n: 2, labelKey: "rail.step.secrets" },
+  { n: 3, labelKey: "rail.step.parse" },
+  { n: 4, labelKey: "rail.step.preview" },
+  { n: 5, labelKey: "rail.step.report" },
+  { n: 6, labelKey: "rail.step.destination" },
+  { n: 7, labelKey: "rail.step.commit" },
+  { n: 8, labelKey: "rail.step.result" },
 ];
 
 /** Everything the gates need to know, and nothing that would make them async. */
@@ -55,16 +79,28 @@ export interface WizardFacts {
   busy: boolean;
 }
 
+/**
+ * The refusals, as catalogue keys.
+ *
+ * The sentences themselves live in `locales/en/import.json` under `gate.*`;
+ * what a gate returns is the key, which the wizard passes to `t()`. Keeping
+ * the words out of here is what lets these rules be tested — a test that
+ * asserted on English would have to be rewritten the first time a copy editor
+ * touched a tooltip.
+ */
 export const GATE = {
-  noFile: "Choose the file you want to import.",
-  unknownFormat: "Remoter could not tell what this file is. Choose the format yourself.",
-  noPassword: "This file needs its document password before it can be read.",
-  noPreview: "Nothing has been read yet.",
-  nothingTicked: "Everything is unticked. Tick at least one item to import.",
-  busy: "Working…",
-  committed: "This import has already been written. Start another one to import again.",
-  ahead: "Finish the steps before this one first.",
+  noFile: "gate.noFile",
+  unknownFormat: "gate.unknownFormat",
+  noPassword: "gate.noPassword",
+  noPreview: "gate.noPreview",
+  nothingTicked: "gate.nothingTicked",
+  busy: "gate.busy",
+  committed: "gate.committed",
+  ahead: "gate.ahead",
 } as const;
+
+/** One of {@link GATE}'s keys — a key in the `import` catalogue, not a sentence. */
+export type GateKey = (typeof GATE)[keyof typeof GATE];
 
 /**
  * Why the wizard cannot move forward from `step`, or `null` when it can.
@@ -72,7 +108,7 @@ export const GATE = {
  * Steps 3 and 7 have no forward gate: the wizard is doing the work, and the
  * only thing that moves it on is the work finishing.
  */
-export function forwardBlock(step: StepNumber, facts: WizardFacts): string | null {
+export function forwardBlock(step: StepNumber, facts: WizardFacts): GateKey | null {
   if (facts.busy) return GATE.busy;
   switch (step) {
     case 1:
@@ -132,7 +168,7 @@ export function canGoTo(target: StepNumber, facts: WizardFacts): boolean {
 }
 
 /** Why the rail refuses a jump, for the step button's tooltip. */
-export function jumpBlock(target: StepNumber, facts: WizardFacts): string | null {
+export function jumpBlock(target: StepNumber, facts: WizardFacts): GateKey | null {
   if (canGoTo(target, facts)) return null;
   if (facts.busy) return GATE.busy;
   if (facts.committed) return GATE.committed;

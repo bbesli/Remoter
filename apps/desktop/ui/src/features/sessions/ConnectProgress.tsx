@@ -17,28 +17,35 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/Button";
 import { Spinner } from "@/components/Spinner";
 import { Icon } from "@/components/Icon";
+import { isolate, isolateChain, isolateLtr, useLocale, useT } from "@/i18n";
 import type { SessionRecord } from "./store";
 import { formatElapsed } from "./format";
 import { stagesFor, STAGE_ORDER, type StageId } from "./stages";
 
 import s from "./SessionSurface.module.css";
 
-const TEXT = {
-  connecting: (name: string) => `Connecting to ${name}`,
-  via: "via",
-  waiting: "waiting for your decision",
-  running: "still running",
-  cancel: "Cancel",
-  cancelling: "Cancelling…",
-  // Stated before the session opens, which is where a recording notice
-  // belongs — but this build has no recorder, and a notice that promises
-  // one is worse than no notice: a user who reads it believes there is a
-  // recording to go back to. It says what is stored and what is not.
-  recorded:
-    "Recording is set to always for this connection. This build has no recorder, so nothing is written yet.",
-  observed:
-    "Timings are measured between the transitions the core reports; stages it groups together are shown together.",
-} as const;
+/**
+ * What each stage row says, and which pipeline stages its caption names.
+ *
+ * A record rather than a key assembled from `row.id`: a stage added to
+ * `STAGE_ORDER` without copy for it then fails to compile, instead of drawing a
+ * row with a humanised key where its label should be.
+ */
+const STAGE_KEYS = {
+  acquire: { label: "connect.stage.acquire.label", pipeline: "connect.stage.acquire.pipeline" },
+  transport: {
+    label: "connect.stage.transport.label",
+    pipeline: "connect.stage.transport.pipeline",
+  },
+  handshake: {
+    label: "connect.stage.handshake.label",
+    pipeline: "connect.stage.handshake.pipeline",
+  },
+  authenticate: {
+    label: "connect.stage.authenticate.label",
+    pipeline: "connect.stage.authenticate.pipeline",
+  },
+} as const satisfies Record<StageId, { label: string; pipeline: string }>;
 
 /** How often the running stage's elapsed time is redrawn. */
 const TICK_MS = 500;
@@ -64,6 +71,10 @@ function startedAt(record: SessionRecord, stage: StageId): number {
 }
 
 export function ConnectProgress({ record, onCancel, cancelling }: ConnectProgressProps) {
+  const t = useT("sessions");
+  const tCommon = useT("common");
+  const { code: locale } = useLocale();
+
   // The clock is state rather than a `Date.now()` in the body: reading a
   // moving value during render makes the render impure, and React is entitled
   // to call it twice. One interval for the whole panel beats a timer per row.
@@ -76,23 +87,26 @@ export function ConnectProgress({ record, onCancel, cancelling }: ConnectProgres
 
   const rows = stagesFor(record.phase);
   const via = record.opened?.via ?? [];
+  const title = t("connect.title", { name: isolate(record.name) });
 
   return (
     <div className={s.overlay}>
       <div className={s.panel} role="status" aria-live="polite">
         <div className={s.panelHead}>
-          <Spinner size={18} label={TEXT.connecting(record.name)} />
+          <Spinner size={18} label={title} />
           <div className={s.panelHeadings}>
-            <p className={s.panelTitle}>{TEXT.connecting(record.name)}</p>
+            <p className={s.panelTitle}>{title}</p>
             {record.target !== null && (
+              // One message rather than a target with "via" and a chain glued
+              // on after it: languages do not agree on where "via" goes, and
+              // an address is left-to-right whatever characters are in it.
               <p className={s.panelTarget}>
-                {record.target}
-                {via.length > 0 && (
-                  <>
-                    {" · "}
-                    {TEXT.via} {via.join(" → ")}
-                  </>
-                )}
+                {via.length === 0
+                  ? isolateLtr(record.target)
+                  : t("connect.route", {
+                      target: isolateLtr(record.target),
+                      hops: isolateChain(via, tCommon("punctuation.chainSeparator")),
+                    })}
               </p>
             )}
           </div>
@@ -114,7 +128,7 @@ export function ConnectProgress({ record, onCancel, cancelling }: ConnectProgres
                   {row.state === "done" ? (
                     <Icon name="check" size={13} />
                   ) : row.state === "active" ? (
-                    <Spinner size={13} label={row.label} />
+                    <Spinner size={13} label={t(STAGE_KEYS[row.id].label)} />
                   ) : row.state === "suspended" ? (
                     <Icon name="alert" size={13} />
                   ) : (
@@ -122,17 +136,17 @@ export function ConnectProgress({ record, onCancel, cancelling }: ConnectProgres
                   )}
                 </span>
                 <span className={s.stageLabel}>
-                  {row.label}
-                  <span className={s.stagePipeline}>{row.pipeline}</span>
+                  {t(STAGE_KEYS[row.id].label)}
+                  <span className={s.stagePipeline}>{t(STAGE_KEYS[row.id].pipeline)}</span>
                 </span>
                 <span className={s.stageTime}>
                   {row.state === "suspended"
-                    ? TEXT.waiting
+                    ? t("connect.waiting")
                     : row.state === "pending"
                       ? ""
                       : elapsed === null
-                        ? TEXT.running
-                        : formatElapsed(elapsed)}
+                        ? t("connect.running")
+                        : formatElapsed(t, locale, elapsed)}
                 </span>
               </li>
             );
@@ -140,13 +154,15 @@ export function ConnectProgress({ record, onCancel, cancelling }: ConnectProgres
         </ol>
 
         {/* Told before the session opens, never after — pipeline stage 2. */}
-        {record.opened?.recording === "always" && <p className={s.recording}>{TEXT.recorded}</p>}
+        {record.opened?.recording === "always" && (
+          <p className={s.recording}>{t("connect.recordingNotice")}</p>
+        )}
 
-        <p className={s.panelNote}>{TEXT.observed}</p>
+        <p className={s.panelNote}>{t("connect.observedNote")}</p>
 
         <div className={s.panelActions}>
           <Button variant="secondary" size="sm" onClick={onCancel} disabled={cancelling}>
-            {cancelling ? TEXT.cancelling : TEXT.cancel}
+            {cancelling ? t("connect.cancelling") : tCommon("action.cancel")}
           </Button>
         </div>
       </div>

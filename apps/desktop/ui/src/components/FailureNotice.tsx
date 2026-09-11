@@ -7,12 +7,20 @@
  * diagnostic when there is one, and the suggested actions in the order the
  * core offered them.
  *
+ * What it does not render is the core's *English*. The sentence and the action
+ * labels go through `useFailureText`, which looks the failure's stable `code`
+ * up in `locales/<lang>/errors.json` and falls back to exactly what the core
+ * sent for a code the catalogue does not know yet. See `src/i18n/failures.ts`
+ * for why the join is the code and not the text.
+ *
  * There is deliberately no toast variant. A failure shown away from the
  * control that produced it is barely better than silence, so every caller
  * places this next to the thing that failed.
  */
 
 import type { ReactNode } from "react";
+
+import { useFailureText, useT } from "@/i18n";
 
 import { Button } from "./Button";
 import { Callout, type CalloutTone } from "./Callout";
@@ -30,6 +38,7 @@ interface FailureNoticeProps {
   tone?: CalloutTone | undefined;
   /** Offered as a button, because "Try again" in a list cannot be pressed. */
   onRetry?: (() => void) | undefined;
+  /** Overrides the generic "Try again" where a verb naming the operation reads better. */
   retryLabel?: string | undefined;
   /** Further ways out, beside the retry button. */
   children?: ReactNode | undefined;
@@ -40,24 +49,29 @@ export function FailureNotice({
   title,
   tone = "danger",
   onRetry,
-  retryLabel = "Try again",
+  retryLabel,
   children,
 }: FailureNoticeProps) {
-  const heading = title === undefined || title === "" ? failure.message : title;
-  const showMessage = heading !== failure.message;
-  const hasActions = failure.actions.length > 0;
+  const t = useT("common");
+  const text = useFailureText(failure);
+  // Defaulted here rather than in the parameter list: the fallback is a
+  // translated string and a default parameter is evaluated before the hook.
+  const retryText = retryLabel === undefined || retryLabel === "" ? t("action.retry") : retryLabel;
+  const heading = title === undefined || title === "" ? text.message : title;
+  const showMessage = heading !== text.message;
+  const hasActions = text.actions.length > 0;
   const hasButtons = onRetry !== undefined || children !== undefined;
 
   return (
     <Callout tone={tone} title={heading}>
-      {showMessage && <p className={s.message}>{failure.message}</p>}
-      {failure.detail !== null && failure.detail !== "" && (
-        <p className={s.detail}>{failure.detail}</p>
-      )}
+      {showMessage && <p className={s.message}>{text.message}</p>}
+      {text.detail !== null && text.detail !== "" && <p className={s.detail}>{text.detail}</p>}
       {hasActions && (
         <ul className={s.actions}>
-          {failure.actions.map((action) => (
-            <li key={action}>{action}</li>
+          {/* Keyed by position, not by text: two languages may translate two
+              different actions to the same words, and the list is ordered. */}
+          {text.actions.map((action, index) => (
+            <li key={index}>{action}</li>
           ))}
         </ul>
       )}
@@ -65,7 +79,7 @@ export function FailureNotice({
         <div className={s.buttons}>
           {onRetry !== undefined && (
             <Button variant="secondary" size="sm" onClick={onRetry}>
-              {retryLabel}
+              {retryText}
             </Button>
           )}
           {children}

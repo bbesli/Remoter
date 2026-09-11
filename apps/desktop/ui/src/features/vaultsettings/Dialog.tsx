@@ -19,13 +19,10 @@ import type { ReactNode } from "react";
 
 import { Icon } from "@/components/Icon";
 import { useFocusTrap } from "@/features/connections/focusTrap";
+import { useT } from "@/i18n";
 import { useBlockingModal, useModalRegistration } from "@/hooks/useModalRegistration";
 
 import s from "./Dialog.module.css";
-
-const TEXT = {
-  close: "Close",
-} as const;
 
 interface DialogProps {
   /** Unique while open; the store keys the modal stack by it. */
@@ -55,6 +52,8 @@ export function Dialog({
   footer,
   children,
 }: DialogProps) {
+  const t = useT("vaultsettings");
+  const tCommon = useT("common");
   const dialogRef = useRef<HTMLDivElement>(null);
   const [refused, setRefused] = useState(false);
 
@@ -69,7 +68,7 @@ export function Dialog({
   useBlockingModal(
     id,
     onDismiss === null,
-    dismissBlockedReason ?? "something that cannot be shown again",
+    dismissBlockedReason ?? t("dialog.blockedFallback"),
   );
 
   useEffect(() => {
@@ -122,7 +121,7 @@ export function Dialog({
           <button
             type="button"
             className={s.close}
-            aria-label={TEXT.close}
+            aria-label={tCommon("action.close")}
             disabled={onDismiss === null}
             {...(onDismiss === null && dismissBlockedReason !== undefined
               ? { title: dismissBlockedReason }

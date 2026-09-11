@@ -12,6 +12,9 @@
  *    outside the encrypted body, and from then on it is an ordinary file that
  *    anyone with the disk can read.
  *
+ * Both are flagged security-critical in `locales/en/audit.json`: a translation
+ * that softens either one removes the only warning there is.
+ *
  * `aria-modal` is a promise, so this keeps it: focus enters, Tab is trapped,
  * Escape cancels, focus returns, and the screen behind stands its shortcuts
  * down through `useModalRegistration`.
@@ -29,51 +32,14 @@ import { Field } from "@/components/Field";
 import { Icon } from "@/components/Icon";
 import { TextInput } from "@/components/TextInput";
 import { useModalRegistration } from "@/hooks/useModalRegistration";
+import { formatBytes, isolateLtr, useLocale, useT } from "@/i18n";
 import { asFailure, ipc } from "@/lib/ipc";
 import type { AuditExportFormat, AuditExportResult, IpcFailure } from "@/lib/ipc";
 import { useFocusTrap } from "@/features/connections/focusTrap";
 
 import { buildAuditQuery, type AuditFilterState } from "./filters";
-import { formatBytes, formatCount } from "./format";
 import { auditKeys } from "./queryKeys";
 import s from "./AuditExportDialog.module.css";
-
-const TEXT = {
-  title: "Export the audit log",
-
-  audited: "Exporting writes a row into this log. The export is itself an audited action.",
-  plaintext: "The file is written outside the vault and is not encrypted.",
-  plaintextBody:
-    "It holds what happened, when, and against which host — no passwords or key material, but a full history of your connections. Anyone who can read the file can read that history.",
-
-  format: "Format",
-  formatHelp: "JSON keeps the fields as they are stored. CSV opens in a spreadsheet.",
-  json: "JSON",
-  csv: "CSV",
-
-  scope: "What to write",
-  scopeFiltered: "The entries you are looking at",
-  scopeAll: "The whole log",
-  scopeHelp: "The filter is applied to the whole range you chose, not to the page on screen.",
-
-  path: "Write to",
-  pathPlaceholder: "/home/you/audit.json",
-  browse: "Choose…",
-  browseFailed: "The system file dialog did not open. Type the path instead.",
-  pathMissing: "Choose where to write the file first.",
-
-  cancel: "Cancel",
-  close: "Close",
-  exportNow: "Export",
-  exporting: "Writing the file…",
-  exportFailed: "The log was not exported.",
-
-  done: "Exported.",
-  doneDetail: (entries: string, bytes: string, path: string) =>
-    `${entries} written to ${path} (${bytes}). A row recording this export is now at the top of the log.`,
-  doneOne: "1 entry",
-  doneMany: (n: string) => `${n} entries`,
-} as const;
 
 interface AuditExportDialogProps {
   /** The filter the screen is showing, so "what you are looking at" means it. */
@@ -88,6 +54,10 @@ type Scope = "filtered" | "all";
 const EXTENSION: Record<AuditExportFormat, string> = { json: "json", csv: "csv" };
 
 export function AuditExportDialog({ filters, anchor, onClose }: AuditExportDialogProps) {
+  const t = useT("audit");
+  const tCommon = useT("common");
+  const { code: locale } = useLocale();
+
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const queryClient = useQueryClient();
 
@@ -144,6 +114,9 @@ export function AuditExportDialog({ filters, anchor, onClose }: AuditExportDialo
     setBrowseFailed(false);
     try {
       const chosen = await save({
+        // A file name and a file-type name, neither of which is translated:
+        // the extension is part of the format and the label the system dialog
+        // shows for it is the format's own name.
         defaultPath: `remoter-audit.${EXTENSION[format]}`,
         filters: [{ name: format.toUpperCase(), extensions: [EXTENSION[format]] }],
       });
@@ -170,32 +143,32 @@ export function AuditExportDialog({ filters, anchor, onClose }: AuditExportDialo
         className={s.dialog}
         role="dialog"
         aria-modal="true"
-        aria-label={TEXT.title}
+        aria-label={t("export.title")}
         tabIndex={-1}
       >
-        <h2 className={s.title}>{TEXT.title}</h2>
+        <h2 className={s.title}>{t("export.title")}</h2>
 
         <p className={s.audited}>
           <Icon name="alert" size={14} />
-          {TEXT.audited}
+          {t("export.audited")}
         </p>
 
         {result === null ? (
           <>
-            <Callout tone="warning" title={TEXT.plaintext}>
-              {TEXT.plaintextBody}
+            <Callout tone="warning" title={t("export.plaintext")}>
+              {t("export.plaintextBody")}
             </Callout>
 
-            <Field label={TEXT.format} help={TEXT.formatHelp}>
-              <div className={s.choices} role="radiogroup" aria-label={TEXT.format}>
+            <Field label={t("export.formatLabel")} help={t("export.formatHelp")}>
+              <div className={s.choices} role="radiogroup" aria-label={t("export.formatLabel")}>
                 <ChoiceButton
-                  label={TEXT.json}
+                  label={t("export.json")}
                   selected={format === "json"}
                   disabled={busy}
                   onSelect={() => setFormat("json")}
                 />
                 <ChoiceButton
-                  label={TEXT.csv}
+                  label={t("export.csv")}
                   selected={format === "csv"}
                   disabled={busy}
                   onSelect={() => setFormat("csv")}
@@ -203,16 +176,16 @@ export function AuditExportDialog({ filters, anchor, onClose }: AuditExportDialo
               </div>
             </Field>
 
-            <Field label={TEXT.scope} help={TEXT.scopeHelp}>
-              <div className={s.choices} role="radiogroup" aria-label={TEXT.scope}>
+            <Field label={t("export.scopeLabel")} help={t("export.scopeHelp")}>
+              <div className={s.choices} role="radiogroup" aria-label={t("export.scopeLabel")}>
                 <ChoiceButton
-                  label={TEXT.scopeFiltered}
+                  label={t("export.scopeFiltered")}
                   selected={scope === "filtered"}
                   disabled={busy}
                   onSelect={() => setScope("filtered")}
                 />
                 <ChoiceButton
-                  label={TEXT.scopeAll}
+                  label={t("export.scopeAll")}
                   selected={scope === "all"}
                   disabled={busy}
                   onSelect={() => setScope("all")}
@@ -221,10 +194,10 @@ export function AuditExportDialog({ filters, anchor, onClose }: AuditExportDialo
             </Field>
 
             <Field
-              label={TEXT.path}
+              label={t("export.pathLabel")}
               htmlFor="audit-export-path"
-              error={attempted && pathMissing ? TEXT.pathMissing : undefined}
-              help={browseFailed ? TEXT.browseFailed : undefined}
+              error={attempted && pathMissing ? t("export.pathMissing") : undefined}
+              help={browseFailed ? t("export.browseFailed") : undefined}
             >
               <div className={s.pathRow}>
                 <div className={s.pathInput}>
@@ -235,12 +208,12 @@ export function AuditExportDialog({ filters, anchor, onClose }: AuditExportDialo
                     mono
                     disabled={busy}
                     invalid={attempted && pathMissing}
-                    placeholder={TEXT.pathPlaceholder}
-                    ariaLabel={TEXT.path}
+                    placeholder={t("export.pathPlaceholder")}
+                    ariaLabel={t("export.pathLabel")}
                   />
                 </div>
                 <Button variant="secondary" onClick={() => void browse()} disabled={busy}>
-                  {TEXT.browse}
+                  {t("export.browse")}
                 </Button>
               </div>
             </Field>
@@ -248,38 +221,42 @@ export function AuditExportDialog({ filters, anchor, onClose }: AuditExportDialo
             {failure !== null && (
               <FailureNotice
                 failure={failure}
-                title={TEXT.exportFailed}
+                title={t("export.failed")}
                 onRetry={busy ? undefined : submit}
               />
             )}
 
             <div className={s.actions}>
               <Button variant="ghost" onClick={onClose} disabled={busy}>
-                {TEXT.cancel}
+                {tCommon("action.cancel")}
               </Button>
               <BusyButton
                 variant="primary"
                 busy={busy}
-                busyLabel={TEXT.exporting}
+                busyLabel={t("export.busy")}
                 onClick={submit}
-                title={pathMissing ? TEXT.pathMissing : undefined}
+                title={pathMissing ? t("export.pathMissing") : undefined}
               >
-                {TEXT.exportNow}
+                {t("export.submit")}
               </BusyButton>
             </div>
           </>
         ) : (
           <>
-            <Callout tone="info" title={TEXT.done}>
-              {TEXT.doneDetail(
-                result.entries === 1 ? TEXT.doneOne : TEXT.doneMany(formatCount(result.entries)),
-                formatBytes(result.bytes),
-                result.path,
-              )}
+            <Callout tone="info" title={t("export.done")}>
+              {/* The count is a plural inside the message rather than a number
+                  glued to a noun, and the path is isolated: a file path reads
+                  left-to-right whatever script its directories are in, and an
+                  un-isolated one drags the size in brackets after it. */}
+              {t("export.doneDetail", {
+                count: result.entries,
+                path: isolateLtr(result.path),
+                size: formatBytes(locale, result.bytes),
+              })}
             </Callout>
             <div className={s.actions}>
               <Button variant="primary" onClick={onClose}>
-                {TEXT.close}
+                {tCommon("action.close")}
               </Button>
             </div>
           </>

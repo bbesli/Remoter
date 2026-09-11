@@ -15,18 +15,27 @@
  */
 
 /**
- * One namespace per feature directory, plus three that cut across all of them.
+ * One namespace per feature directory, plus two that cut across all of them.
  *
  * A screen loads what it needs and nothing else, so opening Settings does not
  * pull the import wizard's copy over the IPC-free but still real cost of
- * parsing it. The split mirrors `src/features/` one-for-one; `common`,
- * `errors` and `security` are the exceptions, and they are exceptions because
- * their strings genuinely belong to no single screen.
+ * parsing it. The split mirrors `src/features/` one-for-one; `common` and
+ * `errors` are the exceptions, and they are exceptions because their strings
+ * genuinely belong to no single screen — shared verbs in one, the core's
+ * failure taxonomy keyed by `IpcError.code` in the other.
  *
- * `security` is listed separately from `errors` for a reason that is not
- * organisational: strings in it are reviewed by a second pair of eyes before a
- * translation is accepted, because a warning about permanent data loss that a
- * translator has softened is a real source of harm (docs/features/i18n.md).
+ * **There is deliberately no `security` namespace.** The original list had
+ * one, on the grounds that a warning about permanent data loss which a
+ * translator has softened is a real source of harm and should be reviewed by a
+ * second pair of eyes. The harm is real; a namespace was the wrong mechanism.
+ * It would have moved a handful of sentences away from the screens they belong
+ * to — the recovery-key warning out of `vault`, the slot-removal warning out of
+ * `vaultsettings` — leaving each screen's copy half in one file and half in
+ * another, and it sat here for a milestone as a row naming a file nobody had
+ * written. What actually carries the review requirement is the string itself:
+ * a `_comment_` above it saying SECURITY-CRITICAL and what must not be
+ * softened, which Weblate shows the translator at the moment of translating and
+ * which cannot drift away from the string it guards.
  */
 export const NAMESPACES = [
   "common",
@@ -39,7 +48,6 @@ export const NAMESPACES = [
   "audit",
   "import",
   "errors",
-  "security",
 ] as const;
 
 export type Namespace = (typeof NAMESPACES)[number];

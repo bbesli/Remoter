@@ -1,0 +1,690 @@
+{
+  "_comment_file": "Every failure the core can hand the interface, keyed by the stable `code` on `IpcError` (crates/remoter-ipc/src/error.rs). The code is the join: the core sends a code, a sentence, an optional diagnostic and an ordered list of next actions, and this file supplies the sentence and the actions in the reader's language. A code with no entry here is not broken — the core's own English is rendered instead, which is what a failure newly added in Rust should look like until it is translated. Four rules for anyone editing this file. (1) `actions` is positional: the order is the order the core offered, and a label is used only when the entry has one at that position. (2) No sentence here may quote a password, a passphrase, a key or any other secret — a failure is the one moment an implementation is tempted to say what it was given. (3) The sentences carry no placeholders. The core fills its own sentence with the specifics (a path, a slot number, a byte offset) and those cannot be recovered from the finished string, so each sentence here is written to stay true without them; an English reader is shown the core's own sentence, specifics and all, and every other language is shown this one. (4) A message says what failed and what the reader can do about it. 'An error occurred' is never an acceptable translation of anything below.",
+  "unknown": {
+    "_comment_": "Not a code the core sends: `asFailure` in apps/desktop/ui/src/lib/ipc.ts uses it when a rejection arrives with no shape at all — a panic inside a command, or a transport failure below Tauri. It is the last sentence in the application and should never be reached.",
+    "message": "कुछ गड़बड़ हो गई।"
+  },
+  "vault": {
+    "locked": {
+      "message": "कोई वॉल्ट खुला नहीं है। अपने कनेक्शन देखने के लिए कोई वॉल्ट अनलॉक करें।",
+      "actions": [
+        "कोई वॉल्ट अनलॉक करें"
+      ]
+    },
+    "auto-locked": {
+      "message": "आपके तय किए गए निष्क्रियता समय के बाद वॉल्ट ने खुद को लॉक कर लिया। आगे बढ़ने के लिए इसे अनलॉक करें।",
+      "actions": [
+        "वॉल्ट अनलॉक करें",
+        "सेटिंग्स में समय-सीमा बदलें"
+      ]
+    },
+    "locked-by-trigger": {
+      "message": "वॉल्ट ने खुद को लॉक कर लिया, क्योंकि वह घटना हुई जिस पर आपने लॉक करना चुना था। आगे बढ़ने के लिए इसे अनलॉक करें।",
+      "actions": [
+        "वॉल्ट अनलॉक करें",
+        "वॉल्ट सेटिंग्स में बदलें कि इसे क्या लॉक करता है"
+      ]
+    },
+    "_comment_unlock-failed": "SECURITY-CRITICAL. This sentence must not say which factor was wrong, and a translation must not add that either: before a key slot has unwrapped the master key, naming the password or the key file as the wrong one tells an attacker which half they have already guessed. See the module docs in crates/remoter-ipc/src/error.rs.",
+    "unlock-failed": {
+      "message": "इससे वॉल्ट अनलॉक नहीं हुआ।",
+      "actions": [
+        "फिर कोशिश करें",
+        "अगर यह वॉल्ट कुंजी फ़ाइल इस्तेमाल करता है तो उसे जाँचें",
+        "अपनी रिकवरी कुंजी इस्तेमाल करें"
+      ]
+    },
+    "header-tampered": {
+      "message": "इस वॉल्ट का हेडर लिखे जाने के बाद बदला गया है, इसलिए इसकी सामग्री पर भरोसा नहीं किया जा सकता।",
+      "actions": [
+        "वॉल्ट के बगल में रखा बैकअप खोलें",
+        "जाँचें कि कहीं किसी सिंक क्लाइंट ने फ़ाइल दोबारा तो नहीं लिखी"
+      ]
+    },
+    "body-corrupt": {
+      "message": "इस वॉल्ट की सामग्री डिक्रिप्ट नहीं हो सकी। फ़ाइल क्षतिग्रस्त है।",
+      "actions": [
+        "वॉल्ट के बगल में रखा बैकअप खोलें",
+        "जिस ड्राइव पर वॉल्ट रखा है उसे जाँचें"
+      ]
+    },
+    "no-such-method": {
+      "message": "यह वॉल्ट वह अनलॉक तरीका नहीं देता।",
+      "actions": [
+        "इस वॉल्ट में उपलब्ध तरीकों में से एक चुनें"
+      ]
+    },
+    "_comment_fido2-unsupported": "The core sends this code both when a hardware key is offered as a way in and when one is added as a key slot, so the sentence has to stay true of both.",
+    "fido2-unsupported": {
+      "message": "हार्डवेयर कुंजी से अनलॉक करना Remoter के इस संस्करण में लागू नहीं है।",
+      "actions": [
+        "पासवर्ड या अपनी रिकवरी कुंजी इस्तेमाल करें"
+      ]
+    },
+    "not-a-vault": {
+      "message": "वह फ़ाइल Remoter वॉल्ट नहीं है।",
+      "actions": [
+        ".rvault फ़ाइल चुनें",
+        "नया वॉल्ट बनाएँ"
+      ]
+    },
+    "unsupported-format": {
+      "message": "वह वॉल्ट ऐसे वॉल्ट फ़ॉर्मैट संस्करण का उपयोग करता है जिसे Remoter का यह बिल्ड नहीं पढ़ता।",
+      "actions": [
+        "Remoter अपडेट करें",
+        "वॉल्ट को उसी मशीन पर खोलें जिसने उसे लिखा था"
+      ]
+    },
+    "corrupt": {
+      "message": "यह वॉल्ट क्षतिग्रस्त है: इसकी संरचना पढ़ी नहीं जा सकी।",
+      "actions": [
+        "वॉल्ट के बगल में रखा बैकअप खोलें"
+      ]
+    },
+    "corrupt-row": {
+      "message": "इस वॉल्ट में ऐसा रिकॉर्ड है जिसे Remoter का यह बिल्ड नहीं पढ़ सकता।",
+      "actions": [
+        "वॉल्ट के बगल में रखा बैकअप खोलें",
+        "Remoter अपडेट करें"
+      ]
+    },
+    "header-encode": {
+      "message": "इस वॉल्ट का हेडर एन्कोड नहीं हो सका, इसलिए लिखा नहीं गया।",
+      "actions": [
+        "इसकी रिपोर्ट करें — डिस्क पर रखा वॉल्ट अपरिवर्तित है"
+      ]
+    },
+    "crypto": {
+      "message": "इस वॉल्ट पर एक क्रिप्टोग्राफ़िक चरण विफल रहा, इसलिए कार्रवाई छोड़ दी गई।",
+      "actions": [
+        "फिर कोशिश करें",
+        "बार-बार हो तो इसकी रिपोर्ट करें"
+      ]
+    },
+    "kdf-too-weak": {
+      "message": "ये Argon2id पैरामीटर उस न्यूनतम से नीचे हैं जिसे Remoter स्वीकार करता है, और तेज़ अनलॉक के बदले कमज़ोर वॉल्ट स्वीकार्य सौदा नहीं है।",
+      "actions": [
+        "कैलिब्रेट किए गए पैरामीटर इस्तेमाल करें"
+      ]
+    },
+    "kdf-params-refused": {
+      "message": "यह वॉल्ट ऐसे Argon2id पैरामीटर बताता है जो इस बिल्ड की कोशिश की सीमा से ऊपर हैं। कुछ भी व्युत्पन्न नहीं किया गया।",
+      "actions": [
+        "वॉल्ट को उसी मशीन पर खोलें जिसने उसे लिखा था",
+        "Remoter अपडेट करें",
+        "वॉल्ट के बगल में रखा बैकअप खोलें"
+      ]
+    },
+    "no-such-slot": {
+      "message": "इस वॉल्ट में ऐसा कोई कुंजी स्लॉट नहीं है।",
+      "actions": [
+        "स्लॉट सूची फिर लोड करें"
+      ]
+    },
+    "no-slot-of-kind": {
+      "message": "इस वॉल्ट में उस प्रकार का कोई स्लॉट नहीं है।",
+      "actions": [
+        "पहले वह अनलॉक तरीका जोड़ें"
+      ]
+    },
+    "slot-table-full": {
+      "message": "इस वॉल्ट में पहले से ही अधिकतम संख्या में कुंजी स्लॉट हैं।",
+      "actions": [
+        "जिस अनलॉक तरीके का अब उपयोग नहीं करते उसे हटाएँ"
+      ]
+    },
+    "last-slot": {
+      "message": "इस वॉल्ट में जाने का यही एकमात्र रास्ता है; इसे हटाने पर आप हमेशा के लिए बाहर रह जाएँगे।",
+      "actions": [
+        "पहले कोई दूसरा अनलॉक तरीका जोड़ें"
+      ]
+    },
+    "wrong-slot-kind": {
+      "message": "वह कुंजी स्लॉट दूसरे प्रकार का है, इसलिए वह कार्रवाई उस पर लागू नहीं होती।",
+      "actions": [
+        "स्लॉट सूची फिर लोड करें",
+        "सही प्रकार का स्लॉट चुनें"
+      ]
+    },
+    "slot-credential-missing": {
+      "message": "उस कुंजी स्लॉट को उसके पासवर्ड के बिना दोबारा रैप नहीं किया जा सकता, और उसे चुपचाप हटा देना किसी का अंदर आने का रास्ता छीन लेगा। कुछ भी नहीं बदला गया।",
+      "actions": [
+        "उस स्लॉट का पासवर्ड डालें",
+        "उस स्लॉट को जानबूझकर रोटेशन से बाहर करें"
+      ]
+    },
+    "slot-credential-rejected": {
+      "message": "इससे वह कुंजी स्लॉट नहीं खुलता, इसलिए स्लॉट जैसा था वैसा ही छोड़ दिया गया।",
+      "actions": [
+        "फिर कोशिश करें",
+        "अगर वह स्लॉट कुंजी फ़ाइल इस्तेमाल करता है तो उसे जाँचें",
+        "अपनी रिकवरी कुंजी इस्तेमाल करें"
+      ]
+    },
+    "keychain": {
+      "message": "इस मशीन का क्रेडेंशियल स्टोर उपलब्ध नहीं है, या उसमें इस वॉल्ट के लिए कोई टोकन नहीं है।",
+      "actions": [
+        "अपने पासवर्ड से अनलॉक करें",
+        "बाद में इस डिवाइस को दोबारा दर्ज करें"
+      ]
+    },
+    "recovery-key-malformed": {
+      "message": "यह रिकवरी कुंजी नहीं है: रिकवरी कुंजी चार-चार अक्षरों के चौदह समूहों की होती है।",
+      "actions": [
+        "जाँचें कि आपने पूरी कुंजी चिपकाई है"
+      ]
+    },
+    "recovery-key-checksum": {
+      "message": "यह रिकवरी कुंजी गलत टाइप की लगती है — इसका जाँच समूह बाकी हिस्से से मेल नहीं खाता।",
+      "actions": [
+        "अपनी सहेजी हुई प्रति से मिलाएँ",
+        "फिर कोशिश करें"
+      ]
+    },
+    "keyfile": {
+      "message": "कुंजी फ़ाइल पढ़ी नहीं जा सकी।",
+      "actions": [
+        "जाँचें कि फ़ाइल वहीं है जहाँ वॉल्ट बनाते समय थी",
+        "जिस ड्राइव पर वह है उसे माउंट करें"
+      ]
+    },
+    "database": {
+      "message": "इस वॉल्ट के भीतर के डेटाबेस ने कार्रवाई अस्वीकार कर दी।",
+      "actions": [
+        "फिर कोशिश करें",
+        "वॉल्ट के बगल में रखा बैकअप खोलें"
+      ]
+    },
+    "schema-too-new": {
+      "message": "यह वॉल्ट Remoter के किसी नए संस्करण ने लिखा है: इसका स्कीमा संस्करण यह बिल्ड नहीं समझता।",
+      "actions": [
+        "Remoter अपडेट करें"
+      ]
+    },
+    "migration-failed": {
+      "message": "इस वॉल्ट को नए स्कीमा पर नहीं ले जाया जा सका; फ़ाइल जैसी थी वैसी ही रही।",
+      "actions": [
+        "वॉल्ट के बगल में रखा बैकअप खोलें",
+        "इसकी रिपोर्ट करें"
+      ]
+    }
+  },
+  "request": {
+    "invalid": {
+      "_comment_": "A bug in the interface, not something the reader did: the frontend sent the core a field it cannot read. Keep the sentence blameless and keep the action pointing at a bug report.",
+      "message": "उस अनुरोध का एक मान उपयोग योग्य नहीं है।",
+      "actions": [
+        "इसकी रिपोर्ट करें — इंटरफ़ेस ने ऐसा कुछ भेजा जिसे कोर नहीं पढ़ सकता"
+      ]
+    }
+  },
+  "path": {
+    "unusable": {
+      "message": "वह जगह इस्तेमाल नहीं की जा सकती।",
+      "actions": [
+        "कोई दूसरी जगह चुनें"
+      ]
+    }
+  },
+  "io": {
+    "failed": {
+      "message": "वह फ़ाइल पढ़ी या लिखी नहीं जा सकी।",
+      "actions": [
+        "जाँचें कि पथ मौजूद है और उसमें लिखा जा सकता है",
+        "कोई दूसरी जगह चुनें"
+      ]
+    }
+  },
+  "system": {
+    "csprng": {
+      "message": "ऑपरेटिंग सिस्टम का यादृच्छिक संख्या जनरेटर उपलब्ध नहीं है, इसलिए कुछ भी यादृच्छिक सुरक्षित ढंग से नहीं बनाया जा सकता।",
+      "actions": [
+        "Remoter फिर से शुरू करें",
+        "बार-बार हो तो इसकी रिपोर्ट करें"
+      ]
+    }
+  },
+  "key": {
+    "not-a-private-key": {
+      "message": "वह फ़ाइल निजी कुंजी नहीं है। सार्वजनिक कुंजी, प्रमाणपत्र या कोई असंबंधित फ़ाइल किसी कनेक्शन को प्रमाणित नहीं कर सकती।",
+      "actions": [
+        "उसकी .pub साथी फ़ाइल के बजाय निजी कुंजी चुनें",
+        "इसके बजाय प्लेटफ़ॉर्म का SSH एजेंट इस्तेमाल करें"
+      ]
+    },
+    "_comment_unsupported-format": "The first action quotes a command. Translate the sentence around it if there is one; never translate the command itself, and keep its flags exactly as they are.",
+    "unsupported-format": {
+      "message": "वह कुंजी ऐसे फ़ॉर्मैट में है जिसे यह बिल्ड संग्रहित नहीं करता। कुछ भी नहीं लिखा गया।",
+      "actions": [
+        "इसे `ssh-keygen -p -m PKCS8 -f <file>` से बदलें",
+        "इसके बजाय प्लेटफ़ॉर्म का SSH एजेंट इस्तेमाल करें"
+      ]
+    }
+  },
+  "credential": {
+    "not-a-private-key": {
+      "message": "वह आइटम निजी कुंजी रखने वाला क्रेडेंशियल नहीं है, इसलिए उस पर पढ़ने या बदलने के लिए कोई कुंजी नहीं है।",
+      "actions": [
+        "कोई क्रेडेंशियल चुनें",
+        "पहले उसके लिए कुंजी फ़ाइल चुनें"
+      ]
+    },
+    "purpose-refused": {
+      "message": "यह क्रेडेंशियल प्रतिबंधित है और इस तरह इस्तेमाल नहीं किया जा सकता।",
+      "actions": [
+        "कोई दूसरा क्रेडेंशियल चुनें",
+        "क्रेडेंशियल का प्रतिबंध ढीला करें"
+      ]
+    }
+  },
+  "node": {
+    "_comment_not-found": "Sent both for an item missing from the vault and for one missing from the tree on screen. Either way the item is gone and the tree on screen is stale, which is what the sentence says.",
+    "not-found": {
+      "message": "वह आइटम अब ट्री में नहीं है; संभवतः उसे किसी दूसरी विंडो में हटा दिया गया।",
+      "actions": [
+        "ट्री फिर लोड करें"
+      ]
+    },
+    "parent-not-found": {
+      "message": "जिस फ़ोल्डर में आपने उसे छोड़ा था वह अब मौजूद नहीं है।",
+      "actions": [
+        "ट्री फिर लोड करें",
+        "कोई दूसरा फ़ोल्डर चुनें"
+      ]
+    },
+    "duplicate": {
+      "message": "उस पहचानकर्ता वाला आइटम ट्री में पहले से है।",
+      "actions": [
+        "ट्री फिर लोड करें"
+      ]
+    },
+    "not-a-container": {
+      "message": "केवल फ़ोल्डर ही दूसरे आइटम रख सकते हैं।",
+      "actions": [
+        "इसे किसी फ़ोल्डर में छोड़ें",
+        "इसे सबसे ऊपरी स्तर पर छोड़ें"
+      ]
+    },
+    "cycle": {
+      "message": "फ़ोल्डर को उसी के भीतर नहीं ले जाया जा सकता।",
+      "actions": [
+        "उस फ़ोल्डर के बाहर कोई गंतव्य चुनें"
+      ]
+    },
+    "too-deep": {
+      "message": "यह स्थानांतरण ट्री को सीमा से अधिक गहराई तक नेस्ट कर देगा।",
+      "actions": [
+        "इसे ऊपरी स्तर के पास ले जाएँ",
+        "इसके ऊपर के फ़ोल्डरों की गहराई घटाएँ"
+      ]
+    },
+    "parent-changed": {
+      "message": "संपादन किसी आइटम का मूल फ़ोल्डर नहीं बदल सकता; इसके बजाय उसे ले जाएँ।",
+      "actions": [
+        "इसे नए फ़ोल्डर में खींचें"
+      ]
+    },
+    "not-a-connection": {
+      "message": "दिखाने के लिए हल की गई सेटिंग्स केवल कनेक्शनों के पास होती हैं।",
+      "actions": [
+        "कोई कनेक्शन चुनें"
+      ]
+    }
+  },
+  "tree": {
+    "corrupt": {
+      "message": "इस वॉल्ट का आइटम ट्री समाप्त नहीं होता: मूल फ़ोल्डरों की शृंखला चक्र बनाती है।",
+      "actions": [
+        "वॉल्ट के बगल में रखा बैकअप खोलें",
+        "इसकी रिपोर्ट करें"
+      ]
+    }
+  },
+  "secret": {
+    "not-found": {
+      "message": "उस क्रेडेंशियल में वैसा कोई गुप्त मान संग्रहित नहीं है।",
+      "actions": [
+        "अभी दर्ज करें",
+        "कोई दूसरा क्रेडेंशियल चुनें"
+      ]
+    },
+    "stale": {
+      "message": "संग्रहित गुप्त मान अपने रिकॉर्ड के मौजूदा संस्करण से मेल नहीं खाता, इसलिए उसे इस्तेमाल करने के बजाय अस्वीकार कर दिया गया।",
+      "actions": [
+        "गुप्त मान फिर से दर्ज करें",
+        "वॉल्ट के बगल में रखा बैकअप खोलें"
+      ]
+    }
+  },
+  "import": {
+    "too-large": {
+      "message": "यह फ़ाइल इस बिल्ड की पढ़ने की सीमा से बड़ी है। कुछ भी पार्स नहीं किया गया।",
+      "actions": [
+        "फ़ाइल बाँटें",
+        "हिस्सों को अलग-अलग आयात करें"
+      ]
+    },
+    "not-utf8": {
+      "message": "यह फ़ाइल UTF-8 टेक्स्ट नहीं है।",
+      "actions": [
+        "फ़ाइल को UTF-8 में फिर से सेव करें",
+        "जाँचें कि आप यही फ़ाइल चुनना चाहते थे"
+      ]
+    },
+    "malformed-xml": {
+      "message": "यह फ़ाइल सुगठित XML नहीं है।",
+      "actions": [
+        "जिस ऐप्लिकेशन ने इसे लिखा था, उससे फ़ाइल फिर एक्सपोर्ट करें",
+        "जाँचें कि आप यही फ़ाइल चुनना चाहते थे"
+      ]
+    },
+    "doctype-refused": {
+      "message": "इस फ़ाइल में डॉक्यूमेंट टाइप घोषणा है, जिसे Remoter संसाधित करने से इनकार करता है: इसी तरह किसी XML फ़ाइल से इस मशीन की दूसरी फ़ाइलें पढ़वाई जाती हैं।",
+      "actions": [
+        "DOCTYPE पंक्ति हटाकर फिर कोशिश करें",
+        "जिस ऐप्लिकेशन ने इसे लिखा था, उससे फ़ाइल फिर एक्सपोर्ट करें"
+      ]
+    },
+    "entity-refused": {
+      "message": "यह फ़ाइल अपनी XML एंटिटी परिभाषित करती है, जिन्हें Remoter विस्तारित करने से इनकार करता है: मेमोरी खत्म करने के लिए लिखी गई फ़ाइल ऐसी ही दिखती है।",
+      "actions": [
+        "जिस ऐप्लिकेशन ने इसे लिखा था, उससे फ़ाइल फिर एक्सपोर्ट करें"
+      ]
+    },
+    "too-deep": {
+      "message": "यह फ़ाइल फ़ोल्डरों को इस बिल्ड की पढ़ने की सीमा से अधिक गहराई तक नेस्ट करती है।",
+      "actions": [
+        "स्रोत ऐप्लिकेशन में सबसे गहरे फ़ोल्डरों की गहराई घटाएँ"
+      ]
+    },
+    "too-many-items": {
+      "message": "इस फ़ाइल में इस बिल्ड की पढ़ने की सीमा से अधिक आइटम हैं।",
+      "actions": [
+        "फ़ाइल बाँटें",
+        "हिस्सों को अलग-अलग आयात करें"
+      ]
+    },
+    "value-too-long": {
+      "message": "इस फ़ाइल में एक मान इस बिल्ड की पढ़ने की सीमा से लंबा है।",
+      "actions": [
+        "स्रोत ऐप्लिकेशन में उसे छोटा करें, फिर दोबारा एक्सपोर्ट करें"
+      ]
+    },
+    "truncated": {
+      "message": "यह फ़ाइल किसी रिकॉर्ड के बीच में खत्म हो जाती है: फ़ाइल अधूरी है।",
+      "actions": [
+        "फ़ाइल को उसी जगह से दोबारा कॉपी करें जहाँ से आई थी",
+        "जिस ऐप्लिकेशन ने इसे लिखा था, उससे फिर एक्सपोर्ट करें"
+      ]
+    },
+    "wrong-format": {
+      "message": "यह फ़ाइल वह नहीं है जो वह आयातक पढ़ता है।",
+      "actions": [
+        "स्रोत फ़ॉर्मैट खुद चुनें",
+        "कोई दूसरी फ़ाइल चुनें"
+      ]
+    },
+    "password-required": {
+      "message": "यह फ़ाइल एन्क्रिप्टेड है और पढ़ने के लिए इसका डॉक्यूमेंट पासवर्ड चाहिए।",
+      "actions": [
+        "डॉक्यूमेंट पासवर्ड डालें",
+        "कोई दूसरी फ़ाइल चुनें"
+      ]
+    },
+    "wrong-password": {
+      "message": "फ़ाइल इस पासवर्ड से एन्क्रिप्ट नहीं की गई थी।",
+      "actions": [
+        "फिर कोशिश करें",
+        "जाँचें कि फ़ाइल कहीं स्रोत ऐप्लिकेशन का डिफ़ॉल्ट पासवर्ड तो नहीं इस्तेमाल करती"
+      ]
+    },
+    "unsupported-cipher": {
+      "message": "यह फ़ाइल ऐसे सिफर से एन्क्रिप्ट है जिसे Remoter नहीं पढ़ सकता।",
+      "actions": [
+        "फ़ाइल को बिना एन्क्रिप्शन दोबारा एक्सपोर्ट करें, फिर आयात करें",
+        "स्रोत ऐप्लिकेशन के नए संस्करण से उसे फिर सेव करें"
+      ]
+    },
+    "malformed-ciphertext": {
+      "message": "इस फ़ाइल का एन्क्रिप्टेड हिस्सा क्षतिग्रस्त है: उससे कुछ भी उपयोगी डिक्रिप्ट नहीं होता।",
+      "actions": [
+        "फ़ाइल को उसी जगह से दोबारा कॉपी करें जहाँ से आई थी",
+        "जिस ऐप्लिकेशन ने इसे लिखा था, उससे फिर एक्सपोर्ट करें"
+      ]
+    },
+    "too-many-nodes": {
+      "message": "यह फ़ाइल सीमा से अधिक आइटम बना देगी।",
+      "actions": [
+        "फ़ाइल बाँटें",
+        "हिस्सों को अलग-अलग आयात करें"
+      ]
+    },
+    "missing-column": {
+      "message": "इस फ़ाइल में वह कॉलम नहीं है जिसकी आयातक को ज़रूरत है।",
+      "actions": [
+        "कॉलम हेडर जोड़कर फिर कोशिश करें",
+        "जाँचें कि पहली पंक्ति हेडर पंक्ति है"
+      ]
+    },
+    "duplicate-column": {
+      "message": "यह फ़ाइल एक ही कॉलम को दो बार नाम देती है, इसलिए तय नहीं हो सकता कि मान किसमें है।",
+      "actions": [
+        "दोहराया गया कॉलम हटाएँ या उसका नाम बदलें"
+      ]
+    },
+    "read-failed": {
+      "message": "किसी include का अनुसरण करते समय एक फ़ाइल पढ़ी नहीं जा सकी।",
+      "actions": [
+        "जाँचें कि फ़ाइल मौजूद है और पढ़ी जा सकती है",
+        "Include पंक्ति हटाकर फिर आयात करें"
+      ]
+    },
+    "include-too-deep": {
+      "message": "यह फ़ाइल दूसरी फ़ाइलों को इस बिल्ड की सीमा से अधिक गहराई तक शामिल करती है।",
+      "actions": [
+        "Include शृंखला की गहराई घटाकर फिर आयात करें"
+      ]
+    },
+    "failed": {
+      "message": "यह फ़ाइल आयात नहीं की जा सकी।",
+      "actions": [
+        "कोई दूसरी फ़ाइल चुनें",
+        "इसकी रिपोर्ट करें"
+      ]
+    }
+  },
+  "validation": {
+    "_comment_file": "The reader's own input being wrong. Each sentence names the rule rather than the value, because the core has already put the value in the sentence it sends and this one has to read correctly without it.",
+    "name-empty": {
+      "message": "इस आइटम को एक नाम चाहिए।",
+      "actions": [
+        "नाम लिखें"
+      ]
+    },
+    "name-too-long": {
+      "message": "यह नाम सीमा से लंबा है।",
+      "actions": [
+        "नाम छोटा करें"
+      ]
+    },
+    "control-char": {
+      "message": "इस मान में नियंत्रण वर्ण हैं, जिन्हें संग्रहित नहीं किया जा सकता।",
+      "actions": [
+        "इसे दोबारा टाइप करें",
+        "इसे सादे टेक्स्ट के रूप में चिपकाएँ"
+      ]
+    },
+    "description-too-long": {
+      "message": "यह विवरण सीमा से लंबा है।",
+      "actions": [
+        "विवरण छोटा करें"
+      ]
+    },
+    "host-empty": {
+      "message": "इस कनेक्शन का कोई पता नहीं है। होस्टनाम या IP पता जोड़ें।",
+      "actions": [
+        "होस्टनाम या IP पता डालें"
+      ]
+    },
+    "host-invalid": {
+      "message": "यह न होस्टनाम है, न IPv4 पता, और न ही कोष्ठक में लिखा IPv6 पता।",
+      "actions": [
+        "वर्तनी जाँचें",
+        "IPv6 पते को [कोष्ठकों] में लिखें"
+      ]
+    },
+    "port": {
+      "message": "पोर्ट 1 और 65535 के बीच होना चाहिए।",
+      "actions": [
+        "सीमा के भीतर कोई पोर्ट डालें",
+        "प्रोटोकॉल का डिफ़ॉल्ट इस्तेमाल करने के लिए खाली छोड़ें"
+      ]
+    },
+    "tag": {
+      "message": "यह उपयोग योग्य टैग नहीं है।",
+      "actions": [
+        "अक्षर, अंक, हाइफ़न और बिंदु इस्तेमाल करें"
+      ]
+    },
+    "protocol": {
+      "message": "यह ऐसा प्रोटोकॉल नहीं है जिसे Remoter पहचानता हो।",
+      "actions": [
+        "सूची से कोई प्रोटोकॉल चुनें"
+      ]
+    },
+    "setting-key": {
+      "message": "यह उपयोग योग्य प्रोटोकॉल सेटिंग नाम नहीं है।",
+      "actions": [
+        "अक्षर, अंक, हाइफ़न और बिंदु इस्तेमाल करें"
+      ]
+    },
+    "custom-field-key": {
+      "message": "यह उपयोग योग्य कस्टम फ़ील्ड नाम नहीं है।",
+      "actions": [
+        "अक्षर, अंक, हाइफ़न और बिंदु इस्तेमाल करें"
+      ]
+    },
+    "_comment_colour": "The two patterns are syntax, not words: leave #rrggbb and #rrggbbaa exactly as they are in every language.",
+    "colour": {
+      "message": "यह रंग नहीं है; #rrggbb या #rrggbbaa अपेक्षित था।",
+      "actions": [
+        "नमूनों में से रंग चुनें"
+      ]
+    },
+    "icon": {
+      "message": "यह आइकन संदर्भ खाली है या इसमें नियंत्रण वर्ण हैं।",
+      "actions": [
+        "सूची से आइकन चुनें"
+      ]
+    },
+    "gateway-too-long": {
+      "message": "इस गेटवे शृंखला में सीमा से अधिक हॉप हैं।",
+      "actions": [
+        "एक हॉप हटाएँ"
+      ]
+    },
+    "gateway-cycle": {
+      "message": "गेटवे शृंखला अपने ऊपर ही लौट आती है: एक होस्ट दो बार आता है।",
+      "actions": [
+        "दोहराया गया हॉप हटाएँ"
+      ]
+    },
+    "gateway-hop-unknown": {
+      "message": "गेटवे हॉप में से एक ऐसे आइटम की ओर इशारा करता है जो अब इस वॉल्ट में नहीं है।",
+      "actions": [
+        "कोई दूसरा गेटवे चुनें",
+        "सीधे कनेक्ट करें"
+      ]
+    },
+    "gateway-hop-kind": {
+      "message": "गेटवे हॉप का कनेक्शन होना ज़रूरी है; फ़ोल्डर ट्रैफ़िक आगे नहीं भेज सकता।",
+      "actions": [
+        "गेटवे के रूप में कोई कनेक्शन चुनें"
+      ]
+    },
+    "credential-unknown": {
+      "message": "यह जिस क्रेडेंशियल का उपयोग करता है वह हटा दिया गया। कोई दूसरा चुनें, या अभी एक दर्ज करें।",
+      "actions": [
+        "कोई दूसरा क्रेडेंशियल चुनें",
+        "अभी एक दर्ज करें"
+      ]
+    },
+    "credential-kind": {
+      "message": "वह आइटम क्रेडेंशियल नहीं है।",
+      "actions": [
+        "कोई क्रेडेंशियल चुनें"
+      ]
+    },
+    "credential-attached": {
+      "message": "वह क्रेडेंशियल किसी दूसरे कनेक्शन का है। उसे साझा करने का मतलब होगा कि एक जगह संपादन दूसरी जगह भी बदल देगा।",
+      "actions": [
+        "कोई साझा क्रेडेंशियल चुनें",
+        "इसके बजाय यहाँ उपयोक्ता नाम और पासवर्ड लिखें"
+      ]
+    },
+    "credential-attachment": {
+      "message": "इस वॉल्ट का एक क्रेडेंशियल ऐसे कनेक्शन का है जो मौजूद नहीं है। कुछ भी नहीं बदला गया।",
+      "actions": [
+        "वॉल्ट फिर लोड करें",
+        "बैकअप से पुनर्स्थापित करें"
+      ]
+    },
+    "credential-purpose": {
+      "message": "यह क्रेडेंशियल प्रतिबंधित है और उस प्रोटोकॉल के लिए इस्तेमाल नहीं किया जा सकता।",
+      "actions": [
+        "कोई दूसरा क्रेडेंशियल चुनें",
+        "क्रेडेंशियल का प्रतिबंध ढीला करें"
+      ]
+    },
+    "username-too-long": {
+      "message": "यह उपयोक्ता नाम सीमा से लंबा है।",
+      "actions": [
+        "उपयोक्ता नाम छोटा करें"
+      ]
+    },
+    "external-credential": {
+      "message": "बाहरी क्रेडेंशियल के लिए प्रदाता और संदर्भ दोनों चाहिए।",
+      "actions": [
+        "दोनों फ़ील्ड भरें"
+      ]
+    },
+    "secret-empty": {
+      "message": "क्रेडेंशियल को एक गुप्त मान चाहिए; खाली लिफ़ाफ़ा क्रेडेंशियल नहीं है।",
+      "actions": [
+        "पासवर्ड डालें",
+        "कुंजी फ़ाइल चुनें"
+      ]
+    },
+    "layout": {
+      "message": "ग्रिड लेआउट को कम से कम एक पंक्ति और एक कॉलम चाहिए।",
+      "actions": [
+        "पंक्तियाँ और कॉलम 1 या उससे अधिक करें"
+      ]
+    },
+    "group-member": {
+      "message": "इस समूह का एक सदस्य अब वॉल्ट में नहीं है।",
+      "actions": [
+        "गायब सदस्य को हटाएँ"
+      ]
+    },
+    "empty-action": {
+      "message": "कनेक्ट या डिस्कनेक्ट क्रिया खाली पंक्ति नहीं हो सकती।",
+      "actions": [
+        "खाली पंक्ति हटाएँ"
+      ]
+    },
+    "reconnect-policy": {
+      "message": "स्वचालित पुनः कनेक्शन के लिए कम से कम एक प्रयास और ऐसा बैकऑफ़ चाहिए जो घटता न हो।",
+      "actions": [
+        "अधिकतम बैकऑफ़ को पहले वाले के बराबर या उससे ऊपर रखें"
+      ]
+    },
+    "interval": {
+      "message": "टाइमआउट और कीप-अलाइव अंतराल शून्य से बड़े होने चाहिए।",
+      "actions": [
+        "कोई धनात्मक संख्या डालें",
+        "मान विरासत में लेने के लिए फ़ील्ड खाली करें"
+      ]
+    }
+  }
+}

@@ -27,44 +27,11 @@ import { useCallback, useEffect, useState } from "react";
 import { Mark } from "@/components/Mark";
 import { Icon, type IconName } from "@/components/Icon";
 import { Spinner } from "@/components/Spinner";
+import { isolate, useT } from "@/i18n";
 import type { VaultState } from "@/lib/ipc";
 import { useApp, type Screen } from "@/stores/app";
 import s from "./TitleBar.module.css";
 
-const TEXT = {
-  appName: "Remoter",
-  unlocked: "unlocked",
-  locked: "locked",
-  lock: "Lock the vault",
-  lockAlreadyLocked: "There is no unlocked vault to lock.",
-  lockInProgress: "Locking the vault…",
-  /** Short enough for a 38px bar; the tooltip carries the full sentence. */
-  lockingShort: "Locking…",
-  settings: "Settings",
-  vaultSettings: "Vault settings",
-  audit: "Audit log",
-  importer: "Import connections",
-  /**
-   * All three read or write the open vault. A button that refuses a click
-   * without saying why reads as a broken button, so the tooltip carries the
-   * reason rather than the bare label.
-   */
-  needsVault: (action: string) => `${action} needs an unlocked vault.`,
-  minimise: "Minimise",
-  maximise: "Maximise",
-  restore: "Restore",
-  close: "Close",
-  noVault: "No vault open",
-
-  /**
-   * The window controls are the one place where doing nothing is
-   * indistinguishable from being broken — that is exactly how the missing
-   * controls were found in the first place. So a refusal says so.
-   */
-  controlFailed: (action: string) => `${action} was refused by the window manager.`,
-  noWindow:
-    "This page is not running inside the Remoter window, so the window controls do nothing here.",
-} as const;
 
 /** The slice of the Tauri window this bar drives. */
 interface WindowHandle {
@@ -80,14 +47,28 @@ interface TitleBarProps {
   onSettings: () => void;
 }
 
-/** The vault-scoped screens this bar reaches, in the order they are shown. */
-const VAULT_SCREENS: readonly { screen: Screen; label: string; glyph: IconName }[] = [
-  { screen: { name: "import" }, label: TEXT.importer, glyph: "download" },
-  { screen: { name: "audit" }, label: TEXT.audit, glyph: "file" },
-  { screen: { name: "vault-settings" }, label: TEXT.vaultSettings, glyph: "shield" },
+/**
+ * The vault-scoped screens this bar reaches, in the order they are shown.
+ *
+ * The entries carry a catalogue key rather than a label. The list is
+ * module-level and `t()` is a hook, so a label resolved here would be resolved
+ * once — at import — and would then keep the language the application started
+ * in for the rest of the session. The key is resolved at render instead, which
+ * is what makes the language switch reach this bar without a restart.
+ */
+const VAULT_SCREENS: readonly {
+  screen: Screen;
+  labelKey: "titleBar.importer" | "titleBar.audit" | "titleBar.vaultSettings";
+  glyph: IconName;
+}[] = [
+  { screen: { name: "import" }, labelKey: "titleBar.importer", glyph: "download" },
+  { screen: { name: "audit" }, labelKey: "titleBar.audit", glyph: "file" },
+  { screen: { name: "vault-settings" }, labelKey: "titleBar.vaultSettings", glyph: "shield" },
 ];
 
 export function TitleBar({ vault, onLock, locking = false, onSettings }: TitleBarProps) {
+  const t = useT("shell");
+  const tCommon = useT("common");
   const go = useApp((st) => st.go);
   const [maximised, setMaximised] = useState(false);
   // Null until a control is actually pressed and refused; the bar stays clean
@@ -141,51 +122,58 @@ export function TitleBar({ vault, onLock, locking = false, onSettings }: TitleBa
         } catch {
           // A browser dev server or a test. Distinguished from a refusal
           // below, because the two need different words.
-          setControlFailure(TEXT.noWindow);
+          setControlFailure(t("titleBar.noWindow"));
           return;
         }
         try {
           await fn(win);
           setControlFailure(null);
         } catch {
-          setControlFailure(TEXT.controlFailed(action));
+          setControlFailure(t("titleBar.controlFailed", { action }));
         }
       })();
     },
-    [],
+    [t],
   );
 
   const onMinimise = useCallback(() => {
-    withWindow(TEXT.minimise, (win) => win.minimize());
-  }, [withWindow]);
+    withWindow(t("titleBar.minimise"), (win) => win.minimize());
+  }, [withWindow, t]);
 
   const onToggleMaximise = useCallback(() => {
-    withWindow(maximised ? TEXT.restore : TEXT.maximise, (win) => win.toggleMaximize());
-  }, [withWindow, maximised]);
+    withWindow(maximised ? t("titleBar.restore") : t("titleBar.maximise"), (win) => win.toggleMaximize());
+  }, [withWindow, maximised, t]);
 
   const onClose = useCallback(() => {
-    withWindow(TEXT.close, (win) => win.close());
-  }, [withWindow]);
+    withWindow(t("titleBar.close"), (win) => win.close());
+  }, [withWindow, t]);
 
   const unlocked = vault?.unlocked === true;
   const label = vault?.label ?? null;
   const lockTitle = locking
-    ? TEXT.lockInProgress
+    ? t("titleBar.lockInProgress")
     : unlocked
-      ? TEXT.lock
-      : TEXT.lockAlreadyLocked;
+      ? t("titleBar.lock")
+      : t("titleBar.lockAlreadyLocked");
 
   return (
     <header className={s.bar} data-tauri-drag-region>
       <Mark size={18} />
       <span className={s.app} data-tauri-drag-region>
-        {TEXT.appName}
+        {tCommon("app.name")}
       </span>
       <span className={s.dash} data-tauri-drag-region aria-hidden="true">
         —
       </span>
-      <span className={s.vaultLabel} data-tauri-drag-region title={label ?? TEXT.noVault}>
-        {label ?? TEXT.noVault}
+      {/* The label is the user's own name for the vault and may be in any
+          script, so it is isolated: without it a Hebrew or Arabic label
+          reverses the punctuation of the bar around it. */}
+      <span
+        className={s.vaultLabel}
+        data-tauri-drag-region
+        title={label === null ? t("titleBar.noVault") : isolate(label)}
+      >
+        {label === null ? t("titleBar.noVault") : isolate(label)}
       </span>
 
       <div className={s.spacer} data-tauri-drag-region />
@@ -199,14 +187,14 @@ export function TitleBar({ vault, onLock, locking = false, onSettings }: TitleBa
 
       <span className={unlocked ? s.pillUnlocked : s.pillLocked}>
         <Icon name={unlocked ? "unlock" : "lock"} size={11} />
-        <span className={s.pillText}>{unlocked ? TEXT.unlocked : TEXT.locked}</span>
+        <span className={s.pillText}>{unlocked ? t("titleBar.unlocked") : t("titleBar.locked")}</span>
       </span>
 
       {/* A lock takes a moment and the pill above it does not change until it
           lands, so the bar says what is happening in words as well. */}
       {locking && (
         <span className={s.busy} role="status">
-          {TEXT.lockingShort}
+          {t("titleBar.lockingShort")}
         </span>
       )}
 
@@ -222,7 +210,7 @@ export function TitleBar({ vault, onLock, locking = false, onSettings }: TitleBa
         disabled={locking || !unlocked}
       >
         {locking ? (
-          <Spinner size={14} label={TEXT.lockInProgress} />
+          <Spinner size={14} label={t("titleBar.lockInProgress")} />
         ) : (
           <Icon name="lock" size={15} />
         )}
@@ -235,8 +223,12 @@ export function TitleBar({ vault, onLock, locking = false, onSettings }: TitleBa
           key={entry.screen.name}
           type="button"
           className={s.iconButton}
-          title={unlocked ? entry.label : TEXT.needsVault(entry.label)}
-          aria-label={entry.label}
+          title={
+            unlocked
+              ? t(entry.labelKey)
+              : t("titleBar.needsVault", { action: t(entry.labelKey) })
+          }
+          aria-label={t(entry.labelKey)}
           onClick={() => go(entry.screen)}
           disabled={!unlocked}
         >
@@ -247,8 +239,8 @@ export function TitleBar({ vault, onLock, locking = false, onSettings }: TitleBa
       <button
         type="button"
         className={s.iconButton}
-        title={TEXT.settings}
-        aria-label={TEXT.settings}
+        title={t("titleBar.settings")}
+        aria-label={t("titleBar.settings")}
         onClick={onSettings}
       >
         <Icon name="settings" size={15} />
@@ -258,8 +250,8 @@ export function TitleBar({ vault, onLock, locking = false, onSettings }: TitleBa
         <button
           type="button"
           className={s.control}
-          title={TEXT.minimise}
-          aria-label={TEXT.minimise}
+          title={t("titleBar.minimise")}
+          aria-label={t("titleBar.minimise")}
           onClick={onMinimise}
         >
           <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true">
@@ -269,8 +261,8 @@ export function TitleBar({ vault, onLock, locking = false, onSettings }: TitleBa
         <button
           type="button"
           className={s.control}
-          title={maximised ? TEXT.restore : TEXT.maximise}
-          aria-label={maximised ? TEXT.restore : TEXT.maximise}
+          title={maximised ? t("titleBar.restore") : t("titleBar.maximise")}
+          aria-label={maximised ? t("titleBar.restore") : t("titleBar.maximise")}
           onClick={onToggleMaximise}
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -295,8 +287,8 @@ export function TitleBar({ vault, onLock, locking = false, onSettings }: TitleBa
         <button
           type="button"
           className={[s.control, s.closeControl].join(" ")}
-          title={TEXT.close}
-          aria-label={TEXT.close}
+          title={t("titleBar.close")}
+          aria-label={t("titleBar.close")}
           onClick={onClose}
         >
           <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true">

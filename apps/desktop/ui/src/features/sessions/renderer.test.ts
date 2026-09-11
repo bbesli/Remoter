@@ -5,7 +5,15 @@
 
 import { describe, expect, it } from "vitest";
 
+import { i18n, initI18n } from "@/i18n";
 import { describeRenderer, isSoftwareRenderer } from "./renderer";
+
+// English is bundled, so a real `t` is available without rendering anything.
+initI18n();
+const t = i18n().getFixedT("en", "sessions");
+
+/** U+2068 and U+2069, the isolate an adapter name is wrapped in. */
+const BIDI = /[\u2066-\u2069]/g;
 
 describe("classifying a WebGL renderer string", () => {
   it("recognises the software rasterisers that matter", () => {
@@ -36,22 +44,24 @@ describe("classifying a WebGL renderer string", () => {
 
 describe("describing what the terminal got", () => {
   it("names the adapter when there is one", () => {
-    expect(describeRenderer({ kind: "webgl", renderer: "Apple M2", reason: null })).toBe(
-      "WebGL · Apple M2",
-    );
+    // The adapter name is wrapped in a bidi isolate before it goes into the
+    // sentence, so the marks come off before the comparison. See src/test/bidi.ts.
+    expect(
+      describeRenderer(t, { kind: "webgl", renderer: "Apple M2", reason: null }).replace(BIDI, ""),
+    ).toBe("WebGL · Apple M2");
   });
 
   it("says why it fell back, not merely that it did", () => {
     expect(
-      describeRenderer({
+      describeRenderer(t, {
         kind: "dom",
         renderer: "llvmpipe",
-        reason: "the WebGL context is software-rasterised",
+        reason: "software",
       }),
     ).toBe("DOM renderer · the WebGL context is software-rasterised");
   });
 
   it("does not claim a renderer before a terminal exists", () => {
-    expect(describeRenderer(null)).toBe("not started");
+    expect(describeRenderer(t, null)).toBe("not started");
   });
 });

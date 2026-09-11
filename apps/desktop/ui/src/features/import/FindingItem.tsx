@@ -7,6 +7,7 @@
  */
 
 import { Icon } from "@/components/Icon";
+import { useT } from "@/i18n";
 import type { ImportFinding } from "@/lib/ipc";
 
 import { describeFinding } from "./findings";
@@ -19,7 +20,8 @@ interface FindingItemProps {
 }
 
 export function FindingItem({ finding, compact = false }: FindingItemProps) {
-  const view = describeFinding(finding);
+  const t = useT("import");
+  const view = describeFinding(t, finding);
   const icon = view.severity === "info" ? "check" : "alert";
 
   if (compact) {

@@ -19,41 +19,18 @@ import { Button } from "@/components/Button";
 import { Callout } from "@/components/Callout";
 import { FailureNotice } from "@/components/FailureNotice";
 import { TextInput } from "@/components/TextInput";
+import { isolate, useLocale, useT } from "@/i18n";
 import type { IpcFailure, Slot } from "@/lib/ipc";
 
 import {
-  LAST_RESORT_PHRASE,
-  SLOT_KIND_LABEL,
+  lastResortPhrase,
   lastResortSatisfied,
   needsLastResort,
   slotDetail,
+  slotKindLabel,
 } from "./slots";
 import s from "./RemoveSlotDialog.module.css";
 import { Dialog } from "./Dialog";
-
-const TEXT = {
-  title: "Remove this slot",
-  lead: "The slot entry is deleted from the header. Nothing is re-encrypted and every other slot keeps working — this is not a rotation.",
-
-  refusedTitle: "This slot cannot be removed",
-
-  warningTitle: "Before you do",
-
-  phrasePrompt: "Type this sentence to confirm:",
-  phraseLabel: "Confirmation sentence",
-  phraseHint: "The words as written above. Capitals do not matter.",
-  phraseBlocked: "Type the sentence above to remove this slot.",
-
-  lostKey:
-    "Revocation deletes the slot entry, so a key you have lost can still be revoked — you do not need it to hand.",
-
-  cancel: "Cancel",
-  remove: "Remove the slot",
-  removing: "Removing…",
-  removingBlocked:
-    "The removal is already with the core. This closes when it answers, so its result has somewhere to appear.",
-  failed: "The slot was not removed.",
-} as const;
 
 interface RemoveSlotDialogProps {
   slot: Slot;
@@ -78,77 +55,84 @@ export function RemoveSlotDialog({
   onRetry,
   onClose,
 }: RemoveSlotDialogProps) {
+  const t = useT("vaultsettings");
+  const tCommon = useT("common");
+  const { code: locale } = useLocale();
   const [phrase, setPhrase] = useState("");
 
   const needsPhrase = needsLastResort(slot.kind);
-  const phraseOk = lastResortSatisfied(slot.kind, phrase);
+  // Compared against the sentence in the language it was shown in, which is
+  // why the phrase is read here rather than baked into the comparison.
+  const required = lastResortPhrase(t);
+  const phraseOk = lastResortSatisfied(slot.kind, phrase, required);
   const blocked = refusal !== null || !phraseOk;
 
   return (
     <Dialog
       id="vault-remove-slot"
-      title={TEXT.title}
-      lead={TEXT.lead}
+      title={t("removeSlot.title")}
+      lead={t("removeSlot.lead")}
       // A removal in flight owns the dialog: the command is already at the
       // core and closing here would leave its failure nowhere to appear.
       onDismiss={busy ? null : onClose}
-      dismissBlockedReason={TEXT.removingBlocked}
+      dismissBlockedReason={t("removeSlot.removingBlocked")}
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={busy}>
-            {TEXT.cancel}
+            {tCommon("action.cancel")}
           </Button>
           <BusyButton
             variant="danger"
             busy={busy}
-            busyLabel={TEXT.removing}
+            busyLabel={t("removeSlot.removing")}
             disabled={blocked}
             onClick={onConfirm}
-            title={refusal ?? (phraseOk ? undefined : TEXT.phraseBlocked)}
+            title={refusal ?? (phraseOk ? undefined : t("removeSlot.phraseBlocked"))}
           >
-            {TEXT.remove}
+            {t("removeSlot.remove")}
           </BusyButton>
         </>
       }
     >
       <div className={s.subject}>
-        <span className={s.kind}>{SLOT_KIND_LABEL[slot.kind]}</span>
-        <span className={s.label}>{slot.label}</span>
-        <span className={s.detail}>{slotDetail(slot)}</span>
-        <span className={s.index}>slot {slot.index}</span>
+        <span className={s.kind}>{slotKindLabel(slot.kind, t)}</span>
+        {/* The slot's own name, isolated: it is the user's text, not ours. */}
+        <span className={s.label}>{isolate(slot.label)}</span>
+        <span className={s.detail}>{slotDetail(slot, { t, tCommon, locale })}</span>
+        <span className={s.index}>{t("slot.indexBadge", { index: slot.index })}</span>
       </div>
 
       {refusal !== null && (
-        <Callout tone="danger" title={TEXT.refusedTitle}>
+        <Callout tone="danger" title={t("removeSlot.refusedTitle")}>
           {refusal}
         </Callout>
       )}
 
       {refusal === null && warning !== null && (
-        <Callout tone="warning" title={TEXT.warningTitle}>
+        <Callout tone="warning" title={t("removeSlot.warningTitle")}>
           {warning}
         </Callout>
       )}
 
-      {refusal === null && <p className={s.note}>{TEXT.lostKey}</p>}
+      {refusal === null && <p className={s.note}>{t("removeSlot.lostKey")}</p>}
 
       {refusal === null && needsPhrase && (
         <div className={s.phraseBlock}>
-          <p className={s.phrasePrompt}>{TEXT.phrasePrompt}</p>
-          <p className={s.phrase}>{LAST_RESORT_PHRASE}</p>
+          <p className={s.phrasePrompt}>{t("removeSlot.phrasePrompt")}</p>
+          <p className={s.phrase}>{required}</p>
           <TextInput
             value={phrase}
             onChange={setPhrase}
-            ariaLabel={TEXT.phraseLabel}
+            ariaLabel={t("removeSlot.phraseLabel")}
             disabled={busy}
             autoFocus
           />
-          <p className={s.phraseHint}>{TEXT.phraseHint}</p>
+          <p className={s.phraseHint}>{t("removeSlot.phraseHint")}</p>
         </div>
       )}
 
       {failure !== null && (
-        <FailureNotice failure={failure} title={TEXT.failed} onRetry={onRetry} />
+        <FailureNotice failure={failure} title={t("removeSlot.failed")} onRetry={onRetry} />
       )}
     </Dialog>
   );

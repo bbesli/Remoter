@@ -11,81 +11,62 @@
  */
 
 import { Callout } from "@/components/Callout";
+import { useT } from "@/i18n";
 import type { ImportReport } from "@/lib/ipc";
 
 import { FindingItem } from "./FindingItem";
 import { bySeverity, preservedLines } from "./findings";
 import s from "./ImportWizard.module.css";
 
-const TEXT = {
-  title: "What the parse found",
-  lead: "Read this before you commit. Everything on it is still changeable — the preview is one step back, and nothing has been written.",
-  parsed: "Parsed",
-  folders: "folders",
-  connections: "connections",
-  credentials: "credentials",
-  secrets: "passwords recovered",
-  skipped: "skipped by the parser",
-  alerts: "Act on these",
-  warnings: "Worth knowing",
-  info: "For the record",
-  none: "Nothing to report. The file mapped cleanly.",
-  preservedHead: "Kept but not interpreted",
-  preservedNote:
-    "Nothing was discarded. If a later version of Remoter learns to read these, they will be there.",
-  skippedTitle: "Some items were left out by the parser",
-  skippedBody:
-    "They are listed above with the reason. They are not in the preview and will not be imported; the file itself is untouched, so nothing about them is lost.",
-} as const;
-
 interface ReportStepProps {
   report: ImportReport;
 }
 
 export function ReportStep({ report }: ReportStepProps) {
+  const t = useT("import");
   const alerts = bySeverity(report.findings, "alert");
   const warnings = bySeverity(report.findings, "warning");
   const info = bySeverity(report.findings, "info");
-  const preserved = preservedLines(report.findings);
+  const preserved = preservedLines(t, report.findings);
 
   return (
     <div className={s.step}>
       <div className={s.stepHead}>
-        <h2 className={s.stepTitle}>{TEXT.title}</h2>
-        <p className={s.stepLead}>{TEXT.lead}</p>
+        <h2 className={s.stepTitle}>{t("report.title")}</h2>
+        <p className={s.stepLead}>{t("report.lead")}</p>
       </div>
 
       <div className={s.tiles}>
-        <Tile value={report.counts.folders} label={TEXT.folders} />
-        <Tile value={report.counts.connections} label={TEXT.connections} />
-        <Tile value={report.counts.credentials} label={TEXT.credentials} />
+        <Tile value={report.counts.folders} label={t("report.countFolders")} />
+        <Tile value={report.counts.connections} label={t("report.countConnections")} />
+        <Tile value={report.counts.credentials} label={t("report.countCredentials")} />
         <Tile
           value={report.counts.secrets}
-          label={TEXT.secrets}
+          label={t("report.countSecrets")}
           tone={report.counts.secrets > 0 ? "warning" : "muted"}
         />
         <Tile
           value={report.counts.skipped}
-          label={TEXT.skipped}
+          label={t("report.countSkipped")}
           tone={report.counts.skipped > 0 ? "warning" : "muted"}
         />
       </div>
 
-      {report.findings.length === 0 && <p className={s.stepLead}>{TEXT.none}</p>}
+      {report.findings.length === 0 && <p className={s.stepLead}>{t("report.none")}</p>}
 
-      <Group label={TEXT.alerts} findings={alerts} />
-      <Group label={TEXT.warnings} findings={warnings} />
-      <Group label={TEXT.info} findings={info} />
+      <Group label={t("report.groupAlerts")} findings={alerts} />
+      <Group label={t("report.groupWarnings")} findings={warnings} />
+      <Group label={t("report.groupInfo")} findings={info} />
 
       {report.counts.skipped > 0 && (
-        <Callout tone="neutral" title={TEXT.skippedTitle}>
-          <p>{TEXT.skippedBody}</p>
+        <Callout tone="neutral" title={t("report.skippedTitle")}>
+          <p>{t("report.skippedBody")}</p>
         </Callout>
       )}
 
       {preserved.length > 0 && (
         <div className={s.findingGroup}>
-          <span className={s.sectionLabel}>{TEXT.preservedHead}</span>
+          <span className={s.sectionLabel}>{t("report.preservedHead")}</span>
           <div className={s.preserved}>
             {preserved.map((line) => (
               <div key={line.field} className={s.preservedLine}>
@@ -94,7 +75,7 @@ export function ReportStep({ report }: ReportStepProps) {
               </div>
             ))}
           </div>
-          <p className={s.panelNote}>{TEXT.preservedNote}</p>
+          <p className={s.panelNote}>{t("report.preservedNote")}</p>
         </div>
       )}
     </div>

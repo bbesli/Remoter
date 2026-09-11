@@ -360,6 +360,24 @@ export function ensureTerminal(tabId: string, callbacks: TerminalCallbacks): Ent
 
   const host = document.createElement("div");
   host.className = "remoter-terminal-host";
+  /*
+   * The character grid is left-to-right by specification, whatever language the
+   * chrome around it is in.
+   *
+   * A terminal is not interface copy: the remote host counts columns from the
+   * left, addresses the cursor from the left and draws its own box art on that
+   * assumption. `\r` means "column zero", and column zero is on the left of the
+   * screen for every server this application will ever talk to. So the grid's
+   * direction is not the user's to choose, and it is not ours either —
+   * docs/features/i18n.md puts it plainly: terminal content is never mirrored.
+   *
+   * Without this the div inherits `dir` from `<html>`, and under `ar` xterm
+   * lays every row out right-aligned. Pinned on the element rather than in a
+   * stylesheet because this div is created here, outside React and outside any
+   * CSS module (see the header) — the attribute travels with it into whatever
+   * container attaches it, including one that has not been written yet.
+   */
+  host.dir = "ltr";
 
   const entry: Entry = {
     term,
@@ -445,10 +463,12 @@ export function attachTerminal(tabId: string, container: HTMLElement): () => voi
         entry.term.loadAddon(webgl);
         entry.webgl = webgl;
       } catch {
+        // A code, not a sentence: `describeRenderer` turns it into the one
+        // the user reads, in their language.
         entry.renderer = {
           kind: "dom",
           renderer: entry.renderer.renderer,
-          reason: "the WebGL renderer refused to start",
+          reason: "addonRefused",
         };
       }
     }

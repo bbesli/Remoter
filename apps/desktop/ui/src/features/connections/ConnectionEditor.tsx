@@ -43,6 +43,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { TFunction } from "i18next";
 import { open } from "@tauri-apps/plugin-dialog";
 import clsx from "clsx";
 import { create } from "zustand";
@@ -55,6 +56,7 @@ import { FailureNotice } from "@/components/FailureNotice";
 import { Field } from "@/components/Field";
 import { Icon } from "@/components/Icon";
 import { TextInput } from "@/components/TextInput";
+import { isolate, isolateLtr, useT } from "@/i18n";
 import {
   asFailure,
   ipc,
@@ -77,115 +79,12 @@ import { useFocusTrap } from "./focusTrap";
 import { nodeGlyph, protocolClass } from "./NodeRow";
 import s from "./ConnectionEditor.module.css";
 
-const TEXT = {
-  editTitle: "Edit",
-  createConnection: "New connection",
-  createFolder: "New folder",
-  close: "Close the editor",
-  loading: "Loading the connection…",
-  loadFailed: "This entry could not be loaded",
-  retry: "Try again",
-  missing: "That entry is no longer in the vault.",
-  sectionIdentity: "Identity",
-  sectionCredentials: "Credentials",
-  sectionNotes: "Notes",
-  name: "Name",
-  protocol: "Protocol",
-  protocolNotBuilt: "not in this build yet",
-  protocolNotBuiltHelp: (protocol: string) =>
-    `This build opens SSH sessions only, so a ${protocol.toUpperCase()} connection can be ` +
-    `stored and edited but not opened yet.`,
-  protocolFixedHelp: "The protocol is chosen when the connection is created.",
-  host: "Hostname",
-  port: "Port",
-  username: "Username",
-  password: "Password",
-  description: "Description",
-  tags: "Tags",
-  tagsHelp: "Comma separated. Tags cross-cut the tree — a tag can span folders.",
-  parent: "Location",
-  root: "Top level",
-  setHere: "set on this connection",
-  inheritedFrom: (source: string) => `inherited from ${source}`,
-  protocolDefault: "protocol default",
-  overrides: (source: string | null) =>
-    source === null ? "overrides the protocol default" : `overrides the value from ${source}`,
-  overrideHere: "Override here",
-  revert: (value: string) => `Revert to inherited (${value})`,
-  revertPlain: "Revert to inherited",
-  nothingInherited: "nothing inherited",
-  passwordUnchanged: "unchanged",
-  passwordNotSet: "not set",
-  passwordHelp: "Stored in this vault under your master key. It is never shown again.",
-
-  /** The login as it stands, when it is not this connection's own. */
-  loginInheritedFrom: (source: string) => `The login comes from ${source}.`,
-  loginShared: (name: string) => `The login comes from ${name}, which other entries can use too.`,
-  loginNoUsername: "no username",
-  loginRemove: "Remove this login",
-  /*
-   * The one line that says a reasonable choice has a consequence. It appears
-   * when the edit would actually write a login, and only while the login being
-   * replaced belongs to something else — which is the moment it becomes true.
-   */
-  consequenceInherited: (source: string) =>
-    `Saving gives this connection a login of its own. ${source} keeps the credential it has, and so does everything else under it.`,
-  consequenceShared: (name: string) =>
-    `Saving gives this connection a login of its own. ${name} is left as it is, and so is everything else that uses it.`,
-
-  authLabel: "Authentication",
-  authHelp: "How this login proves who it is. It is stored with the username.",
-  authPasswordOnly: (protocol: string) =>
-    `${protocol.toUpperCase()} authenticates with a password. Keys and the agent are SSH and SFTP only.`,
-
-  agentTitle: "SSH agent",
-  agentRecommended: "Recommended",
-  agentBody:
-    "The private key never enters Remoter at all — the agent keeps it and does the signing.",
-  agentFilterLabel: "Identity comment",
-  agentFilterHelp:
-    "Optional. When the agent holds several keys, this narrows it to the one whose comment contains this text.",
-
-  keyTitle: "Private key",
-  keyBody:
-    "The key is read once and stored in this vault, so the connection keeps working after the file moves or is deleted.",
-  keyChoose: "Choose a key file",
-  keyChange: "Choose a different file",
-  keyBrowsing: "Opening…",
-  keyReading: "Reading the key file…",
-  keyInspectFailed: "That file could not be read as a private key",
-  keyDialogFailed:
-    "The system file browser did not open, so no key file was chosen. Nothing was sent to the vault.",
-  keyDialogTitle: "Choose the private key for this connection",
-  keyStored: "stored in this vault",
-  keyStoredHelp: "A key is already stored for this login. Choose a file only to replace it.",
-  keyEncrypted: "Passphrase-protected",
-  keyNotEncrypted: "No passphrase",
-  keyPassphrase: "Key passphrase",
-  keyPassphraseHelp:
-    "Needed once, to read the key. It is stored beside the key in the vault and never shown again.",
-  keyBytes: (bytes: number) => `${String(bytes)} bytes`,
-
-  keyRequired: "Choose the private key file to store in this vault.",
-  keyPending: "Wait for Remoter to finish reading the key file.",
-  keyUnreadable: "That file could not be read as a private key. Choose another one.",
-  passphraseRequired: "This key is protected by a passphrase, and Remoter needs it to read the key.",
-  passwordRequired:
-    "Type the password this login should use. The key it holds now is replaced, not kept.",
-  save: "Save",
-  saving: "Saving…",
-  create: "Create",
-  creating: "Creating…",
-  cancel: "Cancel",
-  noAutosave: "Cancel discards everything. Nothing is saved as you type.",
-  discardTitle: "Discard your changes?",
-  discardKeep: "Keep editing",
-  discardConfirm: "Discard",
-  nameRequired: "A name is required.",
-  portInvalid: "A port is a whole number between 1 and 65535.",
-  hostRequired: "A hostname is required.",
-  saveFailed: "The change was not saved",
-} as const;
+/**
+ * The editor's translator, for the helpers that are pure functions rather than
+ * components. They take it as an argument because `useT` is a hook and a
+ * breadcrumb is not a component.
+ */
+type Copy = TFunction<"connections">;
 
 /** The protocols the shipped adapters cover. A plugin protocol widens this. */
 const PROTOCOLS = ["ssh", "sftp", "rdp", "vnc"] as const;
@@ -223,10 +122,10 @@ const KEY_AUTH_PROTOCOLS: ReadonlySet<string> = new Set(["ssh", "sftp"]);
  * is identified by its content and not by its name — `key_inspect` reads the
  * container rather than the extension for exactly that reason.
  */
-function keyFilters(): { name: string; extensions: string[] }[] {
+function keyFilters(t: Copy): { name: string; extensions: string[] }[] {
   return [
-    { name: "Private key", extensions: ["pem", "key", "ppk", "pk8"] },
-    { name: "All files", extensions: ["*"] },
+    { name: t("editor.keyFilterPrivateKey"), extensions: ["pem", "key", "ppk", "pk8"] },
+    { name: t("editor.keyFilterAllFiles"), extensions: ["*"] },
   ];
 }
 
@@ -445,8 +344,8 @@ function withPassphrase(
 function parseTags(input: string): string[] {
   return input
     .split(",")
-    .map((t) => t.trim())
-    .filter((t) => t.length > 0);
+    .map((tag) => tag.trim())
+    .filter((tag) => tag.length > 0);
 }
 
 // ------------------------------------------------------------- the shell ----
@@ -462,6 +361,8 @@ export function ConnectionEditor() {
 }
 
 function EditorDialog({ target }: { target: EditorTarget }) {
+  const t = useT("connections");
+  const tCommon = useT("common");
   const close = useConnectionEditor((st) => st.close);
   const select = useApp((st) => st.select);
   const queryClient = useQueryClient();
@@ -577,7 +478,7 @@ function EditorDialog({ target }: { target: EditorTarget }) {
   }, [node, origin, resolved, target.mode]);
 
   const parentId = target.mode === "create" ? target.parentId : (node?.parentId ?? null);
-  const path = useMemo(() => breadcrumb(nodes, parentId), [nodes, parentId]);
+  const path = useMemo(() => breadcrumb(t, nodes, parentId), [nodes, parentId, t]);
 
   /*
    * The typed secret lives here and nowhere else on its way out.
@@ -704,12 +605,12 @@ function EditorDialog({ target }: { target: EditorTarget }) {
     const fallback =
       credentialProvenance.inheritedValue ??
       (origin.kind === "inherited" ? origin.source : origin.kind === "shared" ? origin.name : null);
-    if (fallback !== null) return TEXT.revert(fallback);
+    if (fallback !== null) return t("editor.revertTo", { value: isolate(fallback) });
     // Nothing above supplies one. The login can still be taken away, and the
     // connection then has none — which the core allows and asks about at
     // connect time.
-    return initial?.identity.own === true ? TEXT.loginRemove : null;
-  }, [credentialProvenance.inheritedValue, initial, origin, target.mode]);
+    return initial?.identity.own === true ? t("editor.loginRemove") : null;
+  }, [credentialProvenance.inheritedValue, initial, origin, target.mode, t]);
 
   /*
    * The consequence, said once, at the moment it becomes true: this edit will
@@ -721,9 +622,9 @@ function EditorDialog({ target }: { target: EditorTarget }) {
     plan?.identity !== "writes"
       ? null
       : origin.kind === "inherited"
-        ? TEXT.consequenceInherited(origin.source)
+        ? t("editor.consequenceInherited", { source: isolate(origin.source) })
         : origin.kind === "shared"
-          ? TEXT.consequenceShared(origin.name)
+          ? t("editor.consequenceShared", { name: isolate(origin.name) })
           : null;
 
   const identityDirty =
@@ -755,7 +656,7 @@ function EditorDialog({ target }: { target: EditorTarget }) {
   const errors =
     form === null
       ? {}
-      : validate(form, {
+      : validate(t, form, {
           isConnection: isConnection === true,
           hasIdentity,
           mode: target.mode,
@@ -872,13 +773,13 @@ function EditorDialog({ target }: { target: EditorTarget }) {
     setKeyBrowsing(true);
     try {
       picked = await open({
-        title: TEXT.keyDialogTitle,
+        title: t("editor.keyDialogTitle"),
         multiple: false,
         directory: false,
-        filters: keyFilters(),
+        filters: keyFilters(t),
       });
     } catch {
-      setKeyDialogError(TEXT.keyDialogFailed);
+      setKeyDialogError(t("editor.keyDialogFailed"));
       return;
     } finally {
       setKeyBrowsing(false);
@@ -909,7 +810,7 @@ function EditorDialog({ target }: { target: EditorTarget }) {
         className={s.dialog}
         role="dialog"
         aria-modal="true"
-        aria-label={headerLabel(target, node)}
+        aria-label={headerLabel(t, target, node)}
         // Somewhere for focus to land while the form is still loading and the
         // dialog holds nothing but the close button.
         tabIndex={-1}
@@ -927,10 +828,17 @@ function EditorDialog({ target }: { target: EditorTarget }) {
               size={16}
             />
           </span>
-          <h2 className={s.title}>{headerLabel(target, node)}</h2>
-          {path !== "" && <span className={s.path}>· {path}</span>}
+          <h2 className={s.title}>{headerLabel(t, target, node)}</h2>
+          {path !== "" && (
+            <span className={s.path}>{t("editor.locationPath", { path })}</span>
+          )}
           <span className={s.headerSpacer} />
-          <button type="button" className={s.close} aria-label={TEXT.close} onClick={onCancel}>
+          <button
+            type="button"
+            className={s.close}
+            aria-label={t("editor.close")}
+            onClick={onCancel}
+          >
             <Icon name="x" size={14} />
           </button>
         </header>
@@ -939,7 +847,7 @@ function EditorDialog({ target }: { target: EditorTarget }) {
             be a hole in the middle of the window. */}
         {loading && (
           <div className={s.loading}>
-            <BusyStatus label={TEXT.loading} size={14} />
+            <BusyStatus label={t("editor.loading")} size={14} />
             <div className={s.loadingFields}>
               <SkeletonRows count={4} height="var(--space-8)" widths={["100%"]} />
             </div>
@@ -950,14 +858,14 @@ function EditorDialog({ target }: { target: EditorTarget }) {
           <div className={s.body}>
             <FailureNotice
               failure={loadFailure}
-              title={TEXT.loadFailed}
+              title={t("editor.loadFailed")}
               onRetry={retryLoad}
-              retryLabel={TEXT.retry}
+              retryLabel={tCommon("action.retry")}
             >
               {/* A dialog that cannot load still has to be leavable without
                   hunting for the corner. */}
               <Button variant="ghost" size="sm" onClick={onCancel}>
-                {TEXT.close}
+                {t("editor.close")}
               </Button>
             </FailureNotice>
           </div>
@@ -965,7 +873,7 @@ function EditorDialog({ target }: { target: EditorTarget }) {
 
         {missing && (
           <div className={s.body}>
-            <Callout tone="warning">{TEXT.missing}</Callout>
+            <Callout tone="warning">{t("editor.missing")}</Callout>
           </div>
         )}
 
@@ -978,13 +886,15 @@ function EditorDialog({ target }: { target: EditorTarget }) {
                 submit();
               }}
             >
-              {failure !== null && <FailureNotice failure={failure} title={TEXT.saveFailed} />}
+              {failure !== null && (
+                <FailureNotice failure={failure} title={t("editor.saveFailed")} />
+              )}
 
               <section className={s.section}>
-                <div className={s.sectionTitle}>{TEXT.sectionIdentity}</div>
+                <div className={s.sectionTitle}>{t("editor.sectionIdentity")}</div>
 
                 <Field
-                  label={TEXT.name}
+                  label={t("editor.name")}
                   htmlFor="editor-name"
                   error={attempted ? errors.name : undefined}
                 >
@@ -997,20 +907,22 @@ function EditorDialog({ target }: { target: EditorTarget }) {
                   />
                   <span className={s.provenance}>
                     <span className={s.provenanceDot} />
-                    {TEXT.setHere}
+                    {t("editor.setHere")}
                   </span>
                 </Field>
 
                 {isConnection === true && (
                   <>
                     <Field
-                      label={TEXT.protocol}
+                      label={t("editor.protocol")}
                       htmlFor="editor-protocol"
                       help={
                         form.protocol !== "" && !OPENABLE_PROTOCOLS.has(form.protocol)
-                          ? TEXT.protocolNotBuiltHelp(form.protocol)
+                          ? t("editor.protocolNotBuiltHelp", {
+                              protocol: form.protocol.toUpperCase(),
+                            })
                           : target.mode === "edit"
-                            ? TEXT.protocolFixedHelp
+                            ? t("editor.protocolFixedHelp")
                             : undefined
                       }
                     >
@@ -1042,7 +954,9 @@ function EditorDialog({ target }: { target: EditorTarget }) {
                               !OPENABLE_PROTOCOLS.has(p) && p !== form.protocol;
                             return (
                               <option key={p} value={p} disabled={unopenable}>
-                                {unopenable ? `${p} — ${TEXT.protocolNotBuilt}` : p}
+                                {unopenable
+                                  ? t("editor.protocolOptionNotBuilt", { protocol: p })
+                                  : p}
                               </option>
                             );
                           })}
@@ -1050,7 +964,7 @@ function EditorDialog({ target }: { target: EditorTarget }) {
                       ) : (
                         <div className={s.readOnlyRow}>
                           <Badge tone="accent" mono>
-                            {form.protocol === "" ? "—" : form.protocol}
+                            {form.protocol === "" ? t("editor.protocolNone") : form.protocol}
                           </Badge>
                         </div>
                       )}
@@ -1058,7 +972,7 @@ function EditorDialog({ target }: { target: EditorTarget }) {
 
                     <InheritableField
                       id="editor-host"
-                      label={TEXT.host}
+                      label={t("editor.host")}
                       mono
                       draft={form.host}
                       provenance={provenanceOf(findField(resolved, "host"))}
@@ -1068,7 +982,7 @@ function EditorDialog({ target }: { target: EditorTarget }) {
 
                     <InheritableField
                       id="editor-port"
-                      label={TEXT.port}
+                      label={t("editor.port")}
                       mono
                       narrow
                       placeholder={DEFAULT_PORTS[form.protocol]}
@@ -1085,11 +999,11 @@ function EditorDialog({ target }: { target: EditorTarget }) {
                 <>
                   <div className={s.rule} />
                   <section className={s.section}>
-                    <div className={s.sectionTitle}>{TEXT.sectionCredentials}</div>
+                    <div className={s.sectionTitle}>{t("editor.sectionCredentials")}</div>
 
                     {form.identityOwn ? (
                       <>
-                        <Field label={TEXT.username} htmlFor="editor-username">
+                        <Field label={t("editor.username")} htmlFor="editor-username">
                           <div className={s.control}>
                             <span className={s.controlGrow}>
                               <TextInput
@@ -1126,7 +1040,7 @@ function EditorDialog({ target }: { target: EditorTarget }) {
                           {origin.kind === "own" && (
                             <span className={s.provenance}>
                               <span className={s.provenanceDot} />
-                              {TEXT.setHere}
+                              {t("editor.setHere")}
                             </span>
                           )}
                         </Field>
@@ -1210,9 +1124,9 @@ function EditorDialog({ target }: { target: EditorTarget }) {
                 <>
                   <div className={s.rule} />
                   <section className={s.section}>
-                    <div className={s.sectionTitle}>{TEXT.sectionNotes}</div>
+                    <div className={s.sectionTitle}>{t("editor.sectionNotes")}</div>
 
-                    <Field label={TEXT.description} htmlFor="editor-description">
+                    <Field label={t("editor.description")} htmlFor="editor-description">
                       <TextInput
                         id="editor-description"
                         value={form.description}
@@ -1220,7 +1134,11 @@ function EditorDialog({ target }: { target: EditorTarget }) {
                       />
                     </Field>
 
-                    <Field label={TEXT.tags} htmlFor="editor-tags" help={TEXT.tagsHelp}>
+                    <Field
+                      label={t("editor.tags")}
+                      htmlFor="editor-tags"
+                      help={t("editor.tagsHelp")}
+                    >
                       <TextInput
                         id="editor-tags"
                         value={form.tags}
@@ -1228,9 +1146,12 @@ function EditorDialog({ target }: { target: EditorTarget }) {
                         mono
                       />
                       <span className={s.tagList}>
-                        {parseTags(form.tags).map((t) => (
-                          <Badge key={t} mono>
-                            {t}
+                        {/* A tag is user data. It stands alone in its badge, so
+                            it is isolated rather than left to take its
+                            direction from the form around it. */}
+                        {parseTags(form.tags).map((tag) => (
+                          <Badge key={tag} mono>
+                            {isolate(tag)}
                           </Badge>
                         ))}
                       </span>
@@ -1247,31 +1168,33 @@ function EditorDialog({ target }: { target: EditorTarget }) {
                       The prompt stays inside the dialog so the focus trap keeps
                       holding, and Escape again answers "keep editing". */}
                   <span className={s.discardQuestion} role="alert">
-                    {TEXT.discardTitle}
+                    {t("editor.discardTitle")}
                   </span>
                   <span className={s.footerSpacer} />
                   <Button variant="secondary" onClick={() => setDiscardPrompt(false)}>
-                    {TEXT.discardKeep}
+                    {t("editor.discardKeep")}
                   </Button>
                   <Button variant="danger" onClick={close}>
-                    {TEXT.discardConfirm}
+                    {t("editor.discardConfirm")}
                   </Button>
                 </>
               ) : (
                 <>
-                  <span className={s.footerNote}>{TEXT.noAutosave}</span>
+                  <span className={s.footerNote}>{t("editor.noAutosave")}</span>
                   <span className={s.footerSpacer} />
                   <Button variant="ghost" onClick={onCancel} disabled={busy}>
-                    {TEXT.cancel}
+                    {tCommon("action.cancel")}
                   </Button>
                   <BusyButton
                     variant="primary"
                     busy={busy}
-                    busyLabel={target.mode === "create" ? TEXT.creating : TEXT.saving}
+                    busyLabel={
+                      target.mode === "create" ? t("editor.creating") : t("editor.saving")
+                    }
                     onClick={submit}
                     disabled={target.mode === "edit" && !dirty}
                   >
-                    {target.mode === "create" ? TEXT.create : TEXT.save}
+                    {target.mode === "create" ? t("editor.create") : t("editor.save")}
                   </BusyButton>
                 </>
               )}
@@ -1308,6 +1231,7 @@ function InheritableField({
   placeholder,
   error,
 }: InheritableFieldProps) {
+  const t = useT("connections");
   const inherited = provenance.inheritedValue;
 
   return (
@@ -1327,21 +1251,26 @@ function InheritableField({
         ) : (
           <span className={clsx(s.inheritedBox, mono && s.inheritedMono)}>
             {inherited === null || inherited === "" ? (
-              <span className={s.inheritedEmpty}>{TEXT.nothingInherited}</span>
+              <span className={s.inheritedEmpty}>{t("editor.nothingInherited")}</span>
             ) : (
-              inherited
+              // A hostname or a port: left-to-right by specification, whatever
+              // its first character happens to be, and forced so rather than
+              // inferred — `db-01:22` reverses to `22:db-01` otherwise.
+              isolateLtr(inherited)
             )}
           </span>
         )}
 
         {draft.own && provenance.canInherit && (
           <Button size="sm" onClick={() => onChange({ own: false, value: "" })}>
-            {inherited === null ? TEXT.revertPlain : TEXT.revert(inherited)}
+            {inherited === null
+              ? t("editor.revertPlain")
+              : t("editor.revertTo", { value: isolateLtr(inherited) })}
           </Button>
         )}
         {!draft.own && (
           <Button size="sm" onClick={() => onChange({ own: true, value: inherited ?? "" })}>
-            {TEXT.overrideHere}
+            {t("editor.overrideHere")}
           </Button>
         )}
       </div>
@@ -1352,22 +1281,26 @@ function InheritableField({
 }
 
 function ProvenanceLine({ own, provenance }: { own: boolean; provenance: Provenance }) {
+  const t = useT("connections");
+
   if (own) {
     return (
       <span className={s.provenance}>
         <span className={s.provenanceDot} />
         {provenance.canInherit ? (
           <>
-            {TEXT.overrides(provenance.inheritedSource)}
+            {provenance.inheritedSource === null
+              ? t("editor.overridesDefault")
+              : t("editor.overridesSource", { source: isolate(provenance.inheritedSource) })}
             {provenance.inheritedValue !== null && (
               <>
-                {" · "}
-                <span className={s.mono}>{provenance.inheritedValue}</span>
+                {` ${t("punctuation.detail")} `}
+                <span className={s.mono}>{isolateLtr(provenance.inheritedValue)}</span>
               </>
             )}
           </>
         ) : (
-          TEXT.setHere
+          t("editor.setHere")
         )}
       </span>
     );
@@ -1378,13 +1311,14 @@ function ProvenanceLine({ own, provenance }: { own: boolean; provenance: Provena
       <span className={s.provenanceGlyph}>
         <Icon name="folder" size={11} />
       </span>
-      {provenance.inheritedSource === null ? (
-        TEXT.protocolDefault
-      ) : (
-        <span>
-          inherited from <span className={s.source}>{provenance.inheritedSource}</span>
-        </span>
-      )}
+      {/*
+        One message rather than a phrase plus a styled name: word order around
+        the source differs between languages, so the name cannot be a separate
+        element without deciding for the translator where it goes.
+      */}
+      {provenance.inheritedSource === null
+        ? t("editor.protocolDefault")
+        : t("editor.inheritedFrom", { source: isolate(provenance.inheritedSource) })}
     </span>
   );
 }
@@ -1407,25 +1341,28 @@ function InheritedLogin({
   origin: IdentityOrigin;
   onOverride: () => void;
 }) {
+  const t = useT("connections");
+
   const source =
     origin.kind === "inherited"
-      ? TEXT.loginInheritedFrom(origin.source)
+      ? t("editor.loginInheritedFrom", { source: isolate(origin.source) })
       : origin.kind === "shared"
-        ? TEXT.loginShared(origin.name)
+        ? t("editor.loginShared", { name: isolate(origin.name) })
         : null;
 
   return (
-    <Field label={TEXT.username} help={source ?? undefined}>
+    <Field label={t("editor.username")} help={source ?? undefined}>
       <div className={s.control}>
         <span className={clsx(s.inheritedBox, s.inheritedMono)}>
           {username === null || username === "" ? (
-            <span className={s.inheritedEmpty}>{TEXT.loginNoUsername}</span>
+            <span className={s.inheritedEmpty}>{t("editor.loginNoUsername")}</span>
           ) : (
-            username
+            // An account name, which may be written in any script.
+            isolate(username)
           )}
         </span>
         <Button size="sm" onClick={onOverride}>
-          {TEXT.overrideHere}
+          {t("editor.overrideHere")}
         </Button>
       </div>
 
@@ -1433,23 +1370,24 @@ function InheritedLogin({
         <span className={s.provenanceGlyph}>
           <Icon name="folder" size={11} />
         </span>
-        {origin.kind === "inherited" ? (
-          <span>
-            inherited from <span className={s.source}>{origin.source}</span>
-          </span>
-        ) : origin.kind === "shared" ? (
-          <span>
-            shared credential <span className={s.source}>{origin.name}</span>
-          </span>
-        ) : (
-          TEXT.nothingInherited
-        )}
+        {origin.kind === "inherited"
+          ? t("editor.inheritedFrom", { source: isolate(origin.source) })
+          : origin.kind === "shared"
+            ? t("editor.loginSharedCredential", { name: isolate(origin.name) })
+            : t("editor.nothingInherited")}
       </span>
     </Field>
   );
 }
 
-/** The container's name as a person would say it, for a key already stored. */
+/**
+ * The container's name as a person would say it, for a key already stored.
+ *
+ * Format names, and format names are not translated in any language — a PKCS#8
+ * file is called PKCS#8 whatever the interface is set to. docs/features/i18n.md,
+ * "What is never translated".
+ */
+// eslint-disable-next-line remoter-i18n/no-text-constant -- format names, see above
 const KEY_FORMAT_LABELS: Readonly<Record<KeyFormat, string>> = {
   openssh: "OpenSSH",
   pkcs8: "PKCS#8",
@@ -1512,22 +1450,28 @@ function AuthChooser({
   onPassphrase,
   passwordField,
 }: AuthChooserProps) {
+  const t = useT("connections");
+  const tCommon = useT("common");
+
   // A protocol that cannot use a key is not offered one. An existing key
   // credential still shows its choice, so it can be seen and changed rather
   // than silently applying from a screen that denies it exists.
   if (!keyCapable && form.auth === "password") {
     // A connection with no protocol recorded gets no sentence naming one.
-    const help = form.protocol === "" ? TEXT.passwordHelp : TEXT.authPasswordOnly(form.protocol);
+    const help =
+      form.protocol === ""
+        ? t("editor.passwordHelp")
+        : t("editor.authPasswordOnly", { protocol: form.protocol.toUpperCase() });
     return (
-      <Field label={TEXT.authLabel} help={help}>
+      <Field label={t("editor.authLabel")} help={help}>
         {passwordField}
       </Field>
     );
   }
 
   return (
-    <Field label={TEXT.authLabel} help={TEXT.authHelp}>
-      <div className={s.authOptions} role="radiogroup" aria-label={TEXT.authLabel}>
+    <Field label={t("editor.authLabel")} help={t("editor.authHelp")}>
+      <div className={s.authOptions} role="radiogroup" aria-label={t("editor.authLabel")}>
         <label className={clsx(s.authOption, form.auth === "agent" && s.authOptionActive)}>
           <input
             type="radio"
@@ -1538,19 +1482,19 @@ function AuthChooser({
           />
           <span className={s.authText}>
             <span className={s.authTitle}>
-              {TEXT.agentTitle}
-              <Badge tone="success">{TEXT.agentRecommended}</Badge>
+              {t("editor.agentTitle")}
+              <Badge tone="success">{t("editor.agentRecommended")}</Badge>
             </span>
-            <span className={s.authBody}>{TEXT.agentBody}</span>
+            <span className={s.authBody}>{t("editor.agentBody")}</span>
           </span>
         </label>
 
         {form.auth === "agent" && (
           <div className={s.authDetail}>
             <Field
-              label={TEXT.agentFilterLabel}
+              label={t("editor.agentFilterLabel")}
               htmlFor="editor-agent-filter"
-              help={TEXT.agentFilterHelp}
+              help={t("editor.agentFilterHelp")}
             >
               <TextInput
                 id="editor-agent-filter"
@@ -1571,8 +1515,8 @@ function AuthChooser({
             onChange={() => onAuth("privateKey")}
           />
           <span className={s.authText}>
-            <span className={s.authTitle}>{TEXT.keyTitle}</span>
-            <span className={s.authBody}>{TEXT.keyBody}</span>
+            <span className={s.authTitle}>{t("editor.keyTitle")}</span>
+            <span className={s.authBody}>{t("editor.keyBody")}</span>
           </span>
         </label>
 
@@ -1584,18 +1528,20 @@ function AuthChooser({
               <div className={s.keyRow}>
                 <Icon name="key" size={14} />
                 <span className={s.keyName}>
-                  {storedFormat === null ? TEXT.keyTitle : KEY_FORMAT_LABELS[storedFormat]}
+                  {storedFormat === null ? t("editor.keyTitle") : KEY_FORMAT_LABELS[storedFormat]}
                 </span>
-                <Badge tone="neutral">{TEXT.keyStored}</Badge>
-                {storedHasPassphrase && <Badge tone="neutral">{TEXT.keyEncrypted}</Badge>}
+                <Badge tone="neutral">{t("editor.keyStored")}</Badge>
+                {storedHasPassphrase && <Badge tone="neutral">{t("editor.keyEncrypted")}</Badge>}
               </div>
             )}
 
             {form.keyPath !== "" && (
               <div className={s.keyRow}>
                 <Icon name="file" size={14} />
+                {/* A file name the user chose, isolated so it cannot reorder
+                    the badges beside it. The tooltip carries the full path. */}
                 <span className={s.keyName} title={form.keyPath}>
-                  {fileName(form.keyPath)}
+                  {isolate(fileName(form.keyPath))}
                 </span>
                 {keyInfo !== null && (
                   <>
@@ -1603,9 +1549,13 @@ function AuthChooser({
                       {keyInfo.formatLabel}
                     </Badge>
                     <Badge tone={keyInfo.encrypted ? "neutral" : "warning"}>
-                      {keyInfo.encrypted ? TEXT.keyEncrypted : TEXT.keyNotEncrypted}
+                      {keyInfo.encrypted
+                        ? t("editor.keyEncrypted")
+                        : t("editor.keyNotEncrypted")}
                     </Badge>
-                    <span className={s.keyMeta}>{TEXT.keyBytes(keyInfo.sizeBytes)}</span>
+                    <span className={s.keyMeta}>
+                      {t("editor.keySize", { count: keyInfo.sizeBytes })}
+                    </span>
                   </>
                 )}
               </div>
@@ -1613,25 +1563,32 @@ function AuthChooser({
 
             {/* Reading the file is a round trip to the core, and what it
                 answers decides whether a passphrase is asked for at all. */}
-            {inspecting && <BusyStatus label={TEXT.keyReading} size={13} />}
+            {inspecting && <BusyStatus label={t("editor.keyReading")} size={13} />}
 
             {inspectFailure !== null && (
               <FailureNotice
                 failure={inspectFailure}
-                title={TEXT.keyInspectFailed}
+                title={t("editor.keyInspectFailed")}
                 onRetry={onRetryInspect}
-                retryLabel={TEXT.retry}
+                retryLabel={tCommon("action.retry")}
               />
             )}
 
             {dialogError !== null && <Callout tone="warning">{dialogError}</Callout>}
 
             <div className={s.control}>
-              <BusyButton size="sm" busy={browsing} busyLabel={TEXT.keyBrowsing} onClick={onBrowse}>
-                {form.keyPath === "" && !keyStored ? TEXT.keyChoose : TEXT.keyChange}
+              <BusyButton
+                size="sm"
+                busy={browsing}
+                busyLabel={tCommon("action.opening")}
+                onClick={onBrowse}
+              >
+                {form.keyPath === "" && !keyStored
+                  ? t("editor.keyChoose")
+                  : t("editor.keyChange")}
               </BusyButton>
               {keyStored && form.keyPath === "" && (
-                <span className={s.keyMeta}>{TEXT.keyStoredHelp}</span>
+                <span className={s.keyMeta}>{t("editor.keyStoredHelp")}</span>
               )}
             </div>
 
@@ -1646,9 +1603,9 @@ function AuthChooser({
                 for one. */}
             {keyInfo?.encrypted === true && (
               <Field
-                label={TEXT.keyPassphrase}
+                label={t("editor.keyPassphrase")}
                 htmlFor="editor-key-passphrase"
-                help={TEXT.keyPassphraseHelp}
+                help={t("editor.keyPassphraseHelp")}
                 {...(attempted && errors.passphrase !== undefined
                   ? { error: errors.passphrase }
                   : {})}
@@ -1674,8 +1631,8 @@ function AuthChooser({
             onChange={() => onAuth("password")}
           />
           <span className={s.authText}>
-            <span className={s.authTitle}>{TEXT.password}</span>
-            <span className={s.authBody}>{TEXT.passwordHelp}</span>
+            <span className={s.authTitle}>{t("editor.password")}</span>
+            <span className={s.authBody}>{t("editor.passwordHelp")}</span>
           </span>
         </label>
 
@@ -1694,11 +1651,13 @@ interface PasswordFieldProps {
 }
 
 function PasswordField({ hadSecret, value, error, onChange }: PasswordFieldProps) {
+  const t = useT("connections");
+
   return (
     <Field
-      label={TEXT.password}
+      label={t("editor.password")}
       htmlFor="editor-password"
-      help={TEXT.passwordHelp}
+      help={t("editor.passwordHelp")}
       {...(error === undefined ? {} : { error })}
     >
       <span className={s.controlGrow}>
@@ -1708,7 +1667,7 @@ function PasswordField({ hadSecret, value, error, onChange }: PasswordFieldProps
           value={value}
           onChange={onChange}
           invalid={error !== undefined}
-          placeholder={hadSecret ? TEXT.passwordUnchanged : TEXT.passwordNotSet}
+          placeholder={hadSecret ? t("editor.passwordUnchanged") : t("editor.passwordNotSet")}
         />
       </span>
     </Field>
@@ -1721,15 +1680,17 @@ function headerGlyphClass(node: TreeNode | undefined): string {
   return clsx(s.headerGlyph, node?.kind === "connection" && protocolClass(node.protocol));
 }
 
-function headerLabel(target: EditorTarget, node: TreeNode | undefined): string {
+function headerLabel(t: Copy, target: EditorTarget, node: TreeNode | undefined): string {
   if (target.mode === "create") {
-    return target.kind === "folder" ? TEXT.createFolder : TEXT.createConnection;
+    return target.kind === "folder" ? t("editor.titleNewFolder") : t("editor.titleNewConnection");
   }
-  return node === undefined ? TEXT.editTitle : node.name;
+  // The entry's own name, which is user data: isolated so a right-to-left name
+  // cannot reorder the heading, the breadcrumb and the close button around it.
+  return node === undefined ? t("editor.titleEdit") : isolate(node.name);
 }
 
-function breadcrumb(nodes: readonly TreeNode[], parentId: string | null): string {
-  if (parentId === null) return TEXT.root;
+function breadcrumb(t: Copy, nodes: readonly TreeNode[], parentId: string | null): string {
+  if (parentId === null) return t("editor.locationRoot");
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const parts: string[] = [];
   let cursor: string | null = parentId;
@@ -1737,10 +1698,14 @@ function breadcrumb(nodes: readonly TreeNode[], parentId: string | null): string
   for (let hops = 0; cursor !== null && hops < 64; hops += 1) {
     const found: TreeNode | undefined = byId.get(cursor);
     if (found === undefined) break;
-    parts.unshift(found.name);
+    // Each folder name is user data. Isolating them one by one keeps the path
+    // reading in the document's direction however the names are written.
+    parts.unshift(isolate(found.name));
     cursor = found.parentId;
   }
-  return parts.join(" / ");
+  // The glyph is translatable; the spaces around it are layout, and a
+  // catalogue message may not carry padding (src/i18n/catalogues.test.ts).
+  return parts.join(` ${t("editor.breadcrumbSeparator")} `);
 }
 
 function nullIfBlank(value: string): string | null {
@@ -1772,17 +1737,19 @@ interface ValidationContext {
   initialAuth: AuthMethod | null;
 }
 
-export function validate(form: FormState, context: ValidationContext): FormErrors {
+export function validate(t: Copy, form: FormState, context: ValidationContext): FormErrors {
   const errors: FormErrors = {};
-  if (form.name.trim() === "") errors.name = TEXT.nameRequired;
+  if (form.name.trim() === "") errors.name = t("editor.errorNameRequired");
   if (context.isConnection && context.mode === "create" && form.host.value.trim() === "") {
-    errors.host = TEXT.hostRequired;
+    errors.host = t("editor.errorHostRequired");
   }
   if (form.port.own) {
     const raw = form.port.value.trim();
     if (raw !== "") {
       const port = Number(raw);
-      if (!Number.isInteger(port) || port < 1 || port > 65535) errors.port = TEXT.portInvalid;
+      if (!Number.isInteger(port) || port < 1 || port > 65535) {
+        errors.port = t("editor.errorPortInvalid");
+      }
     }
   }
 
@@ -1797,13 +1764,13 @@ export function validate(form: FormState, context: ValidationContext): FormError
        * is the case that has to be refused: there is no key to authenticate
        * with and nothing on screen would have said so.
        */
-      if (!context.keyStored) errors.key = TEXT.keyRequired;
+      if (!context.keyStored) errors.key = t("editor.errorKeyRequired");
     } else if (context.inspecting) {
-      errors.key = TEXT.keyPending;
+      errors.key = t("editor.errorKeyPending");
     } else if (context.keyInfo === null) {
-      errors.key = TEXT.keyUnreadable;
+      errors.key = t("editor.errorKeyUnreadable");
     } else if (context.keyInfo.encrypted && form.keyPassphrase === "") {
-      errors.passphrase = TEXT.passphraseRequired;
+      errors.passphrase = t("editor.errorPassphraseRequired");
     }
   }
 
@@ -1818,7 +1785,7 @@ export function validate(form: FormState, context: ValidationContext): FormError
     context.initialAuth !== "password" &&
     !(form.passwordTouched && form.password !== "")
   ) {
-    errors.password = TEXT.passwordRequired;
+    errors.password = t("editor.errorPasswordRequired");
   }
 
   return errors;

@@ -14,6 +14,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import type { EffectiveConnection, ResolvedField, TreeNode } from "@/lib/ipc";
+import { withoutBidi } from "@/test/bidi";
 
 import { Inspector } from "./Inspector";
 
@@ -86,7 +87,11 @@ describe("the resolved username", () => {
 
     expect(screen.getByText("username")).toBeInTheDocument();
     expect(screen.getByText("svc-deploy")).toBeInTheDocument();
-    expect(screen.getByText("from Datacentre EU-West")).toBeInTheDocument();
+    // The folder name is user data and is bidi-isolated on the way into the
+    // sentence, so the match has to see past two invisible characters.
+    expect(
+      screen.getByText("from Datacentre EU-West", { normalizer: withoutBidi }),
+    ).toBeInTheDocument();
   });
 });
 

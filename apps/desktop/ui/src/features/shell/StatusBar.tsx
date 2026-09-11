@@ -11,17 +11,9 @@
 import { Icon } from "@/components/Icon";
 import { SessionStatus } from "@/features/sessions";
 import type { SessionRecord } from "@/features/sessions";
+import { isolate, isolateChain, isolateLtr, useT } from "@/i18n";
 import type { EffectiveConnection, IpcFailure, TreeNode } from "@/lib/ipc";
 import s from "./StatusBar.module.css";
-
-const TEXT = {
-  nothingSelected: "Nothing selected",
-  noSession: "No session",
-  resolving: "Resolving inherited values…",
-  unresolved: "Effective values have not been resolved yet",
-  protocolUnset: "no protocol",
-  showDetail: "Show the failure in the inspector",
-} as const;
 
 interface StatusBarProps {
   /**
@@ -56,6 +48,9 @@ export function StatusBar({
   error = null,
   onShowDetail = null,
 }: StatusBarProps) {
+  const t = useT("shell");
+  const tCommon = useT("common");
+
   if (session !== undefined) {
     return (
       <div className={s.bar} role="status">
@@ -68,7 +63,7 @@ export function StatusBar({
     return (
       <div className={s.bar} role="status">
         <span className={s.dot} data-state="idle" aria-hidden="true" />
-        <span className={s.state}>{TEXT.nothingSelected}</span>
+        <span className={s.state}>{t("statusBar.nothingSelected")}</span>
       </div>
     );
   }
@@ -76,26 +71,31 @@ export function StatusBar({
   const host = field(effective, "host") ?? node.host;
   const port = field(effective, "port") ?? (node.port === null ? null : String(node.port));
   const username = field(effective, "username") ?? node.username;
-  const protocol = effective?.protocol ?? node.protocol ?? TEXT.protocolUnset;
+  const protocol = effective?.protocol ?? node.protocol ?? t("statusBar.protocolUnset");
+  // An address is LTR by specification whatever characters it contains, and a
+  // jump-host chain reads in the order it is written. Both are isolated so an
+  // Arabic interface — or one Arabic character inside a hostname — cannot
+  // reorder them. See src/i18n/bidi.ts.
   const address = host === null ? null : port === null ? host : `${host}:${port}`;
   const hops = effective?.gatewayChain ?? [];
+  const hopChain = isolateChain(hops, tCommon("punctuation.chainSeparator"));
 
   return (
     <div className={s.bar} role="status">
       <span className={s.dot} data-state="idle" aria-hidden="true" />
-      <span className={s.state}>{TEXT.noSession}</span>
+      <span className={s.state}>{t("statusBar.noSession")}</span>
 
       <span className={s.sep} aria-hidden="true">
         ·
       </span>
-      <span className={s.mono}>{protocol}</span>
+      <span className={s.mono}>{isolateLtr(protocol)}</span>
 
       {address !== null && (
         <>
           <span className={s.sep} aria-hidden="true">
             ·
           </span>
-          <span className={s.mono}>{address}</span>
+          <span className={s.mono}>{isolateLtr(address)}</span>
         </>
       )}
 
@@ -104,7 +104,7 @@ export function StatusBar({
           <span className={s.sep} aria-hidden="true">
             ·
           </span>
-          <span className={s.mono}>{username}</span>
+          <span className={s.mono}>{isolate(username)}</span>
         </>
       )}
 
@@ -113,9 +113,9 @@ export function StatusBar({
           <span className={s.sep} aria-hidden="true">
             ·
           </span>
-          <span className={s.hops} title={hops.join(" → ")}>
+          <span className={s.hops} title={hopChain}>
             <Icon name="shield" size={12} />
-            <span className={s.mono}>{hops.join(" → ")}</span>
+            <span className={s.mono}>{hopChain}</span>
           </span>
         </>
       )}
@@ -129,14 +129,14 @@ export function StatusBar({
           <span className={s.failureText}>{error.message}</span>
           {onShowDetail !== null && (
             <button type="button" className={s.failureLink} onClick={onShowDetail}>
-              {TEXT.showDetail}
+              {t("statusBar.showDetail")}
             </button>
           )}
         </span>
       ) : resolving ? (
-        <span className={s.note}>{TEXT.resolving}</span>
+        <span className={s.note}>{t("statusBar.resolving")}</span>
       ) : effective === undefined ? (
-        <span className={s.note}>{TEXT.unresolved}</span>
+        <span className={s.note}>{t("statusBar.unresolved")}</span>
       ) : null}
     </div>
   );

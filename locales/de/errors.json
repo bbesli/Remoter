@@ -1,0 +1,690 @@
+{
+  "_comment_file": "Every failure the core can hand the interface, keyed by the stable `code` on `IpcError` (crates/remoter-ipc/src/error.rs). The code is the join: the core sends a code, a sentence, an optional diagnostic and an ordered list of next actions, and this file supplies the sentence and the actions in the reader's language. A code with no entry here is not broken — the core's own English is rendered instead, which is what a failure newly added in Rust should look like until it is translated. Four rules for anyone editing this file. (1) `actions` is positional: the order is the order the core offered, and a label is used only when the entry has one at that position. (2) No sentence here may quote a password, a passphrase, a key or any other secret — a failure is the one moment an implementation is tempted to say what it was given. (3) The sentences carry no placeholders. The core fills its own sentence with the specifics (a path, a slot number, a byte offset) and those cannot be recovered from the finished string, so each sentence here is written to stay true without them; an English reader is shown the core's own sentence, specifics and all, and every other language is shown this one. (4) A message says what failed and what the reader can do about it. 'An error occurred' is never an acceptable translation of anything below.",
+  "unknown": {
+    "_comment_": "Not a code the core sends: `asFailure` in apps/desktop/ui/src/lib/ipc.ts uses it when a rejection arrives with no shape at all — a panic inside a command, or a transport failure below Tauri. It is the last sentence in the application and should never be reached.",
+    "message": "Etwas ist schiefgelaufen."
+  },
+  "vault": {
+    "locked": {
+      "message": "Es ist kein Tresor geöffnet. Entsperren Sie einen, um Ihre Verbindungen zu sehen.",
+      "actions": [
+        "Einen Tresor entsperren"
+      ]
+    },
+    "auto-locked": {
+      "message": "Der Tresor hat sich nach der von Ihnen eingestellten Leerlaufzeit selbst gesperrt. Entsperren Sie ihn, um fortzufahren.",
+      "actions": [
+        "Tresor entsperren",
+        "Zeitlimit in den Einstellungen ändern"
+      ]
+    },
+    "locked-by-trigger": {
+      "message": "Der Tresor hat sich selbst gesperrt, weil ein Ereignis eingetreten ist, bei dem Sie sperren lassen. Entsperren Sie ihn, um fortzufahren.",
+      "actions": [
+        "Tresor entsperren",
+        "In den Tresoreinstellungen ändern, was ihn sperrt"
+      ]
+    },
+    "_comment_unlock-failed": "SECURITY-CRITICAL. This sentence must not say which factor was wrong, and a translation must not add that either: before a key slot has unwrapped the master key, naming the password or the key file as the wrong one tells an attacker which half they have already guessed. See the module docs in crates/remoter-ipc/src/error.rs.",
+    "unlock-failed": {
+      "message": "Damit wurde der Tresor nicht entsperrt.",
+      "actions": [
+        "Erneut versuchen",
+        "Die Schlüsseldatei prüfen, falls dieser Tresor eine verwendet",
+        "Wiederherstellungsschlüssel verwenden"
+      ]
+    },
+    "header-tampered": {
+      "message": "Der Header dieses Tresors wurde seit dem Schreiben verändert, daher ist seinem Inhalt nicht zu trauen.",
+      "actions": [
+        "Eine Sicherung neben dem Tresor öffnen",
+        "Prüfen, ob ein Sync-Client die Datei neu geschrieben hat"
+      ]
+    },
+    "body-corrupt": {
+      "message": "Der Inhalt dieses Tresors konnte nicht entschlüsselt werden. Die Datei ist beschädigt.",
+      "actions": [
+        "Eine Sicherung neben dem Tresor öffnen",
+        "Das Laufwerk prüfen, auf dem der Tresor liegt"
+      ]
+    },
+    "no-such-method": {
+      "message": "Dieser Tresor bietet diese Entsperrmethode nicht an.",
+      "actions": [
+        "Eine der Methoden wählen, die dieser Tresor anbietet"
+      ]
+    },
+    "_comment_fido2-unsupported": "The core sends this code both when a hardware key is offered as a way in and when one is added as a key slot, so the sentence has to stay true of both.",
+    "fido2-unsupported": {
+      "message": "Das Entsperren mit einem Hardware-Schlüssel ist in dieser Version von Remoter nicht umgesetzt.",
+      "actions": [
+        "Ein Passwort oder den Wiederherstellungsschlüssel verwenden"
+      ]
+    },
+    "not-a-vault": {
+      "message": "Diese Datei ist kein Remoter-Tresor.",
+      "actions": [
+        "Eine .rvault-Datei wählen",
+        "Einen neuen Tresor erstellen"
+      ]
+    },
+    "unsupported-format": {
+      "message": "Dieser Tresor verwendet eine Tresorformat-Version, die dieser Build von Remoter nicht liest.",
+      "actions": [
+        "Remoter aktualisieren",
+        "Den Tresor auf dem Rechner öffnen, der ihn geschrieben hat"
+      ]
+    },
+    "corrupt": {
+      "message": "Dieser Tresor ist beschädigt: Seine Struktur konnte nicht gelesen werden.",
+      "actions": [
+        "Eine Sicherung neben dem Tresor öffnen"
+      ]
+    },
+    "corrupt-row": {
+      "message": "Dieser Tresor enthält einen Datensatz, den dieser Build von Remoter nicht lesen kann.",
+      "actions": [
+        "Eine Sicherung neben dem Tresor öffnen",
+        "Remoter aktualisieren"
+      ]
+    },
+    "header-encode": {
+      "message": "Der Header für diesen Tresor konnte nicht kodiert werden, daher wurde er nicht geschrieben.",
+      "actions": [
+        "Dies melden — der Tresor auf der Festplatte ist unverändert"
+      ]
+    },
+    "crypto": {
+      "message": "Ein kryptografischer Schritt an diesem Tresor ist fehlgeschlagen, daher wurde der Vorgang abgebrochen.",
+      "actions": [
+        "Erneut versuchen",
+        "Melden, falls es bestehen bleibt"
+      ]
+    },
+    "kdf-too-weak": {
+      "message": "Diese Argon2id-Parameter liegen unter der Untergrenze, die Remoter akzeptiert, und ein schwächerer Tresor ist kein akzeptabler Tausch für ein schnelleres Entsperren.",
+      "actions": [
+        "Die kalibrierten Parameter verwenden"
+      ]
+    },
+    "kdf-params-refused": {
+      "message": "Dieser Tresor gibt Argon2id-Parameter an, die über allem liegen, was dieser Build versucht. Es wurde nichts abgeleitet.",
+      "actions": [
+        "Den Tresor auf dem Rechner öffnen, der ihn geschrieben hat",
+        "Remoter aktualisieren",
+        "Eine Sicherung neben dem Tresor öffnen"
+      ]
+    },
+    "no-such-slot": {
+      "message": "Dieser Tresor hat keinen solchen Schlüsselslot.",
+      "actions": [
+        "Slot-Liste neu laden"
+      ]
+    },
+    "no-slot-of-kind": {
+      "message": "Dieser Tresor hat keinen Slot dieser Art.",
+      "actions": [
+        "Diese Entsperrmethode zuerst hinzufügen"
+      ]
+    },
+    "slot-table-full": {
+      "message": "Dieser Tresor enthält bereits die höchstmögliche Anzahl an Schlüsselslots.",
+      "actions": [
+        "Eine Entsperrmethode entfernen, die Sie nicht mehr nutzen"
+      ]
+    },
+    "last-slot": {
+      "message": "Das ist der einzige Weg in diesen Tresor; ihn zu entfernen würde Sie dauerhaft aussperren.",
+      "actions": [
+        "Zuerst eine weitere Entsperrmethode hinzufügen"
+      ]
+    },
+    "wrong-slot-kind": {
+      "message": "Dieser Schlüsselslot ist von anderer Art, daher gilt der Vorgang nicht für ihn.",
+      "actions": [
+        "Slot-Liste neu laden",
+        "Einen Slot der richtigen Art wählen"
+      ]
+    },
+    "slot-credential-missing": {
+      "message": "Dieser Schlüsselslot kann ohne sein Passwort nicht neu verpackt werden, und ihn stillschweigend fallen zu lassen würde jemandem den Weg hinein nehmen. Es wurde nichts geändert.",
+      "actions": [
+        "Das Passwort für diesen Slot eingeben",
+        "Diesen Slot bewusst aus der Rotation nehmen"
+      ]
+    },
+    "slot-credential-rejected": {
+      "message": "Damit lässt sich der Schlüsselslot nicht öffnen, daher blieb der Slot genau so, wie er war.",
+      "actions": [
+        "Erneut versuchen",
+        "Die Schlüsseldatei prüfen, falls dieser Slot eine verwendet",
+        "Wiederherstellungsschlüssel verwenden"
+      ]
+    },
+    "keychain": {
+      "message": "Der Anmeldedatenspeicher dieses Rechners ist nicht verfügbar oder enthält kein Token für diesen Tresor.",
+      "actions": [
+        "Mit Ihrem Passwort entsperren",
+        "Dieses Gerät danach neu registrieren"
+      ]
+    },
+    "recovery-key-malformed": {
+      "message": "Das ist kein Wiederherstellungsschlüssel: Ein Wiederherstellungsschlüssel besteht aus vierzehn Gruppen zu je vier Zeichen.",
+      "actions": [
+        "Prüfen, ob Sie den ganzen Schlüssel eingefügt haben"
+      ]
+    },
+    "recovery-key-checksum": {
+      "message": "Dieser Wiederherstellungsschlüssel sieht vertippt aus — seine Prüfgruppe passt nicht zum Rest.",
+      "actions": [
+        "Mit der gespeicherten Kopie vergleichen",
+        "Erneut versuchen"
+      ]
+    },
+    "keyfile": {
+      "message": "Die Schlüsseldatei konnte nicht gelesen werden.",
+      "actions": [
+        "Prüfen, ob die Datei dort liegt, wo sie beim Erstellen des Tresors lag",
+        "Das Laufwerk einhängen, auf dem sie liegt"
+      ]
+    },
+    "database": {
+      "message": "Die Datenbank in diesem Tresor hat den Vorgang abgelehnt.",
+      "actions": [
+        "Erneut versuchen",
+        "Eine Sicherung neben dem Tresor öffnen"
+      ]
+    },
+    "schema-too-new": {
+      "message": "Dieser Tresor wurde von einer neueren Version von Remoter geschrieben: Seine Schemaversion versteht dieser Build nicht.",
+      "actions": [
+        "Remoter aktualisieren"
+      ]
+    },
+    "migration-failed": {
+      "message": "Dieser Tresor konnte nicht auf das neuere Schema migriert werden; die Datei blieb, wie sie war.",
+      "actions": [
+        "Eine Sicherung neben dem Tresor öffnen",
+        "Dies melden"
+      ]
+    }
+  },
+  "request": {
+    "invalid": {
+      "_comment_": "A bug in the interface, not something the reader did: the frontend sent the core a field it cannot read. Keep the sentence blameless and keep the action pointing at a bug report.",
+      "message": "Ein Wert in dieser Anfrage ist nicht verwendbar.",
+      "actions": [
+        "Dies melden — die Oberfläche hat etwas gesendet, das der Kern nicht lesen kann"
+      ]
+    }
+  },
+  "path": {
+    "unusable": {
+      "message": "Dieser Ort kann nicht verwendet werden.",
+      "actions": [
+        "Einen anderen Ort wählen"
+      ]
+    }
+  },
+  "io": {
+    "failed": {
+      "message": "Diese Datei konnte nicht gelesen oder geschrieben werden.",
+      "actions": [
+        "Prüfen, ob der Pfad existiert und beschreibbar ist",
+        "Einen anderen Ort wählen"
+      ]
+    }
+  },
+  "system": {
+    "csprng": {
+      "message": "Der Zufallszahlengenerator des Betriebssystems ist nicht verfügbar, daher kann nichts Zufälliges sicher erzeugt werden.",
+      "actions": [
+        "Remoter neu starten",
+        "Melden, falls es bestehen bleibt"
+      ]
+    }
+  },
+  "key": {
+    "not-a-private-key": {
+      "message": "Diese Datei ist kein privater Schlüssel. Ein öffentlicher Schlüssel, ein Zertifikat oder eine unbeteiligte Datei kann eine Verbindung nicht authentifizieren.",
+      "actions": [
+        "Den privaten Schlüssel wählen statt seines .pub-Gegenstücks",
+        "Stattdessen den SSH-Agenten der Plattform verwenden"
+      ]
+    },
+    "_comment_unsupported-format": "The first action quotes a command. Translate the sentence around it if there is one; never translate the command itself, and keep its flags exactly as they are.",
+    "unsupported-format": {
+      "message": "Dieser Schlüssel liegt in einem Format vor, das dieser Build nicht speichert. Es wurde nichts geschrieben.",
+      "actions": [
+        "Mit `ssh-keygen -p -m PKCS8 -f <file>` umwandeln",
+        "Stattdessen den SSH-Agenten der Plattform verwenden"
+      ]
+    }
+  },
+  "credential": {
+    "not-a-private-key": {
+      "message": "Dieses Element ist keine Anmeldedaten mit privatem Schlüssel, also gibt es daran keinen Schlüssel zum Lesen oder Ersetzen.",
+      "actions": [
+        "Anmeldedaten auswählen",
+        "Zuerst eine Schlüsseldatei dafür wählen"
+      ]
+    },
+    "purpose-refused": {
+      "message": "Diese Anmeldedaten sind eingeschränkt und dürfen nicht auf diese Weise verwendet werden.",
+      "actions": [
+        "Andere Anmeldedaten wählen",
+        "Die Einschränkung der Anmeldedaten erweitern"
+      ]
+    }
+  },
+  "node": {
+    "_comment_not-found": "Sent both for an item missing from the vault and for one missing from the tree on screen. Either way the item is gone and the tree on screen is stale, which is what the sentence says.",
+    "not-found": {
+      "message": "Dieses Element ist nicht mehr im Baum; es wurde wahrscheinlich in einem anderen Fenster gelöscht.",
+      "actions": [
+        "Baum neu laden"
+      ]
+    },
+    "parent-not-found": {
+      "message": "Der Ordner, in den Sie das abgelegt haben, existiert nicht mehr.",
+      "actions": [
+        "Baum neu laden",
+        "Einen anderen Ordner wählen"
+      ]
+    },
+    "duplicate": {
+      "message": "Ein Element mit dieser Kennung ist bereits im Baum.",
+      "actions": [
+        "Baum neu laden"
+      ]
+    },
+    "not-a-container": {
+      "message": "Nur Ordner können andere Elemente enthalten.",
+      "actions": [
+        "In einen Ordner ablegen",
+        "Auf oberster Ebene ablegen"
+      ]
+    },
+    "cycle": {
+      "message": "Ein Ordner kann nicht in sich selbst verschoben werden.",
+      "actions": [
+        "Ein Ziel außerhalb dieses Ordners wählen"
+      ]
+    },
+    "too-deep": {
+      "message": "Dieses Verschieben würde den Baum tiefer verschachteln, als die Grenze erlaubt.",
+      "actions": [
+        "Näher an die oberste Ebene verschieben",
+        "Die Ordner darüber flacher machen"
+      ]
+    },
+    "parent-changed": {
+      "message": "Eine Bearbeitung kann ein Element nicht umhängen; verschieben Sie es stattdessen.",
+      "actions": [
+        "In den neuen Ordner ziehen"
+      ]
+    },
+    "not-a-connection": {
+      "message": "Nur Verbindungen haben aufgelöste Einstellungen zum Anzeigen.",
+      "actions": [
+        "Eine Verbindung auswählen"
+      ]
+    }
+  },
+  "tree": {
+    "corrupt": {
+      "message": "Der Elementbaum in diesem Tresor endet nicht: Eine Elternkette läuft im Kreis.",
+      "actions": [
+        "Eine Sicherung neben dem Tresor öffnen",
+        "Dies melden"
+      ]
+    }
+  },
+  "secret": {
+    "not-found": {
+      "message": "Für diese Anmeldedaten ist kein solches Geheimnis gespeichert.",
+      "actions": [
+        "Jetzt eingeben",
+        "Andere Anmeldedaten wählen"
+      ]
+    },
+    "stale": {
+      "message": "Das gespeicherte Geheimnis passt nicht zur aktuellen Fassung seines Datensatzes und wurde daher abgelehnt statt verwendet.",
+      "actions": [
+        "Das Geheimnis erneut eingeben",
+        "Eine Sicherung neben dem Tresor öffnen"
+      ]
+    }
+  },
+  "import": {
+    "too-large": {
+      "message": "Diese Datei ist größer, als dieser Build liest. Es wurde nichts geparst.",
+      "actions": [
+        "Die Datei aufteilen",
+        "Die Teile einzeln importieren"
+      ]
+    },
+    "not-utf8": {
+      "message": "Diese Datei ist kein UTF-8-Text.",
+      "actions": [
+        "Die Datei als UTF-8 neu speichern",
+        "Prüfen, ob das die Datei ist, die Sie wählen wollten"
+      ]
+    },
+    "malformed-xml": {
+      "message": "Diese Datei ist kein wohlgeformtes XML.",
+      "actions": [
+        "Die Datei erneut aus der Anwendung exportieren, die sie geschrieben hat",
+        "Prüfen, ob das die Datei ist, die Sie wählen wollten"
+      ]
+    },
+    "doctype-refused": {
+      "message": "Diese Datei trägt eine Dokumenttyp-Deklaration, deren Verarbeitung Remoter verweigert: So bringt man eine XML-Datei dazu, andere Dateien auf diesem Rechner zu lesen.",
+      "actions": [
+        "Die DOCTYPE-Zeile entfernen und erneut versuchen",
+        "Die Datei erneut aus der Anwendung exportieren, die sie geschrieben hat"
+      ]
+    },
+    "entity-refused": {
+      "message": "Diese Datei definiert eigene XML-Entitäten, deren Auflösung Remoter verweigert: So sieht eine Datei aus, die geschrieben wurde, um den Speicher zu erschöpfen.",
+      "actions": [
+        "Die Datei erneut aus der Anwendung exportieren, die sie geschrieben hat"
+      ]
+    },
+    "too-deep": {
+      "message": "Diese Datei verschachtelt Ordner tiefer, als dieser Build liest.",
+      "actions": [
+        "Die tiefsten Ordner in der Quellanwendung flacher machen"
+      ]
+    },
+    "too-many-items": {
+      "message": "Diese Datei enthält mehr Elemente, als dieser Build liest.",
+      "actions": [
+        "Die Datei aufteilen",
+        "Die Teile einzeln importieren"
+      ]
+    },
+    "value-too-long": {
+      "message": "Diese Datei enthält einen Wert, der länger ist, als dieser Build liest.",
+      "actions": [
+        "In der Quellanwendung kürzen, dann erneut exportieren"
+      ]
+    },
+    "truncated": {
+      "message": "Diese Datei endet mitten in einem Datensatz: Die Datei ist unvollständig.",
+      "actions": [
+        "Die Datei erneut von dort kopieren, wo sie herkam",
+        "Sie erneut aus der Anwendung exportieren, die sie geschrieben hat"
+      ]
+    },
+    "wrong-format": {
+      "message": "Diese Datei ist nicht das, was dieser Importer liest.",
+      "actions": [
+        "Das Quellformat selbst wählen",
+        "Eine andere Datei wählen"
+      ]
+    },
+    "password-required": {
+      "message": "Diese Datei ist verschlüsselt und braucht ihr Dokumentpasswort, um gelesen zu werden.",
+      "actions": [
+        "Das Dokumentpasswort eingeben",
+        "Eine andere Datei wählen"
+      ]
+    },
+    "wrong-password": {
+      "message": "Das ist nicht das Passwort, mit dem die Datei verschlüsselt wurde.",
+      "actions": [
+        "Erneut versuchen",
+        "Prüfen, ob die Datei das Standardpasswort der Quellanwendung verwendet"
+      ]
+    },
+    "unsupported-cipher": {
+      "message": "Diese Datei ist mit einem Verfahren verschlüsselt, das Remoter nicht lesen kann.",
+      "actions": [
+        "Die Datei erneut ohne Verschlüsselung exportieren, dann importieren",
+        "Sie aus einer neueren Version der Quellanwendung neu speichern"
+      ]
+    },
+    "malformed-ciphertext": {
+      "message": "Der verschlüsselte Teil dieser Datei ist beschädigt: Er entschlüsselt zu nichts Brauchbarem.",
+      "actions": [
+        "Die Datei erneut von dort kopieren, wo sie herkam",
+        "Sie erneut aus der Anwendung exportieren, die sie geschrieben hat"
+      ]
+    },
+    "too-many-nodes": {
+      "message": "Diese Datei würde mehr Elemente anlegen, als die Grenze erlaubt.",
+      "actions": [
+        "Die Datei aufteilen",
+        "Die Teile einzeln importieren"
+      ]
+    },
+    "missing-column": {
+      "message": "Dieser Datei fehlt eine Spalte, die der Importer braucht.",
+      "actions": [
+        "Die Spaltenüberschrift hinzufügen und erneut versuchen",
+        "Prüfen, ob die erste Zeile die Kopfzeile ist"
+      ]
+    },
+    "duplicate-column": {
+      "message": "Diese Datei benennt eine Spalte zweimal, daher ist nicht entscheidbar, welche den Wert enthält.",
+      "actions": [
+        "Die wiederholte Spalte entfernen oder umbenennen"
+      ]
+    },
+    "read-failed": {
+      "message": "Eine Datei konnte beim Verfolgen eines Includes nicht gelesen werden.",
+      "actions": [
+        "Prüfen, ob die Datei existiert und lesbar ist",
+        "Die Include-Zeile entfernen und erneut importieren"
+      ]
+    },
+    "include-too-deep": {
+      "message": "Diese Datei bindet Dateien tiefer ein, als dieser Build verfolgt.",
+      "actions": [
+        "Die Include-Kette flacher machen und erneut importieren"
+      ]
+    },
+    "failed": {
+      "message": "Diese Datei konnte nicht importiert werden.",
+      "actions": [
+        "Eine andere Datei wählen",
+        "Dies melden"
+      ]
+    }
+  },
+  "validation": {
+    "_comment_file": "The reader's own input being wrong. Each sentence names the rule rather than the value, because the core has already put the value in the sentence it sends and this one has to read correctly without it.",
+    "name-empty": {
+      "message": "Dieses Element braucht einen Namen.",
+      "actions": [
+        "Einen Namen eingeben"
+      ]
+    },
+    "name-too-long": {
+      "message": "Dieser Name ist länger als die Grenze.",
+      "actions": [
+        "Den Namen kürzen"
+      ]
+    },
+    "control-char": {
+      "message": "Dieser Wert enthält Steuerzeichen, die nicht gespeichert werden können.",
+      "actions": [
+        "Neu eintippen",
+        "Als reinen Text einfügen"
+      ]
+    },
+    "description-too-long": {
+      "message": "Diese Beschreibung ist länger als die Grenze.",
+      "actions": [
+        "Die Beschreibung kürzen"
+      ]
+    },
+    "host-empty": {
+      "message": "Diese Verbindung hat keine Adresse. Fügen Sie einen Hostnamen oder eine IP-Adresse hinzu.",
+      "actions": [
+        "Einen Hostnamen oder eine IP-Adresse eingeben"
+      ]
+    },
+    "host-invalid": {
+      "message": "Das ist weder ein Hostname noch eine IPv4-Adresse noch eine IPv6-Adresse in eckigen Klammern.",
+      "actions": [
+        "Die Schreibweise prüfen",
+        "Eine IPv6-Adresse in [eckige Klammern] setzen"
+      ]
+    },
+    "port": {
+      "message": "Ein Port muss zwischen 1 und 65535 liegen.",
+      "actions": [
+        "Einen Port im gültigen Bereich eingeben",
+        "Leer lassen, um den Standard des Protokolls zu verwenden"
+      ]
+    },
+    "tag": {
+      "message": "Das ist kein verwendbares Schlagwort.",
+      "actions": [
+        "Buchstaben, Ziffern, Bindestriche und Punkte verwenden"
+      ]
+    },
+    "protocol": {
+      "message": "Das ist kein Protokoll, das Remoter kennt.",
+      "actions": [
+        "Ein Protokoll aus der Liste wählen"
+      ]
+    },
+    "setting-key": {
+      "message": "Das ist kein verwendbarer Name für eine Protokolleinstellung.",
+      "actions": [
+        "Buchstaben, Ziffern, Bindestriche und Punkte verwenden"
+      ]
+    },
+    "custom-field-key": {
+      "message": "Das ist kein verwendbarer Name für ein eigenes Feld.",
+      "actions": [
+        "Buchstaben, Ziffern, Bindestriche und Punkte verwenden"
+      ]
+    },
+    "_comment_colour": "The two patterns are syntax, not words: leave #rrggbb and #rrggbbaa exactly as they are in every language.",
+    "colour": {
+      "message": "Das ist keine Farbe; erwartet wurde #rrggbb oder #rrggbbaa.",
+      "actions": [
+        "Eine Farbe aus den Feldern wählen"
+      ]
+    },
+    "icon": {
+      "message": "Diese Symbolangabe ist leer oder enthält Steuerzeichen.",
+      "actions": [
+        "Ein Symbol aus der Liste wählen"
+      ]
+    },
+    "gateway-too-long": {
+      "message": "Diese Gateway-Kette hat mehr Sprünge, als die Grenze erlaubt.",
+      "actions": [
+        "Einen Sprung entfernen"
+      ]
+    },
+    "gateway-cycle": {
+      "message": "Die Gateway-Kette läuft im Kreis: Ein Host kommt zweimal vor.",
+      "actions": [
+        "Den wiederholten Sprung entfernen"
+      ]
+    },
+    "gateway-hop-unknown": {
+      "message": "Einer der Gateway-Sprünge zeigt auf ein Element, das nicht mehr in diesem Tresor ist.",
+      "actions": [
+        "Ein anderes Gateway wählen",
+        "Direkt verbinden"
+      ]
+    },
+    "gateway-hop-kind": {
+      "message": "Ein Gateway-Sprung muss eine Verbindung sein; ein Ordner kann keinen Verkehr weiterleiten.",
+      "actions": [
+        "Eine Verbindung als Gateway wählen"
+      ]
+    },
+    "credential-unknown": {
+      "message": "Die hier verwendeten Anmeldedaten wurden gelöscht. Wählen Sie andere oder geben Sie jetzt welche ein.",
+      "actions": [
+        "Andere Anmeldedaten wählen",
+        "Jetzt welche eingeben"
+      ]
+    },
+    "credential-kind": {
+      "message": "Dieses Element sind keine Anmeldedaten.",
+      "actions": [
+        "Anmeldedaten wählen"
+      ]
+    },
+    "credential-attached": {
+      "message": "Diese Anmeldedaten gehören zu einer anderen Verbindung. Sie zu teilen hieße, dass eine Änderung an einer Stelle die andere mit ändert.",
+      "actions": [
+        "Geteilte Anmeldedaten wählen",
+        "Stattdessen hier Benutzernamen und Passwort eingeben"
+      ]
+    },
+    "credential-attachment": {
+      "message": "Anmeldedaten in diesem Tresor gehören zu einer Verbindung, die es nicht gibt. Es wurde nichts geändert.",
+      "actions": [
+        "Tresor neu laden",
+        "Aus einer Sicherung wiederherstellen"
+      ]
+    },
+    "credential-purpose": {
+      "message": "Diese Anmeldedaten sind eingeschränkt und können für dieses Protokoll nicht verwendet werden.",
+      "actions": [
+        "Andere Anmeldedaten wählen",
+        "Die Einschränkung der Anmeldedaten erweitern"
+      ]
+    },
+    "username-too-long": {
+      "message": "Dieser Benutzername ist länger als die Grenze.",
+      "actions": [
+        "Den Benutzernamen kürzen"
+      ]
+    },
+    "external-credential": {
+      "message": "Externe Anmeldedaten brauchen sowohl einen Anbieter als auch eine Referenz.",
+      "actions": [
+        "Beide Felder ausfüllen"
+      ]
+    },
+    "secret-empty": {
+      "message": "Anmeldedaten brauchen ein Geheimnis; ein leerer Umschlag sind keine Anmeldedaten.",
+      "actions": [
+        "Ein Passwort eingeben",
+        "Eine Schlüsseldatei wählen"
+      ]
+    },
+    "layout": {
+      "message": "Ein Rasterlayout braucht mindestens eine Zeile und eine Spalte.",
+      "actions": [
+        "Zeilen und Spalten auf 1 oder mehr setzen"
+      ]
+    },
+    "group-member": {
+      "message": "Eines der Mitglieder dieser Gruppe ist nicht mehr im Tresor.",
+      "actions": [
+        "Das fehlende Mitglied entfernen"
+      ]
+    },
+    "empty-action": {
+      "message": "Eine Verbindungs- oder Trennaktion kann keine leere Zeile sein.",
+      "actions": [
+        "Die leere Zeile entfernen"
+      ]
+    },
+    "reconnect-policy": {
+      "message": "Automatisches Neuverbinden braucht mindestens einen Versuch und eine Wartezeit, die nicht schrumpft.",
+      "actions": [
+        "Die maximale Wartezeit auf oder über die erste setzen"
+      ]
+    },
+    "interval": {
+      "message": "Zeitlimits und Keep-alive-Intervalle müssen größer als null sein.",
+      "actions": [
+        "Eine positive Zahl eingeben",
+        "Das Feld leeren, um den Wert zu erben"
+      ]
+    }
+  }
+}

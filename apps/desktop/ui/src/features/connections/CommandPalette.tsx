@@ -32,6 +32,7 @@ import { FailureNotice } from "@/components/FailureNotice";
 import { Icon, type IconName } from "@/components/Icon";
 import { Spinner } from "@/components/Spinner";
 import { TextInput } from "@/components/TextInput";
+import { isolate, useT } from "@/i18n";
 import { asFailure, ipc, type SearchHit } from "@/lib/ipc";
 import { qk } from "@/lib/queryKeys";
 import { useApp } from "@/stores/app";
@@ -48,42 +49,6 @@ import { ConnectionEditor, useConnectionEditor } from "./ConnectionEditor";
 import { useFocusTrap } from "./focusTrap";
 import { nodeGlyph, protocolClass } from "./NodeRow";
 import s from "./CommandPalette.module.css";
-
-const TEXT = {
-  label: "Command palette",
-  placeholder: "Search connections, or type a command…",
-  inputLabel: "Search connections",
-  groupConnections: "Connections",
-  groupActions: "Actions",
-  searching: "Searching…",
-  searchFailed: "The search did not run",
-  noResults: (q: string) => `Nothing matches “${q}”.`,
-  count: (shown: number, total: number) => `${shown} of ${total}`,
-  /*
-   * A total that has not arrived, or could not be read, is not zero. "3 of 0"
-   * is a wrong number stated with confidence, so these say only what is known.
-   */
-  countPending: (shown: number) => `${shown} of …`,
-  countUnknown: (shown: number) => `${shown} shown`,
-  countFailed: "The connection count could not be read",
-  retry: "Try again",
-  /* Enter opens a session on a connection; on a folder or a credential there
-     is nothing to connect to, so it selects instead. */
-  hintSelect: "connect · select",
-  hintEdit: "edit",
-  hintFilter: "filter",
-  assurance: "Secrets are never searched",
-  lockVault: "Lock vault",
-  locking: "Locking the vault…",
-  newConnection: "New connection",
-  newFolder: "New folder",
-  settings: "Settings",
-  vaultSettings: "Vault settings",
-  audit: "Audit log",
-  importer: "Import connections",
-  lockFailed: "The vault was not locked",
-  refining: "Narrowing the results…",
-} as const;
 
 /** The prefix filters the core understands, offered as one-click chips. */
 const PREFIXES = ["tag:", "proto:", "host:", "user:"] as const;
@@ -171,6 +136,8 @@ export function CommandPalette() {
 }
 
 function PaletteSheet({ onClose }: { onClose: () => void }) {
+  const t = useT("connections");
+  const tCommon = useT("common");
   const select = useApp((st) => st.select);
   const go = useApp((st) => st.go);
   const openEditor = useConnectionEditor((st) => st.open);
@@ -228,18 +195,18 @@ function PaletteSheet({ onClose }: { onClose: () => void }) {
     const all: PaletteAction[] = [
       {
         id: "lock-vault",
-        label: TEXT.lockVault,
+        label: t("palette.actionLockVault"),
         glyph: "lock",
         ...(lockShortcut === undefined ? {} : { shortcut: lockShortcut }),
         run: () => lock(),
         // Locking writes and zeroises before the palette closes, so the row
         // has to stop accepting the second and third press.
         busy: locking,
-        busyLabel: TEXT.locking,
+        busyLabel: t("palette.actionLocking"),
       },
       {
         id: "new-connection",
-        label: TEXT.newConnection,
+        label: t("palette.actionNewConnection"),
         glyph: "plus",
         run: () => {
           onClose();
@@ -248,7 +215,7 @@ function PaletteSheet({ onClose }: { onClose: () => void }) {
       },
       {
         id: "new-folder",
-        label: TEXT.newFolder,
+        label: t("palette.actionNewFolder"),
         glyph: "folder",
         run: () => {
           onClose();
@@ -257,7 +224,7 @@ function PaletteSheet({ onClose }: { onClose: () => void }) {
       },
       {
         id: "import",
-        label: TEXT.importer,
+        label: t("palette.actionImport"),
         glyph: "download",
         run: () => {
           onClose();
@@ -266,7 +233,7 @@ function PaletteSheet({ onClose }: { onClose: () => void }) {
       },
       {
         id: "audit",
-        label: TEXT.audit,
+        label: t("palette.actionAudit"),
         glyph: "file",
         run: () => {
           onClose();
@@ -275,7 +242,7 @@ function PaletteSheet({ onClose }: { onClose: () => void }) {
       },
       {
         id: "vault-settings",
-        label: TEXT.vaultSettings,
+        label: t("palette.actionVaultSettings"),
         glyph: "shield",
         run: () => {
           onClose();
@@ -284,7 +251,7 @@ function PaletteSheet({ onClose }: { onClose: () => void }) {
       },
       {
         id: "settings",
-        label: TEXT.settings,
+        label: t("palette.actionSettings"),
         glyph: "settings",
         run: () => {
           onClose();
@@ -297,7 +264,7 @@ function PaletteSheet({ onClose }: { onClose: () => void }) {
     if (PREFIXES.some((p) => needle.startsWith(p))) return [];
     if (needle === "") return all;
     return all.filter((a) => a.label.toLowerCase().includes(needle));
-  }, [query, lock, locking, lockShortcut, onClose, openEditor, go]);
+  }, [query, lock, locking, lockShortcut, onClose, openEditor, go, t]);
 
   const items = useMemo<Item[]>(
     () => [
@@ -378,10 +345,10 @@ function PaletteSheet({ onClose }: { onClose: () => void }) {
           : null;
   const failureTitle =
     searchQuery.error !== null
-      ? TEXT.searchFailed
+      ? t("palette.searchFailed")
       : lockMutation.error !== null
-        ? TEXT.lockFailed
-        : TEXT.countFailed;
+        ? t("palette.lockFailed")
+        : t("palette.countFailed");
   const retryFailed =
     searchQuery.error !== null
       ? () => void searchQuery.refetch()
@@ -390,10 +357,10 @@ function PaletteSheet({ onClose }: { onClose: () => void }) {
         : undefined;
 
   const countLabel = nodesQuery.isPending
-    ? TEXT.countPending(hits.length)
+    ? t("palette.countPending", { shown: hits.length })
     : nodesQuery.error !== null
-      ? TEXT.countUnknown(hits.length)
-      : TEXT.count(hits.length, total);
+      ? t("palette.countUnknown", { count: hits.length })
+      : t("palette.count", { shown: hits.length, total });
 
   // `aria-modal` says the tree behind the sheet is inert; without a trap, Tab
   // walks straight into it and proves otherwise.
@@ -414,7 +381,7 @@ function PaletteSheet({ onClose }: { onClose: () => void }) {
         className={s.sheet}
         role="dialog"
         aria-modal="true"
-        aria-label={TEXT.label}
+        aria-label={t("palette.label")}
         tabIndex={-1}
         onKeyDown={onKeyDown}
       >
@@ -426,8 +393,8 @@ function PaletteSheet({ onClose }: { onClose: () => void }) {
             <TextInput
               value={query}
               onChange={setQuery}
-              placeholder={TEXT.placeholder}
-              ariaLabel={TEXT.inputLabel}
+              placeholder={t("palette.placeholder")}
+              ariaLabel={t("palette.inputLabel")}
               mono
               autoFocus
             />
@@ -435,27 +402,27 @@ function PaletteSheet({ onClose }: { onClose: () => void }) {
           {/* Typing re-runs the search against the core. Without this the
               counter simply sits on a stale number. */}
           {searchQuery.isFetching && !searchQuery.isPending ? (
-            <span className={s.count} title={TEXT.refining}>
-              <Spinner size={13} label={TEXT.refining} />
+            <span className={s.count} title={t("palette.refining")}>
+              <Spinner size={13} label={t("palette.refining")} />
             </span>
           ) : (
             <span
               className={s.count}
-              {...(nodesQuery.error === null ? {} : { title: TEXT.countFailed })}
+              {...(nodesQuery.error === null ? {} : { title: t("palette.countFailed") })}
             >
               {countLabel}
             </span>
           )}
         </div>
 
-        <div className={s.results} ref={listRef} role="listbox" aria-label={TEXT.label}>
+        <div className={s.results} ref={listRef} role="listbox" aria-label={t("palette.label")}>
           {failure !== null && (
             <div className={s.state}>
               <FailureNotice
                 failure={failure}
                 title={failureTitle}
                 onRetry={retryFailed}
-                retryLabel={TEXT.retry}
+                retryLabel={tCommon("action.retry")}
               />
             </div>
           )}
@@ -464,14 +431,14 @@ function PaletteSheet({ onClose }: { onClose: () => void }) {
               empty panel that reads as "nothing matches". */}
           {searchQuery.isPending && (
             <div className={s.state}>
-              <BusyStatus label={TEXT.searching} size={14} />
+              <BusyStatus label={t("palette.searching")} size={14} />
               <div className={s.stateSkeleton}>
                 <SkeletonRows count={4} height="var(--space-6)" />
               </div>
             </div>
           )}
 
-          {hits.length > 0 && <div className={s.groupLabel}>{TEXT.groupConnections}</div>}
+          {hits.length > 0 && <div className={s.groupLabel}>{t("palette.groupConnections")}</div>}
           {hits.map((hit, i) => {
             const item = items[i];
             const key = item?.key ?? `hit:${hit.node.id}`;
@@ -509,7 +476,7 @@ function PaletteSheet({ onClose }: { onClose: () => void }) {
           })}
 
           {hits.length > 0 && actions.length > 0 && <div className={s.groupRule} />}
-          {actions.length > 0 && <div className={s.groupLabel}>{TEXT.groupActions}</div>}
+          {actions.length > 0 && <div className={s.groupLabel}>{t("palette.groupActions")}</div>}
           {actions.map((action, i) => {
             const index = hits.length + i;
             const key = `act:${action.id}`;
@@ -547,16 +514,19 @@ function PaletteSheet({ onClose }: { onClose: () => void }) {
           })}
 
           {searchQuery.isSuccess && items.length === 0 && (
-            <div className={s.state}>{TEXT.noResults(query)}</div>
+            <div className={s.state}>{t("palette.noResults", { query: isolate(query) })}</div>
           )}
         </div>
 
         <div className={s.footer}>
           <span className={s.hint}>
-            <span className={s.key}>↵</span> {TEXT.hintSelect}
+            <span className={s.key}>↵</span> {t("palette.hintSelect")}
           </span>
           <span className={s.hint}>
-            <span className={s.key}>Ctrl ↵</span> {TEXT.hintEdit}
+            {/* eslint-disable-next-line remoter-i18n/no-literal-jsx-text --
+                key names. A keycap says Ctrl whatever the interface language
+                is (docs/features/i18n.md, "What is never translated"). */}
+            <span className={s.key}>Ctrl ↵</span> {t("palette.hintEdit")}
           </span>
           <span className={s.chips}>
             {PREFIXES.map((prefix) => (
@@ -569,10 +539,10 @@ function PaletteSheet({ onClose }: { onClose: () => void }) {
                 {prefix}
               </button>
             ))}
-            <span>{TEXT.hintFilter}</span>
+            <span>{t("palette.hintFilter")}</span>
           </span>
           <span className={s.footerSpacer} />
-          <span className={s.assurance}>{TEXT.assurance}</span>
+          <span className={s.assurance}>{t("palette.assurance")}</span>
         </div>
       </div>
     </div>

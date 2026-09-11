@@ -34,81 +34,27 @@
 
 import { Spinner } from "@/components/Spinner";
 import { FailureNotice } from "@/components/FailureNotice";
+import { useT } from "@/i18n";
 import type { LockTriggerObservation, LockTriggerSupport, SessionOnLock } from "@/lib/ipc";
 
-import { AUTO_LOCK_CHOICES } from "./slots";
+import { AUTO_LOCK_MINUTES, autoLockLabel } from "./slots";
 import type { VaultSectionProps, VaultSettingsField } from "./types";
 import c from "./controls.module.css";
 import s from "./AutoLockSection.module.css";
 
-const TEXT = {
-  title: "Auto-lock",
-  description:
-    "Locking zeroizes every key and cached secret and drops the in-memory database. Reopening needs a full unlock.",
-
-  idleLegend: "Lock after idle for",
-  /*
-   * This sentence used to say idle was measured from the desktop's own input
-   * idle time. It was not, and the difference cost the user real work: idle was
-   * measured from the last call that touched the vault, so typing in a terminal
-   * was not activity and the vault locked while it was being used. The
-   * measurement is fixed — session input and session output both count now —
-   * and so is the sentence, which says what is measured rather than what would
-   * be nicer to measure.
-   */
-  idleHelp:
-    "Idle means nothing has touched the vault and no session has carried traffic. Keystrokes you send and output a host sends both count, so a session you are watching but not typing into does not go idle while output keeps arriving.",
-  idleScope:
-    "Remoter does not read the desktop's own input idle time, so time spent in another application counts as idle even though you are at the keyboard.",
-  idleNever:
-    "Never means the vault stays open until you lock it or quit. That is a defensible choice on a machine only you can reach, and a bad one on a shared desk.",
-
-  screenLock: "When the screen locks",
-  suspend: "On suspend or hibernate",
-  minimise: "When the window is minimised",
-  minimiseHelp: "Off by default. Most people minimise far more often than they walk away.",
-
-  on: "On",
-  off: "Off",
-  unavailable: "N/A",
-
-  /*
-   * One sentence per unobservable trigger, naming what is missing rather than
-   * saying "not supported". A user who knows *why* can tell whether it will
-   * ever change.
-   */
-  noScreenLock:
-    "This build cannot see the screen lock on this system, so this switch would not lock anything. Watching it means the desktop's screen-lock signal, which Remoter does not yet listen for.",
-  noSuspend:
-    "This build cannot see this machine suspend, so this switch would not lock anything here.",
-  noMinimise:
-    "This build cannot see the window being minimised, so this switch would not lock anything. The window toolkit does not report it under this desktop, and a switch that worked on some desktops and silently did nothing on others would be worse than one that is honest.",
-  onResumeSuspend:
-    "Remoter cannot ask this system for advance notice of a suspend, so it locks when the machine comes back rather than before it sleeps. The keys are in memory while it sleeps, and in the hibernation image if it hibernates.",
-  keptForOtherMachines:
-    "The setting is kept in the vault, so it still applies on a computer where Remoter can see the event.",
-
-  sessionsLegend: "What happens to running sessions",
-  keepRunning: "Keep them running",
-  keepRunningHelp:
-    "The default, and the reason for it: an administrator watching a long deployment does not want their session killed because they went for coffee. Output keeps arriving and you can watch it.",
-  freezeInput: "Keep them running, freeze input",
-  freezeInputHelp:
-    "Sessions stay alive but nothing can be typed into them until you unlock. Tabs show a locked badge.",
-  disconnectAll: "Disconnect everything",
-  disconnectAllHelp:
-    "Strictest. Unsaved work in a session is lost, including transfers in progress.",
-  audited: "Changing this is written to the vault's audit log.",
-
-  saving: "Saving…",
-  failed: "That setting was not saved.",
-} as const;
-
-const SESSION_CHOICES: readonly { value: SessionOnLock; label: string; help: string }[] = [
-  { value: "keep_running", label: TEXT.keepRunning, help: TEXT.keepRunningHelp },
-  { value: "freeze_input", label: TEXT.freezeInput, help: TEXT.freezeInputHelp },
-  { value: "disconnect_all", label: TEXT.disconnectAll, help: TEXT.disconnectAllHelp },
-];
+/**
+ * The three answers, as catalogue keys: this array is module-level, so a
+ * resolved label would be frozen in the language the application started in.
+ */
+const SESSION_CHOICES = [
+  { value: "keep_running", labelKey: "autoLock.keepRunning", helpKey: "autoLock.keepRunningHelp" },
+  { value: "freeze_input", labelKey: "autoLock.freezeInput", helpKey: "autoLock.freezeInputHelp" },
+  {
+    value: "disconnect_all",
+    labelKey: "autoLock.disconnectAll",
+    helpKey: "autoLock.disconnectAllHelp",
+  },
+] as const satisfies readonly { value: SessionOnLock; labelKey: string; helpKey: string }[];
 
 type TriggerField = "lockOnScreenLock" | "lockOnSuspend" | "lockOnMinimise";
 
@@ -133,6 +79,9 @@ export function AutoLockSection({
   failure,
   onRetrySave,
 }: VaultSectionProps) {
+  const t = useT("vaultsettings");
+  const tCommon = useT("common");
+
   const failureFor = (field: VaultSettingsField) =>
     failure !== null && failure.field === field ? failure.failure : null;
 
@@ -152,13 +101,15 @@ export function AutoLockSection({
     // The caveat sits under the label, in the same place the help does, so it
     // is read with the switch rather than after it.
     const caveat =
-      observation === "on_resume" && field === "lockOnSuspend" ? TEXT.onResumeSuspend : null;
+      observation === "on_resume" && field === "lockOnSuspend"
+        ? t("autoLock.onResumeSuspend")
+        : null;
 
     // The word, not only the switch position — and a third word, because a
     // switch this build cannot honour is neither on nor off in any sense the
     // user cares about.
-    let stateWord: string = TEXT.unavailable;
-    if (honoured) stateWord = value ? TEXT.on : TEXT.off;
+    let stateWord: string = t("autoLock.unavailable");
+    if (honoured) stateWord = value ? tCommon("toggle.on") : tCommon("toggle.off");
 
     return (
       // `display: contents`, so the failure below is a sibling row rather than
@@ -189,13 +140,13 @@ export function AutoLockSection({
               {caveat !== null && <span className={c.rowHelp}>{caveat}</span>}
               {!honoured && (
                 <span className={s.unavailable}>
-                  {unobservedNote} {TEXT.keptForOtherMachines}
+                  {unobservedNote} {t("autoLock.keptForOtherMachines")}
                 </span>
               )}
             </span>
             {saving ? (
               <span className={c.switchState}>
-                <Spinner size={13} label={TEXT.saving} />
+                <Spinner size={13} label={t("status.saving")} />
               </span>
             ) : (
               <span className={c.switchState}>{stateWord}</span>
@@ -204,7 +155,7 @@ export function AutoLockSection({
         </div>
         {problem !== null && (
           <div className={c.row}>
-            <FailureNotice failure={problem} title={TEXT.failed} onRetry={onRetrySave} />
+            <FailureNotice failure={problem} title={t("autoLock.failed")} onRetry={onRetrySave} />
           </div>
         )}
       </div>
@@ -219,60 +170,72 @@ export function AutoLockSection({
   return (
     <section className={s.section}>
       <div className={s.header}>
-        <h2 className={s.title}>{TEXT.title}</h2>
-        <p className={s.description}>{TEXT.description}</p>
+        <h2 className={s.title}>{t("autoLock.title")}</h2>
+        <p className={s.description}>{t("autoLock.description")}</p>
       </div>
 
       <fieldset className={c.chips} disabled={idleSaving}>
-        <legend className={c.legend}>{TEXT.idleLegend}</legend>
-        {AUTO_LOCK_CHOICES.map((choice) => (
+        <legend className={c.legend}>{t("autoLock.idleLegend")}</legend>
+        {AUTO_LOCK_MINUTES.map((minutes) => (
           <label
-            key={choice.minutes}
+            key={minutes}
             className={
-              choice.minutes === settings.autoLockMinutes ? [c.chip, c.chipOn].join(" ") : c.chip
+              minutes === settings.autoLockMinutes ? [c.chip, c.chipOn].join(" ") : c.chip
             }
           >
             <input
               className={c.radio}
               type="radio"
               name="vault-auto-lock"
-              value={choice.minutes}
-              checked={choice.minutes === settings.autoLockMinutes}
-              onChange={() => onSave("autoLockMinutes", { autoLockMinutes: choice.minutes })}
+              value={minutes}
+              checked={minutes === settings.autoLockMinutes}
+              onChange={() => onSave("autoLockMinutes", { autoLockMinutes: minutes })}
             />
-            {choice.label}
+            {autoLockLabel(minutes, t)}
           </label>
         ))}
       </fieldset>
 
-      <p className={c.note}>{TEXT.idleHelp}</p>
-      <p className={c.note}>{TEXT.idleScope}</p>
-      {settings.autoLockMinutes === 0 && <p className={s.warn}>{TEXT.idleNever}</p>}
+      <p className={c.note}>{t("autoLock.idleHelp")}</p>
+      <p className={c.note}>{t("autoLock.idleScope")}</p>
+      {settings.autoLockMinutes === 0 && <p className={s.warn}>{t("autoLock.idleNever")}</p>}
 
       {idleSaving && (
         <p className={c.saving}>
-          <Spinner size={14} label={TEXT.saving} />
-          {TEXT.saving}
+          <Spinner size={14} label={t("status.saving")} />
+          {t("status.saving")}
         </p>
       )}
       {idleFailure !== null && (
-        <FailureNotice failure={idleFailure} title={TEXT.failed} onRetry={onRetrySave} />
+        <FailureNotice failure={idleFailure} title={t("autoLock.failed")} onRetry={onRetrySave} />
       )}
 
       <div className={c.rows}>
-        {toggle("lockOnScreenLock", TEXT.screenLock, null, support.screenLock, TEXT.noScreenLock)}
-        {toggle("lockOnSuspend", TEXT.suspend, null, support.suspend, TEXT.noSuspend)}
+        {toggle(
+          "lockOnScreenLock",
+          t("autoLock.screenLock"),
+          null,
+          support.screenLock,
+          t("autoLock.noScreenLock"),
+        )}
+        {toggle(
+          "lockOnSuspend",
+          t("autoLock.suspend"),
+          null,
+          support.suspend,
+          t("autoLock.noSuspend"),
+        )}
         {toggle(
           "lockOnMinimise",
-          TEXT.minimise,
-          TEXT.minimiseHelp,
+          t("autoLock.minimise"),
+          t("autoLock.minimiseHelp"),
           support.minimise,
-          TEXT.noMinimise,
+          t("autoLock.noMinimise"),
         )}
       </div>
 
       <fieldset className={c.choices} disabled={sessionSaving}>
-        <legend className={c.legend}>{TEXT.sessionsLegend}</legend>
+        <legend className={c.legend}>{t("autoLock.sessionsLegend")}</legend>
         {SESSION_CHOICES.map((choice) => (
           <label
             key={choice.value}
@@ -292,8 +255,8 @@ export function AutoLockSection({
             />
             <span className={c.mark} aria-hidden="true" />
             <span className={c.choiceText}>
-              <span className={c.choiceName}>{choice.label}</span>
-              <span className={c.choiceHelp}>{choice.help}</span>
+              <span className={c.choiceName}>{t(choice.labelKey)}</span>
+              <span className={c.choiceHelp}>{t(choice.helpKey)}</span>
             </span>
           </label>
         ))}
@@ -301,15 +264,19 @@ export function AutoLockSection({
 
       {sessionSaving && (
         <p className={c.saving}>
-          <Spinner size={14} label={TEXT.saving} />
-          {TEXT.saving}
+          <Spinner size={14} label={t("status.saving")} />
+          {t("status.saving")}
         </p>
       )}
       {sessionFailure !== null && (
-        <FailureNotice failure={sessionFailure} title={TEXT.failed} onRetry={onRetrySave} />
+        <FailureNotice
+          failure={sessionFailure}
+          title={t("autoLock.failed")}
+          onRetry={onRetrySave}
+        />
       )}
 
-      <p className={c.note}>{TEXT.audited}</p>
+      <p className={c.note}>{t("autoLock.audited")}</p>
     </section>
   );
 }

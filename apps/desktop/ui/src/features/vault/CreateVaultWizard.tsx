@@ -10,7 +10,9 @@
  * The master password is held in component state for the life of the wizard
  * because `vault_create` needs it. It is never logged, never put in a store
  * that outlives this screen, and the component unmounts as soon as the vault
- * exists. No other secret crosses this boundary.
+ * exists. No other secret crosses this boundary. Nothing typed here is ever
+ * interpolated into a message — the only values that reach the catalogue are a
+ * cloud provider's name and an entropy figure.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -23,6 +25,7 @@ import { FailureNotice } from "@/components/FailureNotice";
 import { Field } from "@/components/Field";
 import { Icon } from "@/components/Icon";
 import { TextInput } from "@/components/TextInput";
+import { isolate, useStrengthText, useT } from "@/i18n";
 import { asFailure, ipc } from "@/lib/ipc";
 import type { IpcFailure, PasswordStrength } from "@/lib/ipc";
 import { useApp } from "@/stores/app";
@@ -32,105 +35,17 @@ import { StepHeading, WizardShell } from "./RecoveryKeyScreen";
 import type { WizardStep } from "./RecoveryKeyScreen";
 import s from "./CreateVaultWizard.module.css";
 
-// v0.1 ships English only. One block per file so extraction into locales/en is
-// mechanical.
-const TEXT = {
-  footNotes: {
-    1: "Nothing is created yet.",
-    2: "Nothing is created yet.",
-    3: "You can add or remove a key file at any time later.",
-  },
-  back: "Back",
-  continue: "Continue",
-  create: "Create the vault",
-  creating: "Deriving the key and writing the vault…",
-  /**
-   * Creation runs the same Argon2id derivation an unlock does, at the same
-   * cost. Said out loud, because a button that sits still for a second with
-   * no explanation is the thing people press four more times.
-   */
-  creatingNote:
-    "Key derivation is deliberately slow. That cost is what makes a stolen vault file expensive to attack.",
-  browse: "Browse",
-  browsing: "Opening…",
-  browseFailed: "The system file dialog did not open. Type the path instead.",
-
-  /** Why Continue cannot be pressed, per step. */
-  blockedBusy: "Creating the vault…",
-  blockedKeyfileIsVault: "That file cannot be this vault's key file.",
-  blockedName: "Give this vault a name.",
-  blockedFolder: "Choose the folder the vault file will live in.",
-  blockedPassword: "Type a master password.",
-  blockedStrengthUnknown:
-    "Waiting for the core to rate this password. Nothing can be created until it answers.",
-  blockedStrength: "This password is not strong enough yet.",
-  blockedConfirmation: "The confirmation does not match the password yet.",
-  blockedKeyfileTarget: "Say where the generated key file should be written.",
-  blockedKeyfileChoice: "Choose the key file this vault should require.",
-
-  location: {
-    title: "Where should the vault live?",
-    lead: "One file holds everything. Back it up like you would any other file you cannot lose.",
-    suggesting: "Working out where it should go…",
-    name: "Name",
-    nameHint: "What this vault is called in the picker and the title bar.",
-    folder: "Folder",
-    pickFolder: "Choose a folder for the vault",
-    suggestFailed:
-      "Remoter could not work out a default location for this vault, so the folder is empty. Type one or browse to it.",
-    syncTitle: (provider: string) => `This folder syncs to ${provider}`,
-    syncBody: (provider: string) =>
-      `It will work. Two things to know: editing from two machines at once will produce a conflicted copy, and ${provider} keeps historical versions of the encrypted file — including ones protected by a password you later change.`,
-    syncOnce: "Shown once. You will not be asked again for this vault.",
-  },
-
-  password: {
-    title: "Choose a master password",
-    lead: "Length beats symbols. There are no composition rules here because they reliably produce worse passwords.",
-    rating: "Rating this password…",
-    generating: "Generating a passphrase…",
-    field: "Master password",
-    confirmField: "Confirm the master password",
-    reveal: "Show",
-    hide: "Hide",
-    bits: (n: number) => `≈ ${Math.round(n)} bits`,
-    notYet: "Not strong enough yet",
-    tooWeakHelp:
-      "A vault needs a little more than this. Add a word or two — length is what buys the margin, not symbols.",
-    matches: "Confirmation matches.",
-    mismatch: "Confirmation does not match yet.",
-    generate: "Generate another passphrase",
-    generateHint: "Random words, enough of them to clear the bar above",
-    generateFailed: "The core could not generate a passphrase. Type one instead.",
-    strengthFailed:
-      "The core could not rate this password, and the strength gate lives there rather than here. Until it answers, the vault cannot be created.",
-    strengthRetry: "Rate it again",
-    note: "This password never leaves your machine and is never stored. It derives a key that unwraps the vault key. If you forget it, only the recovery key from step 4 will get you back in.",
-  },
-
-  keyfile: {
-    title: "Add a key file",
-    optional: "optional",
-    lead: "A second factor: any file you choose becomes part of the key. Something you know plus something you have.",
-    generateTitle: "Generate one for me",
-    generateHint: "A 256-bit random file you can put on a USB key",
-    existingTitle: "Use a file I already have",
-    existingHint: "Remoter reads it and never modifies it",
-    skipTitle: "Skip this",
-    skipHint: "Password only. You can add a key file later.",
-    saveTo: "Save the generated file to",
-    saveToHint: "Anywhere you like.",
-    pickSave: "Where to write the key file",
-    existingLabel: "Key file",
-    pickExisting: "Choose a key file",
-    sameFolder:
-      "This sits next to the vault, so anyone who copies one copies both. It will work; it just stops being a second factor.",
-    required:
-      "This file is now required to open the vault. If you lose it, only your recovery key will work.",
-  },
-} as const;
-
 type KeyfileChoice = "generate" | "existing" | "skip";
+
+/**
+ * An example of a complete key file path, shown in the empty field.
+ *
+ * A file path, so it is not translated (docs/features/i18n.md, "What is never
+ * translated") and does not live in the catalogue: every segment of it would
+ * have to stay a legal path in every language, and a translated one would stop
+ * being the thing it is demonstrating.
+ */
+const EXAMPLE_KEYFILE_PATH = "/media/usb-key/acme.keyfile";
 
 // ------------------------------------------------------------- helpers ----
 
@@ -138,6 +53,9 @@ type KeyfileChoice = "generate" | "existing" | "skip";
  * Directory names that mean the vault sits in a synced folder. Matched against
  * whole path segments, so a connection called "dropbox" in some unrelated
  * directory does not trigger the warning.
+ *
+ * The provider names are product names and are never translated; they are
+ * interpolated into the warning rather than concatenated onto it.
  */
 const CLOUD_FOLDERS: ReadonlyArray<readonly [RegExp, string]> = [
   [/^dropbox$/, "Dropbox"],
@@ -202,11 +120,11 @@ function slugify(label: string): string {
   return slug.length > 0 ? slug : "vault";
 }
 
-async function pickDirectory(defaultPath: string): Promise<string | null> {
+async function pickDirectory(title: string, defaultPath: string): Promise<string | null> {
   const picked =
     defaultPath.length > 0
-      ? await open({ directory: true, multiple: false, defaultPath, title: TEXT.location.pickFolder })
-      : await open({ directory: true, multiple: false, title: TEXT.location.pickFolder });
+      ? await open({ directory: true, multiple: false, defaultPath, title })
+      : await open({ directory: true, multiple: false, title });
   return typeof picked === "string" ? picked : null;
 }
 
@@ -237,6 +155,8 @@ function meterTone(score: number): "weak" | "fair" | "strong" {
 // -------------------------------------------------------------- wizard ----
 
 export function CreateVaultWizard() {
+  const t = useT("vault");
+  const tCommon = useT("common");
   const go = useApp((state) => state.go);
 
   const [step, setStep] = useState<WizardStep>(1);
@@ -266,6 +186,13 @@ export function CreateVaultWizard() {
   const [ratingPassword, setRatingPassword] = useState(false);
   // Bumped to re-run the strength effect after a failure the user retried.
   const [strengthAttempt, setStrengthAttempt] = useState(0);
+  // The core's own `label` and `explanation` are English prose and are not
+  // rendered; the interface derives both from the entropy estimate so that they
+  // follow the reader's language and the locale's numbering system, exactly as
+  // the bit count already did. Hooks cannot be called conditionally, so this
+  // runs before there is an estimate too — with no password typed there is
+  // nothing on screen to put it in.
+  const strengthText = useStrengthText(strength?.entropyBits ?? 0);
 
   // Step 3
   const [choice, setChoice] = useState<KeyfileChoice>("skip");
@@ -439,31 +366,31 @@ export function CreateVaultWizard() {
     (which: WizardStep): string | null => {
       switch (which) {
         case 1:
-          if (label.length === 0) return TEXT.blockedName;
-          if (folder.length === 0) return TEXT.blockedFolder;
+          if (label.length === 0) return t("create.blocked.name");
+          if (folder.length === 0) return t("create.blocked.folder");
           return null;
         case 2:
-          if (password.length === 0) return TEXT.blockedPassword;
+          if (password.length === 0) return t("create.blocked.password");
           if (strength === null) {
             return strengthFailure === null
-              ? TEXT.blockedStrengthUnknown
-              : TEXT.password.strengthFailed;
+              ? t("create.blocked.strengthUnknown")
+              : t("create.password.strengthFailed");
           }
-          if (!strength.acceptable) return TEXT.blockedStrength;
-          if (confirmation !== password) return TEXT.blockedConfirmation;
+          if (!strength.acceptable) return t("create.blocked.strength");
+          if (confirmation !== password) return t("create.blocked.confirmation");
           return null;
         case 3:
           if (choice === "generate" && !(generateAt.length > 0 && baseName(generateAt).length > 0)) {
-            return TEXT.blockedKeyfileTarget;
+            return t("create.blocked.keyfileTarget");
           }
           if (choice === "generate" && generateAtRefused !== null) {
-            return TEXT.blockedKeyfileIsVault;
+            return t("keyfile.blockedIsVault");
           }
           if (choice === "existing" && existingKeyfile.length === 0) {
-            return TEXT.blockedKeyfileChoice;
+            return t("create.blocked.keyfileChoice");
           }
           if (choice === "existing" && existingKeyfileRefused !== null) {
-            return TEXT.blockedKeyfileIsVault;
+            return t("keyfile.blockedIsVault");
           }
           return null;
         case 4:
@@ -471,6 +398,7 @@ export function CreateVaultWizard() {
       }
     },
     [
+      t,
       label,
       folder,
       password,
@@ -511,22 +439,22 @@ export function CreateVaultWizard() {
   // text field, so the failure says to type it instead.
   const onBrowseFolder = useCallback(() => {
     setBrowsing("folder");
-    void pickDirectory(folder)
+    void pickDirectory(t("create.location.pickFolder"), folder)
       .then(
         (picked) => {
           setDialogError(null);
           if (picked !== null) setFolderOverride(picked);
         },
-        () => setDialogError(TEXT.browseFailed),
+        () => setDialogError(t("create.browseFailed")),
       )
       .finally(() => setBrowsing(null));
-  }, [folder]);
+  }, [folder, t]);
 
   const onBrowseGenerateAt = useCallback(() => {
     setBrowsing("generateAt");
     void save({
       defaultPath: generateAt.length > 0 ? generateAt : keyfileName,
-      title: TEXT.keyfile.pickSave,
+      title: t("create.keyfile.pickSave"),
       // Same two filters as choosing one: the generated file is a key file,
       // and naming it as one is what stops it landing beside a `.rvault`
       // looking like part of the vault.
@@ -537,25 +465,28 @@ export function CreateVaultWizard() {
           setDialogError(null);
           if (picked !== null) setGenerateAtOverride(picked);
         },
-        () => setDialogError(TEXT.browseFailed),
+        () => setDialogError(t("create.browseFailed")),
       )
       .finally(() => setBrowsing(null));
-  }, [generateAt, keyfileName]);
+  }, [generateAt, keyfileName, t]);
 
   const onBrowseExisting = useCallback(() => {
     setBrowsing("existing");
     // Open where the vault will live, because that is where someone who
     // generated a key file a moment ago is most likely to have put it.
-    void pickKeyfile(TEXT.keyfile.pickExisting, existingKeyfile.length > 0 ? existingKeyfile : folder)
+    void pickKeyfile(
+      t("create.keyfile.pickExisting"),
+      existingKeyfile.length > 0 ? existingKeyfile : folder,
+    )
       .then(
         (picked) => {
           setDialogError(null);
           if (picked !== null) setExistingKeyfile(picked);
         },
-        () => setDialogError(TEXT.browseFailed),
+        () => setDialogError(t("create.browseFailed")),
       )
       .finally(() => setBrowsing(null));
-  }, [existingKeyfile, folder]);
+  }, [existingKeyfile, folder, t]);
 
   const onGeneratePassphrase = useCallback(() => {
     setGeneratingPassphrase(true);
@@ -571,10 +502,10 @@ export function CreateVaultWizard() {
           setConfirmation(phrase);
           setRevealed(true);
         },
-        () => setGenerateError(TEXT.password.generateFailed),
+        () => setGenerateError(t("create.password.generateFailed")),
       )
       .finally(() => setGeneratingPassphrase(false));
-  }, []);
+  }, [t]);
 
   const onCreate = useCallback(() => {
     setBusy(true);
@@ -612,8 +543,10 @@ export function CreateVaultWizard() {
     setStep((current) => (current - 1) as WizardStep);
   }, [step, go]);
 
+  // Nothing is written to disk until the end of step 3, which is why the first
+  // two steps say the same thing.
   const footNote =
-    step === 1 ? TEXT.footNotes[1] : step === 2 ? TEXT.footNotes[2] : TEXT.footNotes[3];
+    step === 3 ? t("create.footNote.keyfileLater") : t("create.footNote.nothingCreated");
 
   return (
     <WizardShell
@@ -621,16 +554,16 @@ export function CreateVaultWizard() {
       onStep={busy ? null : goToStep}
       canGoTo={canGoTo}
       footNote={footNote}
-      busyLabel={busy ? TEXT.creating : null}
-      busyNote={busy ? TEXT.creatingNote : null}
-      back={busy ? null : { label: TEXT.back, onClick: onBack }}
+      busyLabel={busy ? t("create.creating") : null}
+      busyNote={busy ? t("kdf.slow") : null}
+      back={busy ? null : { label: t("wizard.back"), onClick: onBack }}
       next={{
-        label: step === 3 ? TEXT.create : TEXT.continue,
+        label: step === 3 ? t("wizard.createAction") : t("wizard.continue"),
         onClick: onNext,
         disabled: !stepValid(step),
         busy,
-        busyLabel: TEXT.creating,
-        reason: busy ? TEXT.blockedBusy : blockedBecause(step),
+        busyLabel: t("create.creating"),
+        reason: busy ? t("create.blockedBusy") : blockedBecause(step),
       }}
     >
       {failure !== null && (
@@ -643,21 +576,30 @@ export function CreateVaultWizard() {
 
       {step === 1 && (
         <div className={s.step}>
-          <StepHeading title={TEXT.location.title} badge={null} lead={TEXT.location.lead} />
+          <StepHeading
+            title={t("create.location.title")}
+            badge={null}
+            lead={t("create.location.lead")}
+          />
 
           <div className={s.fields}>
-            <Field label={TEXT.location.name} help={TEXT.location.nameHint} error="" htmlFor="vault-name">
+            <Field
+              label={t("create.location.name")}
+              help={t("create.location.nameHint")}
+              error=""
+              htmlFor="vault-name"
+            >
               <TextInput
                 id="vault-name"
                 value={name}
                 onChange={setName}
                 type="text"
-                placeholder="Acme Production"
+                placeholder={t("create.location.namePlaceholder")}
                 autoFocus
               />
             </Field>
 
-            <Field label={TEXT.location.folder} help="" error="" htmlFor="vault-folder">
+            <Field label={t("create.location.folder")} help="" error="" htmlFor="vault-folder">
               <div className={s.pathRow}>
                 <div className={s.pathInput}>
                   <TextInput
@@ -673,10 +615,10 @@ export function CreateVaultWizard() {
                   size="md"
                   type="button"
                   busy={browsing === "folder"}
-                  busyLabel={TEXT.browsing}
+                  busyLabel={tCommon("action.opening")}
                   onClick={onBrowseFolder}
                 >
-                  {TEXT.browse}
+                  {tCommon("action.browse")}
                 </BusyButton>
               </div>
               {/* The core owns the default location and takes a round trip to
@@ -684,22 +626,30 @@ export function CreateVaultWizard() {
                   wizard that lost the name that was just typed. */}
               {suggesting && folder.length === 0 && (
                 <div className={s.locationNote}>
-                  <BusyStatus label={TEXT.location.suggesting} size={13} compact />
+                  <BusyStatus label={t("create.location.suggesting")} size={13} compact />
                 </div>
               )}
               {label.length > 0 && <div className={s.derivedName}>{fileName}</div>}
               {/* The core owns the default location. When it cannot supply one
                   the field is empty and Continue is dead, so say why. */}
               {suggestFailed && folder.length === 0 && (
-                <div className={s.inlineError}>{TEXT.location.suggestFailed}</div>
+                <div className={s.inlineError}>{t("create.location.suggestFailed")}</div>
               )}
             </Field>
           </div>
 
+          {/* The provider is a product name in Latin script. It is isolated so
+              that in an Arabic interface the sentence around it keeps its own
+              direction — see src/i18n/bidi.ts. */}
           {showSyncWarning && provider !== null && (
-            <Callout tone="warning" title={TEXT.location.syncTitle(provider)}>
-              <p className={s.calloutBody}>{TEXT.location.syncBody(provider)}</p>
-              <p className={s.calloutFoot}>{TEXT.location.syncOnce}</p>
+            <Callout
+              tone="warning"
+              title={t("create.location.syncTitle", { provider: isolate(provider) })}
+            >
+              <p className={s.calloutBody}>
+                {t("create.location.syncBody", { provider: isolate(provider) })}
+              </p>
+              <p className={s.calloutFoot}>{t("create.location.syncOnce")}</p>
             </Callout>
           )}
         </div>
@@ -707,14 +657,18 @@ export function CreateVaultWizard() {
 
       {step === 2 && (
         <div className={s.step}>
-          <StepHeading title={TEXT.password.title} badge={null} lead={TEXT.password.lead} />
+          <StepHeading
+            title={t("create.password.title")}
+            badge={null}
+            lead={t("create.password.lead")}
+          />
 
           <div className={s.fields}>
             {/*
               No composition rules, by design: they reliably produce worse
               passwords. The gate is the core's own `acceptable` verdict.
             */}
-            <Field label={TEXT.password.field} help="" error="" htmlFor="vault-password">
+            <Field label={t("create.password.field")} help="" error="" htmlFor="vault-password">
               <div className={s.pathRow}>
                 <div className={s.pathInput}>
                   <TextInput
@@ -731,7 +685,7 @@ export function CreateVaultWizard() {
                   type="button"
                   onClick={() => setRevealed(!revealed)}
                 >
-                  {revealed ? TEXT.password.hide : TEXT.password.reveal}
+                  {revealed ? t("create.password.hide") : t("create.password.reveal")}
                 </Button>
               </div>
             </Field>
@@ -742,9 +696,9 @@ export function CreateVaultWizard() {
             {strengthFailure !== null && (
               <FailureNotice
                 failure={strengthFailure}
-                title={TEXT.password.strengthFailed}
+                title={t("create.password.strengthFailed")}
                 onRetry={() => setStrengthAttempt((n) => n + 1)}
-                retryLabel={TEXT.password.strengthRetry}
+                retryLabel={t("create.password.strengthRetry")}
               />
             )}
 
@@ -753,7 +707,7 @@ export function CreateVaultWizard() {
                 like a meter that will never appear. */}
             {strength === null && strengthFailure === null && ratingPassword && (
               <div className={s.strength}>
-                <BusyStatus label={TEXT.password.rating} size={13} compact />
+                <BusyStatus label={t("create.password.rating")} size={13} compact />
                 <SkeletonRows count={1} height="var(--space-2)" widths={["100%"]} />
               </div>
             )}
@@ -775,20 +729,24 @@ export function CreateVaultWizard() {
                     className={s.strengthLabel}
                     data-tone={strength.acceptable ? meterTone(strength.score) : "weak"}
                   >
-                    {strength.acceptable ? strength.label : TEXT.password.notYet}
+                    {strength.acceptable ? strengthText.label : t("create.password.notYet")}
                   </span>
-                  <span className={s.entropy}>{TEXT.password.bits(strength.entropyBits)}</span>
+                  {/* The count goes through the message so the digits follow
+                      the locale's numbering system and "bit" can inflect. */}
+                  <span className={s.entropy}>
+                    {t("create.password.bits", { count: Math.round(strength.entropyBits) })}
+                  </span>
                 </div>
                 {/* "≈ 72 bits" changes nobody's behaviour; the sentence does. */}
-                <div className={s.explanation}>{strength.explanation}</div>
+                <div className={s.explanation}>{strengthText.explanation}</div>
                 {!strength.acceptable && (
-                  <div className={s.explanation}>{TEXT.password.tooWeakHelp}</div>
+                  <div className={s.explanation}>{t("create.password.tooWeakHelp")}</div>
                 )}
               </div>
             )}
 
             <Field
-              label={TEXT.password.confirmField}
+              label={t("create.password.confirmField")}
               help=""
               error=""
               htmlFor="vault-password-confirm"
@@ -807,11 +765,11 @@ export function CreateVaultWizard() {
                 {confirmation.length > 0 && confirmation === password && (
                   <span className={s.matchOk}>
                     <Icon name="check" size={16} />
-                    {TEXT.password.matches}
+                    {t("create.password.matches")}
                   </span>
                 )}
                 {confirmation.length > 0 && confirmation !== password && (
-                  <span className={s.matchPending}>{TEXT.password.mismatch}</span>
+                  <span className={s.matchPending}>{t("create.password.mismatch")}</span>
                 )}
               </div>
             </Field>
@@ -822,18 +780,18 @@ export function CreateVaultWizard() {
                 size="sm"
                 type="button"
                 busy={generatingPassphrase}
-                busyLabel={TEXT.password.generating}
+                busyLabel={t("create.password.generating")}
                 onClick={onGeneratePassphrase}
               >
-                {TEXT.password.generate}
+                {t("create.password.generate")}
               </BusyButton>
-              <span className={s.generateHint}>{TEXT.password.generateHint}</span>
+              <span className={s.generateHint}>{t("create.password.generateHint")}</span>
             </div>
             {generateError !== null && <div className={s.inlineError}>{generateError}</div>}
           </div>
 
           <Callout tone="neutral" title="">
-            {TEXT.password.note}
+            {t("create.password.note")}
           </Callout>
         </div>
       )}
@@ -841,12 +799,12 @@ export function CreateVaultWizard() {
       {step === 3 && (
         <div className={s.step}>
           <StepHeading
-            title={TEXT.keyfile.title}
-            badge={TEXT.keyfile.optional}
-            lead={TEXT.keyfile.lead}
+            title={t("create.keyfile.title")}
+            badge={t("create.keyfile.optional")}
+            lead={t("create.keyfile.lead")}
           />
 
-          <div className={s.options} role="radiogroup" aria-label={TEXT.keyfile.title}>
+          <div className={s.options} role="radiogroup" aria-label={t("create.keyfile.title")}>
             <label className={s.option} data-selected={choice === "generate"}>
               <input
                 type="radio"
@@ -857,8 +815,8 @@ export function CreateVaultWizard() {
               />
               <Icon name="file" size={18} />
               <span className={s.optionText}>
-                <span className={s.optionTitle}>{TEXT.keyfile.generateTitle}</span>
-                <span className={s.optionHint}>{TEXT.keyfile.generateHint}</span>
+                <span className={s.optionTitle}>{t("create.keyfile.generateTitle")}</span>
+                <span className={s.optionHint}>{t("create.keyfile.generateHint")}</span>
               </span>
               <span className={s.radioDot} aria-hidden="true" />
             </label>
@@ -873,8 +831,8 @@ export function CreateVaultWizard() {
               />
               <Icon name="folder" size={18} />
               <span className={s.optionText}>
-                <span className={s.optionTitle}>{TEXT.keyfile.existingTitle}</span>
-                <span className={s.optionHint}>{TEXT.keyfile.existingHint}</span>
+                <span className={s.optionTitle}>{t("create.keyfile.existingTitle")}</span>
+                <span className={s.optionHint}>{t("create.keyfile.existingHint")}</span>
               </span>
               <span className={s.radioDot} aria-hidden="true" />
             </label>
@@ -889,8 +847,8 @@ export function CreateVaultWizard() {
               />
               <Icon name="x" size={18} />
               <span className={s.optionText}>
-                <span className={s.optionTitle}>{TEXT.keyfile.skipTitle}</span>
-                <span className={s.optionHint}>{TEXT.keyfile.skipHint}</span>
+                <span className={s.optionTitle}>{t("create.keyfile.skipTitle")}</span>
+                <span className={s.optionHint}>{t("create.keyfile.skipHint")}</span>
               </span>
               <span className={s.radioDot} aria-hidden="true" />
             </label>
@@ -898,8 +856,8 @@ export function CreateVaultWizard() {
 
           {choice === "generate" && (
             <Field
-              label={TEXT.keyfile.saveTo}
-              help={generateAt.length === 0 ? TEXT.keyfile.saveToHint : ""}
+              label={t("create.keyfile.saveTo")}
+              help={generateAt.length === 0 ? t("create.keyfile.saveToHint") : ""}
               error=""
               htmlFor="keyfile-generate-at"
             >
@@ -911,7 +869,7 @@ export function CreateVaultWizard() {
                     onChange={setGenerateAtOverride}
                     type="text"
                     mono
-                    placeholder="/media/usb-key/acme.keyfile"
+                    placeholder={EXAMPLE_KEYFILE_PATH}
                   />
                 </div>
                 <BusyButton
@@ -919,10 +877,10 @@ export function CreateVaultWizard() {
                   size="md"
                   type="button"
                   busy={browsing === "generateAt"}
-                  busyLabel={TEXT.browsing}
+                  busyLabel={tCommon("action.opening")}
                   onClick={onBrowseGenerateAt}
                 >
-                  {TEXT.browse}
+                  {tCommon("action.browse")}
                 </BusyButton>
               </div>
               {/* Writing the key file over the vault, or over one of its
@@ -933,13 +891,13 @@ export function CreateVaultWizard() {
                 </div>
               )}
               {generateAt.length > 0 && generateAtRefused === null && keyfileInVaultFolder && (
-                <div className={s.locationNote}>{TEXT.keyfile.sameFolder}</div>
+                <div className={s.locationNote}>{t("create.keyfile.sameFolder")}</div>
               )}
             </Field>
           )}
 
           {choice === "existing" && (
-            <Field label={TEXT.keyfile.existingLabel} help="" error="" htmlFor="keyfile-existing">
+            <Field label={t("keyfile.label")} help="" error="" htmlFor="keyfile-existing">
               <div className={s.pathRow}>
                 <div className={s.pathInput}>
                   <TextInput
@@ -955,10 +913,10 @@ export function CreateVaultWizard() {
                   size="md"
                   type="button"
                   busy={browsing === "existing"}
-                  busyLabel={TEXT.browsing}
+                  busyLabel={tCommon("action.opening")}
                   onClick={onBrowseExisting}
                 >
-                  {TEXT.browse}
+                  {tCommon("action.browse")}
                 </BusyButton>
               </div>
               {/* A vault cannot be its own key file. Stated as the certainty
@@ -973,7 +931,7 @@ export function CreateVaultWizard() {
 
           {choice !== "skip" && (
             <Callout tone="warning" title="">
-              {TEXT.keyfile.required}
+              {t("create.keyfile.required")}
             </Callout>
           )}
         </div>

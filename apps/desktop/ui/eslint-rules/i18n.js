@@ -42,7 +42,26 @@ function looksLikeCopy(raw) {
   return /\p{L}\p{L}/u.test(text);
 }
 
-/** JSX attributes whose value is read aloud or drawn on screen. */
+/**
+ * JSX attributes whose value is read aloud or drawn on screen.
+ *
+ * The DOM half of this list is closed — `alt`, `title`, `placeholder` and the
+ * `aria-*` strings are all there is. The component half is not: every prop a
+ * component invents for a piece of copy belongs here, and the list only ever
+ * learns about one after someone writes English into it. That is a guard that
+ * arrives second, which for this rule is the same as not arriving — the string
+ * is already in the file by the time the list is updated.
+ *
+ * This codebase names those props compositionally — `busyNote`, `footNote`,
+ * `dialogError`, `dismissBlockedReason`, `confirmLabel`, `emptyText` — so the
+ * pattern below closes the family rather than its current members, and the set
+ * carries the single words that no suffix rule can reach. Between them,
+ * `<Widget heading="Recent vaults" emptyText="No vaults yet" confirmLabel="Delete
+ * for ever" />` is three errors instead of none, which is what it was.
+ *
+ * Only literals are ever reported, so a prop holding data rather than copy —
+ * `sortKey={column}`, `label={t("…")}` — is untouched either way.
+ */
 const VISIBLE_ATTRIBUTES = new Set([
   "alt",
   "aria-description",
@@ -50,18 +69,48 @@ const VISIBLE_ATTRIBUTES = new Set([
   "aria-placeholder",
   "aria-roledescription",
   "aria-valuetext",
-  "ariaLabel",
-  "ariaValueText",
-  "busyLabel",
+  "body",
   "caption",
   "description",
-  "disabledReason",
+  "error",
+  "heading",
   "help",
+  "hint",
   "label",
+  "lead",
+  "legend",
+  "message",
+  "note",
   "placeholder",
-  "retryLabel",
+  "prompt",
+  "reason",
+  "refusal",
+  "subtitle",
+  "summary",
+  "text",
   "title",
+  "tooltip",
+  "warning",
+  // `where` is the ErrorBoundary's "what was on screen when this broke"
+  // sentence. A single word, so no suffix reaches it.
+  "where",
 ]);
+
+/**
+ * The compositional half: any prop whose name *ends* in one of these is copy.
+ *
+ * `busyLabel`, `retryLabel`, `confirmLabel`, `emptyText`, `footNote`,
+ * `busyNote`, `unobservedNote`, `dialogError`, `disabledReason`,
+ * `dismissBlockedReason` — the list the set used to hold, generalised, plus the
+ * ones it had never heard of. The capital is required, so `label` matches the
+ * set above and `ariaLabel` matches here, while `relabel` matches neither.
+ */
+const VISIBLE_ATTRIBUTE_SUFFIX =
+  /[a-z0-9](?:Alt|Caption|Description|Error|Heading|Help|Hint|Label|Lead|Legend|Message|Note|Placeholder|Prompt|Reason|Refusal|Subtitle|Summary|Text|Title|Tooltip|Warning)$/;
+
+function isVisibleAttribute(name) {
+  return VISIBLE_ATTRIBUTES.has(name) || VISIBLE_ATTRIBUTE_SUFFIX.test(name);
+}
 
 const MESSAGE =
   "This string is user-visible and is not translated. Move it to " +
@@ -104,7 +153,7 @@ const noLiteralJsxText = {
 
       JSXAttribute(node) {
         if (node.name.type !== "JSXIdentifier") return;
-        if (!VISIBLE_ATTRIBUTES.has(node.name.name)) return;
+        if (!isVisibleAttribute(node.name.name)) return;
         const value = node.value;
         if (value === null) return;
         if (value.type === "Literal") {

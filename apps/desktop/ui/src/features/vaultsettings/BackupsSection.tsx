@@ -19,41 +19,12 @@
 
 import { FailureNotice } from "@/components/FailureNotice";
 import { Spinner } from "@/components/Spinner";
+import { formatNumber, useLocale, useT } from "@/i18n";
 
 import { BACKUP_MAX } from "./slots";
 import type { VaultSectionProps } from "./types";
 import c from "./controls.module.css";
 import s from "./BackupsSection.module.css";
-
-const TEXT = {
-  title: "Backups",
-  description:
-    "Before the vault is overwritten, the previous file is rotated into a rolling backup beside it: vault.rvault.bak.1 through .bak.N.",
-
-  legend: "How many to keep",
-  none: "None",
-  count: (n: number) => `${n}`,
-
-  onceASession: "Rotated once per session, not once per save",
-  onceASessionBody:
-    "Every edit to a node is a save. If a backup were taken on each one, three backups would be four clicks deep and the file from before a mistake would already be gone. Rotating on the first save of a session makes .bak.1 the vault exactly as it stood when you opened it.",
-
-  zeroTitle: "Keeping none is a real choice",
-  zeroBody:
-    "If this vault lives in a synced folder, the provider already keeps historical copies of the ciphertext, and you may not want extra copies of it lying around the disk as well.",
-
-  present: (n: number) =>
-    n === 0
-      ? "There are no backups beside this vault right now."
-      : n === 1
-        ? "One backup sits beside this vault right now."
-        : `${n} backups sit beside this vault right now.`,
-  presentPrune:
-    "Lowering the number does not delete the files already written; the next rotation stops at the new limit.",
-
-  saving: "Saving…",
-  failed: "The backup count was not saved.",
-} as const;
 
 interface BackupsSectionProps extends VaultSectionProps {
   /** How many backup files are beside the vault now, from the slot read. */
@@ -68,6 +39,8 @@ export function BackupsSection({
   onRetrySave,
   backupsPresent,
 }: BackupsSectionProps) {
+  const t = useT("vaultsettings");
+  const { code: locale } = useLocale();
   const saving = savingField === "backupCount";
   const problem = failure !== null && failure.field === "backupCount" ? failure.failure : null;
   const choices = Array.from({ length: BACKUP_MAX + 1 }, (_unused, n) => n);
@@ -75,12 +48,12 @@ export function BackupsSection({
   return (
     <section className={s.section}>
       <div className={s.header}>
-        <h2 className={s.title}>{TEXT.title}</h2>
-        <p className={s.description}>{TEXT.description}</p>
+        <h2 className={s.title}>{t("backups.title")}</h2>
+        <p className={s.description}>{t("backups.description")}</p>
       </div>
 
       <fieldset className={c.chips} disabled={saving}>
-        <legend className={c.legend}>{TEXT.legend}</legend>
+        <legend className={c.legend}>{t("backups.legend")}</legend>
         {choices.map((count) => (
           <label
             key={count}
@@ -94,33 +67,35 @@ export function BackupsSection({
               checked={count === settings.backupCount}
               onChange={() => onSave("backupCount", { backupCount: count })}
             />
-            {count === 0 ? TEXT.none : TEXT.count(count)}
+            {/* A bare numeral, but still a number: Intl draws it in the
+                digits this locale uses. */}
+            {count === 0 ? t("backups.none") : formatNumber(locale, count)}
           </label>
         ))}
       </fieldset>
 
       {saving && (
         <p className={c.saving}>
-          <Spinner size={14} label={TEXT.saving} />
-          {TEXT.saving}
+          <Spinner size={14} label={t("status.saving")} />
+          {t("status.saving")}
         </p>
       )}
       {problem !== null && (
-        <FailureNotice failure={problem} title={TEXT.failed} onRetry={onRetrySave} />
+        <FailureNotice failure={problem} title={t("backups.failed")} onRetry={onRetrySave} />
       )}
 
       <div className={s.explainer}>
-        <h3 className={s.explainerTitle}>{TEXT.onceASession}</h3>
-        <p className={s.explainerBody}>{TEXT.onceASessionBody}</p>
+        <h3 className={s.explainerTitle}>{t("backups.onceASession")}</h3>
+        <p className={s.explainerBody}>{t("backups.onceASessionBody")}</p>
       </div>
 
       <div className={s.explainer}>
-        <h3 className={s.explainerTitle}>{TEXT.zeroTitle}</h3>
-        <p className={s.explainerBody}>{TEXT.zeroBody}</p>
+        <h3 className={s.explainerTitle}>{t("backups.zeroTitle")}</h3>
+        <p className={s.explainerBody}>{t("backups.zeroBody")}</p>
       </div>
 
       <p className={c.note}>
-        {TEXT.present(backupsPresent)} {TEXT.presentPrune}
+        {t("backups.present", { count: backupsPresent })} {t("backups.presentPrune")}
       </p>
     </section>
   );

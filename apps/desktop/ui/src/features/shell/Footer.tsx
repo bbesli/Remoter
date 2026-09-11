@@ -11,19 +11,10 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { useSessions } from "@/features/sessions";
+import { formatClock, useLocale, useT } from "@/i18n";
 import { ipc, type VaultState } from "@/lib/ipc";
 import { qk } from "@/lib/queryKeys";
 import s from "./Footer.module.css";
-
-const TEXT = {
-  sessions: "sessions",
-  tunnels: "tunnels",
-  openPanels: "Open the sessions and tunnels panel",
-  locksIn: "vault locks in",
-  noAutoLock: "auto-lock is off",
-  connections: "connections",
-  credentials: "credentials",
-} as const;
 
 /** Seconds below which the countdown reads as a warning rather than a fact. */
 const WARN_AT_SECONDS = 60;
@@ -37,14 +28,9 @@ interface FooterProps {
   onShowPanels: () => void;
 }
 
-function formatCountdown(seconds: number): string {
-  const clamped = Math.max(0, Math.floor(seconds));
-  const minutes = Math.floor(clamped / 60);
-  const rest = clamped % 60;
-  return `${String(minutes).padStart(2, "0")}:${String(rest).padStart(2, "0")}`;
-}
-
 export function Footer({ vault, onShowPanels }: FooterProps) {
+  const t = useT("shell");
+  const { code: locale } = useLocale();
   const sessionCount = useSessions((st) => st.order.length);
 
   // The tunnels are the core's, not the interface's: a forward opened in an
@@ -79,32 +65,37 @@ export function Footer({ vault, onShowPanels }: FooterProps) {
     <footer className={s.footer}>
       {/* The counts are the way into the panel that lists them. A number the
           user can see but not act on is a number they have to go looking for. */}
+      {/* The number and its noun are one phrase, not a styled number with a
+          label glued on: Russian inflects the noun on the number and Arabic
+          has six forms of it, so `{count} {label}` is ungrammatical in half
+          the shipping languages. The emphasis moved from the digit to the
+          phrase — see the `.count` rule in Footer.module.css. */}
       <button
         type="button"
         className={s.link}
         onClick={onShowPanels}
-        title={TEXT.openPanels}
-        aria-label={TEXT.openPanels}
+        title={t("footer.openPanels")}
+        aria-label={t("footer.openPanels")}
       >
-        <span className={s.count}>{sessionCount}</span> {TEXT.sessions}
+        <span className={s.count}>{t("footer.sessions", { count: sessionCount })}</span>
         <span className={s.sep} aria-hidden="true">
           ·
         </span>
-        <span className={s.count}>{tunnelCount}</span> {TEXT.tunnels}
+        <span className={s.count}>{t("footer.tunnels", { count: tunnelCount })}</span>
       </button>
 
       <div className={s.spacer} />
 
       {vault !== undefined && vault.unlocked && (
         <>
-          <span>
-            <span className={s.count}>{vault.connectionCount}</span> {TEXT.connections}
+          <span className={s.count}>
+            {t("footer.connections", { count: vault.connectionCount })}
           </span>
           <span className={s.sep} aria-hidden="true">
             ·
           </span>
-          <span>
-            <span className={s.count}>{vault.credentialCount}</span> {TEXT.credentials}
+          <span className={s.count}>
+            {t("footer.credentials", { count: vault.credentialCount })}
           </span>
           <span className={s.sep} aria-hidden="true">
             ·
@@ -113,13 +104,13 @@ export function Footer({ vault, onShowPanels }: FooterProps) {
       )}
 
       {remaining === null ? (
-        <span className={s.note}>{TEXT.noAutoLock}</span>
+        <span className={s.note}>{t("footer.noAutoLock")}</span>
       ) : (
-        <span>
-          {TEXT.locksIn}{" "}
-          <span className={warning ? s.countdownWarning : s.count}>
-            {formatCountdown(remaining)}
-          </span>
+        // The clock is inside the sentence rather than beside it, because
+        // "vault locks in 04:31" does not put its number last in every
+        // language. The warning tone moves to the whole phrase.
+        <span className={warning ? s.countdownWarning : undefined}>
+          {t("footer.locksIn", { clock: formatClock(locale, remaining) })}
         </span>
       )}
     </footer>

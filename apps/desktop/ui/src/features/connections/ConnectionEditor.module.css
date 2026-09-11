@@ -199,10 +199,13 @@
  * credential is not being changed under them. A warning tone here would say
  * the opposite of what is true.
  */
+/* Logical, not physical: the rule sits at the inline start of the text it
+   annotates, which is the right-hand side in Arabic. The two physical
+   properties this replaced were the only ones left in the frontend. */
 .consequence {
   margin: 0;
-  padding-left: var(--space-2);
-  border-left: 2px solid var(--border-strong);
+  padding-inline-start: var(--space-2);
+  border-inline-start: 2px solid var(--border-strong);
   color: var(--fg-muted);
   font-size: var(--text-xs);
   line-height: var(--leading-normal);

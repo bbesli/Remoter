@@ -165,6 +165,19 @@
   color: var(--danger-text);
 }
 
+/* A fingerprint is a byte string, not a sentence.
+
+   `SHA256:` and the base64 that follows are strongly LTR characters, so most of
+   this survives an RTL page on content alone — but not all of it. The colon
+   after the algorithm name and any trailing `=` padding are bidi-neutral, and
+   in an RTL paragraph neutrals at the edge of a run take the paragraph's
+   direction: the colon jumps to the far side and the padding leads instead of
+   trails. A user comparing this against a fingerprint printed by `ssh-keygen`
+   would be comparing two differently-shaped strings.
+
+   Pinned here rather than isolated at the call site because this is not a value
+   interpolated into a translated sentence — it is a block of its own, and a
+   block's own `direction` is what its neutrals resolve against. */
 .fingerprint {
   margin: 0;
   font-family: var(--font-mono);
@@ -174,6 +187,7 @@
   color: var(--fg-strong);
   overflow-wrap: anywhere;
   user-select: text;
+  direction: ltr;
 }
 
 .keyMeta {
@@ -186,7 +200,27 @@
   min-width: 0;
 }
 
+/* Randomart is a picture, and this is the line that keeps it one.
+
+   Every glyph in the art — `+`, `-`, `|`, `.`, `o`, `E`, space — is bidi
+   neutral. A run of neutrals has no direction of its own, so the bidi algorithm
+   hands it the direction of the paragraph it sits in; inside `dir="rtl"` that
+   means each row is reordered end-for-end and the whole box right-aligns. The
+   result is still a valid-looking picture, which is what makes it dangerous.
+
+   The entire security value of randomart is that a human recognises the same
+   shape twice. A user who compares today's art against the art they remember
+   from yesterday has to be told "this is a different key" by a difference in
+   the picture — and only by that. If the art mirrors because the interface is
+   in Arabic, every comparison fails, and the user has no way to tell a changed
+   host key from a rendering artefact. They learn to ignore the difference,
+   which is exactly the habit the prompt exists to prevent.
+
+   `white-space: pre` already stops the rows being re-wrapped; `direction: ltr`
+   is what stops them being re-ordered. Both are required, and neither implies
+   the other. */
 .randomart {
+  direction: ltr;
   margin: var(--space-2) 0 0;
   padding: var(--space-2);
   font-family: var(--font-mono);

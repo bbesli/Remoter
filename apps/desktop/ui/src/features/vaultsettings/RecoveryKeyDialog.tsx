@@ -25,24 +25,11 @@ import { useMemo, useState } from "react";
 
 import { Button } from "@/components/Button";
 import { RecoveryKeyPanel } from "@/features/vault/RecoveryKeyScreen";
+import { useT } from "@/i18n";
 import type { CreateVaultResult, RecoveryKey } from "@/lib/ipc";
 
 import { Dialog } from "./Dialog";
 import s from "./RecoveryKeyDialog.module.css";
-
-const TEXT = {
-  title: "Your new recovery key",
-  titleOf: (position: number, total: number) =>
-    `Your new recovery key (${position} of ${total})`,
-  lead: (slotIndex: number) =>
-    `Slot ${slotIndex}. The key that slot held before is now useless, and this one is shown here and nowhere else.`,
-
-  done: "I have saved it",
-  doneLast: "I have saved it — finish",
-  blocked: "Type the highlighted group above first. This key cannot be shown again.",
-  escapeBlocked:
-    "This key is shown once. Closing without recording it leaves the slot holding a key you do not have.",
-} as const;
 
 interface RecoveryKeyDialogProps {
   recoveryKey: RecoveryKey;
@@ -62,6 +49,7 @@ export function RecoveryKeyDialog({
   sequence,
   onDone,
 }: RecoveryKeyDialogProps) {
+  const t = useT("vaultsettings");
   const [confirmed, setConfirmed] = useState(false);
 
   const sheet = useMemo<CreateVaultResult>(
@@ -80,22 +68,27 @@ export function RecoveryKeyDialog({
     <Dialog
       id={`vault-recovery-key-${recoveryKey.slotIndex}`}
       title={
-        sequence === undefined ? TEXT.title : TEXT.titleOf(sequence.position, sequence.total)
+        sequence === undefined
+          ? t("recoveryKey.title")
+          : t("recoveryKey.titleSequence", {
+              position: sequence.position,
+              total: sequence.total,
+            })
       }
-      lead={TEXT.lead(recoveryKey.slotIndex)}
+      lead={t("recoveryKey.lead", { index: recoveryKey.slotIndex })}
       onDismiss={null}
-      dismissBlockedReason={TEXT.escapeBlocked}
+      dismissBlockedReason={t("recoveryKey.escapeBlocked")}
       wide
       footer={
         <>
-          {!confirmed && <span className={s.blocked}>{TEXT.blocked}</span>}
+          {!confirmed && <span className={s.blocked}>{t("recoveryKey.blocked")}</span>}
           <Button
             variant="primary"
             onClick={onDone}
             disabled={!confirmed}
-            title={confirmed ? undefined : TEXT.blocked}
+            title={confirmed ? undefined : t("recoveryKey.blocked")}
           >
-            {last ? TEXT.doneLast : TEXT.done}
+            {last ? t("recoveryKey.doneLast") : t("recoveryKey.done")}
           </Button>
         </>
       }

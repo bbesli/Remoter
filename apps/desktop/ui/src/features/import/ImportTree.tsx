@@ -22,26 +22,11 @@ import { useEffect, useRef } from "react";
 
 import { Badge } from "@/components/Badge";
 import { Icon, type IconName } from "@/components/Icon";
+import { isolate, isolateLtr, useT } from "@/i18n";
 import type { ImportNode } from "@/lib/ipc";
 
 import { tickState, type ImportTreeIndex, type TickState } from "./selection";
 import s from "./ImportWizard.module.css";
-
-const TEXT = {
-  empty: "Nothing matches that.",
-  collapse: "Collapse",
-  expand: "Expand",
-  gateway: (hops: number) => `gateway ×${hops}`,
-  gatewayTitle: (hops: number) =>
-    `A jump-host chain of ${hops} ${hops === 1 ? "hop" : "hops"} came across with this connection.`,
-  kept: (n: number) => `+${n} kept`,
-  keptTitle: (n: number) =>
-    `${n} ${n === 1 ? "setting" : "settings"} with no equivalent here, preserved verbatim in custom fields.`,
-  secret: "password",
-  secretTitle: "A password from the file will be sealed into the vault for this node.",
-  inherited: "inherited",
-  inheritedTitle: "This node's credential comes from its parent, as it did in the file.",
-} as const;
 
 const KIND_ICON: Record<ImportNode["kind"], IconName> = {
   folder: "folder",
@@ -73,6 +58,7 @@ export function ImportTree({
   onToggleCollapsed,
   visible,
 }: ImportTreeProps) {
+  const t = useT("import");
   const rows: ImportNode[] = [];
   for (const id of index.order) {
     const node = index.byId.get(id);
@@ -83,14 +69,14 @@ export function ImportTree({
     rows.push(node);
   }
 
-  if (rows.length === 0) return <p className={s.emptyTree}>{TEXT.empty}</p>;
+  if (rows.length === 0) return <p className={s.emptyTree}>{t("tree.empty")}</p>;
 
   // Deliberately not `role="tree"`: the ARIA tree pattern promises roving
   // focus and arrow-key navigation, and this is a list of checkboxes with a
   // visual hierarchy. Claiming the pattern without the keys is the same class
   // of lie as `aria-modal` without a focus trap.
   return (
-    <div className={s.treeScroll} role="group" aria-label="Nodes this import would create">
+    <div className={s.treeScroll} role="group" aria-label={t("tree.group")}>
       {rows.map((node) => (
         <TreeRow
           key={node.id}
@@ -126,6 +112,7 @@ function TreeRow({
   onToggle,
   onToggleCollapsed,
 }: TreeRowProps) {
+  const t = useT("import");
   const check = useRef<HTMLInputElement>(null);
 
   // `indeterminate` exists only as a DOM property; there is no attribute for
@@ -134,10 +121,16 @@ function TreeRow({
     if (check.current !== null) check.current.indeterminate = state === "partial";
   }, [state]);
 
-  const meta = [node.host, node.port === null ? null : `:${node.port}`]
+  // Host, port and account name came out of the file and are the user's own
+  // text in whatever script they wrote it. `host:port` is left-to-right by
+  // specification — an IPv6 literal reads backwards under first-strong
+  // inference — while a user name takes its direction from itself.
+  const address = [node.host, node.port === null ? null : `:${node.port}`]
     .filter((part) => part !== null && part !== "")
     .join("");
-  const user = node.username === null || node.username === "" ? "" : ` · ${node.username}`;
+  const meta = address === "" ? "" : isolateLtr(address);
+  const user =
+    node.username === null || node.username === "" ? "" : ` · ${isolate(node.username)}`;
 
   return (
     <div
@@ -150,7 +143,11 @@ function TreeRow({
           className={s.disclosure}
           onClick={() => onToggleCollapsed(node.id)}
           aria-expanded={!collapsed}
-          aria-label={`${collapsed ? TEXT.expand : TEXT.collapse} ${node.name}`}
+          aria-label={
+            collapsed
+              ? t("tree.expandNode", { name: isolate(node.name) })
+              : t("tree.collapseNode", { name: isolate(node.name) })
+          }
         >
           <Icon name={collapsed ? "chevron-right" : "chevron-down"} size={13} />
         </button>
@@ -181,23 +178,23 @@ function TreeRow({
 
       <span className={s.rowTags}>
         {node.gatewayHops > 0 && (
-          <Badge tone="accent" title={TEXT.gatewayTitle(node.gatewayHops)}>
-            {TEXT.gateway(node.gatewayHops)}
+          <Badge tone="accent" title={t("tree.gatewayTitle", { count: node.gatewayHops })}>
+            {t("tree.gateway", { hops: node.gatewayHops })}
           </Badge>
         )}
         {node.hasSecret && (
-          <Badge tone="warning" title={TEXT.secretTitle}>
-            {TEXT.secret}
+          <Badge tone="warning" title={t("tree.secretTitle")}>
+            {t("tree.secret")}
           </Badge>
         )}
         {node.credentialInherited && (
-          <Badge tone="success" title={TEXT.inheritedTitle}>
-            {TEXT.inherited}
+          <Badge tone="success" title={t("tree.inheritedTitle")}>
+            {t("tree.inherited")}
           </Badge>
         )}
         {node.customFields > 0 && (
-          <Badge tone="neutral" title={TEXT.keptTitle(node.customFields)}>
-            {TEXT.kept(node.customFields)}
+          <Badge tone="neutral" title={t("tree.keptTitle", { count: node.customFields })}>
+            {t("tree.kept", { count: node.customFields })}
           </Badge>
         )}
       </span>

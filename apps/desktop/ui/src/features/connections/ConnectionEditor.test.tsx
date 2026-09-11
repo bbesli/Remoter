@@ -26,6 +26,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { EffectiveConnection, PrivateKeyInfo, ResolvedField, TreeNode } from "@/lib/ipc";
+import { withoutBidi } from "@/test/bidi";
 
 import { ConnectionEditor, useConnectionEditor, type EditorTarget } from "./ConnectionEditor";
 
@@ -274,8 +275,14 @@ describe("a connection whose credential comes from a folder", () => {
   it("shows the inherited login and its source, and does not offer to edit it in place", async () => {
     renderEditor({ mode: "edit", nodeId: "conn-1" });
 
-    expect(await screen.findByText("svc-deploy")).toBeInTheDocument();
-    expect(screen.getByText("Datacentre EU-West")).toBeInTheDocument();
+    // The username and the folder name are vault data, so both reach the
+    // screen wrapped in a bidi isolate. `withoutBidi` takes the invisible
+    // characters back out; without it these queries fail for a reason nothing
+    // in the output shows. See src/test/bidi.ts.
+    expect(await screen.findByText("svc-deploy", { normalizer: withoutBidi })).toBeInTheDocument();
+    expect(
+      screen.getByText("inherited from Datacentre EU-West", { normalizer: withoutBidi }),
+    ).toBeInTheDocument();
     // No control to type into: what is on screen belongs to the folder.
     expect(screen.queryByLabelText("Username")).not.toBeInTheDocument();
   });
@@ -289,7 +296,9 @@ describe("a connection whose credential comes from a folder", () => {
     // The line that says the choice has a consequence — quiet, and at the
     // moment it becomes true rather than after the fact.
     expect(
-      await screen.findByText(/Datacentre EU-West keeps the credential it has/),
+      await screen.findByText(/Datacentre EU-West keeps the credential it has/, {
+        normalizer: withoutBidi,
+      }),
     ).toBeInTheDocument();
 
     const username = screen.getByLabelText("Username");

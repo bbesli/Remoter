@@ -24,64 +24,24 @@ import { FailureNotice } from "@/components/FailureNotice";
 import { Field } from "@/components/Field";
 import { TextInput } from "@/components/TextInput";
 import { kdfNote } from "@/features/vault/UnlockScreen";
+import { useT } from "@/i18n";
 import type { AddPasswordSlot, IpcFailure, SlotKind } from "@/lib/ipc";
 
 import { Dialog } from "./Dialog";
 import { KeyfileField, keyfileBlocked } from "./KeyfileField";
 import s from "./AddSlotDialog.module.css";
 
-const TEXT = {
-  title: "Add a key slot",
-  lead: "Each slot independently unwraps the same vault key. Adding one re-wraps that key under a new credential and re-encrypts nothing, so it is instant and it is safe to change your mind.",
-
-  kindLegend: "What kind of slot",
-  kindPassword: "Another password",
-  kindPasswordHelp:
-    "A second password, optionally with its own key file. Useful for a colleague who must be able to open this vault without knowing yours.",
-  kindRecovery: "Another recovery key",
-  kindRecoveryHelp:
-    "A vault may hold more than one. A sealed envelope in a safe is a legitimate reason to want a second.",
-  kindKeychain: "Remember on this device",
-  kindKeychainHelp:
-    "Enrols this machine's credential store, so the vault opens without a prompt while you are logged in. Anyone who can use your desktop session can then open the vault.",
-
-  label: "Name for this slot",
-  labelHelp: "Shown in this list and on the unlock screen, so a slot can be told from the others.",
-  labelPlaceholder: "Ops laptop",
-  labelBlocked: "Give the slot a name first.",
-
-  password: "Password",
-  passwordHelp:
-    "This opens the whole vault, exactly as the master password does. It should be as strong.",
-  confirm: "Repeat the password",
-  confirmMismatch: "The two passwords are not the same.",
-  passwordBlocked: "Type the password twice, the same way.",
-
-  keyfile: "Key file (optional)",
-  keyfileHelp:
-    "Any file becomes a second factor for this slot. Lose it and this slot stops working; the other slots are unaffected.",
-  keyfileRefused: "Choose a different key file. The field above says why that one cannot be used.",
-
-  recoveryNotice: "The key is generated when you press Add, shown once, and then dropped.",
-  keychainNotice:
-    "The token lives in this machine's keyring. Another machine cannot use this slot, and removing it here erases the token.",
-
-  cancel: "Cancel",
-  add: "Add the slot",
-  adding: "Deriving the key…",
-  addingStage: "Deriving a key from the new password…",
-  addingBlocked:
-    "The slot is already being written. This closes when the core answers — and a recovery slot has a key to hand over first.",
-  failed: "The slot was not added.",
-} as const;
-
 type AddKind = Extract<SlotKind, "password" | "recovery" | "keychain">;
 
-const KINDS: readonly { kind: AddKind; label: string; help: string }[] = [
-  { kind: "password", label: TEXT.kindPassword, help: TEXT.kindPasswordHelp },
-  { kind: "recovery", label: TEXT.kindRecovery, help: TEXT.kindRecoveryHelp },
-  { kind: "keychain", label: TEXT.kindKeychain, help: TEXT.kindKeychainHelp },
-];
+/**
+ * The three kinds, as catalogue keys rather than resolved labels: this array is
+ * module-level, and a label resolved here would not follow a language change.
+ */
+const KINDS = [
+  { kind: "password", labelKey: "addSlot.kindPassword", helpKey: "addSlot.kindPasswordHelp" },
+  { kind: "recovery", labelKey: "addSlot.kindRecovery", helpKey: "addSlot.kindRecoveryHelp" },
+  { kind: "keychain", labelKey: "addSlot.kindKeychain", helpKey: "addSlot.kindKeychainHelp" },
+] as const satisfies readonly { kind: AddKind; labelKey: string; helpKey: string }[];
 
 interface AddSlotDialogProps {
   vaultPath: string;
@@ -105,6 +65,8 @@ export function AddSlotDialog({
   onRetry,
   onClose,
 }: AddSlotDialogProps) {
+  const t = useT("vaultsettings");
+  const tCommon = useT("common");
   const [kind, setKind] = useState<AddKind>("password");
   const [label, setLabel] = useState("");
   const [password, setPassword] = useState("");
@@ -119,15 +81,15 @@ export function AddSlotDialog({
     kind !== "password"
       ? null
       : password === ""
-        ? TEXT.passwordBlocked
+        ? t("addSlot.passwordBlocked")
         : !passwordsMatch
-          ? TEXT.confirmMismatch
+          ? t("addSlot.confirmMismatch")
           : keyfileBlocked(keyfile, vaultPath)
-            ? TEXT.keyfileRefused
+            ? t("addSlot.keyfileRefused")
             : null;
 
   const blockedReason =
-    trimmed === "" ? TEXT.labelBlocked : passwordProblem !== null ? passwordProblem : null;
+    trimmed === "" ? t("addSlot.labelBlocked") : passwordProblem !== null ? passwordProblem : null;
 
   function submit() {
     if (working || blockedReason !== null) return;
@@ -145,30 +107,30 @@ export function AddSlotDialog({
   return (
     <Dialog
       id="vault-add-slot"
-      title={TEXT.title}
-      lead={TEXT.lead}
+      title={t("addSlot.title")}
+      lead={t("addSlot.lead")}
       onDismiss={working ? null : onClose}
-      dismissBlockedReason={TEXT.addingBlocked}
+      dismissBlockedReason={t("addSlot.addingBlocked")}
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={working}>
-            {TEXT.cancel}
+            {tCommon("action.cancel")}
           </Button>
           <BusyButton
             variant="primary"
             busy={working}
-            busyLabel={TEXT.adding}
+            busyLabel={t("addSlot.adding")}
             disabled={blockedReason !== null}
             onClick={submit}
             {...(blockedReason === null ? {} : { title: blockedReason })}
           >
-            {TEXT.add}
+            {t("addSlot.add")}
           </BusyButton>
         </>
       }
     >
       <fieldset className={s.kinds} disabled={working}>
-        <legend className={s.legend}>{TEXT.kindLegend}</legend>
+        <legend className={s.legend}>{t("addSlot.kindLegend")}</legend>
         {KINDS.map((option) => (
           <label
             key={option.kind}
@@ -184,19 +146,23 @@ export function AddSlotDialog({
             />
             <span className={s.mark} aria-hidden="true" />
             <span className={s.kindText}>
-              <span className={s.kindName}>{option.label}</span>
-              <span className={s.kindHelp}>{option.help}</span>
+              <span className={s.kindName}>{t(option.labelKey)}</span>
+              <span className={s.kindHelp}>{t(option.helpKey)}</span>
             </span>
           </label>
         ))}
       </fieldset>
 
-      <Field label={TEXT.label} help={TEXT.labelHelp} htmlFor="vault-add-slot-label">
+      <Field
+        label={t("addSlot.label")}
+        help={t("addSlot.labelHelp")}
+        htmlFor="vault-add-slot-label"
+      >
         <TextInput
           id="vault-add-slot-label"
           value={label}
           onChange={setLabel}
-          placeholder={TEXT.labelPlaceholder}
+          placeholder={t("addSlot.labelPlaceholder")}
           disabled={working}
           autoFocus
         />
@@ -204,7 +170,11 @@ export function AddSlotDialog({
 
       {kind === "password" && (
         <>
-          <Field label={TEXT.password} help={TEXT.passwordHelp} htmlFor="vault-add-slot-password">
+          <Field
+            label={t("addSlot.password")}
+            help={t("addSlot.passwordHelp")}
+            htmlFor="vault-add-slot-password"
+          >
             <TextInput
               id="vault-add-slot-password"
               type="password"
@@ -214,9 +184,11 @@ export function AddSlotDialog({
             />
           </Field>
           <Field
-            label={TEXT.confirm}
+            label={t("addSlot.confirm")}
             htmlFor="vault-add-slot-confirm"
-            {...(confirm !== "" && !passwordsMatch ? { error: TEXT.confirmMismatch } : {})}
+            {...(confirm !== "" && !passwordsMatch
+              ? { error: t("addSlot.confirmMismatch") }
+              : {})}
           >
             <TextInput
               id="vault-add-slot-confirm"
@@ -228,8 +200,8 @@ export function AddSlotDialog({
             />
           </Field>
           <KeyfileField
-            label={TEXT.keyfile}
-            help={TEXT.keyfileHelp}
+            label={t("addSlot.keyfile")}
+            help={t("addSlot.keyfileHelp")}
             path={keyfile}
             onChange={setKeyfile}
             vaultPath={vaultPath}
@@ -244,18 +216,20 @@ export function AddSlotDialog({
           one that is only in one place. */}
       {busy === "password" && (
         <div className={s.busy}>
-          <BusyStatus label={TEXT.addingStage} note={kdfNote(null)} size={16} />
+          <BusyStatus label={t("addSlot.addingStage")} note={kdfNote(null)} size={16} />
         </div>
       )}
 
-      {kind === "recovery" && <p className={s.notice}>{TEXT.recoveryNotice}</p>}
+      {kind === "recovery" && <p className={s.notice}>{t("addSlot.recoveryNotice")}</p>}
       {kind === "keychain" && (
-        <Callout tone="warning" title={TEXT.kindKeychain}>
-          {TEXT.keychainNotice}
+        <Callout tone="warning" title={t("addSlot.kindKeychain")}>
+          {t("addSlot.keychainNotice")}
         </Callout>
       )}
 
-      {failure !== null && <FailureNotice failure={failure} title={TEXT.failed} onRetry={onRetry} />}
+      {failure !== null && (
+        <FailureNotice failure={failure} title={t("addSlot.failed")} onRetry={onRetry} />
+      )}
     </Dialog>
   );
 }

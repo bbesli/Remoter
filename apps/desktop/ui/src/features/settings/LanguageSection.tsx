@@ -1,69 +1,36 @@
 /**
  * Language selection.
  *
- * Remoter is specified to ship in ten languages (docs/features/i18n.md) and
- * exactly one of them is translated today. Listing the other nine as if they
- * were choices would produce a control that changes nothing — the worst
- * outcome available here, because the user cannot tell a broken setting from a
- * language that simply reuses English strings. So the nine are shown, disabled,
- * each saying what it is waiting for.
+ * This screen used to list ten languages and mark nine of them "Not yet
+ * available", from a hardcoded `available` flag. That was honest at the time
+ * and is exactly the wrong shape now: the flag has to be edited by hand when a
+ * catalogue lands, so the first thing that happens after a translation ships is
+ * that the screen keeps calling it unavailable. Availability is measured from
+ * the catalogue directory instead (`isLocaleAvailable`), so a language becomes
+ * selectable the moment `locales/<code>/` is complete and this file needs no
+ * change at all.
+ *
+ * Choosing one takes effect immediately: `setLocale` moves the store, the
+ * provider above the whole application loads the catalogues and writes `lang`
+ * and `dir` onto the document, and `onSave` persists it. No restart, and no
+ * remount — every component reads its copy through `useT`, which re-renders on
+ * a language change.
  *
  * Every name is written in its own script and carries `lang` so a screen reader
- * pronounces it and the browser picks the right font. Arabic additionally
- * carries `dir`, since the surrounding paragraph is left-to-right.
+ * pronounces it and the browser picks the right font. A right-to-left name
+ * additionally carries `dir`, because the row around it is in the interface's
+ * direction, not the language's.
  */
 
 import { Badge } from "@/components/Badge";
 import { FailureNotice } from "@/components/FailureNotice";
 import { Spinner } from "@/components/Spinner";
+import { SUPPORTED_LOCALES, isLocaleAvailable, useT } from "@/i18n";
 import { useApp } from "@/stores/app";
 
 import { SettingsSection } from "./SettingsSection";
 import type { SectionProps } from "./types";
 import s from "./LanguageSection.module.css";
-
-const TEXT = {
-  title: "Language",
-  description:
-    "Ten languages are planned for 1.0. Right-to-left languages mirror the whole layout, not just the text.",
-
-  progress:
-    "Only English is translated so far. The other nine are listed because translation is under way; each becomes selectable when its catalogue is complete, and until then choosing it would change nothing.",
-
-  notReady: "Not yet available",
-  unavailableLabel: (name: string) => `${name} — not yet available`,
-  rtl: "RTL",
-  saving: "Saving the language…",
-  saveFailed: "The language was not saved.",
-  retry: "Save again",
-
-  storedUnavailable: (locale: string) =>
-    `Your settings ask for ${locale}, which has no catalogue yet, so the interface stays in English.`,
-} as const;
-
-interface Locale {
-  /** The BCP 47 tag stored in settings and used for the catalogue directory. */
-  code: string;
-  /** The language's own name, in its own script. Never translated. */
-  name: string;
-  rtl: boolean;
-  /** True once `locales/<code>/` is complete enough to select. */
-  available: boolean;
-}
-
-/** The ten from docs/features/i18n.md, in that document's order. */
-const LOCALES: readonly Locale[] = [
-  { code: "en", name: "English", rtl: false, available: true },
-  { code: "zh-Hans", name: "简体中文", rtl: false, available: false },
-  { code: "es", name: "Español", rtl: false, available: false },
-  { code: "hi", name: "हिन्दी", rtl: false, available: false },
-  { code: "ar", name: "العربية", rtl: true, available: false },
-  { code: "pt-BR", name: "Português (Brasil)", rtl: false, available: false },
-  { code: "ru", name: "Русский", rtl: false, available: false },
-  { code: "fr", name: "Français", rtl: false, available: false },
-  { code: "de", name: "Deutsch", rtl: false, available: false },
-  { code: "tr", name: "Türkçe", rtl: false, available: false },
-];
 
 export function LanguageSection({
   settings,
@@ -72,13 +39,21 @@ export function LanguageSection({
   failure,
   onRetrySave,
 }: SectionProps) {
+  const t = useT("settings");
+  const tCommon = useT("common");
   const setLocale = useApp((state) => state.setLocale);
 
   const saving = savingField === "locale";
   const localeFailure = failure !== null && failure.field === "locale" ? failure.failure : null;
-  const storedIsAvailable = LOCALES.some(
-    (locale) => locale.code === settings.locale && locale.available,
-  );
+
+  // Measured, not declared. Both of these were constants until the catalogues
+  // existed, and a constant is what let the screen go stale.
+  const locales = SUPPORTED_LOCALES.map((locale) => ({
+    ...locale,
+    available: isLocaleAvailable(locale.code),
+  }));
+  const availableCount = locales.filter((locale) => locale.available).length;
+  const storedIsAvailable = isLocaleAvailable(settings.locale);
 
   function choose(code: string) {
     if (code === settings.locale) return;
@@ -87,13 +62,17 @@ export function LanguageSection({
   }
 
   return (
-    <SettingsSection title={TEXT.title} description={TEXT.description}>
-      <p className={s.progress}>{TEXT.progress}</p>
+    <SettingsSection title={t("language.title")} description={t("language.description")}>
+      <p className={s.progress}>{t("language.progress", { available: availableCount })}</p>
 
-      {!storedIsAvailable && <p className={s.mismatch}>{TEXT.storedUnavailable(settings.locale)}</p>}
+      {!storedIsAvailable && (
+        <p className={s.mismatch}>
+          {t("language.storedUnavailable", { locale: settings.locale })}
+        </p>
+      )}
 
-      <div className={s.grid} role="radiogroup" aria-label={TEXT.title}>
-        {LOCALES.map((locale) => (
+      <div className={s.grid} role="radiogroup" aria-label={t("language.title")}>
+        {locales.map((locale) => (
           <label
             key={locale.code}
             className={locale.available ? s.row : [s.row, s.unavailable].join(" ")}
@@ -108,36 +87,41 @@ export function LanguageSection({
               onChange={() => choose(locale.code)}
               // The row carries a badge and a status beside the name; the
               // control is named on its own so the announcement stays exact.
-              aria-label={locale.available ? locale.name : TEXT.unavailableLabel(locale.name)}
+              // The endonym is not translated in either case.
+              aria-label={
+                locale.available
+                  ? locale.endonym
+                  : t("language.unavailableLabel", { name: locale.endonym })
+              }
             />
             <span className={s.mark} aria-hidden="true" />
             <span
               className={s.name}
               lang={locale.code}
-              {...(locale.rtl ? { dir: "rtl" as const } : {})}
+              {...(locale.dir === "rtl" ? { dir: "rtl" as const } : {})}
             >
-              {locale.name}
+              {locale.endonym}
             </span>
-            {locale.rtl && <Badge tone="info">{TEXT.rtl}</Badge>}
+            {locale.dir === "rtl" && <Badge tone="info">{t("language.rtl")}</Badge>}
             <span className={s.spacer} />
-            {!locale.available && <span className={s.status}>{TEXT.notReady}</span>}
+            {!locale.available && <span className={s.status}>{t("language.notReady")}</span>}
           </label>
         ))}
       </div>
 
       {saving && (
         <p className={s.saving}>
-          <Spinner size={14} label={TEXT.saving} />
-          {TEXT.saving}
+          <Spinner size={14} label={t("language.saving")} />
+          {t("language.saving")}
         </p>
       )}
 
       {localeFailure !== null && (
         <FailureNotice
           failure={localeFailure}
-          title={TEXT.saveFailed}
+          title={t("language.saveFailed")}
           onRetry={onRetrySave}
-          retryLabel={TEXT.retry}
+          retryLabel={tCommon("action.saveAgain")}
         />
       )}
     </SettingsSection>

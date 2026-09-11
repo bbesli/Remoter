@@ -24,7 +24,23 @@ export {
   type Namespace,
 } from "./locales";
 export { availableLocales, isLocaleAvailable, SHIPPED_NAMESPACES } from "./catalogues";
-export { isolate, isolateChain, isolateLtr } from "./bidi";
+export {
+  resolveFailureText,
+  useFailureText,
+  type CoreFailure,
+  type FailureCatalogue,
+  type FailureText,
+} from "./failures";
+export {
+  strengthBand,
+  strengthConsequence,
+  useStrengthText,
+  type StrengthBand,
+  type StrengthConsequence,
+  type StrengthSpan,
+  type StrengthText,
+} from "./strength";
+export { documentDirection, inlineStartOffset, isolate, isolateChain, isolateLtr } from "./bidi";
 export {
   formatBytes,
   formatClock,

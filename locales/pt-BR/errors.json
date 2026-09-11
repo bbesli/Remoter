@@ -1,0 +1,690 @@
+{
+  "_comment_file": "Every failure the core can hand the interface, keyed by the stable `code` on `IpcError` (crates/remoter-ipc/src/error.rs). The code is the join: the core sends a code, a sentence, an optional diagnostic and an ordered list of next actions, and this file supplies the sentence and the actions in the reader's language. A code with no entry here is not broken — the core's own English is rendered instead, which is what a failure newly added in Rust should look like until it is translated. Four rules for anyone editing this file. (1) `actions` is positional: the order is the order the core offered, and a label is used only when the entry has one at that position. (2) No sentence here may quote a password, a passphrase, a key or any other secret — a failure is the one moment an implementation is tempted to say what it was given. (3) The sentences carry no placeholders. The core fills its own sentence with the specifics (a path, a slot number, a byte offset) and those cannot be recovered from the finished string, so each sentence here is written to stay true without them; an English reader is shown the core's own sentence, specifics and all, and every other language is shown this one. (4) A message says what failed and what the reader can do about it. 'An error occurred' is never an acceptable translation of anything below.",
+  "unknown": {
+    "_comment_": "Not a code the core sends: `asFailure` in apps/desktop/ui/src/lib/ipc.ts uses it when a rejection arrives with no shape at all — a panic inside a command, or a transport failure below Tauri. It is the last sentence in the application and should never be reached.",
+    "message": "Algo deu errado."
+  },
+  "vault": {
+    "locked": {
+      "message": "Nenhum cofre está aberto. Desbloqueie um para ver suas conexões.",
+      "actions": [
+        "Desbloquear um cofre"
+      ]
+    },
+    "auto-locked": {
+      "message": "O cofre se bloqueou após o tempo de inatividade que você definiu. Desbloqueie-o para continuar.",
+      "actions": [
+        "Desbloquear o cofre",
+        "Alterar o tempo limite nas configurações"
+      ]
+    },
+    "locked-by-trigger": {
+      "message": "O cofre se bloqueou porque ocorreu um evento que você escolheu para bloqueá-lo. Desbloqueie-o para continuar.",
+      "actions": [
+        "Desbloquear o cofre",
+        "Alterar o que o bloqueia nas configurações do cofre"
+      ]
+    },
+    "_comment_unlock-failed": "SECURITY-CRITICAL. This sentence must not say which factor was wrong, and a translation must not add that either: before a key slot has unwrapped the master key, naming the password or the key file as the wrong one tells an attacker which half they have already guessed. See the module docs in crates/remoter-ipc/src/error.rs.",
+    "unlock-failed": {
+      "message": "Isso não desbloqueou o cofre.",
+      "actions": [
+        "Tentar novamente",
+        "Conferir o arquivo de chave, se este cofre usar um",
+        "Usar sua chave de recuperação"
+      ]
+    },
+    "header-tampered": {
+      "message": "O cabeçalho deste cofre foi modificado desde que foi escrito, então não se pode confiar no conteúdo dele.",
+      "actions": [
+        "Abrir um backup ao lado do cofre",
+        "Conferir se um cliente de sincronização reescreveu o arquivo"
+      ]
+    },
+    "body-corrupt": {
+      "message": "O conteúdo deste cofre não pôde ser descriptografado. O arquivo está danificado.",
+      "actions": [
+        "Abrir um backup ao lado do cofre",
+        "Conferir a unidade onde o cofre está guardado"
+      ]
+    },
+    "no-such-method": {
+      "message": "Este cofre não oferece esse método de desbloqueio.",
+      "actions": [
+        "Escolher um dos métodos que este cofre oferece"
+      ]
+    },
+    "_comment_fido2-unsupported": "The core sends this code both when a hardware key is offered as a way in and when one is added as a key slot, so the sentence has to stay true of both.",
+    "fido2-unsupported": {
+      "message": "O desbloqueio por chave de hardware não está implementado nesta versão do Remoter.",
+      "actions": [
+        "Usar uma senha ou sua chave de recuperação"
+      ]
+    },
+    "not-a-vault": {
+      "message": "Esse arquivo não é um cofre do Remoter.",
+      "actions": [
+        "Escolher um arquivo .rvault",
+        "Criar um cofre novo"
+      ]
+    },
+    "unsupported-format": {
+      "message": "Esse cofre usa uma versão de formato de cofre que esta compilação do Remoter não lê.",
+      "actions": [
+        "Atualizar o Remoter",
+        "Abrir o cofre na máquina que o escreveu"
+      ]
+    },
+    "corrupt": {
+      "message": "Este cofre está danificado: a estrutura dele não pôde ser lida.",
+      "actions": [
+        "Abrir um backup ao lado do cofre"
+      ]
+    },
+    "corrupt-row": {
+      "message": "Este cofre contém um registro que esta compilação do Remoter não consegue ler.",
+      "actions": [
+        "Abrir um backup ao lado do cofre",
+        "Atualizar o Remoter"
+      ]
+    },
+    "header-encode": {
+      "message": "O cabeçalho deste cofre não pôde ser codificado, então não foi escrito.",
+      "actions": [
+        "Relatar isto — o cofre em disco está inalterado"
+      ]
+    },
+    "crypto": {
+      "message": "Uma etapa criptográfica neste cofre falhou, então a operação foi abandonada.",
+      "actions": [
+        "Tentar novamente",
+        "Relatar isto se persistir"
+      ]
+    },
+    "kdf-too-weak": {
+      "message": "Esses parâmetros do Argon2id estão abaixo do piso que o Remoter aceita, e um cofre mais fraco não é uma troca aceitável por um desbloqueio mais rápido.",
+      "actions": [
+        "Usar os parâmetros calibrados"
+      ]
+    },
+    "kdf-params-refused": {
+      "message": "Este cofre declara parâmetros do Argon2id acima de tudo o que esta compilação tentará. Nada foi derivado.",
+      "actions": [
+        "Abrir o cofre na máquina que o escreveu",
+        "Atualizar o Remoter",
+        "Abrir um backup ao lado do cofre"
+      ]
+    },
+    "no-such-slot": {
+      "message": "Este cofre não tem esse slot de chave.",
+      "actions": [
+        "Recarregar a lista de slots"
+      ]
+    },
+    "no-slot-of-kind": {
+      "message": "Este cofre não tem nenhum slot desse tipo.",
+      "actions": [
+        "Adicionar antes esse método de desbloqueio"
+      ]
+    },
+    "slot-table-full": {
+      "message": "Este cofre já contém o número máximo de slots de chave.",
+      "actions": [
+        "Remover um método de desbloqueio que você não usa mais"
+      ]
+    },
+    "last-slot": {
+      "message": "Essa é a única forma de entrar neste cofre; removê-la deixaria você de fora para sempre.",
+      "actions": [
+        "Adicionar antes outro método de desbloqueio"
+      ]
+    },
+    "wrong-slot-kind": {
+      "message": "Esse slot de chave é de outro tipo, então a operação não se aplica a ele.",
+      "actions": [
+        "Recarregar a lista de slots",
+        "Escolher um slot do tipo certo"
+      ]
+    },
+    "slot-credential-missing": {
+      "message": "Esse slot de chave não pode ser reembrulhado sem a senha dele, e descartá-lo em silêncio tiraria de alguém a forma de entrar. Nada foi alterado.",
+      "actions": [
+        "Digitar a senha desse slot",
+        "Tirar esse slot da rotação deliberadamente"
+      ]
+    },
+    "slot-credential-rejected": {
+      "message": "Isso não abre o slot de chave, então o slot ficou exatamente como estava.",
+      "actions": [
+        "Tentar novamente",
+        "Conferir o arquivo de chave, se esse slot usar um",
+        "Usar sua chave de recuperação"
+      ]
+    },
+    "keychain": {
+      "message": "O repositório de credenciais desta máquina está indisponível, ou não guarda nenhum token para este cofre.",
+      "actions": [
+        "Desbloquear com sua senha",
+        "Registrar este dispositivo de novo depois"
+      ]
+    },
+    "recovery-key-malformed": {
+      "message": "Isso não é uma chave de recuperação: uma chave de recuperação tem quatorze grupos de quatro caracteres.",
+      "actions": [
+        "Conferir se você colou a chave inteira"
+      ]
+    },
+    "recovery-key-checksum": {
+      "message": "Essa chave de recuperação parece digitada errado — o grupo de verificação dela não confere com o resto.",
+      "actions": [
+        "Comparar com a cópia que você guardou",
+        "Tentar novamente"
+      ]
+    },
+    "keyfile": {
+      "message": "O arquivo de chave não pôde ser lido.",
+      "actions": [
+        "Conferir se o arquivo está onde estava quando o cofre foi criado",
+        "Montar a unidade onde ele fica"
+      ]
+    },
+    "database": {
+      "message": "O banco de dados dentro deste cofre recusou a operação.",
+      "actions": [
+        "Tentar novamente",
+        "Abrir um backup ao lado do cofre"
+      ]
+    },
+    "schema-too-new": {
+      "message": "Este cofre foi escrito por uma versão mais nova do Remoter: a versão de esquema dele não é entendida por esta compilação.",
+      "actions": [
+        "Atualizar o Remoter"
+      ]
+    },
+    "migration-failed": {
+      "message": "Este cofre não pôde ser migrado para o esquema mais novo; o arquivo ficou como estava.",
+      "actions": [
+        "Abrir um backup ao lado do cofre",
+        "Relatar isto"
+      ]
+    }
+  },
+  "request": {
+    "invalid": {
+      "_comment_": "A bug in the interface, not something the reader did: the frontend sent the core a field it cannot read. Keep the sentence blameless and keep the action pointing at a bug report.",
+      "message": "Um valor dessa requisição não é utilizável.",
+      "actions": [
+        "Relatar isto — a interface enviou algo que o núcleo não consegue ler"
+      ]
+    }
+  },
+  "path": {
+    "unusable": {
+      "message": "Esse local não pode ser usado.",
+      "actions": [
+        "Escolher outro local"
+      ]
+    }
+  },
+  "io": {
+    "failed": {
+      "message": "Esse arquivo não pôde ser lido nem escrito.",
+      "actions": [
+        "Conferir se o caminho existe e permite escrita",
+        "Escolher outro local"
+      ]
+    }
+  },
+  "system": {
+    "csprng": {
+      "message": "O gerador de números aleatórios do sistema operacional está indisponível, então nada aleatório pode ser gerado com segurança.",
+      "actions": [
+        "Reiniciar o Remoter",
+        "Relatar isto se persistir"
+      ]
+    }
+  },
+  "key": {
+    "not-a-private-key": {
+      "message": "Esse arquivo não é uma chave privada. Uma chave pública, um certificado ou um arquivo sem relação não autenticam uma conexão.",
+      "actions": [
+        "Escolher a chave privada em vez do arquivo .pub dela",
+        "Usar o agente SSH da plataforma em vez disso"
+      ]
+    },
+    "_comment_unsupported-format": "The first action quotes a command. Translate the sentence around it if there is one; never translate the command itself, and keep its flags exactly as they are.",
+    "unsupported-format": {
+      "message": "Essa chave está em um formato que esta compilação não guarda. Nada foi escrito.",
+      "actions": [
+        "Converter com `ssh-keygen -p -m PKCS8 -f <file>`",
+        "Usar o agente SSH da plataforma em vez disso"
+      ]
+    }
+  },
+  "credential": {
+    "not-a-private-key": {
+      "message": "Esse item não é uma credencial com chave privada, então não há chave nenhuma para ler ou substituir nele.",
+      "actions": [
+        "Selecionar uma credencial",
+        "Escolher antes um arquivo de chave para ela"
+      ]
+    },
+    "purpose-refused": {
+      "message": "Esta credencial é restrita e não pode ser usada desta forma.",
+      "actions": [
+        "Escolher outra credencial",
+        "Ampliar a restrição da credencial"
+      ]
+    }
+  },
+  "node": {
+    "_comment_not-found": "Sent both for an item missing from the vault and for one missing from the tree on screen. Either way the item is gone and the tree on screen is stale, which is what the sentence says.",
+    "not-found": {
+      "message": "Esse item não está mais na árvore; provavelmente foi excluído em outra janela.",
+      "actions": [
+        "Recarregar a árvore"
+      ]
+    },
+    "parent-not-found": {
+      "message": "A pasta em que você soltou isso não existe mais.",
+      "actions": [
+        "Recarregar a árvore",
+        "Escolher outra pasta"
+      ]
+    },
+    "duplicate": {
+      "message": "Já há um item com esse identificador na árvore.",
+      "actions": [
+        "Recarregar a árvore"
+      ]
+    },
+    "not-a-container": {
+      "message": "Só pastas podem conter outros itens.",
+      "actions": [
+        "Soltar dentro de uma pasta",
+        "Soltar no nível superior"
+      ]
+    },
+    "cycle": {
+      "message": "Uma pasta não pode ser movida para dentro dela mesma.",
+      "actions": [
+        "Escolher um destino fora dessa pasta"
+      ]
+    },
+    "too-deep": {
+      "message": "Essa movimentação aninharia a árvore mais fundo do que o limite permite.",
+      "actions": [
+        "Mover para mais perto do nível superior",
+        "Achatar as pastas acima dele"
+      ]
+    },
+    "parent-changed": {
+      "message": "Uma edição não pode trocar a pasta-mãe de um item; mova-o em vez disso.",
+      "actions": [
+        "Arrastar para a pasta nova"
+      ]
+    },
+    "not-a-connection": {
+      "message": "Só conexões têm configurações resolvidas para mostrar.",
+      "actions": [
+        "Selecionar uma conexão"
+      ]
+    }
+  },
+  "tree": {
+    "corrupt": {
+      "message": "A árvore de itens deste cofre não termina: uma cadeia de pastas-mãe faz um laço.",
+      "actions": [
+        "Abrir um backup ao lado do cofre",
+        "Relatar isto"
+      ]
+    }
+  },
+  "secret": {
+    "not-found": {
+      "message": "Essa credencial não tem esse segredo guardado.",
+      "actions": [
+        "Digitar agora",
+        "Escolher outra credencial"
+      ]
+    },
+    "stale": {
+      "message": "O segredo guardado não corresponde à versão atual do registro dele, então foi recusado em vez de usado.",
+      "actions": [
+        "Digitar o segredo de novo",
+        "Abrir um backup ao lado do cofre"
+      ]
+    }
+  },
+  "import": {
+    "too-large": {
+      "message": "Esse arquivo é maior do que esta compilação lê. Nada foi analisado.",
+      "actions": [
+        "Dividir o arquivo",
+        "Importar as partes separadamente"
+      ]
+    },
+    "not-utf8": {
+      "message": "Esse arquivo não é texto UTF-8.",
+      "actions": [
+        "Salvar o arquivo de novo como UTF-8",
+        "Conferir se é este o arquivo que você queria escolher"
+      ]
+    },
+    "malformed-xml": {
+      "message": "Esse arquivo não é XML bem formado.",
+      "actions": [
+        "Exportar o arquivo de novo do aplicativo que o escreveu",
+        "Conferir se é este o arquivo que você queria escolher"
+      ]
+    },
+    "doctype-refused": {
+      "message": "Esse arquivo traz uma declaração de tipo de documento, que o Remoter se recusa a processar: é assim que se faz um arquivo XML ler outros arquivos desta máquina.",
+      "actions": [
+        "Remover a linha DOCTYPE e tentar de novo",
+        "Exportar o arquivo de novo do aplicativo que o escreveu"
+      ]
+    },
+    "entity-refused": {
+      "message": "Esse arquivo define entidades XML próprias, que o Remoter se recusa a expandir: essa é a forma de um arquivo escrito para esgotar a memória.",
+      "actions": [
+        "Exportar o arquivo de novo do aplicativo que o escreveu"
+      ]
+    },
+    "too-deep": {
+      "message": "Esse arquivo aninha pastas mais fundo do que esta compilação lê.",
+      "actions": [
+        "Achatar as pastas mais profundas no aplicativo de origem"
+      ]
+    },
+    "too-many-items": {
+      "message": "Esse arquivo tem mais itens do que esta compilação lê.",
+      "actions": [
+        "Dividir o arquivo",
+        "Importar as partes separadamente"
+      ]
+    },
+    "value-too-long": {
+      "message": "Esse arquivo tem um valor mais longo do que esta compilação lê.",
+      "actions": [
+        "Encurtar no aplicativo de origem e exportar de novo"
+      ]
+    },
+    "truncated": {
+      "message": "Esse arquivo termina no meio de um registro: o arquivo está incompleto.",
+      "actions": [
+        "Copiar o arquivo de novo de onde ele veio",
+        "Exportar de novo do aplicativo que o escreveu"
+      ]
+    },
+    "wrong-format": {
+      "message": "Esse arquivo não é o que esse importador lê.",
+      "actions": [
+        "Escolher você mesmo o formato de origem",
+        "Escolher outro arquivo"
+      ]
+    },
+    "password-required": {
+      "message": "Esse arquivo está criptografado e precisa da senha do documento para ser lido.",
+      "actions": [
+        "Digitar a senha do documento",
+        "Escolher outro arquivo"
+      ]
+    },
+    "wrong-password": {
+      "message": "Essa não é a senha com que o arquivo foi criptografado.",
+      "actions": [
+        "Tentar novamente",
+        "Conferir se o arquivo usa a senha padrão do aplicativo de origem"
+      ]
+    },
+    "unsupported-cipher": {
+      "message": "Esse arquivo está criptografado com uma cifra que o Remoter não consegue ler.",
+      "actions": [
+        "Exportar o arquivo de novo sem criptografia e então importar",
+        "Salvar de novo a partir de uma versão mais nova do aplicativo de origem"
+      ]
+    },
+    "malformed-ciphertext": {
+      "message": "A parte criptografada desse arquivo está danificada: ela não descriptografa em nada aproveitável.",
+      "actions": [
+        "Copiar o arquivo de novo de onde ele veio",
+        "Exportar de novo do aplicativo que o escreveu"
+      ]
+    },
+    "too-many-nodes": {
+      "message": "Esse arquivo criaria mais itens do que o limite permite.",
+      "actions": [
+        "Dividir o arquivo",
+        "Importar as partes separadamente"
+      ]
+    },
+    "missing-column": {
+      "message": "Falta nesse arquivo uma coluna de que o importador precisa.",
+      "actions": [
+        "Adicionar o cabeçalho da coluna e tentar de novo",
+        "Conferir se a primeira linha é a de cabeçalho"
+      ]
+    },
+    "duplicate-column": {
+      "message": "Esse arquivo nomeia uma coluna duas vezes, então não dá para decidir qual delas guarda o valor.",
+      "actions": [
+        "Remover ou renomear a coluna repetida"
+      ]
+    },
+    "read-failed": {
+      "message": "Um arquivo não pôde ser lido ao seguir um include.",
+      "actions": [
+        "Conferir se o arquivo existe e pode ser lido",
+        "Remover a linha Include e importar de novo"
+      ]
+    },
+    "include-too-deep": {
+      "message": "Esse arquivo inclui arquivos mais fundo do que esta compilação segue.",
+      "actions": [
+        "Achatar a cadeia de includes e importar de novo"
+      ]
+    },
+    "failed": {
+      "message": "Esse arquivo não pôde ser importado.",
+      "actions": [
+        "Escolher outro arquivo",
+        "Relatar isto"
+      ]
+    }
+  },
+  "validation": {
+    "_comment_file": "The reader's own input being wrong. Each sentence names the rule rather than the value, because the core has already put the value in the sentence it sends and this one has to read correctly without it.",
+    "name-empty": {
+      "message": "Este item precisa de um nome.",
+      "actions": [
+        "Digitar um nome"
+      ]
+    },
+    "name-too-long": {
+      "message": "Esse nome passa do limite.",
+      "actions": [
+        "Encurtar o nome"
+      ]
+    },
+    "control-char": {
+      "message": "Esse valor contém caracteres de controle, que não podem ser guardados.",
+      "actions": [
+        "Digitar de novo",
+        "Colar como texto simples"
+      ]
+    },
+    "description-too-long": {
+      "message": "Essa descrição passa do limite.",
+      "actions": [
+        "Encurtar a descrição"
+      ]
+    },
+    "host-empty": {
+      "message": "Esta conexão não tem endereço. Adicione um nome de host ou um endereço IP.",
+      "actions": [
+        "Digitar um nome de host ou endereço IP"
+      ]
+    },
+    "host-invalid": {
+      "message": "Isso não é um nome de host, nem um endereço IPv4, nem um endereço IPv6 entre colchetes.",
+      "actions": [
+        "Conferir a grafia",
+        "Colocar um endereço IPv6 entre [colchetes]"
+      ]
+    },
+    "port": {
+      "message": "Uma porta tem de estar entre 1 e 65535.",
+      "actions": [
+        "Digitar uma porta dentro da faixa",
+        "Deixar em branco para usar o padrão do protocolo"
+      ]
+    },
+    "tag": {
+      "message": "Essa não é uma etiqueta utilizável.",
+      "actions": [
+        "Usar letras, dígitos, hifens e pontos"
+      ]
+    },
+    "protocol": {
+      "message": "Esse não é um protocolo que o Remoter reconhece.",
+      "actions": [
+        "Escolher um protocolo da lista"
+      ]
+    },
+    "setting-key": {
+      "message": "Esse não é um nome utilizável de configuração de protocolo.",
+      "actions": [
+        "Usar letras, dígitos, hifens e pontos"
+      ]
+    },
+    "custom-field-key": {
+      "message": "Esse não é um nome utilizável de campo personalizado.",
+      "actions": [
+        "Usar letras, dígitos, hifens e pontos"
+      ]
+    },
+    "_comment_colour": "The two patterns are syntax, not words: leave #rrggbb and #rrggbbaa exactly as they are in every language.",
+    "colour": {
+      "message": "Isso não é uma cor; esperava-se #rrggbb ou #rrggbbaa.",
+      "actions": [
+        "Escolher uma cor entre as amostras"
+      ]
+    },
+    "icon": {
+      "message": "Essa referência de ícone está vazia ou contém caracteres de controle.",
+      "actions": [
+        "Escolher um ícone da lista"
+      ]
+    },
+    "gateway-too-long": {
+      "message": "Essa cadeia de gateways tem mais saltos do que o limite permite.",
+      "actions": [
+        "Remover um salto"
+      ]
+    },
+    "gateway-cycle": {
+      "message": "A cadeia de gateways volta sobre si mesma: um host aparece duas vezes.",
+      "actions": [
+        "Remover o salto repetido"
+      ]
+    },
+    "gateway-hop-unknown": {
+      "message": "Um dos saltos de gateway aponta para um item que não está mais neste cofre.",
+      "actions": [
+        "Escolher outro gateway",
+        "Conectar diretamente"
+      ]
+    },
+    "gateway-hop-kind": {
+      "message": "Um salto de gateway tem de ser uma conexão; uma pasta não encaminha tráfego.",
+      "actions": [
+        "Escolher uma conexão como gateway"
+      ]
+    },
+    "credential-unknown": {
+      "message": "A credencial que isto usa foi excluída. Escolha outra, ou informe uma agora.",
+      "actions": [
+        "Escolher outra credencial",
+        "Informar uma agora"
+      ]
+    },
+    "credential-kind": {
+      "message": "Esse item não é uma credencial.",
+      "actions": [
+        "Escolher uma credencial"
+      ]
+    },
+    "credential-attached": {
+      "message": "Essa credencial pertence a outra conexão. Compartilhá-la faria com que editá-la em um lugar mudasse a outra.",
+      "actions": [
+        "Escolher uma credencial compartilhada",
+        "Digitar aqui um usuário e uma senha em vez disso"
+      ]
+    },
+    "credential-attachment": {
+      "message": "Uma credencial deste cofre pertence a uma conexão que não existe. Nada foi alterado.",
+      "actions": [
+        "Recarregar o cofre",
+        "Restaurar de um backup"
+      ]
+    },
+    "credential-purpose": {
+      "message": "Esta credencial é restrita e não pode ser usada para esse protocolo.",
+      "actions": [
+        "Escolher outra credencial",
+        "Ampliar a restrição da credencial"
+      ]
+    },
+    "username-too-long": {
+      "message": "Esse nome de usuário passa do limite.",
+      "actions": [
+        "Encurtar o nome de usuário"
+      ]
+    },
+    "external-credential": {
+      "message": "Uma credencial externa precisa de um provedor e de uma referência.",
+      "actions": [
+        "Preencher os dois campos"
+      ]
+    },
+    "secret-empty": {
+      "message": "Uma credencial precisa de um segredo; um envelope vazio não é uma credencial.",
+      "actions": [
+        "Digitar uma senha",
+        "Escolher um arquivo de chave"
+      ]
+    },
+    "layout": {
+      "message": "Um layout em grade precisa de pelo menos uma linha e uma coluna.",
+      "actions": [
+        "Definir linhas e colunas como 1 ou mais"
+      ]
+    },
+    "group-member": {
+      "message": "Um dos integrantes deste grupo não está mais no cofre.",
+      "actions": [
+        "Remover o integrante que falta"
+      ]
+    },
+    "empty-action": {
+      "message": "Uma ação de conectar ou desconectar não pode ser uma linha vazia.",
+      "actions": [
+        "Remover a linha em branco"
+      ]
+    },
+    "reconnect-policy": {
+      "message": "A reconexão automática precisa de ao menos uma tentativa e de uma espera que não diminua.",
+      "actions": [
+        "Definir a espera máxima igual ou acima da primeira"
+      ]
+    },
+    "interval": {
+      "message": "Tempos limite e intervalos de keep-alive têm de ser maiores que zero.",
+      "actions": [
+        "Digitar um número positivo",
+        "Limpar o campo para herdar o valor"
+      ]
+    }
+  }
+}

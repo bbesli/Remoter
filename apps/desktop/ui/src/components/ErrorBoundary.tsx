@@ -15,17 +15,10 @@
 
 import { Component, type ErrorInfo, type ReactNode } from "react";
 
+import { useT } from "@/i18n";
+
 import { Button } from "./Button";
 import s from "./ErrorBoundary.module.css";
-
-const TEXT = {
-  title: "Something in the interface stopped working",
-  lead: "The rest of Remoter is still running and your vault has not been touched. If you were part-way through something that cannot be repeated — a recovery key you had not yet written down — do not close this window; copy the details and ask for help first.",
-  retry: "Try rendering again",
-  details: "Technical details",
-  copy: "Copy details",
-  copied: "Copied",
-} as const;
 
 interface Props {
   children: ReactNode;
@@ -35,6 +28,55 @@ interface State {
   error: Error | null;
   where: string | null;
   copied: boolean;
+}
+
+interface FallbackProps {
+  error: Error;
+  where: string | null;
+  copied: boolean;
+  onCopy: () => void;
+  onRetry: () => void;
+}
+
+/**
+ * The screen itself, as a function component.
+ *
+ * Split out of the class for one reason: `useT` is a hook and a class cannot
+ * call one. Rendering the copy through the hook rather than through the
+ * instance directly is what makes this screen follow a language change like
+ * every other — and `main.tsx` deliberately mounts the boundary *inside* the
+ * i18n provider so that the one screen a user reads most carefully is not the
+ * one screen left in English.
+ */
+function ErrorScreen({ error, where, copied, onCopy, onRetry }: FallbackProps) {
+  const t = useT("common");
+
+  return (
+    <div className={s.wrap} role="alert">
+      <div className={s.card}>
+        <h1 className={s.title}>{t("crash.title")}</h1>
+        <p className={s.lead}>{t("crash.lead")}</p>
+        <details className={s.details}>
+          <summary className={s.summary}>{t("crash.details")}</summary>
+          {/* The diagnostic itself: an error name, its message and a component
+              stack. Never translated — it is what gets pasted into a bug
+              report, and a translated stack helps nobody read it. */}
+          <pre className={`${s.stack} selectable`}>
+            {error.name}: {error.message}
+            {where === null ? null : `\n${where}`}
+          </pre>
+        </details>
+        <div className={s.actions}>
+          <Button variant="secondary" size="md" onClick={onCopy}>
+            {copied ? t("crash.copied") : t("crash.copy")}
+          </Button>
+          <Button variant="primary" size="md" onClick={onRetry}>
+            {t("crash.retry")}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export class ErrorBoundary extends Component<Props, State> {
@@ -71,27 +113,13 @@ export class ErrorBoundary extends Component<Props, State> {
     if (error === null) return this.props.children;
 
     return (
-      <div className={s.wrap} role="alert">
-        <div className={s.card}>
-          <h1 className={s.title}>{TEXT.title}</h1>
-          <p className={s.lead}>{TEXT.lead}</p>
-          <details className={s.details}>
-            <summary className={s.summary}>{TEXT.details}</summary>
-            <pre className={`${s.stack} selectable`}>
-              {error.name}: {error.message}
-              {where === null ? null : `\n${where}`}
-            </pre>
-          </details>
-          <div className={s.actions}>
-            <Button variant="secondary" size="md" onClick={this.copy}>
-              {copied ? TEXT.copied : TEXT.copy}
-            </Button>
-            <Button variant="primary" size="md" onClick={this.retry}>
-              {TEXT.retry}
-            </Button>
-          </div>
-        </div>
-      </div>
+      <ErrorScreen
+        error={error}
+        where={where}
+        copied={copied}
+        onCopy={this.copy}
+        onRetry={this.retry}
+      />
     );
   }
 }

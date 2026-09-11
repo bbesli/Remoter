@@ -81,9 +81,20 @@ button {
 }
 
 /* Logical properties throughout, so RTL is a `dir` attribute rather than a
-   parallel stylesheet. Direction-indicating icons mirror; object icons do not. */
-[dir="rtl"] .mirror-in-rtl {
-  transform: scaleX(-1);
+   parallel stylesheet.
+
+   Direction-indicating icons mirror; object icons do not. A chevron, a back
+   arrow and a "next" arrow point the way the reader reads; a padlock, a
+   folder, a server and a key are pictures of objects, and an object does not
+   turn round because the text around it does. The set is declared once, in
+   `components/Icon.tsx`, so the decision is made per icon rather than per use.
+
+   Driven by `--dir-flip` from the token file rather than by a second selector,
+   so anything else that needs a horizontal sign — a panel that slides in from
+   the inline start, a caret — reads the same token instead of writing its own
+   `[dir="rtl"]` rule. */
+.mirror-in-rtl {
+  transform: scaleX(var(--dir-flip));
 }
 
 .mono {

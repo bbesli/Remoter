@@ -44,6 +44,7 @@ import { Button } from "@/components/Button";
 import { Icon } from "@/components/Icon";
 import { useAnyModalOpen } from "@/hooks/useModalRegistration";
 import { useStagedSecret } from "@/hooks/useStagedSecret";
+import { useT } from "@/i18n";
 import { asFailure, ipc } from "@/lib/ipc";
 import type {
   ImportDetection,
@@ -74,38 +75,39 @@ import {
 import { canGoTo, forwardBlock, jumpBlock, STEPS, type StepNumber, type WizardFacts } from "./steps";
 import s from "./ImportWizard.module.css";
 
-const TEXT = {
-  title: "Import",
-  close: "Close the import wizard",
-  closeHint: "Close (Esc)",
+/**
+ * The forward control's label, per step, as a catalogue key.
+ *
+ * Step 1 is the exception and is handled at the call site: before the file has
+ * been looked at, the same button reads the file rather than moving on.
+ */
+const FORWARD_LABEL = {
+  1: "nav.continue",
+  2: "nav.parse",
+  3: "nav.continue",
+  4: "nav.continue",
+  5: "nav.toDestination",
+  6: "nav.toCommit",
+  7: "nav.continue",
+  8: "nav.done",
+} as const satisfies Record<StepNumber, string>;
 
-  back: "Back",
-  continue: "Continue",
-  read: "Read this file",
-  parse: "Read the file",
-  toDestination: "Choose the destination",
-  toCommit: "Review and commit",
-  done: "Done",
-
-  parsing: "Reading the file…",
-  parsingNote:
-    "The parse runs in the core, in a sandboxed reader with bounded buffers. Nothing is written to your vault by it.",
-
-  safeNote: "Nothing has been written to your vault yet.",
-  writeNote: "This step writes to your vault.",
-  writtenNote: "Written as one transaction.",
-
-  rail: "Import steps",
-} as const;
-
-/** Every step but the last two is a step where nothing has been written. */
-function footerNote(step: StepNumber): { text: string; tone: "muted" | "warning" } {
-  if (step === 8) return { text: TEXT.writtenNote, tone: "muted" };
-  if (step === 7) return { text: TEXT.writeNote, tone: "warning" };
-  return { text: TEXT.safeNote, tone: "muted" };
+/**
+ * Which standing note the footer carries, as a catalogue key.
+ *
+ * Every step but the last two is a step where nothing has been written.
+ */
+function footerNote(step: StepNumber): {
+  key: "footer.written" | "footer.willWrite" | "footer.nothingWritten";
+  tone: "muted" | "warning";
+} {
+  if (step === 8) return { key: "footer.written", tone: "muted" };
+  if (step === 7) return { key: "footer.willWrite", tone: "warning" };
+  return { key: "footer.nothingWritten", tone: "muted" };
 }
 
 export function ImportWizard() {
+  const t = useT("import");
   const goBack = useApp((state) => state.goBack);
   const queryClient = useQueryClient();
   const modalOpen = useAnyModalOpen();
@@ -366,7 +368,7 @@ export function ImportWizard() {
   );
 
   const block = forwardBlock(step, facts);
-  const nextLabel = step === 1 && needsDetect ? TEXT.read : FORWARD_LABEL[step];
+  const nextLabel = step === 1 && needsDetect ? t("nav.detect") : t(FORWARD_LABEL[step]);
   const onNext = () => {
     switch (step) {
       case 1:
@@ -403,20 +405,20 @@ export function ImportWizard() {
         <span className={s.headerIcon} aria-hidden="true">
           <Icon name="download" size={15} />
         </span>
-        <h1 className={s.headerTitle}>{TEXT.title}</h1>
+        <h1 className={s.headerTitle}>{t("wizard.title")}</h1>
         <div className={s.spacer} />
         <button
           type="button"
           className={s.closeButton}
           onClick={leave}
-          title={TEXT.closeHint}
-          aria-label={TEXT.close}
+          title={t("wizard.closeHint")}
+          aria-label={t("wizard.close")}
         >
           <Icon name="x" size={14} />
         </button>
       </header>
 
-      <nav className={s.rail} aria-label={TEXT.rail}>
+      <nav className={s.rail} aria-label={t("rail.label")}>
         {STEPS.map((definition, i) => {
           const reachable = definition.n !== step && canGoTo(definition.n, facts);
           const state =
@@ -430,11 +432,11 @@ export function ImportWizard() {
                 data-state={state}
                 aria-current={definition.n === step ? "step" : undefined}
                 disabled={!reachable}
-                title={refusal ?? definition.label}
+                title={refusal === null ? t(definition.labelKey) : t(refusal)}
                 onClick={() => setStep(definition.n)}
               >
                 <span className={s.railNumber}>{definition.n}</span>
-                {definition.label}
+                {t(definition.labelKey)}
               </button>
               {i < STEPS.length - 1 && <span className={s.railConnector} />}
             </span>
@@ -472,7 +474,7 @@ export function ImportWizard() {
 
         {step === 3 && (
           <div className={`${s.step} ${s.narrow}`}>
-            <BusyStatus label={TEXT.parsing} note={TEXT.parsingNote} size={16} />
+            <BusyStatus label={t("parse.busy")} note={t("parse.busyNote")} size={16} />
             <SkeletonRows count={6} />
           </div>
         )}
@@ -531,17 +533,17 @@ export function ImportWizard() {
       <footer className={s.footer}>
         <span className={s.footerNote} data-tone={note.tone}>
           <Icon name={note.tone === "warning" ? "alert" : "lock"} size={13} />
-          {note.text}
+          {t(note.key)}
         </span>
         <div className={s.spacer} />
         <div className={s.footerButtons}>
-          {showBack && <Button onClick={() => setStep(backStep(step))}>{TEXT.back}</Button>}
+          {showBack && <Button onClick={() => setStep(backStep(step))}>{t("nav.back")}</Button>}
           {showNext && (
             <Button
               variant="primary"
               onClick={onNext}
               disabled={block !== null}
-              {...(block === null ? {} : { title: block })}
+              {...(block === null ? {} : { title: t(block) })}
             >
               {nextLabel}
             </Button>
@@ -561,17 +563,6 @@ export function ImportWizard() {
     </div>
   );
 }
-
-const FORWARD_LABEL: Record<StepNumber, string> = {
-  1: TEXT.continue,
-  2: TEXT.parse,
-  3: TEXT.continue,
-  4: TEXT.continue,
-  5: TEXT.toDestination,
-  6: TEXT.toCommit,
-  7: TEXT.continue,
-  8: TEXT.done,
-};
 
 /** Back skips the two work steps: there is nothing to go back to inside them. */
 function backStep(step: StepNumber): StepNumber {

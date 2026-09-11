@@ -22,13 +22,28 @@
   --border-strong: #3a4048;
 }
 
+/* The area the terminal is attached into.
+
+   `direction: ltr` is not a style choice, it is the terminal's contract. The
+   grid belongs to the remote host: the server counts columns from the left,
+   puts the cursor back to column zero on `\r`, and draws its box art assuming
+   both. Inheriting `dir="rtl"` from the document would right-align every row
+   and mirror a shell prompt into a shape the server's own escape sequences no
+   longer describe. docs/features/i18n.md: terminal content is never mirrored.
+
+   terminals.ts pins the same thing on the host div it creates, because that div
+   is built outside React and has to carry its direction with it. This rule is
+   what covers the container — anything xterm or an addon appends here, and any
+   future container content, starts from LTR rather than from the chrome's
+   direction. The two are deliberately redundant: neither one alone survives a
+   change to the other file. */
 .terminal {
   position: absolute;
   inset: 0;
   padding: var(--space-2);
   background: var(--bg-terminal);
   overflow: hidden;
-
+  direction: ltr;
 }
 
 .terminalHidden {

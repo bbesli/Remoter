@@ -14,10 +14,16 @@
  * The transcription check is the whole mechanism of this screen. A checkbox is
  * too easy to click past (docs/security/vault-format.md, `recovery` slot), so
  * the user retypes the group the core nominates. Do not add a "later" escape.
+ *
+ * Every warning on this screen is flagged SECURITY-CRITICAL in
+ * `locales/en/vault.json`. A translation that softens "not by you, not by us,
+ * not by anyone" causes the loss it is warning about, so those strings get a
+ * second reader before a translation is accepted.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
+import type { TFunction } from "i18next";
 
 import { Badge } from "@/components/Badge";
 import { BusyButton, BusyStatus } from "@/components/Busy";
@@ -26,64 +32,16 @@ import { Callout } from "@/components/Callout";
 import { Icon } from "@/components/Icon";
 import { Mark } from "@/components/Mark";
 import { TextInput } from "@/components/TextInput";
+import { formatDate, isolateLtr, useLocale, useT } from "@/i18n";
 import type { CreateVaultResult } from "@/lib/ipc";
 import { useApp } from "@/stores/app";
 
 import s from "./RecoveryKeyScreen.module.css";
 
-// v0.1 ships English only. One block per file so extraction into locales/en is
-// mechanical.
-const TEXT = {
-  windowTitle: "Create a vault",
-  stepOf: (n: number) => `Step ${n} of 4`,
-  steps: ["1 · Location", "2 · Password", "3 · Key file", "4 · Recovery key"] as const,
-
-  heading: "Your recovery key",
-  lead: "Shown once, now. It is the only way back into this vault if you lose your password or your key file.",
-
-  copy: "Copy",
-  copying: "Copying…",
-  copied: "Copied to the clipboard.",
-  copyFailed: "This system did not allow copying. Write the key down or print it instead.",
-  download: "Download as text",
-  downloadFailed: "This system did not allow saving the file. Print the key instead.",
-  print: "Print",
-  printFailed:
-    "This system did not open a print dialog. Copy the key or write it down instead.",
-
-  /** Why the footer's button cannot be pressed yet. */
-  stepBlocked: "Finish this step before moving on.",
-  stepAhead: "This step is not available yet.",
-  confirmBlocked: "Type the highlighted group above to continue.",
-
-  confirmPrompt: (group: number) =>
-    `Type group ${group} — the highlighted one — to confirm you have it somewhere safe.`,
-  targetGroupAria: (group: number) => `Group ${group}, the one you must type back`,
-  remaining: (n: number) => (n === 1 ? "One more character" : `${n} more characters`),
-  matches: "That matches.",
-  mismatch: "That is not the highlighted group. Check it against the key above.",
-
-  // Verbatim from docs/security/vault-format.md. Translators are not permitted
-  // to soften this; the i18n review checklist flags the string by name.
-  warningTitle: "This is your only way back in.",
-  warningBody:
-    "If you lose your master password and this recovery key, your vault cannot be opened — not by you, not by us, not by anyone. There is no reset, no backup and no support override. Store it somewhere you would store a passport.",
-
-  brokenResult:
-    "The core returned a recovery key this screen cannot display. Do not close the application: the vault exists, and its recovery key has not been shown yet.",
-
-  printTitle: "Remoter recovery key",
-  printVault: "Vault",
-  printCreated: "Created",
-  printProtection: "Protection",
-} as const;
-
-/** The vault exists by the time this screen renders; the footer must say so. */
-export const RECOVERY_FOOT_NOTE =
-  "The vault has been created. This key is stored nowhere and will not be shown again.";
-export const RECOVERY_NEXT_LABEL = "I have saved it — open the vault";
-
 export type WizardStep = 1 | 2 | 3 | 4;
+
+/** Four steps, named once: the stepper, the counter and the bar all read it. */
+const STEP_COUNT = 4;
 
 // ------------------------------------------------------------ the frame ----
 
@@ -119,8 +77,29 @@ export interface WizardShellProps {
   children: ReactNode;
 }
 
+/**
+ * The stepper's four labels.
+ *
+ * Switched rather than indexed into an array so the catalogue key is a literal
+ * the type checker can see: `t(\`wizard.step${n}\`)` would compile against any
+ * string and fail at run time if a key were renamed.
+ */
+function stepLabel(t: TFunction<"vault">, step: WizardStep): string {
+  switch (step) {
+    case 1:
+      return t("wizard.step1");
+    case 2:
+      return t("wizard.step2");
+    case 3:
+      return t("wizard.step3");
+    case 4:
+      return t("wizard.step4");
+  }
+}
+
 export function WizardShell(props: WizardShellProps) {
   const { step, onStep, canGoTo, footNote, busyLabel, back, next, children } = props;
+  const t = useT("vault");
   const busyNote = props.busyNote ?? null;
   const nextBusy = next.busy === true;
   const steps: WizardStep[] = [1, 2, 3, 4];
@@ -131,16 +110,18 @@ export function WizardShell(props: WizardShellProps) {
       <div className={s.card}>
         <div className={s.titlebar} data-tauri-drag-region>
           <Mark size={18} />
-          <span className={s.title}>{TEXT.windowTitle}</span>
+          <span className={s.title}>{t("wizard.windowTitle")}</span>
           <div className={s.spacer} />
-          <span className={s.stepLabel}>{TEXT.stepOf(step)}</span>
+          <span className={s.stepLabel}>
+            {t("wizard.stepOf", { step, total: STEP_COUNT })}
+          </span>
         </div>
 
         <div className={s.progress}>
-          <div className={s.progressFill} style={{ width: `${step * 25}%` }} />
+          <div className={s.progressFill} style={{ width: `${(step / STEP_COUNT) * 100}%` }} />
         </div>
 
-        <nav className={s.stepper} aria-label={TEXT.windowTitle}>
+        <nav className={s.stepper} aria-label={t("wizard.windowTitle")}>
           {steps.map((n) => {
             const reachable = onStep !== null && canGoTo(n);
             return (
@@ -155,16 +136,16 @@ export function WizardShell(props: WizardShellProps) {
                 // reasons applies rather than simply not responding.
                 title={
                   n === step
-                    ? TEXT.steps[n - 1]
+                    ? stepLabel(t, n)
                     : reachable
-                      ? TEXT.steps[n - 1]
+                      ? stepLabel(t, n)
                       : n > step
-                        ? TEXT.stepAhead
-                        : TEXT.stepBlocked
+                        ? t("wizard.stepAhead")
+                        : t("wizard.stepBlocked")
                 }
                 onClick={() => onStep?.(n)}
               >
-                {TEXT.steps[n - 1]}
+                {stepLabel(t, n)}
               </button>
             );
           })}
@@ -238,17 +219,33 @@ function baseName(path: string): string {
   return cut >= 0 ? path.slice(cut + 1) : path;
 }
 
-function sheetText(result: CreateVaultResult, key: string): string {
+/**
+ * The plain-text sheet behind Download.
+ *
+ * Nothing here is wrapped in a bidi isolate, unlike the rendered sheet: this
+ * is a text file somebody will open in an editor, print, and possibly retype
+ * from. Invisible control characters in a file whose whole purpose is to be
+ * copied accurately would be a poor trade for a direction hint.
+ */
+function sheetText(
+  t: TFunction<"vault">,
+  locale: string,
+  result: CreateVaultResult,
+  key: string,
+): string {
   return [
-    TEXT.printTitle,
+    t("recovery.sheet.title"),
     "",
-    `${TEXT.printVault}: ${result.path}`,
-    `${TEXT.printCreated}: ${new Date().toISOString().slice(0, 10)}`,
-    `${TEXT.printProtection}: ${result.kdfSummary}`,
+    t("recovery.sheet.vault", { path: result.path }),
+    t("recovery.sheet.created", { date: formatDate(locale, Date.now()) }),
+    t("recovery.sheet.protection", { summary: result.kdfSummary }),
     "",
     key,
     "",
-    `${TEXT.warningTitle} ${TEXT.warningBody}`,
+    t("recovery.sheet.warning", {
+      title: t("recovery.warningTitle"),
+      body: t("recovery.warningBody"),
+    }),
     "",
   ].join("\n");
 }
@@ -260,6 +257,8 @@ export interface RecoveryKeyPanelProps {
 }
 
 export function RecoveryKeyPanel({ result, onConfirmedChange }: RecoveryKeyPanelProps) {
+  const t = useT("vault");
+  const { code: locale } = useLocale();
   const [entry, setEntry] = useState("");
   const [copied, setCopied] = useState(false);
   // The clipboard write is a promise, and on a Wayland session without a
@@ -301,7 +300,7 @@ export function RecoveryKeyPanel({ result, onConfirmedChange }: RecoveryKeyPanel
 
   const onCopy = useCallback(() => {
     if (!navigator.clipboard) {
-      setActionError(TEXT.copyFailed);
+      setActionError(t("recovery.copyFailed"));
       return;
     }
     setCopying(true);
@@ -312,17 +311,19 @@ export function RecoveryKeyPanel({ result, onConfirmedChange }: RecoveryKeyPanel
           setActionError(null);
           setCopied(true);
         },
-        () => setActionError(TEXT.copyFailed),
+        () => setActionError(t("recovery.copyFailed")),
       )
       .finally(() => setCopying(false));
-  }, [fullKey]);
+  }, [fullKey, t]);
 
   const onDownload = useCallback(() => {
     // No filesystem plugin is a dependency and no IPC command writes arbitrary
     // files, so the download goes through the WebView. Adding a dependency for
     // this would need an ADR.
     try {
-      const blob = new Blob([sheetText(result, fullKey)], { type: "text/plain;charset=utf-8" });
+      const blob = new Blob([sheetText(t, locale, result, fullKey)], {
+        type: "text/plain;charset=utf-8",
+      });
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
@@ -333,9 +334,9 @@ export function RecoveryKeyPanel({ result, onConfirmedChange }: RecoveryKeyPanel
       window.setTimeout(() => URL.revokeObjectURL(url), 0);
       setActionError(null);
     } catch {
-      setActionError(TEXT.downloadFailed);
+      setActionError(t("recovery.downloadFailed"));
     }
-  }, [fullKey, result]);
+  }, [fullKey, locale, result, t]);
 
   const onPrint = useCallback(() => {
     document.body.dataset["printing"] = "recovery";
@@ -346,21 +347,21 @@ export function RecoveryKeyPanel({ result, onConfirmedChange }: RecoveryKeyPanel
       // Some WebView builds have no print backend at all. Without this the
       // page would just be left in its printing state with nothing happening.
       delete document.body.dataset["printing"];
-      setActionError(TEXT.printFailed);
+      setActionError(t("recovery.printFailed"));
     }
-  }, []);
+  }, [t]);
 
   if (target.length === 0) {
     return (
-      <Callout tone="danger" title={TEXT.warningTitle}>
-        {TEXT.brokenResult}
+      <Callout tone="danger" title={t("recovery.warningTitle")}>
+        {t("recovery.brokenResult")}
       </Callout>
     );
   }
 
   return (
     <div className={s.step}>
-      <StepHeading title={TEXT.heading} badge={null} lead={TEXT.lead} />
+      <StepHeading title={t("recovery.heading")} badge={null} lead={t("recovery.lead")} />
 
       <div className={s.sheet}>
         <div className={s.grid}>
@@ -370,7 +371,9 @@ export function RecoveryKeyPanel({ result, onConfirmedChange }: RecoveryKeyPanel
               className={s.group}
               data-target={index === result.confirmGroupIndex}
               aria-label={
-                index === result.confirmGroupIndex ? TEXT.targetGroupAria(groupNumber) : undefined
+                index === result.confirmGroupIndex
+                  ? t("recovery.targetGroupAria", { group: groupNumber })
+                  : undefined
               }
             >
               {group}
@@ -384,22 +387,22 @@ export function RecoveryKeyPanel({ result, onConfirmedChange }: RecoveryKeyPanel
             size="sm"
             type="button"
             busy={copying}
-            busyLabel={TEXT.copying}
+            busyLabel={t("recovery.copying")}
             onClick={onCopy}
           >
             <Icon name="copy" size={13} />
-            {TEXT.copy}
+            {t("recovery.copy")}
           </BusyButton>
           <Button variant="secondary" size="sm" type="button" onClick={onDownload}>
             <Icon name="download" size={13} />
-            {TEXT.download}
+            {t("recovery.download")}
           </Button>
           <Button variant="secondary" size="sm" type="button" onClick={onPrint}>
             <Icon name="printer" size={13} />
-            {TEXT.print}
+            {t("recovery.print")}
           </Button>
           <span className={s.actionStatus} role="status">
-            {copied ? TEXT.copied : ""}
+            {copied ? t("recovery.copied") : ""}
           </span>
         </div>
       </div>
@@ -410,7 +413,7 @@ export function RecoveryKeyPanel({ result, onConfirmedChange }: RecoveryKeyPanel
         {/* One string, not a sentence assembled around a number: split
             sentences do not survive translation. The group itself is marked in
             the grid above. */}
-        <div className={s.confirmPrompt}>{TEXT.confirmPrompt(groupNumber)}</div>
+        <div className={s.confirmPrompt}>{t("recovery.confirmPrompt", { group: groupNumber })}</div>
         <div className={s.confirmRow}>
           <div className={s.confirmField}>
             <TextInput
@@ -420,39 +423,45 @@ export function RecoveryKeyPanel({ result, onConfirmedChange }: RecoveryKeyPanel
               type="text"
               mono
               autoFocus
-              ariaLabel={TEXT.confirmPrompt(groupNumber)}
+              ariaLabel={t("recovery.confirmPrompt", { group: groupNumber })}
               invalid={remaining <= 0 && !confirmed}
             />
           </div>
           {confirmed ? (
             <span className={s.confirmOk}>
               <Icon name="check" size={16} />
-              {TEXT.matches}
+              {t("recovery.matches")}
             </span>
           ) : (
             <span className={s.confirmHint}>
-              {typed.length === 0 ? "" : remaining > 0 ? TEXT.remaining(remaining) : TEXT.mismatch}
+              {typed.length === 0
+                ? ""
+                : remaining > 0
+                  ? t("recovery.remaining", { count: remaining })
+                  : t("recovery.mismatch")}
             </span>
           )}
         </div>
       </div>
 
-      <Callout tone="danger" title={TEXT.warningTitle}>
-        {TEXT.warningBody}
+      <Callout tone="danger" title={t("recovery.warningTitle")}>
+        {t("recovery.warningBody")}
       </Callout>
 
-      {/* Only visible on paper; see the @media print block in the stylesheet. */}
+      {/* Only visible on paper; see the @media print block in the stylesheet.
+          The path and the KDF summary are machine-written values that read
+          left to right whatever the interface language is, so they are
+          isolated — an Arabic sheet must not reorder a file path. */}
       <div className={s.printSheet} aria-hidden="true">
-        <h1>{TEXT.printTitle}</h1>
-        <p>
-          {TEXT.printVault}: {result.path}
-        </p>
-        <p>
-          {TEXT.printProtection}: {result.kdfSummary}
-        </p>
+        <h1>{t("recovery.sheet.title")}</h1>
+        <p>{t("recovery.sheet.vault", { path: isolateLtr(result.path) })}</p>
+        <p>{t("recovery.sheet.protection", { summary: isolateLtr(result.kdfSummary) })}</p>
         <p className={s.printKey}>{fullKey}</p>
         <p className={s.printWarning}>
-          {TEXT.warningTitle} {TEXT.warningBody}
+          {t("recovery.sheet.warning", {
+            title: t("recovery.warningTitle"),
+            body: t("recovery.warningBody"),
+          })}
         </p>
       </div>
     </div>
@@ -462,6 +471,7 @@ export function RecoveryKeyPanel({ result, onConfirmedChange }: RecoveryKeyPanel
 // -------------------------------------------------------- the standalone ----
 
 export function RecoveryKeyScreen({ result }: { result: CreateVaultResult }) {
+  const t = useT("vault");
   const go = useApp((state) => state.go);
   const [confirmed, setConfirmed] = useState(false);
 
@@ -470,14 +480,14 @@ export function RecoveryKeyScreen({ result }: { result: CreateVaultResult }) {
       step={4}
       onStep={null}
       canGoTo={() => false}
-      footNote={RECOVERY_FOOT_NOTE}
+      footNote={t("recovery.footNote")}
       busyLabel={null}
       back={null}
       next={{
-        label: RECOVERY_NEXT_LABEL,
+        label: t("recovery.nextLabel"),
         onClick: () => go({ name: "main" }),
         disabled: !confirmed,
-        reason: TEXT.confirmBlocked,
+        reason: t("recovery.confirmBlocked"),
       }}
     >
       <RecoveryKeyPanel result={result} onConfirmedChange={setConfirmed} />

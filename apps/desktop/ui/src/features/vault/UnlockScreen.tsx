@@ -11,7 +11,9 @@
  *    factor that was wrong tells an attacker which half they already have.
  *    The core enforces this by construction: `UnlockError::NotUnlocked` is the
  *    only variant mapped to `vault.unlock-failed`, and that one code is the
- *    only one this screen replaces with the fixed sentence.
+ *    only one this screen replaces with the fixed sentence. The message is
+ *    flagged SECURITY-CRITICAL in `locales/en/vault.json` so that a translator
+ *    cannot make it more helpful.
  *  - The exception is a body that will not decrypt after a slot has unwrapped.
  *    At that point the file is damaged rather than the credentials wrong, and
  *    being specific leaks nothing to anyone who could not already open it.
@@ -24,7 +26,8 @@
  * The typed password lives in component state only long enough to reach
  * `vault_unlock`. It is never a query key, a mutation variable or part of any
  * message — mutation variables are retained in the query cache, which is a
- * copy of the secret nobody asked for.
+ * copy of the secret nobody asked for, and a translated message holds whatever
+ * is interpolated into it for as long as the render lasts.
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -40,13 +43,14 @@ import { Field } from "@/components/Field";
 import { Icon } from "@/components/Icon";
 import { Mark } from "@/components/Mark";
 import { TextInput } from "@/components/TextInput";
+import { formatBytes, i18n, isolate, isolateLtr, useLocale, useT } from "@/i18n";
 import { asFailure, ipc } from "@/lib/ipc";
 import type { Backup, IpcFailure, Slot, SlotKind, UnlockRequest } from "@/lib/ipc";
 import { qk } from "@/lib/queryKeys";
 import { useApp } from "@/stores/app";
 
 import { folderOf, keyfileFilters, keyfileRefusal } from "./keyfile";
-import { formatBytes, formatStamp, splitPath } from "./VaultPicker";
+import { formatStamp, splitPath } from "./VaultPicker";
 import s from "./UnlockScreen.module.css";
 
 /**
@@ -54,88 +58,23 @@ import s from "./UnlockScreen.module.css";
  * security property — it is what makes a stolen vault file expensive to attack
  * — so it is explained rather than hidden behind a faster-looking spinner.
  *
- * Exported because the main window's KDF upgrade bar runs Argon2id again and
- * has to say the same thing. Two copies of this sentence would drift, and the
- * one that drifted would be the one explaining a security property.
+ * Exported because the main window's KDF upgrade bar and the vault-settings
+ * dialogs run Argon2id again and have to say the same thing. Two copies of
+ * this sentence would drift, and the one that drifted would be the one
+ * explaining a security property.
+ *
+ * Those callers ask for their own namespace, so this reads the vault catalogue
+ * from the shared instance rather than through `useT()`; see the header of
+ * `keyfile.ts`, which requests the namespace for exactly this reason.
  */
 export function kdfNote(summary: string | null): string {
+  const t = i18n().getFixedT(null, "vault");
+  // The summary is the core's own "Argon2id, 256 MiB, t=3" — machine text that
+  // reads left to right whatever the interface language is.
   return summary === null
-    ? "Key derivation is deliberately slow. That cost is what makes a stolen vault file expensive to attack."
-    : `Key derivation is deliberately slow — ${summary}. That cost is what makes a stolen vault file expensive to attack.`;
+    ? t("kdf.slow")
+    : t("kdf.slowWithSummary", { summary: isolateLtr(summary) });
 }
-
-const TEXT = {
-  windowTitle: "Unlock vault",
-
-  probing: "Reading the vault header…",
-  probeFailed: "This vault could not be opened.",
-  differentVault: "Open a different vault",
-  cancel: "Cancel",
-  unlock: "Unlock",
-  /**
-   * Short enough that reserving room for it does not widen the idle Unlock
-   * button; the full stage is said in the status line above the row.
-   */
-  unlocking: "Deriving…",
-  /** Not "Unlocking…": naming the stage says the wait is expected. */
-  unlockingStage: "Deriving the key from what you typed…",
-  /** Defined above, and shared with the main window's KDF upgrade bar. */
-  kdfNote,
-
-  noSlots:
-    "This vault's header lists no usable unlock methods. That should not happen; the file is likely damaged.",
-
-  password: "Master password",
-  passwordHelp: "",
-  keyfile: "Key file",
-  keyfileBrowse: "Browse",
-  keyfileBrowsing: "Opening…",
-  keyfileMissing: "This slot also needs its key file before it can unlock.",
-  keyfileDialog: "Choose the key file for this vault",
-  keyfileDialogFailed:
-    "The system file browser did not open, so no key file could be chosen. Nothing was sent to the vault.",
-  keyfileRemembered:
-    "This is the key file this machine last opened the vault with. Browse to choose a different one.",
-  /** The vault picked as its own key file — the mistake this screen invites. */
-  blockedKeyfileRefused: "That file cannot be this vault's key file.",
-
-  recovery: "Recovery key",
-  recoveryRight: "Last resort",
-  recoveryHelp: "Spaces, dashes and capitalisation are ignored.",
-  recoveryPlaceholder: "XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX",
-
-  securityKey: "Security key",
-  fastest: "fastest",
-  fido2Unavailable:
-    "This vault has a security key slot, but touch-to-unlock is not implemented in this version. Use another method for now.",
-
-  keychain: "Remember on this device",
-  keychainHelp: "Held by the system keychain. Nothing to type — press Unlock.",
-
-  /** Exactly this string, whatever the factor was. See the module comment. */
-  failed: "That did not unlock the vault.",
-  attempt: (n: number) => `Attempt ${n}`,
-  waiting: (seconds: number) => `next attempt in ${seconds} s`,
-  refused: "The vault refused to open.",
-
-  /** Why the Unlock button will not respond, in the order it becomes true. */
-  blockedNoSlot: "Choose an unlock method above.",
-  blockedFido2: "This vault's security key slot cannot be used in this version.",
-  blockedKeyfile: "Choose the key file this slot needs.",
-  blockedPassword: "Type the master password.",
-  blockedRecovery: "Type the recovery key.",
-  blockedBackoff: (seconds: number) =>
-    `Waiting ${seconds} s before the next attempt after a failed one.`,
-
-  corruptTitle: "Your credentials were right. The file is damaged.",
-  corruptBody:
-    "Remoter unwrapped your key slot successfully, then could not decrypt the body of the vault. That means the file changed after it was written — not that you typed anything wrong.",
-  corruptBackups: "Rolling backups on this machine",
-  corruptOpen: "Open this instead",
-  corruptOpenOther: "Open",
-  corruptNoBackups:
-    "There are no rolling backups beside this file. A copy from your own backups is the way back.",
-} as const;
 
 const SLOT_ICONS = {
   password: "lock",
@@ -193,6 +132,8 @@ function canUse(slot: Slot): boolean {
 }
 
 export function UnlockScreen({ path }: { path: string }) {
+  const t = useT("vault");
+  const tCommon = useT("common");
   const go = useApp((state) => state.go);
 
   const probe = useQuery({
@@ -248,8 +189,9 @@ export function UnlockScreen({ path }: { path: string }) {
     mutationFn: async () => {
       const method = buildRequest();
       // Unreachable while the submit button is guarded; typed rather than
-      // asserted so a future caller cannot slip past the guard silently.
-      if (method === null) throw new Error("No unlock method is selected.");
+      // asserted so a future caller cannot slip past the guard silently. It is
+      // still translated, because "should be unreachable" is not "is".
+      if (method === null) throw new Error(t("unlock.noMethodSelected"));
       return ipc.unlockVault(path, method);
     },
     onSuccess: () => go({ name: "main" }),
@@ -322,7 +264,7 @@ export function UnlockScreen({ path }: { path: string }) {
     setKeyfileBrowsing(true);
     try {
       picked = await open({
-        title: TEXT.keyfileDialog,
+        title: t("unlock.keyfileDialogTitle"),
         multiple: false,
         directory: false,
         // Named first so the right file is obvious; "All files" second because
@@ -334,7 +276,7 @@ export function UnlockScreen({ path }: { path: string }) {
         defaultPath: rememberedKeyfile ?? folderOf(path),
       });
     } catch {
-      setKeyfileDialogError(TEXT.keyfileDialogFailed);
+      setKeyfileDialogError(t("unlock.keyfileDialogFailed"));
       return;
     } finally {
       setKeyfileBrowsing(false);
@@ -371,35 +313,39 @@ export function UnlockScreen({ path }: { path: string }) {
         // crowd the row and say nothing new.
         null
       : active === null
-        ? TEXT.blockedNoSlot
+        ? t("unlock.blocked.noSlot")
         : !canUse(active)
-          ? TEXT.blockedFido2
+          ? t("unlock.blocked.fido2")
           : keyfileMissing
-            ? TEXT.blockedKeyfile
+            ? t("unlock.blocked.keyfile")
             : keyfileUnusable
-              ? TEXT.blockedKeyfileRefused
+              ? t("keyfile.blockedIsVault")
               : active.kind === "password" && password.length === 0
-              ? TEXT.blockedPassword
-              : active.kind === "recovery" && recovery.trim().length === 0
-                ? TEXT.blockedRecovery
-                : secondsLeft > 0
-                  ? TEXT.blockedBackoff(secondsLeft)
-                  : null;
+                ? t("unlock.blocked.password")
+                : active.kind === "recovery" && recovery.trim().length === 0
+                  ? t("unlock.blocked.recovery")
+                  : secondsLeft > 0
+                    ? t("unlock.blocked.backoff", { seconds: secondsLeft })
+                    : null;
 
   return (
     <div className={s.screen}>
       <header className={s.titlebar} data-tauri-drag-region>
         <Mark size={18} />
-        <span className={s.titleText}>{TEXT.windowTitle}</span>
+        <span className={s.titleText}>{t("unlock.windowTitle")}</span>
       </header>
 
       <div className={s.centre}>
         <div className={s.panel}>
+          {/* The label is the user's own text and the path is a file path.
+              Both are isolated so neither can reorder the panel around it. */}
           <div className={s.vault}>
             <Icon name="file" size={22} />
             <div className={s.vaultText}>
-              <span className={s.vaultName}>{probe.data?.label ?? splitPath(path).name}</span>
-              <span className={s.vaultPath}>{path}</span>
+              <span className={s.vaultName}>
+                {isolate(probe.data?.label ?? splitPath(path).name)}
+              </span>
+              <span className={s.vaultPath}>{isolateLtr(path)}</span>
             </div>
           </div>
 
@@ -408,7 +354,7 @@ export function UnlockScreen({ path }: { path: string }) {
             // whole content of the screen, so its absence must not read as
             // "this vault has none".
             <div className={s.loading}>
-              <BusyStatus label={TEXT.probing} size={16} />
+              <BusyStatus label={t("probe.reading")} size={16} />
               <div className={s.loadingSlots}>
                 <SkeletonRows count={2} height="var(--space-10)" widths={["100%"]} />
               </div>
@@ -417,8 +363,9 @@ export function UnlockScreen({ path }: { path: string }) {
             <>
               <FailureNotice
                 failure={asFailure(probe.error)}
-                title={TEXT.probeFailed}
+                title={t("unlock.probeFailed")}
                 onRetry={() => void probe.refetch()}
+                retryLabel={tCommon("action.retry")}
               />
               <ExitActions onLeave={() => go({ name: "picker" })} />
             </>
@@ -429,8 +376,8 @@ export function UnlockScreen({ path }: { path: string }) {
             />
           ) : slots.length === 0 ? (
             <>
-              <Callout tone="danger" title={TEXT.probeFailed}>
-                <p className={s.body}>{TEXT.noSlots}</p>
+              <Callout tone="danger" title={t("unlock.probeFailed")}>
+                <p className={s.body}>{t("unlock.noSlots")}</p>
               </Callout>
               <ExitActions onLeave={() => go({ name: "picker" })} />
             </>
@@ -451,12 +398,7 @@ export function UnlockScreen({ path }: { path: string }) {
                 >
                   {slot.kind === "password" && active?.index === slot.index ? (
                     <div className={s.cardBody}>
-                      <Field
-                        label={TEXT.password}
-                        help={TEXT.passwordHelp}
-                        error=""
-                        htmlFor="unlock-password"
-                      >
+                      <Field label={t("slot.password")} help="" error="" htmlFor="unlock-password">
                         <TextInput
                           id="unlock-password"
                           value={password}
@@ -467,23 +409,25 @@ export function UnlockScreen({ path }: { path: string }) {
                           autoFocus
                           disabled={unlock.isPending}
                           invalid={failure !== null}
-                          ariaLabel={TEXT.password}
+                          ariaLabel={t("slot.password")}
                         />
                       </Field>
 
                       {slot.requiresKeyfile ? (
                         <div className={s.keyfile}>
-                          <span className={s.keyfileLabel}>{TEXT.keyfile}</span>
+                          <span className={s.keyfileLabel}>{t("keyfile.label")}</span>
                           <span className={s.keyfileValue}>
                             {keyfilePath === null ? (
-                              <span className={s.keyfileEmpty}>{TEXT.keyfileMissing}</span>
+                              <span className={s.keyfileEmpty}>{t("unlock.keyfileMissing")}</span>
                             ) : (
                               <>
                                 <Icon name="file" size={13} />
                                 <span className={s.keyfileName}>
-                                  {splitPath(keyfilePath).name}
+                                  {isolate(splitPath(keyfilePath).name)}
                                 </span>
-                                <span className={s.keyfileDir}>{splitPath(keyfilePath).dir}</span>
+                                <span className={s.keyfileDir}>
+                                  {isolateLtr(splitPath(keyfilePath).dir)}
+                                </span>
                               </>
                             )}
                           </span>
@@ -492,11 +436,11 @@ export function UnlockScreen({ path }: { path: string }) {
                             size="sm"
                             type="button"
                             busy={keyfileBrowsing}
-                            busyLabel={TEXT.keyfileBrowsing}
+                            busyLabel={tCommon("action.opening")}
                             disabled={unlock.isPending}
-                          onClick={() => void chooseKeyfile()}
+                            onClick={() => void chooseKeyfile()}
                           >
-                            {TEXT.keyfileBrowse}
+                            {tCommon("action.browse")}
                           </BusyButton>
                         </div>
                       ) : null}
@@ -510,7 +454,7 @@ export function UnlockScreen({ path }: { path: string }) {
                       ) : null}
 
                       {slot.requiresKeyfile && keyfileIsRemembered && keyfileRefused === null ? (
-                        <p className={s.bodyNote}>{TEXT.keyfileRemembered}</p>
+                        <p className={s.bodyNote}>{t("unlock.keyfileRemembered")}</p>
                       ) : null}
 
                       {slot.requiresKeyfile && keyfileDialogError !== null ? (
@@ -524,8 +468,8 @@ export function UnlockScreen({ path }: { path: string }) {
                   {slot.kind === "recovery" && active?.index === slot.index ? (
                     <div className={s.cardBody}>
                       <Field
-                        label={TEXT.recovery}
-                        help={TEXT.recoveryHelp}
+                        label={t("slot.recovery")}
+                        help={t("unlock.recoveryHelp")}
                         error=""
                         htmlFor="unlock-recovery"
                       >
@@ -534,23 +478,23 @@ export function UnlockScreen({ path }: { path: string }) {
                           value={recovery}
                           onChange={setRecovery}
                           type="text"
-                          placeholder={TEXT.recoveryPlaceholder}
+                          placeholder={t("unlock.recoveryPlaceholder")}
                           mono
                           autoFocus
                           disabled={unlock.isPending}
                           invalid={failure !== null}
-                          ariaLabel={TEXT.recovery}
+                          ariaLabel={t("slot.recovery")}
                         />
                       </Field>
                     </div>
                   ) : null}
 
                   {slot.kind === "fido2" ? (
-                    <p className={s.cardNote}>{TEXT.fido2Unavailable}</p>
+                    <p className={s.cardNote}>{t("unlock.fido2Unavailable")}</p>
                   ) : null}
 
                   {slot.kind === "keychain" && active?.index === slot.index ? (
-                    <p className={s.cardNote}>{TEXT.keychainHelp}</p>
+                    <p className={s.cardNote}>{t("unlock.keychainHelp")}</p>
                   ) : null}
                 </SlotCard>
               ))}
@@ -560,10 +504,14 @@ export function UnlockScreen({ path }: { path: string }) {
               {wrongCredential ? (
                 <div className={s.failure} role="alert">
                   <Icon name="alert" size={15} />
-                  <span className={s.failureText}>{TEXT.failed}</span>
+                  <span className={s.failureText}>{t("unlock.failed")}</span>
+                  {/* The count and the countdown are one message: a separator
+                      spliced between two of them is layout the translator
+                      cannot move. */}
                   <span className={s.failureMeta}>
-                    {TEXT.attempt(attempts)}
-                    {secondsLeft > 0 ? ` · ${TEXT.waiting(secondsLeft)}` : ""}
+                    {secondsLeft > 0
+                      ? t("unlock.attemptWaiting", { attempt: attempts, seconds: secondsLeft })
+                      : t("unlock.attempt", { count: attempts })}
                   </span>
                 </div>
               ) : null}
@@ -571,7 +519,7 @@ export function UnlockScreen({ path }: { path: string }) {
               {/* Anything else the core refused: shown as the core wrote it,
                   because it names something the user can actually fix. */}
               {refusal !== null ? (
-                <FailureNotice failure={refusal} title={TEXT.refused} />
+                <FailureNotice failure={refusal} title={t("unlock.refused")} />
               ) : null}
 
               {/* Argon2id is about a second here by design. Left unexplained
@@ -580,8 +528,8 @@ export function UnlockScreen({ path }: { path: string }) {
               {unlock.isPending && (
                 <div className={s.busyStrip}>
                   <BusyStatus
-                    label={TEXT.unlockingStage}
-                    note={TEXT.kdfNote(active?.kdfSummary ?? null)}
+                    label={t("unlock.derivingStage")}
+                    note={kdfNote(active?.kdfSummary ?? null)}
                     size={16}
                   />
                 </div>
@@ -594,7 +542,7 @@ export function UnlockScreen({ path }: { path: string }) {
                   disabled={unlock.isPending}
                   onClick={() => go({ name: "picker" })}
                 >
-                  {TEXT.differentVault}
+                  {t("unlock.differentVault")}
                 </button>
                 <span className={s.spacer} />
                 {/* Why Unlock cannot be pressed, beside Unlock. */}
@@ -608,18 +556,18 @@ export function UnlockScreen({ path }: { path: string }) {
                   disabled={unlock.isPending}
                   onClick={() => go({ name: "picker" })}
                 >
-                  {TEXT.cancel}
+                  {tCommon("action.cancel")}
                 </Button>
                 <BusyButton
                   variant="primary"
                   size="md"
                   type="submit"
                   busy={unlock.isPending}
-                  busyLabel={TEXT.unlocking}
+                  busyLabel={t("unlock.deriving")}
                   disabled={!canSubmit}
                   {...(blockedBecause === null ? {} : { title: blockedBecause })}
                 >
-                  {TEXT.unlock}
+                  {t("unlock.action")}
                 </BusyButton>
               </div>
             </form>
@@ -632,11 +580,12 @@ export function UnlockScreen({ path }: { path: string }) {
 
 /** The way back when there is nothing on this screen left to try. */
 function ExitActions({ onLeave }: { onLeave: () => void }) {
+  const t = useT("vault");
   return (
     <div className={s.actions}>
       <span className={s.spacer} />
       <Button variant="secondary" size="md" onClick={onLeave}>
-        {TEXT.differentVault}
+        {t("unlock.differentVault")}
       </Button>
     </div>
   );
@@ -655,6 +604,7 @@ function SlotCard({
   onSelect: () => void;
   children: ReactNode;
 }) {
+  const t = useT("vault");
   const usable = canUse(slot);
   const classes = [s.card, active ? s.cardActive : "", usable ? "" : s.cardDisabled]
     .filter(Boolean)
@@ -662,20 +612,20 @@ function SlotCard({
 
   const name =
     slot.kind === "password"
-      ? TEXT.password
+      ? t("slot.password")
       : slot.kind === "recovery"
-        ? TEXT.recovery
+        ? t("slot.recovery")
         : slot.kind === "fido2"
-          ? TEXT.securityKey
-          : TEXT.keychain;
+          ? t("slot.fido2")
+          : t("slot.keychain");
 
   const right =
     slot.kind === "fido2" ? (
-      <span className={s.fastest}>{TEXT.fastest}</span>
+      <span className={s.fastest}>{t("unlock.fido2Fastest")}</span>
     ) : slot.kind === "recovery" ? (
-      <span className={s.rightMeta}>{TEXT.recoveryRight}</span>
+      <span className={s.rightMeta}>{t("unlock.recoveryLastResort")}</span>
     ) : slot.kind === "password" && slot.kdfSummary !== null ? (
-      <span className={s.chip}>{slot.kdfSummary}</span>
+      <span className={s.chip}>{isolateLtr(slot.kdfSummary)}</span>
     ) : null;
 
   return (
@@ -691,8 +641,9 @@ function SlotCard({
         />
         <Icon name={SLOT_ICONS[slot.kind]} size={15} />
         <span className={s.slotName}>{name}</span>
+        {/* The slot's own label is whatever the user called it. */}
         {slot.label.length > 0 && slot.label !== name ? (
-          <span className={s.chip}>{slot.label}</span>
+          <span className={s.chip}>{isolate(slot.label)}</span>
         ) : null}
         <span className={s.spacer} />
         {right}
@@ -711,18 +662,20 @@ function DamagedFile({
   backups: Backup[];
   onOpenBackup: (path: string) => void;
 }) {
+  const t = useT("vault");
+  const { code: locale } = useLocale();
   const go = useApp((state) => state.go);
 
   return (
     <div className={s.damaged}>
-      <Callout tone="warning" title={TEXT.corruptTitle}>
-        <p className={s.body}>{TEXT.corruptBody}</p>
+      <Callout tone="warning" title={t("unlock.damaged.title")}>
+        <p className={s.body}>{t("unlock.damaged.body")}</p>
       </Callout>
 
-      <div className={s.damagedHead}>{TEXT.corruptBackups}</div>
+      <div className={s.damagedHead}>{t("unlock.damaged.backups")}</div>
 
       {backups.length === 0 ? (
-        <p className={s.cardNote}>{TEXT.corruptNoBackups}</p>
+        <p className={s.cardNote}>{t("unlock.damaged.noBackups")}</p>
       ) : (
         <ul className={s.backups}>
           {backups.map((backup, index) => (
@@ -733,11 +686,11 @@ function DamagedFile({
                 onClick={() => onOpenBackup(backup.path)}
               >
                 <span className={index === 0 ? s.dotCurrent : s.dot} />
-                <span className={s.backupStamp}>{formatStamp(backup.modifiedAt)}</span>
-                <span className={s.backupSize}>{formatBytes(backup.sizeBytes)}</span>
+                <span className={s.backupStamp}>{formatStamp(locale, backup.modifiedAt)}</span>
+                <span className={s.backupSize}>{formatBytes(locale, backup.sizeBytes)}</span>
                 <span className={s.spacer} />
                 <span className={index === 0 ? s.backupActionStrong : s.backupAction}>
-                  {index === 0 ? TEXT.corruptOpen : TEXT.corruptOpenOther}
+                  {index === 0 ? t("unlock.damaged.openNewest") : t("unlock.damaged.openOther")}
                 </span>
               </button>
             </li>

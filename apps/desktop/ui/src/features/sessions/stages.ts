@@ -39,35 +39,21 @@ export type StageId = "acquire" | "transport" | "handshake" | "authenticate";
 
 export type StageState = "done" | "active" | "suspended" | "pending" | "abandoned";
 
+/**
+ * One row of the connect panel: which stage, and how far it got.
+ *
+ * No copy. What the row says — its label and the pipeline stages its caption
+ * names — is in `locales/en/sessions.json` under `connect.stage`, looked up by
+ * `id`. Keeping it out of here is what lets this module stay a pure function of
+ * the phase, testable without a translation catalogue.
+ */
 export interface StageRow {
   id: StageId;
-  /** Which pipeline stages this row stands for, for the caption. */
-  pipeline: string;
-  label: string;
   state: StageState;
 }
 
 /** The order the rows are drawn in; also the order they complete in. */
 export const STAGE_ORDER: readonly StageId[] = ["acquire", "transport", "handshake", "authenticate"];
-
-const LABELS: Record<StageId, { label: string; pipeline: string }> = {
-  acquire: {
-    label: "Resolving the connection and borrowing its credential",
-    pipeline: "resolve · authorise · acquire",
-  },
-  transport: {
-    label: "Reaching the target",
-    pipeline: "transport",
-  },
-  handshake: {
-    label: "Verifying the host key",
-    pipeline: "handshake",
-  },
-  authenticate: {
-    label: "Authenticating and opening a channel",
-    pipeline: "authenticate · attach",
-  },
-};
 
 /**
  * How far each phase has got. The index names the first stage that is *not*
@@ -110,7 +96,7 @@ export function stagesFor(phase: ConnectPhase, failedAt?: string | null): StageR
             : index === brokenIndex
               ? "abandoned"
               : "pending";
-      return { id, ...LABELS[id], state };
+      return { id, state };
     });
   }
 
@@ -123,7 +109,7 @@ export function stagesFor(phase: ConnectPhase, failedAt?: string | null): StageR
             ? "suspended"
             : "active"
           : "pending";
-    return { id, ...LABELS[id], state };
+    return { id, state };
   });
 }
 

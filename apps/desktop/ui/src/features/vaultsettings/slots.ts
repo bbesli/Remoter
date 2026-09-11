@@ -16,44 +16,54 @@
  * user who learns the rule from an error message has already decided to do the
  * thing the rule forbids, and in the last-slot case there is nothing to undo.
  * So the reason is shown on the disabled control, before the attempt.
+ *
+ * # Why every function here takes `t` and a locale
+ *
+ * These are pure functions called from render loops, and `useT` is a hook, so
+ * the catalogue accessor arrives as an argument rather than being reached for
+ * — the same arrangement `settings/ShortcutsSection.tsx` uses. Nothing in this
+ * file may hold a resolved string at module scope either: a label resolved at
+ * import would keep the language the application started in for the rest of
+ * the session, and switching language is supposed to need no restart.
  */
 
+import type { TFunction } from "i18next";
+
 import type { IconName } from "@/components/Icon";
+import { formatDate, isolate } from "@/i18n";
 import type { Slot, SlotKind } from "@/lib/ipc";
 
-const TEXT = {
-  kindPassword: "Password",
-  kindRecovery: "Recovery key",
-  kindFido2: "Security key",
-  kindKeychain: "Remember on this device",
+/** This screen's catalogue accessor, as a value a pure function can take. */
+export type VaultT = TFunction<"vaultsettings">;
 
-  neverUsed: "Never used",
-  lastUsed: (day: string) => `Last used ${day}`,
-  added: (day: string) => `Added ${day}`,
-  withKeyfile: "Needs its key file too",
-  noKeyfile: "Password only",
+/**
+ * Everything a description of a slot needs: the two catalogues it reads and
+ * the language `Intl` formats its dates in.
+ */
+export interface SlotCopy {
+  t: VaultT;
+  tCommon: TFunction<"common">;
+  /** The BCP 47 tag in force, from `useLocale()`. */
+  locale: string;
+}
 
-  lastSlot:
-    "This is the only way into this vault. Removing it would leave a file nobody can ever open — there is no escrow key and no support override.",
-  openedWith:
-    "This session was opened with this slot. Removing it does not lock the vault now, but it is the way in you have most recently proved works.",
-  lastRecovery:
-    "This is the last recovery key on this vault. Without one, a forgotten password is the end of the vault.",
+/**
+ * The catalogue key naming each kind of slot.
+ *
+ * Keys rather than labels, for the reason in the file header: this map is
+ * module-level, and a translated label here would be frozen at import.
+ */
+const SLOT_KIND_KEY = {
+  password: "slot.kind.password",
+  recovery: "slot.kind.recovery",
+  fido2: "slot.kind.fido2",
+  keychain: "slot.kind.keychain",
+} as const satisfies Record<SlotKind, string>;
 
-  rotationNoCredential: (label: string, index: number) =>
-    `Slot ${index} (${label}) needs its password, or an explicit "discard it".`,
-  rotationFido2: (label: string, index: number) =>
-    `Slot ${index} (${label}) is a security key, which this version cannot re-wrap. Discard it here and enrol it again afterwards, or cancel.`,
-  rotationEmpty:
-    "Every slot is marked to discard. A rotation that keeps nothing produces a file nobody can open.",
-} as const;
-
-export const SLOT_KIND_LABEL: Record<SlotKind, string> = {
-  password: TEXT.kindPassword,
-  recovery: TEXT.kindRecovery,
-  fido2: TEXT.kindFido2,
-  keychain: TEXT.kindKeychain,
-};
+/** What this kind of slot is called, in the reader's language. */
+export function slotKindLabel(kind: SlotKind, t: VaultT): string {
+  return t(SLOT_KIND_KEY[kind]);
+}
 
 export const SLOT_KIND_ICON: Record<SlotKind, IconName> = {
   password: "lock",
@@ -68,36 +78,45 @@ export const SLOT_KIND_ICON: Record<SlotKind, IconName> = {
  * Slot times are Unix seconds. An hour and a minute would suggest a precision
  * that means nothing here — what a reader wants from "created" is whether it
  * was this week or two years ago.
+ *
+ * The locale is the one the user chose in this application, not the one the
+ * operating system happens to be set to: this used to build its own
+ * `Intl.DateTimeFormat` with `undefined` for the locale, which is how a German
+ * interface ends up showing American date order.
  */
-export function formatDay(unixSeconds: number): string {
+export function formatDay(locale: string, unixSeconds: number): string {
   const date = new Date(unixSeconds * 1000);
   if (Number.isNaN(date.getTime())) return "";
-  return new Intl.DateTimeFormat(undefined, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(date);
+  return formatDate(locale, date);
 }
 
 /** "Never used" is the interesting case: it is the slot most likely to be lost. */
-export function describeLastUsed(lastUsed: number | null): string {
-  return lastUsed === null ? TEXT.neverUsed : TEXT.lastUsed(formatDay(lastUsed));
+export function describeLastUsed(lastUsed: number | null, copy: SlotCopy): string {
+  return lastUsed === null
+    ? copy.t("slot.neverUsed")
+    : copy.t("slot.lastUsed", { day: formatDay(copy.locale, lastUsed) });
 }
 
 /**
  * The one line under a slot's name: whether a key file is needed, the Argon2id
  * summary when there is one, when it was added and when it last opened the
  * vault.
+ *
+ * Joined with the separator from `common`, not with a `" · "` written here:
+ * the glyph is a locale's choice, and the one place it is declared is the one
+ * place a translator can change it.
  */
-export function slotDetail(slot: Slot): string {
+export function slotDetail(slot: Slot, copy: SlotCopy): string {
   const parts: string[] = [];
   if (slot.kind === "password") {
-    parts.push(slot.requiresKeyfile ? TEXT.withKeyfile : TEXT.noKeyfile);
+    parts.push(copy.t(slot.requiresKeyfile ? "slot.withKeyfile" : "slot.noKeyfile"));
   }
+  // The KDF summary is the core's own notation — "Argon2id, 256 MiB, t=3" —
+  // and is never translated, for the reason SSH and RDP are not.
   if (slot.kdfSummary !== null && slot.kdfSummary !== "") parts.push(slot.kdfSummary);
-  parts.push(TEXT.added(formatDay(slot.createdAt)));
-  parts.push(describeLastUsed(slot.lastUsed));
-  return parts.join(" · ");
+  parts.push(copy.t("slot.added", { day: formatDay(copy.locale, slot.createdAt) }));
+  parts.push(describeLastUsed(slot.lastUsed, copy));
+  return parts.join(copy.tCommon("punctuation.factSeparator"));
 }
 
 /**
@@ -107,8 +126,8 @@ export function slotDetail(slot: Slot): string {
  * is that the table must not empty, and a keychain slot on this machine is as
  * usable as a password for that purpose.
  */
-export function removalRefusal(slots: readonly Slot[]): string | null {
-  return slots.length <= 1 ? TEXT.lastSlot : null;
+export function removalRefusal(slots: readonly Slot[], t: VaultT): string | null {
+  return slots.length <= 1 ? t("slots.lastSlotRefusal") : null;
 }
 
 /**
@@ -121,11 +140,12 @@ export function removalWarning(
   slots: readonly Slot[],
   slot: Slot,
   openedWith: number | null,
+  t: VaultT,
 ): string | null {
   if (slot.kind === "recovery" && slots.filter((s) => s.kind === "recovery").length === 1) {
-    return TEXT.lastRecovery;
+    return t("slots.lastRecoveryWarning");
   }
-  if (openedWith !== null && openedWith === slot.index) return TEXT.openedWith;
+  if (openedWith !== null && openedWith === slot.index) return t("slots.openedWithWarning");
   return null;
 }
 
@@ -135,8 +155,14 @@ export function removalWarning(
  * Typed, not ticked. A checkbox beside a warning is read as furniture; typing
  * the sentence is the only cheap thing that makes a person read it, and this
  * is the deletion with no way back.
+ *
+ * Translated, and it has to be: a sentence a reader cannot read is a sentence
+ * they transcribe without understanding, which is the one thing this control
+ * exists to prevent. The catalogue entry carries that instruction.
  */
-export const LAST_RESORT_PHRASE = "I understand this removes my last resort";
+export function lastResortPhrase(t: VaultT): string {
+  return t("removeSlot.phrase");
+}
 
 export function needsLastResort(kind: SlotKind): boolean {
   return kind === "recovery";
@@ -147,12 +173,14 @@ export function needsLastResort(kind: SlotKind): boolean {
  *
  * Case and run-together spaces are forgiven; the words are not. Someone
  * transcribing a sentence from the line above it should not be defeated by a
- * capital letter, but nor should "yes" get through.
+ * capital letter, but nor should "yes" get through. The phrase is passed in so
+ * that what is compared is exactly what was displayed, in whatever language it
+ * was displayed in.
  */
-export function lastResortSatisfied(kind: SlotKind, typed: string): boolean {
+export function lastResortSatisfied(kind: SlotKind, typed: string, phrase: string): boolean {
   if (!needsLastResort(kind)) return true;
   const normalise = (value: string) => value.trim().replace(/\s+/g, " ").toLowerCase();
-  return normalise(typed) === normalise(LAST_RESORT_PHRASE);
+  return normalise(typed) === normalise(phrase);
 }
 
 /** One slot's place in a proposed master key rotation, with no secret in it. */
@@ -174,21 +202,32 @@ export interface RotationSlotPlan {
  * committed to a four-second re-encryption, and one of them cannot be
  * discovered any other way: a slot that is in neither list is a refusal, not a
  * silent deletion, and the form is where that has to be visible.
+ *
+ * Slot labels are the user's own text and are wrapped in a bidi isolate, so a
+ * label written in Hebrew cannot reorder the English sentence around it — or
+ * an ASCII label the Arabic one.
  */
-export function rotationRefusals(plan: readonly RotationSlotPlan[]): string[] {
+export function rotationRefusals(plan: readonly RotationSlotPlan[], t: VaultT): string[] {
   const problems: string[] = [];
   const kept = plan.filter((entry) => !entry.drop);
 
   for (const entry of kept) {
     if (entry.kind === "password" && !entry.hasCredential) {
-      problems.push(TEXT.rotationNoCredential(entry.label, entry.index));
+      problems.push(
+        t("rotateMaster.problemNoCredential", {
+          index: entry.index,
+          label: isolate(entry.label),
+        }),
+      );
     }
     if (entry.kind === "fido2") {
-      problems.push(TEXT.rotationFido2(entry.label, entry.index));
+      problems.push(
+        t("rotateMaster.problemFido2", { index: entry.index, label: isolate(entry.label) }),
+      );
     }
   }
 
-  if (plan.length > 0 && kept.length === 0) problems.push(TEXT.rotationEmpty);
+  if (plan.length > 0 && kept.length === 0) problems.push(t("rotateMaster.problemEmpty"));
   return problems;
 }
 
@@ -200,16 +239,22 @@ export function rotationRefusals(plan: readonly RotationSlotPlan[]): string[] {
  * the weakest setting are a pixel apart hides that. Zero means never, which is
  * what the core's `autoLockMinutes` already says.
  */
-export const AUTO_LOCK_CHOICES: readonly { minutes: number; label: string }[] = [
-  { minutes: 0, label: "Never" },
-  { minutes: 1, label: "1 min" },
-  { minutes: 5, label: "5 min" },
-  { minutes: 15, label: "15 min" },
-  { minutes: 30, label: "30 min" },
-  { minutes: 60, label: "1 hour" },
-  { minutes: 120, label: "2 hours" },
-  { minutes: 240, label: "4 hours" },
-];
+export const AUTO_LOCK_MINUTES: readonly number[] = [0, 1, 5, 15, 30, 60, 120, 240];
+
+/**
+ * One rung of that ladder, in words.
+ *
+ * Three messages rather than eight labels, because the number is the variable
+ * part: ICU formats it for the locale and pluralises it in whatever categories
+ * the language has, which "1 min"/"5 min" written out eight times cannot do.
+ */
+export function autoLockLabel(minutes: number, t: VaultT): string {
+  if (minutes === 0) return t("autoLock.choiceNever");
+  if (minutes >= 60 && minutes % 60 === 0) {
+    return t("autoLock.choiceHours", { count: minutes / 60 });
+  }
+  return t("autoLock.choiceMinutes", { count: minutes });
+}
 
 /**
  * The most backups the vault will keep.

@@ -12,32 +12,11 @@
 import { BusyButton, BusyStatus } from "@/components/Busy";
 import { Callout } from "@/components/Callout";
 import { FailureNotice } from "@/components/FailureNotice";
+import { isolate, useT } from "@/i18n";
 import type { IpcFailure } from "@/lib/ipc";
 
 import type { IncludedCounts } from "./selection";
 import s from "./ImportWizard.module.css";
-
-const TEXT = {
-  title: "Ready to write",
-  lead: "This is the step that touches your vault. Everything before it happened in the core's own memory.",
-  into: (folder: string) => `Into ${folder}`,
-  top: "the top level of the vault",
-  connections: "connections",
-  folders: "folders",
-  credentials: "credentials",
-  secrets: "passwords sealed",
-  excluded: "unticked, and not written",
-  commit: (n: number) => `Import ${n} ${n === 1 ? "item" : "items"}`,
-  committing: "Writing the import as one transaction…",
-  committingNote:
-    "Every node and every sealed password lands together. If anything fails, the vault file is left exactly as it was.",
-  failed: "The import was not written.",
-  retry: "Try again",
-  transactionTitle: "One transaction, and no undo",
-  transactionBody:
-    "Either all of this reaches your vault file or none of it does. Remoter cannot undo an import afterwards, so anything you did not want should be unticked in the preview before you press the button — deleting it from the tree is the only remedy after.",
-  nothing: "Nothing is ticked, so there is nothing to write. Go back to the preview and tick something.",
-} as const;
 
 interface CommitStepProps {
   counts: IncludedCounts;
@@ -56,50 +35,58 @@ export function CommitStep({
   failure,
   onCommit,
 }: CommitStepProps) {
+  const t = useT("import");
+  // A folder's breadcrumb is the user's own text and is isolated; the phrase
+  // that stands in for "no folder at all" is interface copy and is not.
+  const destination =
+    destinationLabel === null ? t("destination.top") : isolate(destinationLabel);
+
   return (
     <div className={`${s.step} ${s.narrow}`}>
       <div className={s.stepHead}>
-        <h2 className={s.stepTitle}>{TEXT.title}</h2>
-        <p className={s.stepLead}>{TEXT.lead}</p>
+        <h2 className={s.stepTitle}>{t("commit.title")}</h2>
+        <p className={s.stepLead}>{t("commit.lead")}</p>
       </div>
 
       <div className={s.card}>
-        <span className={s.sectionLabel}>{TEXT.into(destinationLabel ?? TEXT.top)}</span>
+        <span className={s.sectionLabel}>{t("commit.into", { folder: destination })}</span>
         <div className={s.counts}>
-          <Count value={counts.connections} label={TEXT.connections} />
-          <Count value={counts.folders} label={TEXT.folders} />
-          <Count value={counts.credentials} label={TEXT.credentials} />
-          <Count value={counts.secrets} label={TEXT.secrets} />
-          <Count value={excludedCount} label={TEXT.excluded} />
+          <Count value={counts.connections} label={t("commit.countConnections")} />
+          <Count value={counts.folders} label={t("commit.countFolders")} />
+          <Count value={counts.credentials} label={t("commit.countCredentials")} />
+          <Count value={counts.secrets} label={t("commit.countSecrets")} />
+          <Count value={excludedCount} label={t("commit.countExcluded")} />
         </div>
       </div>
 
-      <Callout tone="warning" title={TEXT.transactionTitle}>
-        <p>{TEXT.transactionBody}</p>
+      <Callout tone="warning" title={t("commit.transactionTitle")}>
+        <p>{t("commit.transactionBody")}</p>
       </Callout>
 
       {failure !== null && !committing && (
         <FailureNotice
           failure={failure}
-          title={TEXT.failed}
+          title={t("commit.failed")}
           onRetry={onCommit}
-          retryLabel={TEXT.retry}
+          retryLabel={t("commit.retry")}
         />
       )}
 
-      {committing && <BusyStatus label={TEXT.committing} note={TEXT.committingNote} size={16} />}
+      {committing && (
+        <BusyStatus label={t("commit.committing")} note={t("commit.committingNote")} size={16} />
+      )}
 
       {counts.total === 0 ? (
-        <p className={s.stepLead}>{TEXT.nothing}</p>
+        <p className={s.stepLead}>{t("commit.nothing")}</p>
       ) : (
         <div className={s.rowActions}>
           <BusyButton
             variant="primary"
             busy={committing}
-            busyLabel={TEXT.committing}
+            busyLabel={t("commit.committing")}
             onClick={onCommit}
           >
-            {TEXT.commit(counts.total)}
+            {t("commit.commit", { count: counts.total })}
           </BusyButton>
         </div>
       )}

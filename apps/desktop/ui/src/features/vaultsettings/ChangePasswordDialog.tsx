@@ -25,46 +25,12 @@ import { FailureNotice } from "@/components/FailureNotice";
 import { Field } from "@/components/Field";
 import { TextInput } from "@/components/TextInput";
 import { kdfNote } from "@/features/vault/UnlockScreen";
+import { isolate, useT } from "@/i18n";
 import type { ChangePassword, IpcFailure, Slot } from "@/lib/ipc";
 
 import { Dialog } from "./Dialog";
 import { KeyfileField, keyfileBlocked } from "./KeyfileField";
 import s from "./ChangePasswordDialog.module.css";
-
-const TEXT = {
-  title: "Change this slot's password",
-  lead: "The slot is re-wrapped around the new password. The master key does not change, so nothing is re-encrypted, every other slot keeps working and the recovery keys stay valid.",
-
-  notARotation: "This does not help if the file itself leaked",
-  notARotationBody:
-    "A copy taken while the old password was in use still opens with the old password. Rotating the vault master key is the answer to that, and it is on this screen.",
-
-  current: "Current password",
-  currentHelp: "Verified before anything is replaced, so a typo here cannot lock the slot.",
-  currentKeyfile: "Current key file",
-  currentKeyfileHelp: "This slot requires one, so the change needs it as well.",
-
-  next: "New password",
-  confirm: "Repeat the new password",
-  confirmMismatch: "The two passwords are not the same.",
-
-  newKeyfile: "Key file from now on",
-  newKeyfileHelp:
-    "Chosen explicitly, including leaving it empty: the current key file is not carried over. Empty means this slot needs only a password.",
-
-  blockedCurrent: "Type the slot's current password.",
-  blockedCurrentKeyfile: "Choose the key file this slot currently requires.",
-  blockedNew: "Type the new password twice, the same way.",
-  blockedKeyfile: "That file cannot be a key file.",
-
-  cancel: "Cancel",
-  save: "Change the password",
-  saving: "Deriving the key…",
-  savingBlocked:
-    "The change is already with the core. This closes when it answers, so a rejected password has somewhere to be reported.",
-  savingStage: "Verifying the current password, then deriving the new key…",
-  failed: "The password was not changed.",
-} as const;
 
 interface ChangePasswordDialogProps {
   slot: Slot;
@@ -85,6 +51,8 @@ export function ChangePasswordDialog({
   onRetry,
   onClose,
 }: ChangePasswordDialogProps) {
+  const t = useT("vaultsettings");
+  const tCommon = useT("common");
   const [current, setCurrent] = useState("");
   const [currentKeyfile, setCurrentKeyfile] = useState<string | null>(null);
   const [next, setNext] = useState("");
@@ -94,13 +62,13 @@ export function ChangePasswordDialog({
   const matches = next !== "" && next === confirm;
   const blocked =
     current === ""
-      ? TEXT.blockedCurrent
+      ? t("changePassword.blockedCurrent")
       : slot.requiresKeyfile && currentKeyfile === null
-        ? TEXT.blockedCurrentKeyfile
+        ? t("changePassword.blockedCurrentKeyfile")
         : !matches
-          ? TEXT.blockedNew
+          ? t("changePassword.blockedNew")
           : keyfileBlocked(currentKeyfile, vaultPath) || keyfileBlocked(newKeyfile, vaultPath)
-            ? TEXT.blockedKeyfile
+            ? t("changePassword.blockedKeyfile")
             : null;
 
   function submit() {
@@ -117,34 +85,39 @@ export function ChangePasswordDialog({
   return (
     <Dialog
       id="vault-change-password"
-      title={TEXT.title}
-      lead={TEXT.lead}
+      title={t("changePassword.title")}
+      lead={t("changePassword.lead")}
       onDismiss={busy ? null : onClose}
-      dismissBlockedReason={TEXT.savingBlocked}
+      dismissBlockedReason={t("changePassword.savingBlocked")}
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={busy}>
-            {TEXT.cancel}
+            {tCommon("action.cancel")}
           </Button>
           <BusyButton
             variant="primary"
             busy={busy}
-            busyLabel={TEXT.saving}
+            busyLabel={t("changePassword.saving")}
             disabled={blocked !== null}
             onClick={submit}
             {...(blocked === null ? {} : { title: blocked })}
           >
-            {TEXT.save}
+            {t("changePassword.save")}
           </BusyButton>
         </>
       }
     >
       <div className={s.subject}>
-        <span className={s.label}>{slot.label}</span>
-        <span className={s.index}>slot {slot.index}</span>
+        {/* The slot's own name, isolated: it is the user's text, not ours. */}
+        <span className={s.label}>{isolate(slot.label)}</span>
+        <span className={s.index}>{t("slot.indexBadge", { index: slot.index })}</span>
       </div>
 
-      <Field label={TEXT.current} help={TEXT.currentHelp} htmlFor="vault-change-current">
+      <Field
+        label={t("changePassword.current")}
+        help={t("changePassword.currentHelp")}
+        htmlFor="vault-change-current"
+      >
         <TextInput
           id="vault-change-current"
           type="password"
@@ -157,8 +130,8 @@ export function ChangePasswordDialog({
 
       {slot.requiresKeyfile && (
         <KeyfileField
-          label={TEXT.currentKeyfile}
-          help={TEXT.currentKeyfileHelp}
+          label={t("changePassword.currentKeyfile")}
+          help={t("changePassword.currentKeyfileHelp")}
           path={currentKeyfile}
           onChange={setCurrentKeyfile}
           vaultPath={vaultPath}
@@ -166,7 +139,7 @@ export function ChangePasswordDialog({
         />
       )}
 
-      <Field label={TEXT.next} htmlFor="vault-change-new">
+      <Field label={t("changePassword.next")} htmlFor="vault-change-new">
         <TextInput
           id="vault-change-new"
           type="password"
@@ -177,9 +150,9 @@ export function ChangePasswordDialog({
       </Field>
 
       <Field
-        label={TEXT.confirm}
+        label={t("changePassword.confirm")}
         htmlFor="vault-change-confirm"
-        {...(confirm !== "" && !matches ? { error: TEXT.confirmMismatch } : {})}
+        {...(confirm !== "" && !matches ? { error: t("changePassword.confirmMismatch") } : {})}
       >
         <TextInput
           id="vault-change-confirm"
@@ -192,8 +165,8 @@ export function ChangePasswordDialog({
       </Field>
 
       <KeyfileField
-        label={TEXT.newKeyfile}
-        help={TEXT.newKeyfileHelp}
+        label={t("changePassword.newKeyfile")}
+        help={t("changePassword.newKeyfileHelp")}
         path={newKeyfile}
         onChange={setNewKeyfile}
         vaultPath={vaultPath}
@@ -203,18 +176,20 @@ export function ChangePasswordDialog({
       {busy && (
         <div className={s.busy}>
           <BusyStatus
-            label={TEXT.savingStage}
+            label={t("changePassword.savingStage")}
             note={kdfNote(slot.kdfSummary)}
             size={16}
           />
         </div>
       )}
 
-      <Callout tone="info" title={TEXT.notARotation}>
-        {TEXT.notARotationBody}
+      <Callout tone="info" title={t("changePassword.notARotation")}>
+        {t("changePassword.notARotationBody")}
       </Callout>
 
-      {failure !== null && <FailureNotice failure={failure} title={TEXT.failed} onRetry={onRetry} />}
+      {failure !== null && (
+        <FailureNotice failure={failure} title={t("changePassword.failed")} onRetry={onRetry} />
+      )}
     </Dialog>
   );
 }

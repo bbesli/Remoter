@@ -14,8 +14,13 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { Slot } from "@/lib/ipc";
 
+import { i18n } from "@/i18n";
+
 import { RemoveSlotDialog } from "./RemoveSlotDialog";
-import { LAST_RESORT_PHRASE } from "./slots";
+import { lastResortPhrase } from "./slots";
+
+/** The sentence the dialog renders, read from the same catalogue it reads. */
+const LAST_RESORT_PHRASE = lastResortPhrase(i18n().getFixedT(null, "vaultsettings"));
 
 const recoverySlot: Slot = {
   index: 1,

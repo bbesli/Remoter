@@ -28,6 +28,7 @@ import { FailureNotice } from "@/components/FailureNotice";
 import { Icon } from "@/components/Icon";
 import { Spinner } from "@/components/Spinner";
 import { applyTerminalAppearance } from "@/features/sessions/terminals";
+import { useT } from "@/i18n";
 import { asFailure, ipc } from "@/lib/ipc";
 import type { AppSettings as AppSettingsDto, TerminalAppearance } from "@/lib/ipc";
 import { qk } from "@/lib/queryKeys";
@@ -42,33 +43,22 @@ import { UpdatesSection } from "./UpdatesSection";
 import type { SaveFailure, SectionProps, SettingsField } from "./types";
 import s from "./AppSettings.module.css";
 
-const TEXT = {
-  title: "Settings",
-  close: "Close settings",
-  closeHint: "Close settings (Esc)",
 
-  navAppearance: "Appearance",
-  navTerminal: "Terminal",
-  navLanguage: "Language",
-  navShortcuts: "Shortcuts",
-  navUpdates: "Updates",
-  navAbout: "About",
-
-  sections: "Settings sections",
-
-  loading: "Reading your settings…",
-  loadFailed: "Your settings could not be read.",
-  loadRetry: "Try again",
-  loadFailedClose: "Close settings",
-} as const;
-
+/**
+ * The tabs carry a catalogue key rather than a label.
+ *
+ * The list is module-level, so a label resolved here would be resolved once at
+ * import and would keep the language the application started in. The key is
+ * resolved at render, which is what lets the navigation follow a language
+ * change without a remount.
+ */
 const TABS = [
-  { id: "appearance", label: TEXT.navAppearance },
-  { id: "terminal", label: TEXT.navTerminal },
-  { id: "language", label: TEXT.navLanguage },
-  { id: "shortcuts", label: TEXT.navShortcuts },
-  { id: "updates", label: TEXT.navUpdates },
-  { id: "about", label: TEXT.navAbout },
+  { id: "appearance", labelKey: "screen.navAppearance" },
+  { id: "terminal", labelKey: "screen.navTerminal" },
+  { id: "language", labelKey: "screen.navLanguage" },
+  { id: "shortcuts", labelKey: "screen.navShortcuts" },
+  { id: "updates", labelKey: "screen.navUpdates" },
+  { id: "about", labelKey: "screen.navAbout" },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -95,6 +85,8 @@ interface WideFailure {
 }
 
 export function AppSettings() {
+  const t = useT("settings");
+  const tCommon = useT("common");
   const goBack = useApp((state) => state.goBack);
   const setTheme = useApp((state) => state.setTheme);
   const setLocale = useApp((state) => state.setLocale);
@@ -210,14 +202,14 @@ export function AppSettings() {
         <span className={s.headerIcon} aria-hidden="true">
           <Icon name="settings" size={15} />
         </span>
-        <h1 className={s.headerTitle}>{TEXT.title}</h1>
+        <h1 className={s.headerTitle}>{t("screen.title")}</h1>
         <span className={s.headerSpacer} />
         <button
           type="button"
           className={s.closeButton}
           onClick={goBack}
-          title={TEXT.closeHint}
-          aria-label={TEXT.close}
+          title={t("screen.closeHint")}
+          aria-label={t("screen.close")}
         >
           <Icon name="x" size={15} />
         </button>
@@ -228,7 +220,7 @@ export function AppSettings() {
           className={s.nav}
           role="tablist"
           aria-orientation="vertical"
-          aria-label={TEXT.sections}
+          aria-label={t("screen.sections")}
           onKeyDown={onTabKeyDown}
         >
           {TABS.map((entry, index) => (
@@ -246,7 +238,7 @@ export function AppSettings() {
               tabIndex={entry.id === tab ? 0 : -1}
               onClick={() => setTab(entry.id)}
             >
-              {entry.label}
+              {t(entry.labelKey)}
             </button>
           ))}
         </div>
@@ -260,8 +252,8 @@ export function AppSettings() {
         >
           {needsSettings && settings.isPending && (
             <p className={s.loading}>
-              <Spinner size={16} label={TEXT.loading} />
-              {TEXT.loading}
+              <Spinner size={16} label={t("screen.loading")} />
+              {t("screen.loading")}
             </p>
           )}
 
@@ -269,12 +261,12 @@ export function AppSettings() {
             <div className={s.loadFailure}>
               <FailureNotice
                 failure={asFailure(settings.error)}
-                title={TEXT.loadFailed}
+                title={t("screen.loadFailed")}
                 onRetry={() => void settings.refetch()}
-                retryLabel={TEXT.loadRetry}
+                retryLabel={tCommon("action.retry")}
               >
                 <Button size="sm" variant="ghost" onClick={goBack}>
-                  {TEXT.loadFailedClose}
+                  {t("screen.close")}
                 </Button>
               </FailureNotice>
             </div>

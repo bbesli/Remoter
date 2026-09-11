@@ -38,8 +38,8 @@
   "language": {
     "title": "اللغة",
     "description": "عشر لغات مخطط لها في الإصدار 1.0. واللغات التي تُكتب من اليمين إلى اليسار تعكس التخطيط بأكمله، لا النص وحده.",
-    "_comment_progress": "PLURAL, on the number of languages that actually have catalogues. The count is measured from the locales/ directory rather than hardcoded, so this sentence stops claiming 'only English' the day a second catalogue lands.",
-    "progress": "{available, plural, zero {لم تُترجم أي لغة حتى الآن.} one {الإنجليزية وحدها مترجمة حتى الآن.} two {لغتان مترجمتان حتى الآن.} few {# لغات مترجمة حتى الآن.} many {# لغة مترجمة حتى الآن.} other {# لغة مترجمة حتى الآن.}} أما البقية فمُدرجة لأن الترجمة جارية؛ وتصبح كل لغة قابلة للاختيار عند اكتمال كتالوجها، وحتى ذلك الحين لن يغيّر اختيارها شيئًا.",
+    "_comment_progress": "PLURAL, on the number of languages that actually have catalogues. The count is measured from the locales/ directory rather than hardcoded, so the sentence follows the directory instead of a hand-maintained flag. The second sentence is deliberately conditional — 'any language still being translated' — because every language listed is selectable today, and the wording has to stay true both now and if an eleventh language is listed before its catalogue exists. Do not turn it back into a claim that some of the languages shown cannot be chosen: that claim was true once, was translated faithfully into nine languages, and was wrong in all ten by the time anyone read it.",
+    "progress": "{available, plural, zero {لم تُترجم أي لغة حتى الآن.} one {الإنجليزية وحدها مترجمة حتى الآن.} two {لغتان مترجمتان، ويمكن اختيار أي منهما الآن.} few {# لغات مترجمة، ويمكن اختيار أي منها الآن.} many {# لغة مترجمة، ويمكن اختيار أي منها الآن.} other {# لغة مترجمة، ويمكن اختيار أي منها الآن.}} وأي لغة ما تزال ترجمتها جارية مُدرجة هنا أيضًا، وتصبح قابلة للاختيار فور اكتمال كتالوجها.",
     "notReady": "غير متاحة بعد",
     "_comment_unavailableLabel": "The accessible name of a row that cannot be chosen. {name} is the language's own name, in its own script, and is never translated.",
     "unavailableLabel": "{name} — غير متاحة بعد",

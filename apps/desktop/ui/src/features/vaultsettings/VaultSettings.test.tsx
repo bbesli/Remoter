@@ -17,6 +17,7 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Slot, VaultSettings as VaultSettingsDto, VaultSlots, VaultState } from "@/lib/ipc";
+import { withoutBidi } from "@/test/bidi";
 
 const vaultState = vi.fn<() => Promise<VaultState>>();
 const vaultSlots = vi.fn<() => Promise<VaultSlots>>();
@@ -93,7 +94,12 @@ describe("VaultSettings", () => {
     vaultSlots.mockResolvedValue({ slots: [password, recovery], openedWith: 0, backupCount: 3 });
     view(<VaultSettings />);
 
-    expect(await screen.findByText("Master password")).toBeInTheDocument();
+    // A slot's label is the user's own text, so it is wrapped in a bidi
+    // isolate before it is drawn. The characters are invisible; without the
+    // normaliser this query fails for a reason nobody can see.
+    expect(
+      await screen.findByText("Master password", { normalizer: withoutBidi }),
+    ).toBeInTheDocument();
     expect(screen.getByText(/Argon2id, 256 MiB, t=3/)).toBeInTheDocument();
     expect(screen.getByText(/Needs its key file too/)).toBeInTheDocument();
     // An unused recovery key is the slot most likely to be lost, so it says so.
@@ -106,7 +112,9 @@ describe("VaultSettings", () => {
     vaultSlots.mockResolvedValue({ slots: [password], openedWith: 0, backupCount: 1 });
     view(<VaultSettings />);
 
-    expect(await screen.findByText("Master password")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Master password", { normalizer: withoutBidi }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Remove" })).toBeDisabled();
     expect(screen.getByText(/only way into this vault/)).toBeInTheDocument();
   });
@@ -115,7 +123,7 @@ describe("VaultSettings", () => {
     vaultSlots.mockResolvedValue({ slots: [password, recovery], openedWith: 0, backupCount: 3 });
     view(<VaultSettings />);
 
-    await screen.findByText("Master password");
+    await screen.findByText("Master password", { normalizer: withoutBidi });
     for (const button of screen.getAllByRole("button", { name: "Remove" })) {
       expect(button).toBeEnabled();
     }
@@ -140,7 +148,7 @@ describe("VaultSettings", () => {
     vaultSlots.mockResolvedValue({ slots: [password, recovery], openedWith: 0, backupCount: 3 });
     view(<VaultSettings />);
 
-    await screen.findByText("Master password");
+    await screen.findByText("Master password", { normalizer: withoutBidi });
     await user.click(screen.getByRole("tab", { name: /auto-lock/i }));
 
     expect(await screen.findByRole("radio", { name: "15 min" })).toBeChecked();

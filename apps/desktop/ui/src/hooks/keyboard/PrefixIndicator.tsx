@@ -11,16 +11,12 @@
 
 import type { ReactNode } from "react";
 
+import { useT } from "@/i18n";
+
 import { acceleratorCaps } from "./accelerator";
 import { useKeyboardSettings, useTerminalFocused } from "./registry";
 
 import s from "./PrefixIndicator.module.css";
-
-const TEXT = {
-  active: "prefix active in terminal",
-  title:
-    "A focused terminal receives almost every keystroke. Remoter's own shortcuts are reached by adding this prefix while a session has the keyboard.",
-} as const;
 
 interface PrefixProps {
   /** Passed in so this module stays below the session feature. */
@@ -28,6 +24,7 @@ interface PrefixProps {
 }
 
 export function TerminalPrefixIndicator({ isTerminalFocused }: PrefixProps) {
+  const t = useT("common");
   const focused = useTerminalFocused(isTerminalFocused);
   const { prefix } = useKeyboardSettings();
 
@@ -37,15 +34,17 @@ export function TerminalPrefixIndicator({ isTerminalFocused }: PrefixProps) {
   const caps = acceleratorCaps(`${prefix}+space`).slice(0, -1);
 
   return (
-    <div className={s.indicator} title={TEXT.title}>
+    <div className={s.indicator} title={t("terminalPrefix.explained")}>
       <span className={s.keys}>
         {caps.map((cap) => (
+          // Key caps — Ctrl, Alt, Shift — are key names and are never
+          // translated (docs/features/i18n.md).
           <kbd key={cap} className={s.key}>
             {cap}
           </kbd>
         ))}
       </span>
-      <span>{TEXT.active}</span>
+      <span>{t("terminalPrefix.active")}</span>
     </div>
   );
 }

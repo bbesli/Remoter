@@ -19,26 +19,31 @@ import clsx from "clsx";
 import { Icon } from "@/components/Icon";
 import { Spinner } from "@/components/Spinner";
 import { useShortcutGroup, type ShortcutEvent } from "@/hooks/keyboard";
+import { isolate, useT } from "@/i18n";
 import { useSessions, type SessionRecord } from "./store";
 import { closeTab, reconnect } from "./manager";
 import { focusTerminal } from "./terminals";
+import type { ConnectPhase } from "./stages";
 
 import s from "./SessionTabs.module.css";
 
-const TEXT = {
-  close: (name: string) => `Close ${name}`,
-  reconnect: (name: string) => `Reconnect ${name}`,
-  state: {
-    preparing: "preparing",
-    connecting: "connecting",
-    verifying: "waiting on a host key decision",
-    authenticating: "authenticating",
-    running: "connected",
-    failed: "failed",
-    closed: "ended",
-  } as const,
-  tab: (name: string, state: string) => `${name} — ${state}`,
-} as const;
+/**
+ * The phase, said in words.
+ *
+ * A record rather than a key built from the phase, so a phase added to
+ * `ConnectPhase` without a word for it is a compile error here rather than a
+ * humanised key in a tab's accessible name — which nobody would see, because
+ * only a screen reader reads it.
+ */
+const STATE_KEYS = {
+  preparing: "tab.state.preparing",
+  connecting: "tab.state.connecting",
+  verifying: "tab.state.verifying",
+  authenticating: "tab.state.authenticating",
+  running: "tab.state.running",
+  failed: "tab.state.failed",
+  closed: "tab.state.closed",
+} as const satisfies Record<ConnectPhase, string>;
 
 /** Which state token the dot takes. Four states, four tokens, no others. */
 function dotState(record: SessionRecord): "connected" | "connecting" | "failed" | "locked" {
@@ -55,11 +60,17 @@ function dotState(record: SessionRecord): "connected" | "connecting" | "failed" 
 }
 
 function SessionTab({ record, active }: { record: SessionRecord; active: boolean }) {
+  const t = useT("sessions");
   const activate = useSessions((st) => st.activate);
   const [closing, setClosing] = useState(false);
 
-  const state = TEXT.state[record.phase];
+  const state = t(STATE_KEYS[record.phase]);
   const ended = record.phase === "failed" || record.phase === "closed";
+  // The connection's name is the user's own text, in any script. Isolated so
+  // one right-to-left character in it cannot reorder the label around it.
+  const name = isolate(record.name);
+  const close = t("tab.close", { name });
+  const reconnectLabel = t("tab.reconnect", { name });
 
   return (
     <div
@@ -72,7 +83,7 @@ function SessionTab({ record, active }: { record: SessionRecord; active: boolean
       <button
         type="button"
         className={s.body}
-        aria-label={TEXT.tab(record.name, state)}
+        aria-label={t("tab.accessibleName", { name, state })}
         aria-current={active ? "true" : undefined}
         title={record.target ?? record.name}
         onClick={() => {
@@ -95,8 +106,8 @@ function SessionTab({ record, active }: { record: SessionRecord; active: boolean
         <button
           type="button"
           className={s.control}
-          title={TEXT.reconnect(record.name)}
-          aria-label={TEXT.reconnect(record.name)}
+          title={reconnectLabel}
+          aria-label={reconnectLabel}
           onClick={() => reconnect(record.tabId)}
         >
           <Icon name="arrow-right" size={12} />
@@ -106,21 +117,22 @@ function SessionTab({ record, active }: { record: SessionRecord; active: boolean
       <button
         type="button"
         className={s.control}
-        title={TEXT.close(record.name)}
-        aria-label={TEXT.close(record.name)}
+        title={close}
+        aria-label={close}
         disabled={closing}
         onClick={() => {
           setClosing(true);
           void closeTab(record.tabId);
         }}
       >
-        {closing ? <Spinner size={12} label={TEXT.close(record.name)} /> : <Icon name="x" size={12} />}
+        {closing ? <Spinner size={12} label={close} /> : <Icon name="x" size={12} />}
       </button>
     </div>
   );
 }
 
 export function SessionTabs() {
+  const t = useT("sessions");
   const order = useSessions((st) => st.order);
   const byId = useSessions((st) => st.byId);
   const activeTabId = useSessions((st) => st.activeTabId);
@@ -197,7 +209,7 @@ export function SessionTabs() {
     // Not a `tablist`: each tab carries its own close and reconnect controls,
     // and the ARIA tab pattern has no room for them — a `tab` may not contain
     // other interactive elements.
-    <div className={s.tabs} role="group" aria-label="Open sessions">
+    <div className={s.tabs} role="group" aria-label={t("tab.label")}>
       {order.map((tabId) => {
         const record = byId[tabId];
         if (record === undefined) return null;

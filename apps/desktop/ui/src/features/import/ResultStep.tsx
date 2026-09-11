@@ -16,39 +16,11 @@
 import { Button } from "@/components/Button";
 import { Callout } from "@/components/Callout";
 import { Icon } from "@/components/Icon";
+import { isolate, useT } from "@/i18n";
 import type { ImportReport, ImportResult } from "@/lib/ipc";
 
 import { fileWasExposed, preservedLines, usedDefaultPassword } from "./findings";
 import s from "./ImportWizard.module.css";
-
-const TEXT = {
-  title: (n: number) => `${n} ${n === 1 ? "item is" : "items are"} in your vault`,
-  lead: (folder: string) => `Written into ${folder} as one transaction.`,
-  top: "the top level of the vault",
-  imported: "imported",
-  skipped: "unticked by you",
-  attention: "need a look",
-  secrets: "passwords sealed",
-
-  rotateTitle: "Rotate these credentials",
-  rotateDefault:
-    "came out of a file encrypted with mRemoteNG's well-known default password. Anyone who has ever held a copy of that file already knows them.",
-  rotateLegacy:
-    "came out of a file encrypted with the legacy AES-CBC scheme, whose key was an unsalted hash of the password. Anyone who has held a copy of that file could have read them.",
-  rotateAfter:
-    "They are safe in the vault now, but they are still the passwords the servers accept. Change them there, then update them here.",
-
-  noUndoTitle: "There is no undo",
-  noUndoBody:
-    "Remoter cannot take an import back. If this is not what you wanted, delete the imported nodes from the tree — they are together under the folder you chose, which is why choosing one is worth doing.",
-
-  preservedHead: "Kept but not interpreted",
-  preservedNote:
-    "Nothing was discarded. If a later version of Remoter learns to read these, they will be there.",
-
-  done: "Done",
-  another: "Import another file",
-} as const;
 
 interface ResultStepProps {
   result: ImportResult;
@@ -66,9 +38,14 @@ export function ResultStep({
   onDone,
   onAnother,
 }: ResultStepProps) {
+  const t = useT("import");
   const findings = report?.findings ?? [];
   const exposed = fileWasExposed(findings) && result.secretsStored > 0;
-  const preserved = preservedLines(findings);
+  const preserved = preservedLines(t, findings);
+  // The folder's breadcrumb is the user's own text; the stand-in for "no
+  // folder at all" is interface copy and needs no isolate.
+  const destination =
+    destinationLabel === null ? t("destination.top") : isolate(destinationLabel);
 
   return (
     <div className={`${s.step} ${s.narrow}`}>
@@ -77,43 +54,47 @@ export function ResultStep({
           <Icon name="check" size={17} />
         </span>
         <div className={s.stepHead}>
-          <h2 className={s.stepTitle}>{TEXT.title(result.imported)}</h2>
-          <p className={s.stepLead}>{TEXT.lead(destinationLabel ?? TEXT.top)}</p>
+          <h2 className={s.stepTitle}>{t("result.title", { count: result.imported })}</h2>
+          <p className={s.stepLead}>{t("result.lead", { folder: destination })}</p>
         </div>
       </div>
 
       <div className={s.tiles}>
-        <Tile value={result.imported} label={TEXT.imported} tone="success" />
-        <Tile value={result.skipped} label={TEXT.skipped} tone="muted" />
+        <Tile value={result.imported} label={t("result.countImported")} tone="success" />
+        <Tile value={result.skipped} label={t("result.countSkipped")} tone="muted" />
         <Tile
           value={result.needsAttention}
-          label={TEXT.attention}
+          label={t("result.countAttention")}
           tone={result.needsAttention > 0 ? "warning" : "muted"}
         />
         <Tile
           value={result.secretsStored}
-          label={TEXT.secrets}
+          label={t("result.countSecrets")}
           tone={result.secretsStored > 0 ? "warning" : "muted"}
         />
       </div>
 
       {exposed && (
-        <Callout tone="danger" title={TEXT.rotateTitle}>
+        <Callout tone="danger" title={t("result.rotateTitle")}>
+          {/* One sentence, not a count glued to a clause: how many passwords
+              are at stake and why is one statement, and its word order is not
+              English's everywhere. */}
           <p>
-            {`${result.secretsStored} ${result.secretsStored === 1 ? "password" : "passwords"} `}
-            {usedDefaultPassword(findings) ? TEXT.rotateDefault : TEXT.rotateLegacy}
+            {usedDefaultPassword(findings)
+              ? t("result.rotateDefault", { count: result.secretsStored })
+              : t("result.rotateLegacy", { count: result.secretsStored })}
           </p>
-          <p>{TEXT.rotateAfter}</p>
+          <p>{t("result.rotateAfter")}</p>
         </Callout>
       )}
 
-      <Callout tone="neutral" title={TEXT.noUndoTitle}>
-        <p>{TEXT.noUndoBody}</p>
+      <Callout tone="neutral" title={t("result.noUndoTitle")}>
+        <p>{t("result.noUndoBody")}</p>
       </Callout>
 
       {preserved.length > 0 && (
         <div className={s.findingGroup}>
-          <span className={s.sectionLabel}>{TEXT.preservedHead}</span>
+          <span className={s.sectionLabel}>{t("result.preservedHead")}</span>
           <div className={s.preserved}>
             {preserved.map((line) => (
               <div key={line.field} className={s.preservedLine}>
@@ -122,15 +103,15 @@ export function ResultStep({
               </div>
             ))}
           </div>
-          <p className={s.panelNote}>{TEXT.preservedNote}</p>
+          <p className={s.panelNote}>{t("result.preservedNote")}</p>
         </div>
       )}
 
       <div className={s.rowActions}>
         <Button variant="primary" onClick={onDone}>
-          {TEXT.done}
+          {t("result.done")}
         </Button>
-        <Button onClick={onAnother}>{TEXT.another}</Button>
+        <Button onClick={onAnother}>{t("result.another")}</Button>
       </div>
     </div>
   );

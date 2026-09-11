@@ -38,8 +38,8 @@
   "language": {
     "title": "Idioma",
     "description": "Para la versión 1.0 están previstos diez idiomas. Los idiomas que se escriben de derecha a izquierda invierten toda la disposición, no solo el texto.",
-    "_comment_progress": "PLURAL, on the number of languages that actually have catalogues. The count is measured from the locales/ directory rather than hardcoded, so this sentence stops claiming 'only English' the day a second catalogue lands.",
-    "progress": "{available, plural, one {Por ahora solo está traducido el inglés.} many {Por ahora hay # de idiomas traducidos.} other {Por ahora hay # idiomas traducidos.}} Los demás aparecen en la lista porque la traducción está en marcha; cada uno se podrá elegir cuando su catálogo esté completo, y hasta entonces elegirlo no cambiaría nada.",
+    "_comment_progress": "PLURAL, on the number of languages that actually have catalogues. The count is measured from the locales/ directory rather than hardcoded, so the sentence follows the directory instead of a hand-maintained flag. The second sentence is deliberately conditional — 'any language still being translated' — because every language listed is selectable today, and the wording has to stay true both now and if an eleventh language is listed before its catalogue exists. Do not turn it back into a claim that some of the languages shown cannot be chosen: that claim was true once, was translated faithfully into nine languages, and was wrong in all ten by the time anyone read it.",
+    "progress": "{available, plural, one {Por ahora solo está traducido el inglés.} many {Hay # de idiomas traducidos y cualquiera de ellos se puede elegir ahora mismo.} other {Hay # idiomas traducidos y cualquiera de ellos se puede elegir ahora mismo.}} Cualquier idioma que todavía se esté traduciendo aparece también en la lista, y se podrá elegir en cuanto su catálogo esté completo.",
     "notReady": "Todavía no disponible",
     "_comment_unavailableLabel": "The accessible name of a row that cannot be chosen. {name} is the language's own name, in its own script, and is never translated.",
     "unavailableLabel": "{name} — todavía no disponible",

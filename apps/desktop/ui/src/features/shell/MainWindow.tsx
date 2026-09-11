@@ -16,6 +16,7 @@ import { BusyStatus, SkeletonRows } from "@/components/Busy";
 import { Button } from "@/components/Button";
 import { Callout } from "@/components/Callout";
 import { FailureNotice } from "@/components/FailureNotice";
+import { isolate, isolateLtr, useT } from "@/i18n";
 import { asFailure, ipc, type IpcFailure, type TreeNode } from "@/lib/ipc";
 import { qk } from "@/lib/queryKeys";
 import { useApp } from "@/stores/app";
@@ -47,33 +48,6 @@ import s from "./MainWindow.module.css";
 const VAULT_POLL_MS = 30_000;
 
 
-const TEXT = {
-  nothingSelected: "Nothing selected",
-  nothingSelectedBody: "Choose a connection in the tree, or press Ctrl+K to search for one.",
-  noProtocol: "no protocol",
-  connectHint:
-    "Double-click it in the tree, press Enter in the palette, or use Connect in its context menu.",
-  folderSelected: "Folders hold settings that the connections beneath them inherit.",
-
-  lockedTitle: "This vault is locked",
-  lockedBody:
-    "It locked itself after the idle period, or was locked from another window. Nothing was lost; the connections are still in the file and come back when you unlock it.",
-  lockedAction: "Unlock this vault",
-  lockedNoPath: "Choose a vault",
-
-  vaultStateFailed: "Remoter cannot tell whether a vault is open.",
-  treeFailed: "The connection tree could not be read.",
-  lockFailed: "The vault was not locked.",
-  retry: "Try again",
-  dismiss: "Dismiss",
-
-  fullscreenFailedTitle: "The window did not go full screen.",
-  fullscreenFailedBody:
-    "The window manager refused it, or this page is not running inside the Remoter window. Nothing about the session changed.",
-
-  checkingVault: "Checking whether a vault is open…",
-  readingTree: "Reading the connections out of the vault…",
-} as const;
 
 /** TanStack reports "no error" as `null`; a rejected query can also be `undefined`. */
 function failureOf(error: unknown): IpcFailure | null {
@@ -88,11 +62,13 @@ function failureOf(error: unknown): IpcFailure | null {
  * a keystroke does nothing.
  */
 function SessionPlaceholder({ node }: { node: TreeNode | undefined }) {
+  const t = useT("shell");
+
   if (node === undefined) {
     return (
       <div className={s.placeholder}>
-        <p className={s.placeholderTitle}>{TEXT.nothingSelected}</p>
-        <p className={s.placeholderBody}>{TEXT.nothingSelectedBody}</p>
+        <p className={s.placeholderTitle}>{t("main.nothingSelected")}</p>
+        <p className={s.placeholderBody}>{t("main.nothingSelectedBody")}</p>
       </div>
     );
   }
@@ -107,19 +83,29 @@ function SessionPlaceholder({ node }: { node: TreeNode | undefined }) {
   return (
     <div className={s.placeholder}>
       <p className={s.placeholderKind}>
-        {node.kind === "connection" ? node.protocol ?? TEXT.noProtocol : node.kind}
+        {node.kind === "connection"
+          ? // A protocol name — SSH, RDP, VNC, SFTP — is never translated.
+            (node.protocol ?? t("main.noProtocol"))
+          : t(`main.nodeKind.${node.kind}`)}
       </p>
-      <p className={s.placeholderTitle}>{node.name}</p>
-      {target !== null && <p className={s.placeholderTarget}>{target}</p>}
-      {node.description !== "" && <p className={s.placeholderBody}>{node.description}</p>}
+      {/* Name, address and description are the user's own text and a remote
+          machine's, in whatever script they wrote them. Isolated so they
+          cannot reorder the layout around them. */}
+      <p className={s.placeholderTitle}>{isolate(node.name)}</p>
+      {target !== null && <p className={s.placeholderTarget}>{isolateLtr(target)}</p>}
+      {node.description !== "" && (
+        <p className={s.placeholderBody}>{isolate(node.description)}</p>
+      )}
       <p className={s.placeholderBody}>
-        {node.kind === "connection" ? TEXT.connectHint : TEXT.folderSelected}
+        {node.kind === "connection" ? t("main.connectHint") : t("main.folderSelected")}
       </p>
     </div>
   );
 }
 
 export function MainWindow() {
+  const t = useT("shell");
+  const tCommon = useT("common");
   const queryClient = useQueryClient();
   const [panelsOpen, setPanelsOpen] = useState(false);
 
@@ -256,10 +242,10 @@ export function MainWindow() {
       } catch {
         // Outside the Tauri shell — a browser preview or a test — there is no
         // window to resize. Saying so beats a key that appears to do nothing.
-        setWindowFailure(TEXT.fullscreenFailedBody);
+        setWindowFailure(t("main.fullscreenFailedBody"));
       }
     })();
-  }, []);
+  }, [t]);
 
   /*
    * Every binding the shell owns, in one declaration.
@@ -295,33 +281,33 @@ export function MainWindow() {
                 <div className={s.sessionNotice}>
                   <FailureNotice
                     failure={vaultError}
-                    title={TEXT.vaultStateFailed}
+                    title={t("main.vaultStateFailed")}
                     onRetry={() => void vaultQuery.refetch()}
-                    retryLabel={TEXT.retry}
+                    retryLabel={tCommon("action.retry")}
                   />
                 </div>
               ) : treeError !== null ? (
                 <div className={s.sessionNotice}>
                   <FailureNotice
                     failure={treeError}
-                    title={TEXT.treeFailed}
+                    title={t("main.treeFailed")}
                     onRetry={() => void treeQuery.refetch()}
-                    retryLabel={TEXT.retry}
+                    retryLabel={tCommon("action.retry")}
                   />
                 </div>
               ) : vaultQuery.isPending ? (
                 // Neither "empty" nor "locked" is known yet. Saying so beats
                 // flashing one of them and then correcting it.
                 <div className={s.sessionNotice}>
-                  <BusyStatus label={TEXT.checkingVault} size={16} />
+                  <BusyStatus label={t("main.checkingVault")} size={16} />
                 </div>
               ) : vault !== undefined && !vault.unlocked ? (
                 // The core can lock the vault without the interface asking —
                 // the idle timeout does exactly that. Left unsaid, the window
                 // simply stops having any content in it.
                 <div className={s.sessionNotice}>
-                  <Callout tone="warning" title={TEXT.lockedTitle}>
-                    <p className={s.noticeBody}>{TEXT.lockedBody}</p>
+                  <Callout tone="warning" title={t("main.lockedTitle")}>
+                    <p className={s.noticeBody}>{t("main.lockedBody")}</p>
                     <div className={s.noticeActions}>
                       <Button
                         variant="primary"
@@ -334,7 +320,7 @@ export function MainWindow() {
                           )
                         }
                       >
-                        {vault.path === null ? TEXT.lockedNoPath : TEXT.lockedAction}
+                        {vault.path === null ? t("main.lockedNoPath") : t("main.lockedAction")}
                       </Button>
                     </div>
                   </Callout>
@@ -343,7 +329,7 @@ export function MainWindow() {
                 // The shape of what is coming, rather than a blank panel that
                 // reads as "this vault has nothing in it".
                 <div className={s.placeholder}>
-                  <BusyStatus label={TEXT.readingTree} size={16} />
+                  <BusyStatus label={t("main.readingTree")} size={16} />
                   <div className={s.placeholderSkeleton}>
                     <SkeletonRows count={3} height="var(--space-5)" />
                   </div>
@@ -376,12 +362,12 @@ export function MainWindow() {
         <div className={s.notice}>
           <FailureNotice
             failure={lockError}
-            title={TEXT.lockFailed}
+            title={t("main.lockFailed")}
             onRetry={onLock}
-            retryLabel={TEXT.retry}
+            retryLabel={tCommon("action.retry")}
           >
             <Button variant="ghost" size="sm" onClick={() => lock.reset()}>
-              {TEXT.dismiss}
+              {tCommon("action.dismiss")}
             </Button>
           </FailureNotice>
         </div>
@@ -391,11 +377,11 @@ export function MainWindow() {
           keeps shipping. If the window manager refused the toggle, say so. */}
       {windowFailure !== null && (
         <div className={s.notice}>
-          <Callout tone="warning" title={TEXT.fullscreenFailedTitle}>
+          <Callout tone="warning" title={t("main.fullscreenFailedTitle")}>
             <p className={s.noticeBody}>{windowFailure}</p>
             <div className={s.noticeActions}>
               <Button variant="ghost" size="sm" onClick={() => setWindowFailure(null)}>
-                {TEXT.dismiss}
+                {tCommon("action.dismiss")}
               </Button>
             </div>
           </Callout>
@@ -409,7 +395,7 @@ export function MainWindow() {
 
       <div className={s.body}>
         {sidebarOpen && (
-          <nav className={s.sidebar} aria-label="Connections">
+          <nav className={s.sidebar} aria-label={t("main.sidebarLabel")}>
             <ConnectionTree />
           </nav>
         )}

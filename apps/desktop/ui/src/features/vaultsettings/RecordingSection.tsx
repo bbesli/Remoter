@@ -27,45 +27,22 @@
 import { Callout } from "@/components/Callout";
 import { FailureNotice } from "@/components/FailureNotice";
 import { Spinner } from "@/components/Spinner";
+import { useT } from "@/i18n";
 import type { RecordingPolicy } from "@/lib/ipc";
 
 import type { VaultSectionProps } from "./types";
 import c from "./controls.module.css";
 import s from "./RecordingSection.module.css";
 
-const TEXT = {
-  title: "Recording policy",
-  description:
-    "Inherited by everything in this vault that does not set its own, so it is set once for the whole tree.",
-
-  notYetTitle: "Nothing is recorded in this version",
-  notYetBody:
-    "Remoter has no recorder yet: whichever card is selected, every session in this vault opens unrecorded. The choice below is stored in the vault now and takes effect when session recording is built.",
-
-  never: "Never",
-  neverHelp:
-    "Nothing in this vault will be recorded, unless a folder or a connection below it sets its own policy.",
-  ask: "Ask at session start",
-  askHelp: "A prompt before the session opens. Declining will open the session unrecorded.",
-  always: "Always",
-  alwaysHelp:
-    "Every session will be recorded, after a notice before it opens. If the recorder cannot start the session will still open — recording will be best-effort at this policy.",
-
-  required:
-    'A fourth policy, "required" — record, and refuse to connect if recording cannot start — is not offered here. The vault file has no field for it, so a fourth card would store one of the three above and mean something weaker than its name.',
-
-  storage:
-    "Recordings will live outside the vault, in a directory you choose, each encrypted with a key derived from the vault's master key and so readable only while the vault is unlocked. Nothing is uploaded anywhere.",
-
-  saving: "Saving…",
-  failed: "The recording policy was not saved.",
-} as const;
-
-const CHOICES: readonly { value: RecordingPolicy; label: string; help: string }[] = [
-  { value: "never", label: TEXT.never, help: TEXT.neverHelp },
-  { value: "on_request", label: TEXT.ask, help: TEXT.askHelp },
-  { value: "always", label: TEXT.always, help: TEXT.alwaysHelp },
-];
+/**
+ * The three policies the vault file can hold, as catalogue keys: this array is
+ * module-level, and a resolved label here would not follow a language change.
+ */
+const CHOICES = [
+  { value: "never", labelKey: "recording.never", helpKey: "recording.neverHelp" },
+  { value: "on_request", labelKey: "recording.ask", helpKey: "recording.askHelp" },
+  { value: "always", labelKey: "recording.always", helpKey: "recording.alwaysHelp" },
+] as const satisfies readonly { value: RecordingPolicy; labelKey: string; helpKey: string }[];
 
 export function RecordingSection({
   settings,
@@ -74,25 +51,26 @@ export function RecordingSection({
   failure,
   onRetrySave,
 }: VaultSectionProps) {
+  const t = useT("vaultsettings");
   const saving = savingField === "recording";
   const problem = failure !== null && failure.field === "recording" ? failure.failure : null;
 
   return (
     <section className={s.section}>
       <div className={s.header}>
-        <h2 className={s.title}>{TEXT.title}</h2>
-        <p className={s.description}>{TEXT.description}</p>
+        <h2 className={s.title}>{t("recording.title")}</h2>
+        <p className={s.description}>{t("recording.description")}</p>
       </div>
 
       {/* Above the cards, not below them: this is the fact that decides what
           the cards mean, and a reader who stops after the first control has
           still read it. */}
-      <Callout tone="warning" title={TEXT.notYetTitle}>
-        {TEXT.notYetBody}
+      <Callout tone="warning" title={t("recording.notYetTitle")}>
+        {t("recording.notYetBody")}
       </Callout>
 
       <fieldset className={c.choices} disabled={saving}>
-        <legend className={s.hiddenLegend}>{TEXT.title}</legend>
+        <legend className={s.hiddenLegend}>{t("recording.title")}</legend>
         {CHOICES.map((choice) => (
           <label
             key={choice.value}
@@ -110,8 +88,8 @@ export function RecordingSection({
             />
             <span className={c.mark} aria-hidden="true" />
             <span className={c.choiceText}>
-              <span className={c.choiceName}>{choice.label}</span>
-              <span className={c.choiceHelp}>{choice.help}</span>
+              <span className={c.choiceName}>{t(choice.labelKey)}</span>
+              <span className={c.choiceHelp}>{t(choice.helpKey)}</span>
             </span>
           </label>
         ))}
@@ -119,17 +97,17 @@ export function RecordingSection({
 
       {saving && (
         <p className={c.saving}>
-          <Spinner size={14} label={TEXT.saving} />
-          {TEXT.saving}
+          <Spinner size={14} label={t("status.saving")} />
+          {t("status.saving")}
         </p>
       )}
       {problem !== null && (
-        <FailureNotice failure={problem} title={TEXT.failed} onRetry={onRetrySave} />
+        <FailureNotice failure={problem} title={t("recording.failed")} onRetry={onRetrySave} />
       )}
 
       <div className={s.notes}>
-        <p className={c.note}>{TEXT.required}</p>
-        <p className={c.note}>{TEXT.storage}</p>
+        <p className={c.note}>{t("recording.required")}</p>
+        <p className={c.note}>{t("recording.storage")}</p>
       </div>
     </section>
   );

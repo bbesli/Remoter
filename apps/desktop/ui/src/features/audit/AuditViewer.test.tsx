@@ -7,8 +7,14 @@
  *  - a filter chip actually narrows the query, and the table shows the narrowed
  *    answer rather than the one it already had;
  *  - the outcome column carries a word, not only a colour;
+ *  - an event this build has never heard of keeps its row;
  *  - the export dialog refuses to write without a destination, and says so
  *    where the user is looking rather than doing nothing.
+ *
+ * The event names in the fixtures are the core's own stored spellings, taken
+ * from `AuditEvent::as_str()` in `crates/remoter-vault/src/storage.rs`. They
+ * are the keys the catalogue is written against, so a fixture that invents one
+ * would test the fallback path while looking like it tested the real one.
  */
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -61,11 +67,11 @@ function page(entries: AuditEntry[]): AuditPage {
   return { entries, total: entries.length, page: 0, pageSize: 200 };
 }
 
-const UNLOCKED = entry({ id: 1, event: "vault.unlocked", detail: "Slot 2 · security key" });
+const UNLOCKED = entry({ id: 1, event: "vault_unlocked", detail: "Slot 2 · security key" });
 
 const HOST_KEY = entry({
   id: 2,
-  event: "host_key.changed",
+  event: "trust_rejected",
   outcome: "denied",
   category: "warning",
   warning: true,
@@ -73,6 +79,9 @@ const HOST_KEY = entry({
   nodeName: "db-01",
   detail: "Refused to connect. Offered key did not match the pin.",
 });
+
+/** An event written by a build newer than this one. */
+const FROM_THE_FUTURE = entry({ id: 3, event: "quantum_key.rotated" });
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({
@@ -85,7 +94,7 @@ beforeEach(() => {
   auditFilters.mockResolvedValue({
     categories: ["vault", "node", "secret", "connection", "warning"],
     outcomes: ["success", "failure", "denied"],
-    events: ["vault.unlocked", "host_key.changed"],
+    events: ["vault_unlocked", "trust_rejected"],
   });
   listNodes.mockResolvedValue([]);
   queryAudit.mockImplementation(async (query: AuditQuery) =>
@@ -129,25 +138,36 @@ describe("AuditViewer", () => {
     const user = userEvent.setup();
     render(<AuditViewer />, { wrapper });
 
-    expect(await screen.findByText("vault unlocked")).toBeInTheDocument();
+    expect(await screen.findByText("Vault unlocked")).toBeInTheDocument();
 
     const chip = await screen.findByRole("button", { name: "Warnings" });
     await user.click(chip);
 
     await waitFor(() => {
-      expect(screen.queryByText("vault unlocked")).not.toBeInTheDocument();
+      expect(screen.queryByText("Vault unlocked")).not.toBeInTheDocument();
     });
-    expect(screen.getByText("host key changed")).toBeInTheDocument();
+    expect(screen.getByText("Host key refused")).toBeInTheDocument();
     expect(chip).toHaveAttribute("aria-pressed", "true");
 
     const asked = queryAudit.mock.calls.map(([q]) => q);
     expect(asked.some((q) => q.categories?.includes("warning") === true)).toBe(true);
   });
 
+  it("keeps the row for an event it has no word for", async () => {
+    queryAudit.mockResolvedValue(page([FROM_THE_FUTURE]));
+
+    render(<AuditViewer />, { wrapper });
+
+    // No catalogue entry, so no translation — but dropping the row would hide
+    // exactly the entry a newer build thought was worth writing down. The
+    // stored spelling is opened out and shown as itself.
+    expect(await screen.findByText("quantum key rotated")).toBeInTheDocument();
+  });
+
   it("asks for one page at a time rather than the whole log", async () => {
     render(<AuditViewer />, { wrapper });
 
-    await screen.findByText("vault unlocked");
+    await screen.findByText("Vault unlocked");
     const [first] = queryAudit.mock.calls[0] ?? [];
     expect(first?.page).toBe(0);
     expect(first?.pageSize).toBe(200);

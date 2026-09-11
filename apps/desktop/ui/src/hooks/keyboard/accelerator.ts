@@ -79,7 +79,16 @@ const EVENT_KEY_NAMES: Readonly<Record<string, string>> = {
   arrowright: "right",
 };
 
-/** How each key cap is written on screen. Anything absent is upper-cased. */
+/**
+ * How each key cap is written on screen. Anything absent is upper-cased.
+ *
+ * Never translated. A key cap names the physical key the user is being asked
+ * to press, and the words are what is printed on the keyboard in front of them
+ * — not a description of it. Translating "Esc" would tell a reader to press a
+ * key that does not exist. This is the "key names" entry in the never-translated
+ * list in docs/features/i18n.md.
+ */
+// eslint-disable-next-line remoter-i18n/no-text-constant -- key names are never translated; see docs/features/i18n.md
 const KEY_LABELS: Readonly<Record<string, string>> = {
   space: "Space",
   tab: "Tab",
@@ -234,6 +243,8 @@ function metaLabel(): string {
   return /mac|iphone|ipad/i.test(ua) ? "Cmd" : "Super";
 }
 
+/** Key names, never translated. See the note on {@link KEY_LABELS}. */
+// eslint-disable-next-line remoter-i18n/no-text-constant -- key names are never translated; see docs/features/i18n.md
 const MODIFIER_LABELS: Readonly<Record<Modifier, () => string>> = {
   ctrl: () => "Ctrl",
   alt: () => "Alt",

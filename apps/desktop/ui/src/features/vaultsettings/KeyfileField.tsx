@@ -19,18 +19,9 @@ import { BusyButton } from "@/components/Busy";
 import { Button } from "@/components/Button";
 import { Field } from "@/components/Field";
 import { folderOf, keyfileFilters, keyfileRefusal } from "@/features/vault/keyfile";
+import { isolateLtr, useT } from "@/i18n";
 
 import s from "./KeyfileField.module.css";
-
-const TEXT = {
-  browse: "Browse",
-  browsing: "Opening…",
-  clear: "No key file",
-  none: "None",
-  dialogTitle: "Choose the key file for this slot",
-  dialogFailed:
-    "This system did not open a file browser. Type the path into the field the platform gives you, or start Remoter from a session that has one.",
-} as const;
 
 interface KeyfileFieldProps {
   label: string;
@@ -51,6 +42,8 @@ export function KeyfileField({
   vaultPath,
   disabled = false,
 }: KeyfileFieldProps) {
+  const t = useT("vaultsettings");
+  const tCommon = useT("common");
   const [browsing, setBrowsing] = useState(false);
   const [dialogError, setDialogError] = useState<string | null>(null);
 
@@ -61,14 +54,14 @@ export function KeyfileField({
     setBrowsing(true);
     try {
       picked = await open({
-        title: TEXT.dialogTitle,
+        title: t("keyfile.dialogTitle"),
         multiple: false,
         directory: false,
         filters: keyfileFilters(),
         defaultPath: path ?? folderOf(vaultPath),
       });
     } catch {
-      setDialogError(TEXT.dialogFailed);
+      setDialogError(t("keyfile.dialogFailed"));
       return;
     } finally {
       setBrowsing(false);
@@ -85,21 +78,24 @@ export function KeyfileField({
       {...(refusal !== null ? { error: refusal } : {})}
     >
       <div className={s.row}>
-        <span className={s.path} title={path ?? TEXT.none}>
-          {path ?? TEXT.none}
+        {/* A file path is never translated, and it is LTR by specification
+            whatever the interface direction, so it is isolated rather than
+            left to the bidi algorithm. */}
+        <span className={s.path} title={path ?? t("keyfile.none")}>
+          {path === null ? t("keyfile.none") : isolateLtr(path)}
         </span>
         <BusyButton
           size="sm"
           busy={browsing}
-          busyLabel={TEXT.browsing}
+          busyLabel={tCommon("action.opening")}
           disabled={disabled}
           onClick={() => void choose()}
         >
-          {TEXT.browse}
+          {tCommon("action.browse")}
         </BusyButton>
         {path !== null && (
           <Button size="sm" variant="ghost" disabled={disabled} onClick={() => onChange(null)}>
-            {TEXT.clear}
+            {t("keyfile.clear")}
           </Button>
         )}
       </div>

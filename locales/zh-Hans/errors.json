@@ -1,0 +1,690 @@
+{
+  "_comment_file": "Every failure the core can hand the interface, keyed by the stable `code` on `IpcError` (crates/remoter-ipc/src/error.rs). The code is the join: the core sends a code, a sentence, an optional diagnostic and an ordered list of next actions, and this file supplies the sentence and the actions in the reader's language. A code with no entry here is not broken — the core's own English is rendered instead, which is what a failure newly added in Rust should look like until it is translated. Four rules for anyone editing this file. (1) `actions` is positional: the order is the order the core offered, and a label is used only when the entry has one at that position. (2) No sentence here may quote a password, a passphrase, a key or any other secret — a failure is the one moment an implementation is tempted to say what it was given. (3) The sentences carry no placeholders. The core fills its own sentence with the specifics (a path, a slot number, a byte offset) and those cannot be recovered from the finished string, so each sentence here is written to stay true without them; an English reader is shown the core's own sentence, specifics and all, and every other language is shown this one. (4) A message says what failed and what the reader can do about it. 'An error occurred' is never an acceptable translation of anything below.",
+  "unknown": {
+    "_comment_": "Not a code the core sends: `asFailure` in apps/desktop/ui/src/lib/ipc.ts uses it when a rejection arrives with no shape at all — a panic inside a command, or a transport failure below Tauri. It is the last sentence in the application and should never be reached.",
+    "message": "出了点问题。"
+  },
+  "vault": {
+    "locked": {
+      "message": "没有打开的保险库。解锁一个保险库以查看你的连接。",
+      "actions": [
+        "解锁保险库"
+      ]
+    },
+    "auto-locked": {
+      "message": "保险库在你设置的空闲时间后自动锁定。解锁后即可继续。",
+      "actions": [
+        "解锁保险库",
+        "在设置中更改超时时间"
+      ]
+    },
+    "locked-by-trigger": {
+      "message": "保险库自动锁定了，因为发生了你选择用来触发锁定的事件。解锁后即可继续。",
+      "actions": [
+        "解锁保险库",
+        "在保险库设置中更改触发锁定的事件"
+      ]
+    },
+    "_comment_unlock-failed": "SECURITY-CRITICAL. This sentence must not say which factor was wrong, and a translation must not add that either: before a key slot has unwrapped the master key, naming the password or the key file as the wrong one tells an attacker which half they have already guessed. See the module docs in crates/remoter-ipc/src/error.rs.",
+    "unlock-failed": {
+      "message": "这没有解锁保险库。",
+      "actions": [
+        "重试",
+        "如果此保险库使用密钥文件，请检查该文件",
+        "使用你的恢复密钥"
+      ]
+    },
+    "header-tampered": {
+      "message": "此保险库的头部在写入后被修改过，因此其内容不可信。",
+      "actions": [
+        "打开保险库旁边的备份",
+        "检查是否有同步客户端重写了该文件"
+      ]
+    },
+    "body-corrupt": {
+      "message": "此保险库的内容无法解密。文件已损坏。",
+      "actions": [
+        "打开保险库旁边的备份",
+        "检查保险库所在的驱动器"
+      ]
+    },
+    "no-such-method": {
+      "message": "此保险库不提供该解锁方式。",
+      "actions": [
+        "从此保险库提供的方式中选择一种"
+      ]
+    },
+    "_comment_fido2-unsupported": "The core sends this code both when a hardware key is offered as a way in and when one is added as a key slot, so the sentence has to stay true of both.",
+    "fido2-unsupported": {
+      "message": "此版本的 Remoter 尚未实现硬件密钥解锁。",
+      "actions": [
+        "使用密码或你的恢复密钥"
+      ]
+    },
+    "not-a-vault": {
+      "message": "该文件不是 Remoter 保险库。",
+      "actions": [
+        "选择一个 .rvault 文件",
+        "新建保险库"
+      ]
+    },
+    "unsupported-format": {
+      "message": "该保险库使用的保险库格式版本，此版本的 Remoter 无法读取。",
+      "actions": [
+        "更新 Remoter",
+        "在写入它的那台机器上打开保险库"
+      ]
+    },
+    "corrupt": {
+      "message": "此保险库已损坏：无法读取其结构。",
+      "actions": [
+        "打开保险库旁边的备份"
+      ]
+    },
+    "corrupt-row": {
+      "message": "此保险库中有一条记录，此版本的 Remoter 无法读取。",
+      "actions": [
+        "打开保险库旁边的备份",
+        "更新 Remoter"
+      ]
+    },
+    "header-encode": {
+      "message": "此保险库的头部无法编码，因此没有写入。",
+      "actions": [
+        "报告此问题 — 磁盘上的保险库未被改动"
+      ]
+    },
+    "crypto": {
+      "message": "对此保险库的一个加密步骤失败，因此该操作已放弃。",
+      "actions": [
+        "重试",
+        "若持续出现请报告"
+      ]
+    },
+    "kdf-too-weak": {
+      "message": "这些 Argon2id 参数低于 Remoter 接受的下限；用更弱的保险库换取更快的解锁并不划算。",
+      "actions": [
+        "使用校准后的参数"
+      ]
+    },
+    "kdf-params-refused": {
+      "message": "此保险库声明的 Argon2id 参数超出此版本愿意尝试的范围。未派生任何密钥。",
+      "actions": [
+        "在写入它的那台机器上打开保险库",
+        "更新 Remoter",
+        "打开保险库旁边的备份"
+      ]
+    },
+    "no-such-slot": {
+      "message": "此保险库没有该密钥槽位。",
+      "actions": [
+        "重新加载槽位列表"
+      ]
+    },
+    "no-slot-of-kind": {
+      "message": "此保险库没有该类型的槽位。",
+      "actions": [
+        "先添加该解锁方式"
+      ]
+    },
+    "slot-table-full": {
+      "message": "此保险库已达到密钥槽位数量上限。",
+      "actions": [
+        "移除一个你不再使用的解锁方式"
+      ]
+    },
+    "last-slot": {
+      "message": "这是进入此保险库的唯一途径；移除它会让你永久无法进入。",
+      "actions": [
+        "先添加另一种解锁方式"
+      ]
+    },
+    "wrong-slot-kind": {
+      "message": "该密钥槽位属于另一种类型，因此该操作不适用于它。",
+      "actions": [
+        "重新加载槽位列表",
+        "选择正确类型的槽位"
+      ]
+    },
+    "slot-credential-missing": {
+      "message": "没有密码就无法重新封装该密钥槽位，而悄悄丢弃它会剥夺某个人的进入方式。未做任何更改。",
+      "actions": [
+        "输入该槽位的密码",
+        "有意将该槽位排除在轮换之外"
+      ]
+    },
+    "slot-credential-rejected": {
+      "message": "这打不开该密钥槽位，因此槽位保持原样。",
+      "actions": [
+        "重试",
+        "如果该槽位使用密钥文件，请检查该文件",
+        "使用你的恢复密钥"
+      ]
+    },
+    "keychain": {
+      "message": "此机器的凭据存储不可用，或其中没有此保险库的令牌。",
+      "actions": [
+        "用你的密码解锁",
+        "之后重新注册此设备"
+      ]
+    },
+    "recovery-key-malformed": {
+      "message": "这不是恢复密钥：恢复密钥是十四组、每组四个字符。",
+      "actions": [
+        "检查是否粘贴了完整的密钥"
+      ]
+    },
+    "recovery-key-checksum": {
+      "message": "该恢复密钥看起来输入有误 — 它的校验组与其余部分不匹配。",
+      "actions": [
+        "与你保存的副本比对",
+        "重试"
+      ]
+    },
+    "keyfile": {
+      "message": "无法读取密钥文件。",
+      "actions": [
+        "检查文件是否仍在创建保险库时所在的位置",
+        "挂载它所在的驱动器"
+      ]
+    },
+    "database": {
+      "message": "此保险库内的数据库拒绝了该操作。",
+      "actions": [
+        "重试",
+        "打开保险库旁边的备份"
+      ]
+    },
+    "schema-too-new": {
+      "message": "此保险库由更新版本的 Remoter 写入：它的架构版本是此版本无法理解的。",
+      "actions": [
+        "更新 Remoter"
+      ]
+    },
+    "migration-failed": {
+      "message": "此保险库无法迁移到更新的架构；文件保持原样。",
+      "actions": [
+        "打开保险库旁边的备份",
+        "报告此问题"
+      ]
+    }
+  },
+  "request": {
+    "invalid": {
+      "_comment_": "A bug in the interface, not something the reader did: the frontend sent the core a field it cannot read. Keep the sentence blameless and keep the action pointing at a bug report.",
+      "message": "该请求中的某个值无法使用。",
+      "actions": [
+        "报告此问题 — 界面发送了内核无法读取的内容"
+      ]
+    }
+  },
+  "path": {
+    "unusable": {
+      "message": "该位置无法使用。",
+      "actions": [
+        "选择其他位置"
+      ]
+    }
+  },
+  "io": {
+    "failed": {
+      "message": "该文件无法读取或写入。",
+      "actions": [
+        "检查路径是否存在且可写",
+        "选择其他位置"
+      ]
+    }
+  },
+  "system": {
+    "csprng": {
+      "message": "操作系统的随机数生成器不可用，因此无法安全地生成任何随机值。",
+      "actions": [
+        "重启 Remoter",
+        "若持续出现请报告"
+      ]
+    }
+  },
+  "key": {
+    "not-a-private-key": {
+      "message": "该文件不是私钥。公钥、证书或无关文件无法为连接提供身份验证。",
+      "actions": [
+        "选择私钥而不是它的 .pub 文件",
+        "改用平台的 SSH 代理"
+      ]
+    },
+    "_comment_unsupported-format": "The first action quotes a command. Translate the sentence around it if there is one; never translate the command itself, and keep its flags exactly as they are.",
+    "unsupported-format": {
+      "message": "该密钥的格式是此版本不会存储的。未写入任何内容。",
+      "actions": [
+        "用 `ssh-keygen -p -m PKCS8 -f <file>` 转换",
+        "改用平台的 SSH 代理"
+      ]
+    }
+  },
+  "credential": {
+    "not-a-private-key": {
+      "message": "该项目不是含私钥的凭据，因此其中没有可读取或替换的密钥。",
+      "actions": [
+        "选择一个凭据",
+        "先为它选择一个密钥文件"
+      ]
+    },
+    "purpose-refused": {
+      "message": "此凭据受限，不能以这种方式使用。",
+      "actions": [
+        "选择其他凭据",
+        "放宽该凭据的限制"
+      ]
+    }
+  },
+  "node": {
+    "_comment_not-found": "Sent both for an item missing from the vault and for one missing from the tree on screen. Either way the item is gone and the tree on screen is stale, which is what the sentence says.",
+    "not-found": {
+      "message": "该项目已不在树中；它很可能在另一个窗口中被删除了。",
+      "actions": [
+        "重新加载树"
+      ]
+    },
+    "parent-not-found": {
+      "message": "你把它放入的文件夹已不存在。",
+      "actions": [
+        "重新加载树",
+        "选择其他文件夹"
+      ]
+    },
+    "duplicate": {
+      "message": "树中已有使用该标识符的项目。",
+      "actions": [
+        "重新加载树"
+      ]
+    },
+    "not-a-container": {
+      "message": "只有文件夹才能容纳其他项目。",
+      "actions": [
+        "放入一个文件夹",
+        "放到顶层"
+      ]
+    },
+    "cycle": {
+      "message": "文件夹不能移动到它自身之中。",
+      "actions": [
+        "选择该文件夹之外的目标位置"
+      ]
+    },
+    "too-deep": {
+      "message": "此次移动会让树的嵌套超过允许的深度。",
+      "actions": [
+        "移到更靠近顶层的位置",
+        "把它上层的文件夹展平"
+      ]
+    },
+    "parent-changed": {
+      "message": "编辑不能更改项目的上级；请改用移动。",
+      "actions": [
+        "把它拖到新文件夹"
+      ]
+    },
+    "not-a-connection": {
+      "message": "只有连接才有可显示的解析后设置。",
+      "actions": [
+        "选择一个连接"
+      ]
+    }
+  },
+  "tree": {
+    "corrupt": {
+      "message": "此保险库中的项目树没有终点：上级链形成了循环。",
+      "actions": [
+        "打开保险库旁边的备份",
+        "报告此问题"
+      ]
+    }
+  },
+  "secret": {
+    "not-found": {
+      "message": "该凭据没有保存这样的机密。",
+      "actions": [
+        "现在输入",
+        "选择其他凭据"
+      ]
+    },
+    "stale": {
+      "message": "保存的机密与其记录的当前版本不一致，因此被拒绝而没有被使用。",
+      "actions": [
+        "重新输入该机密",
+        "打开保险库旁边的备份"
+      ]
+    }
+  },
+  "import": {
+    "too-large": {
+      "message": "该文件超过此版本可读取的大小。未解析任何内容。",
+      "actions": [
+        "拆分文件",
+        "分别导入各部分"
+      ]
+    },
+    "not-utf8": {
+      "message": "该文件不是 UTF-8 文本。",
+      "actions": [
+        "将文件另存为 UTF-8",
+        "确认这是你要选择的文件"
+      ]
+    },
+    "malformed-xml": {
+      "message": "该文件不是格式良好的 XML。",
+      "actions": [
+        "从写入它的应用程序中重新导出该文件",
+        "确认这是你要选择的文件"
+      ]
+    },
+    "doctype-refused": {
+      "message": "该文件带有文档类型声明，Remoter 拒绝处理：让 XML 文件读取本机其他文件正是靠它。",
+      "actions": [
+        "删除 DOCTYPE 行后重试",
+        "从写入它的应用程序中重新导出该文件"
+      ]
+    },
+    "entity-refused": {
+      "message": "该文件定义了自己的 XML 实体，Remoter 拒绝展开：为耗尽内存而写的文件正是这个样子。",
+      "actions": [
+        "从写入它的应用程序中重新导出该文件"
+      ]
+    },
+    "too-deep": {
+      "message": "该文件的文件夹嵌套深度超过此版本可读取的范围。",
+      "actions": [
+        "在源应用程序中把最深的文件夹展平"
+      ]
+    },
+    "too-many-items": {
+      "message": "该文件包含的项目多于此版本可读取的数量。",
+      "actions": [
+        "拆分文件",
+        "分别导入各部分"
+      ]
+    },
+    "value-too-long": {
+      "message": "该文件中有一个值长于此版本可读取的长度。",
+      "actions": [
+        "在源应用程序中缩短它，然后重新导出"
+      ]
+    },
+    "truncated": {
+      "message": "该文件在一条记录中间结束：文件不完整。",
+      "actions": [
+        "从原处重新复制该文件",
+        "从写入它的应用程序中重新导出"
+      ]
+    },
+    "wrong-format": {
+      "message": "该文件不是该导入器所读取的格式。",
+      "actions": [
+        "自行选择源格式",
+        "选择其他文件"
+      ]
+    },
+    "password-required": {
+      "message": "该文件已加密，需要其文档密码才能读取。",
+      "actions": [
+        "输入文档密码",
+        "选择其他文件"
+      ]
+    },
+    "wrong-password": {
+      "message": "这不是该文件加密时使用的密码。",
+      "actions": [
+        "重试",
+        "确认该文件是否使用了源应用程序的默认密码"
+      ]
+    },
+    "unsupported-cipher": {
+      "message": "该文件使用了 Remoter 无法读取的加密算法。",
+      "actions": [
+        "重新导出不加密的文件，然后导入",
+        "用更新版本的源应用程序重新保存"
+      ]
+    },
+    "malformed-ciphertext": {
+      "message": "该文件的加密部分已损坏：解密后得不到可用内容。",
+      "actions": [
+        "从原处重新复制该文件",
+        "从写入它的应用程序中重新导出"
+      ]
+    },
+    "too-many-nodes": {
+      "message": "该文件会创建超过上限数量的项目。",
+      "actions": [
+        "拆分文件",
+        "分别导入各部分"
+      ]
+    },
+    "missing-column": {
+      "message": "该文件缺少导入器所需的一列。",
+      "actions": [
+        "添加该列的表头后重试",
+        "确认第一行是表头行"
+      ]
+    },
+    "duplicate-column": {
+      "message": "该文件把同一列命名了两次，因此无法判定哪一列存放该值。",
+      "actions": [
+        "删除或重命名重复的列"
+      ]
+    },
+    "read-failed": {
+      "message": "沿包含关系读取某个文件时失败。",
+      "actions": [
+        "检查文件是否存在且可读",
+        "删除 Include 行后重新导入"
+      ]
+    },
+    "include-too-deep": {
+      "message": "该文件包含其他文件的层级超过此版本可追踪的深度。",
+      "actions": [
+        "展平 Include 链后重新导入"
+      ]
+    },
+    "failed": {
+      "message": "该文件无法导入。",
+      "actions": [
+        "选择其他文件",
+        "报告此问题"
+      ]
+    }
+  },
+  "validation": {
+    "_comment_file": "The reader's own input being wrong. Each sentence names the rule rather than the value, because the core has already put the value in the sentence it sends and this one has to read correctly without it.",
+    "name-empty": {
+      "message": "该项目需要一个名称。",
+      "actions": [
+        "输入名称"
+      ]
+    },
+    "name-too-long": {
+      "message": "该名称超过长度上限。",
+      "actions": [
+        "缩短名称"
+      ]
+    },
+    "control-char": {
+      "message": "该值含有控制字符，无法保存。",
+      "actions": [
+        "重新输入",
+        "以纯文本粘贴"
+      ]
+    },
+    "description-too-long": {
+      "message": "该描述超过长度上限。",
+      "actions": [
+        "缩短描述"
+      ]
+    },
+    "host-empty": {
+      "message": "此连接没有地址。请添加主机名或 IP 地址。",
+      "actions": [
+        "输入主机名或 IP 地址"
+      ]
+    },
+    "host-invalid": {
+      "message": "这既不是主机名，也不是 IPv4 地址，也不是方括号包裹的 IPv6 地址。",
+      "actions": [
+        "检查拼写",
+        "用 [方括号] 包裹 IPv6 地址"
+      ]
+    },
+    "port": {
+      "message": "端口必须在 1 到 65535 之间。",
+      "actions": [
+        "输入范围内的端口",
+        "留空以使用协议默认端口"
+      ]
+    },
+    "tag": {
+      "message": "这不是可用的标签。",
+      "actions": [
+        "使用字母、数字、连字符和点"
+      ]
+    },
+    "protocol": {
+      "message": "Remoter 不认识这个协议。",
+      "actions": [
+        "从列表中选择协议"
+      ]
+    },
+    "setting-key": {
+      "message": "这不是可用的协议设置名称。",
+      "actions": [
+        "使用字母、数字、连字符和点"
+      ]
+    },
+    "custom-field-key": {
+      "message": "这不是可用的自定义字段名称。",
+      "actions": [
+        "使用字母、数字、连字符和点"
+      ]
+    },
+    "_comment_colour": "The two patterns are syntax, not words: leave #rrggbb and #rrggbbaa exactly as they are in every language.",
+    "colour": {
+      "message": "这不是颜色；应为 #rrggbb 或 #rrggbbaa。",
+      "actions": [
+        "从色板中选择颜色"
+      ]
+    },
+    "icon": {
+      "message": "该图标引用为空或含有控制字符。",
+      "actions": [
+        "从列表中选择图标"
+      ]
+    },
+    "gateway-too-long": {
+      "message": "该网关链的跳数超过上限。",
+      "actions": [
+        "移除一跳"
+      ]
+    },
+    "gateway-cycle": {
+      "message": "网关链绕回了自身：同一主机出现了两次。",
+      "actions": [
+        "移除重复的一跳"
+      ]
+    },
+    "gateway-hop-unknown": {
+      "message": "其中一个网关跳点指向的项目已不在此保险库中。",
+      "actions": [
+        "选择其他网关",
+        "直接连接"
+      ]
+    },
+    "gateway-hop-kind": {
+      "message": "网关跳点必须是连接；文件夹无法转发流量。",
+      "actions": [
+        "选择一个连接作为网关"
+      ]
+    },
+    "credential-unknown": {
+      "message": "这里使用的凭据已被删除。请选择其他凭据，或现在输入一个。",
+      "actions": [
+        "选择其他凭据",
+        "现在输入一个"
+      ]
+    },
+    "credential-kind": {
+      "message": "该项目不是凭据。",
+      "actions": [
+        "选择一个凭据"
+      ]
+    },
+    "credential-attached": {
+      "message": "该凭据属于另一个连接。共享它会让一处的修改同时改变另一处。",
+      "actions": [
+        "选择共享凭据",
+        "改为在此输入用户名和密码"
+      ]
+    },
+    "credential-attachment": {
+      "message": "此保险库中的一个凭据属于一个并不存在的连接。未做任何更改。",
+      "actions": [
+        "重新加载保险库",
+        "从备份恢复"
+      ]
+    },
+    "credential-purpose": {
+      "message": "此凭据受限，不能用于该协议。",
+      "actions": [
+        "选择其他凭据",
+        "放宽该凭据的限制"
+      ]
+    },
+    "username-too-long": {
+      "message": "该用户名超过长度上限。",
+      "actions": [
+        "缩短用户名"
+      ]
+    },
+    "external-credential": {
+      "message": "外部凭据需要同时提供提供方和引用。",
+      "actions": [
+        "填写这两个字段"
+      ]
+    },
+    "secret-empty": {
+      "message": "凭据需要一个机密；空信封不是凭据。",
+      "actions": [
+        "输入密码",
+        "选择密钥文件"
+      ]
+    },
+    "layout": {
+      "message": "网格布局至少需要一行和一列。",
+      "actions": [
+        "把行数和列数设为 1 或更多"
+      ]
+    },
+    "group-member": {
+      "message": "该组的一位成员已不在保险库中。",
+      "actions": [
+        "移除缺失的成员"
+      ]
+    },
+    "empty-action": {
+      "message": "连接或断开动作不能是空行。",
+      "actions": [
+        "删除空行"
+      ]
+    },
+    "reconnect-policy": {
+      "message": "自动重连至少需要一次尝试，且退避时间不能递减。",
+      "actions": [
+        "把最大退避时间设为不小于初始值"
+      ]
+    },
+    "interval": {
+      "message": "超时和保活间隔必须大于零。",
+      "actions": [
+        "输入正数",
+        "清空该字段以继承取值"
+      ]
+    }
+  }
+}

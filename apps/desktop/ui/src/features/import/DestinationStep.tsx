@@ -15,23 +15,19 @@
 import { BusyStatus, SkeletonRows } from "@/components/Busy";
 import { FailureNotice } from "@/components/FailureNotice";
 import { Icon } from "@/components/Icon";
+import { isolate, useT } from "@/i18n";
 import type { IpcFailure, TreeNode } from "@/lib/ipc";
 
 import s from "./ImportWizard.module.css";
 
-const TEXT = {
-  title: "Where should this go?",
-  lead: "Everything ticked in the preview is created under the folder you choose here, keeping the structure the file had.",
-  top: "The top level of the vault",
-  loading: "Reading the vault's folders…",
-  loadFailed: "The vault's folders could not be read.",
-  retry: "Try again",
-  noFolders:
-    "This vault has no folders yet. The import lands at the top level, keeping its own structure.",
-  advice:
-    "A folder of its own is the safest choice. Remoter cannot undo a commit, and an import you can see in one place is an import you can delete in one action if it is not what you wanted.",
-  chooseLabel: "Destination folder",
-} as const;
+/**
+ * What separates the folders of a breadcrumb: "Datacentre EU-West / Web tier".
+ *
+ * Punctuation rather than copy, and it is not mirrored for a right-to-left
+ * layout — each folder name is isolated where it is drawn, so the crumb reads
+ * in the document's direction whatever script the names are in.
+ */
+const PATH_SEPARATOR = " / ";
 
 export interface FolderOption {
   id: string;
@@ -57,16 +53,18 @@ export function DestinationStep({
   failure,
   onRetry,
 }: DestinationStepProps) {
+  const t = useT("import");
+
   return (
     <div className={`${s.step} ${s.narrow}`}>
       <div className={s.stepHead}>
-        <h2 className={s.stepTitle}>{TEXT.title}</h2>
-        <p className={s.stepLead}>{TEXT.lead}</p>
+        <h2 className={s.stepTitle}>{t("destination.title")}</h2>
+        <p className={s.stepLead}>{t("destination.lead")}</p>
       </div>
 
       {pending && (
         <div className={s.card}>
-          <BusyStatus label={TEXT.loading} />
+          <BusyStatus label={t("destination.loading")} />
           <SkeletonRows count={4} />
         </div>
       )}
@@ -74,14 +72,14 @@ export function DestinationStep({
       {failure !== null && !pending && (
         <FailureNotice
           failure={failure}
-          title={TEXT.loadFailed}
+          title={t("destination.loadFailed")}
           onRetry={onRetry}
-          retryLabel={TEXT.retry}
+          retryLabel={t("destination.retry")}
         />
       )}
 
       {folders !== null && (
-        <div className={s.destList} role="radiogroup" aria-label={TEXT.chooseLabel}>
+        <div className={s.destList} role="radiogroup" aria-label={t("destination.chooseLabel")}>
           <button
             type="button"
             role="radio"
@@ -93,7 +91,7 @@ export function DestinationStep({
             <span className={s.rowIcon} aria-hidden="true">
               <Icon name="folder" size={13} />
             </span>
-            {TEXT.top}
+            {t("destination.topOption")}
           </button>
           {folders.map((folder) => (
             <button
@@ -108,15 +106,19 @@ export function DestinationStep({
               <span className={`${s.rowIcon} ${s.rowIconFolder}`} aria-hidden="true">
                 <Icon name="folder" size={13} />
               </span>
-              {folder.path}
+              {/* The breadcrumb is the user's own folder names, in whatever
+                  script they wrote them. */}
+              {isolate(folder.path)}
             </button>
           ))}
         </div>
       )}
 
-      {folders !== null && folders.length === 0 && <p className={s.stepLead}>{TEXT.noFolders}</p>}
+      {folders !== null && folders.length === 0 && (
+        <p className={s.stepLead}>{t("destination.noFolders")}</p>
+      )}
 
-      <p className={s.stepLead}>{TEXT.advice}</p>
+      <p className={s.stepLead}>{t("destination.advice")}</p>
     </div>
   );
 }
@@ -143,7 +145,7 @@ export function folderPaths(nodes: readonly TreeNode[]): FolderOption[] {
       parts.unshift(parent.name);
       cursor = parent.parentId;
     }
-    options.push({ id: node.id, path: parts.join(" / ") });
+    options.push({ id: node.id, path: parts.join(PATH_SEPARATOR) });
   }
 
   return options.sort((a, b) => a.path.localeCompare(b.path));

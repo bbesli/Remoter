@@ -14,9 +14,14 @@
   white-space: nowrap;
 }
 
+/* A count is now a whole phrase — "3 sessions", "no tunnels" — because the
+   noun inflects on the number in Russian and has six forms in Arabic, so the
+   number cannot be styled separately from the word it governs. Monospacing the
+   phrase would set the words in a code font; tabular figures give the same
+   thing the mono font was there for, a digit that does not jump width as it
+   ticks, without touching the letters. */
 .count {
-  font-family: var(--font-mono);
-  font-variant-ligatures: none;
+  font-variant-numeric: tabular-nums;
   color: var(--fg-muted);
 }
 
@@ -43,8 +48,7 @@
 }
 
 .countdownWarning {
-  font-family: var(--font-mono);
-  font-variant-ligatures: none;
+  font-variant-numeric: tabular-nums;
   color: var(--warning);
 }
 

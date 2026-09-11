@@ -28,6 +28,7 @@ import { Button } from "@/components/Button";
 import { FailureNotice } from "@/components/FailureNotice";
 import { Icon } from "@/components/Icon";
 import { useAnyModalOpen } from "@/hooks/useModalRegistration";
+import { formatNumber, isolate, useLocale, useT } from "@/i18n";
 import { asFailure, ipc } from "@/lib/ipc";
 import type { VaultSettings as VaultSettingsDto, VaultSettingsPatch } from "@/lib/ipc";
 import { qk } from "@/lib/queryKeys";
@@ -41,34 +42,18 @@ import { vaultAdminKeys } from "./keys";
 import type { VaultSaveFailure, VaultSettingsField } from "./types";
 import s from "./VaultSettings.module.css";
 
-const TEXT = {
-  title: "Vault settings",
-  close: "Close vault settings",
-  closeHint: "Close vault settings (Esc)",
-  sections: "Vault settings sections",
-
-  navSlots: "Key slots",
-  navLock: "Auto-lock",
-  navRecording: "Recording policy",
-  navBackups: "Backups",
-
-  loadingSlots: "Reading the vault's key slots…",
-  loadingSettings: "Reading this vault's settings…",
-  slotsFailed: "The key slots could not be read.",
-  settingsFailed: "This vault's settings could not be read.",
-  retry: "Try again",
-  leave: "Close vault settings",
-
-  locked: "No vault is open",
-  lockedBody:
-    "These settings live inside the vault file, so they can only be read while it is unlocked.",
-} as const;
-
+/**
+ * The four panels, as ids paired with the catalogue key that names them.
+ *
+ * Keys, not labels: this array is module-level, so a label resolved here would
+ * be frozen in whatever language the application started in and would not
+ * follow a language change.
+ */
 const TABS = [
-  { id: "slots", label: TEXT.navSlots },
-  { id: "lock", label: TEXT.navLock },
-  { id: "recording", label: TEXT.navRecording },
-  { id: "backups", label: TEXT.navBackups },
+  { id: "slots", labelKey: "screen.navSlots" },
+  { id: "lock", labelKey: "screen.navLock" },
+  { id: "recording", labelKey: "screen.navRecording" },
+  { id: "backups", labelKey: "screen.navBackups" },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -79,6 +64,9 @@ interface SaveVariables {
 }
 
 export function VaultSettings() {
+  const t = useT("vaultsettings");
+  const tCommon = useT("common");
+  const { code: locale } = useLocale();
   const goBack = useApp((state) => state.goBack);
   const modalOpen = useAnyModalOpen();
   const queryClient = useQueryClient();
@@ -173,15 +161,22 @@ export function VaultSettings() {
         <span className={s.headerIcon} aria-hidden="true">
           <Icon name="shield" size={15} />
         </span>
-        <h1 className={s.headerTitle}>{TEXT.title}</h1>
-        {vaultLabel !== null && <span className={s.headerVault}>· {vaultLabel}</span>}
+        <h1 className={s.headerTitle}>{t("screen.title")}</h1>
+        {vaultLabel !== null && (
+          // The vault's own name, isolated: a label written in a right-to-left
+          // script must not reorder the title beside it, or an ASCII one the
+          // Arabic interface around it.
+          <span className={s.headerVault}>
+            {t("screen.vaultLabel", { label: isolate(vaultLabel) })}
+          </span>
+        )}
         <span className={s.headerSpacer} />
         <button
           type="button"
           className={s.closeButton}
           onClick={goBack}
-          title={TEXT.closeHint}
-          aria-label={TEXT.close}
+          title={t("screen.closeHint")}
+          aria-label={t("screen.close")}
         >
           <Icon name="x" size={15} />
         </button>
@@ -192,7 +187,7 @@ export function VaultSettings() {
           className={s.nav}
           role="tablist"
           aria-orientation="vertical"
-          aria-label={TEXT.sections}
+          aria-label={t("screen.sections")}
           onKeyDown={onTabKeyDown}
         >
           {TABS.map((entry, index) => (
@@ -210,9 +205,11 @@ export function VaultSettings() {
               tabIndex={entry.id === tab ? 0 : -1}
               onClick={() => setTab(entry.id)}
             >
-              {entry.label}
+              {t(entry.labelKey)}
               {entry.id === "slots" && loadedSlots !== undefined && (
-                <span className={s.navCount}>{loadedSlots.slots.length}</span>
+                // Through Intl: a locale with its own numbering system draws
+                // its own digits, and a slot count is still a number.
+                <span className={s.navCount}>{formatNumber(locale, loadedSlots.slots.length)}</span>
               )}
             </button>
           ))}
@@ -229,21 +226,21 @@ export function VaultSettings() {
             <FailureNotice
               failure={{
                 code: "vault.locked",
-                message: TEXT.locked,
-                detail: TEXT.lockedBody,
+                message: t("screen.locked"),
+                detail: t("screen.lockedBody"),
                 actions: [],
               }}
               tone="warning"
             >
               <Button size="sm" variant="ghost" onClick={goBack}>
-                {TEXT.leave}
+                {t("screen.close")}
               </Button>
             </FailureNotice>
           )}
 
           {tab === "slots" && slots.isPending && (
             <div className={s.loading}>
-              <BusyStatus label={TEXT.loadingSlots} size={16} />
+              <BusyStatus label={t("screen.loadingSlots")} size={16} />
               <SkeletonRows count={4} height="var(--space-10)" />
             </div>
           )}
@@ -251,12 +248,12 @@ export function VaultSettings() {
           {tab === "slots" && slots.isError && (
             <FailureNotice
               failure={asFailure(slots.error)}
-              title={TEXT.slotsFailed}
+              title={t("screen.slotsFailed")}
               onRetry={() => void slots.refetch()}
-              retryLabel={TEXT.retry}
+              retryLabel={tCommon("action.retry")}
             >
               <Button size="sm" variant="ghost" onClick={goBack}>
-                {TEXT.leave}
+                {t("screen.close")}
               </Button>
             </FailureNotice>
           )}
@@ -271,7 +268,7 @@ export function VaultSettings() {
 
           {needsSettings && settings.isPending && (
             <div className={s.loading}>
-              <BusyStatus label={TEXT.loadingSettings} size={16} />
+              <BusyStatus label={t("screen.loadingSettings")} size={16} />
               <SkeletonRows count={3} height="var(--space-8)" />
             </div>
           )}
@@ -279,12 +276,12 @@ export function VaultSettings() {
           {needsSettings && settings.isError && (
             <FailureNotice
               failure={asFailure(settings.error)}
-              title={TEXT.settingsFailed}
+              title={t("screen.settingsFailed")}
               onRetry={() => void settings.refetch()}
-              retryLabel={TEXT.retry}
+              retryLabel={tCommon("action.retry")}
             >
               <Button size="sm" variant="ghost" onClick={goBack}>
-                {TEXT.leave}
+                {t("screen.close")}
               </Button>
             </FailureNotice>
           )}

@@ -15,20 +15,13 @@ import { useEffect, useRef, useState } from "react";
 
 import { Icon } from "@/components/Icon";
 import { TextInput } from "@/components/TextInput";
+import { useT } from "@/i18n";
 import { clearSearch, focusTerminal, searchTerminal } from "./terminals";
 
 import s from "./FindBar.module.css";
 
-const TEXT = {
-  label: "Find in the scrollback",
-  placeholder: "Find…",
-  previous: "Previous match",
-  next: "Next match",
-  close: "Close the find bar",
-  noMatch: "no match",
-} as const;
-
 export function FindBar({ tabId, onClose }: { tabId: string; onClose: () => void }) {
+  const t = useT("sessions");
   const [needle, setNeedle] = useState("");
   const [missed, setMissed] = useState(false);
   const inputRef = useRef<HTMLDivElement>(null);
@@ -42,13 +35,18 @@ export function FindBar({ tabId, onClose }: { tabId: string; onClose: () => void
     };
   }, [tabId]);
 
+  const label = t("find.label");
+  const previous = t("find.previous");
+  const next = t("find.next");
+  const close = t("find.close");
+
   const find = (back: boolean) => {
     if (needle === "") return;
     setMissed(!searchTerminal(tabId, needle, back));
   };
 
   return (
-    <div className={s.bar} ref={inputRef} role="search" aria-label={TEXT.label}>
+    <div className={s.bar} ref={inputRef} role="search" aria-label={label}>
       <span className={s.glyph} aria-hidden="true">
         <Icon name="search" size={13} />
       </span>
@@ -59,8 +57,8 @@ export function FindBar({ tabId, onClose }: { tabId: string; onClose: () => void
             setNeedle(value);
             setMissed(false);
           }}
-          placeholder={TEXT.placeholder}
-          ariaLabel={TEXT.label}
+          placeholder={t("find.placeholder")}
+          ariaLabel={label}
           mono
           autoFocus
           invalid={missed}
@@ -77,13 +75,13 @@ export function FindBar({ tabId, onClose }: { tabId: string; onClose: () => void
           }}
         />
       </span>
-      {missed && <span className={s.miss}>{TEXT.noMatch}</span>}
+      {missed && <span className={s.miss}>{t("find.noMatch")}</span>}
       <button
         type="button"
         className={s.control}
         onClick={() => find(true)}
-        title={TEXT.previous}
-        aria-label={TEXT.previous}
+        title={previous}
+        aria-label={previous}
       >
         <Icon name="chevron-right" size={13} />
       </button>
@@ -91,8 +89,8 @@ export function FindBar({ tabId, onClose }: { tabId: string; onClose: () => void
         type="button"
         className={s.control}
         onClick={() => find(false)}
-        title={TEXT.next}
-        aria-label={TEXT.next}
+        title={next}
+        aria-label={next}
       >
         <Icon name="chevron-down" size={13} />
       </button>
@@ -100,8 +98,8 @@ export function FindBar({ tabId, onClose }: { tabId: string; onClose: () => void
         type="button"
         className={s.control}
         onClick={onClose}
-        title={TEXT.close}
-        aria-label={TEXT.close}
+        title={close}
+        aria-label={close}
       >
         <Icon name="x" size={13} />
       </button>

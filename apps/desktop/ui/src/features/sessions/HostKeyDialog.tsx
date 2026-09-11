@@ -31,39 +31,9 @@ import { TextInput } from "@/components/TextInput";
 import type { HostKeyPrompt, IpcFailure } from "@/lib/ipc";
 import { useFocusTrap } from "@/features/connections/focusTrap";
 import { useModalRegistration } from "@/hooks/useModalRegistration";
+import { formatDate, isolate, isolateLtr, useLocale, useT } from "@/i18n";
 
 import s from "./HostKeyDialog.module.css";
-
-const TEXT = {
-  unknownTitle: (host: string) => `Trust the host key for ${host}?`,
-  unknownLead:
-    "Remoter has never seen this machine before, so there is nothing to compare its key against. Check the fingerprint against what the server prints locally, or against what its administrator told you.",
-  unknownAccept: "Trust this key and connect",
-  unknownReject: "Do not connect",
-
-  changedTitle: (host: string) => `The host key for ${host} has changed`,
-  changedLead:
-    "Someone may be intercepting this connection. The alternative is that the server was rebuilt and nobody told you. Remoter will not connect until you decide which it is.",
-  trusted: "Key you trusted",
-  offered: "Key offered now",
-  firstTrusted: (when: string) => `Verified ${when}`,
-  firstSeenNow: "First seen now",
-  compare:
-    "Compare the randomart with what the server prints locally. If you cannot check it out of band, do not continue.",
-  confirmLabel: (n: number) =>
-    `To continue, type the last ${String(n)} characters of the key offered now`,
-  confirmHint: "Copy them off the screen above. Remoter does not fill this in for you.",
-  changedReject: "Do not connect",
-  changedReplace: "Replace the key and connect",
-  audited: "Whichever you choose is written to the audit log.",
-
-  algorithm: "Algorithm",
-  fingerprint: "SHA-256 fingerprint",
-  randomart: "Randomart",
-  deciding: "Sending your decision…",
-  decisionRefused: "That decision was refused",
-  close: "Do not connect",
-} as const;
 
 interface HostKeyDialogProps {
   prompt: HostKeyPrompt;
@@ -76,12 +46,6 @@ interface HostKeyDialogProps {
   onReject: () => void;
 }
 
-function formatDate(ms: number): string {
-  const date = new Date(ms);
-  if (Number.isNaN(date.getTime())) return "at an unknown time";
-  return date.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
-}
-
 export function HostKeyDialog({
   prompt,
   sessionName,
@@ -91,6 +55,8 @@ export function HostKeyDialog({
   onReplace,
   onReject,
 }: HostKeyDialogProps) {
+  const t = useT("sessions");
+  const { code: locale } = useLocale();
   const dialogRef = useRef<HTMLDivElement>(null);
   const [confirmation, setConfirmation] = useState("");
 
@@ -127,6 +93,13 @@ export function HostKeyDialog({
   const canReplace = changed && !busy && confirmation.trim().length === needed;
 
   const titleId = `${id}-title`;
+  // Everything the peer sent is isolated before it reaches a sentence: the host
+  // and the algorithm name are its text, not ours, and this dialog is precisely
+  // the one where a value that renders in the wrong order could be mistaken for
+  // a different value. The fingerprint is left-to-right by specification.
+  const host = isolateLtr(prompt.host);
+  const algorithm = isolate(prompt.algorithm);
+  const confirmLabel = t("hostKey.confirmLabel", { count: needed });
 
   return (
     <div
@@ -155,9 +128,11 @@ export function HostKeyDialog({
           <div className={s.headings}>
             <p className={s.session}>{sessionName}</p>
             <h2 className={s.title} id={titleId}>
-              {changed ? TEXT.changedTitle(prompt.host) : TEXT.unknownTitle(prompt.host)}
+              {changed ? t("hostKey.changed.title", { host }) : t("hostKey.unknown.title", { host })}
             </h2>
-            <p className={s.lead}>{changed ? TEXT.changedLead : TEXT.unknownLead}</p>
+            <p className={s.lead}>
+              {changed ? t("hostKey.changed.lead") : t("hostKey.unknown.lead")}
+            </p>
           </div>
         </header>
 
@@ -165,45 +140,51 @@ export function HostKeyDialog({
           {changed && prompt.previouslyTrusted !== null ? (
             <div className={s.compare}>
               <section className={[s.key, s.keyTrusted].join(" ")}>
-                <p className={s.keyLabel}>{TEXT.trusted}</p>
+                <p className={s.keyLabel}>{t("hostKey.trustedKey")}</p>
                 <p className={s.fingerprint}>{prompt.previouslyTrusted.fingerprint}</p>
+                {/* One message rather than a date, a separator and an algorithm
+                    concatenated: the order of the two differs by language, and
+                    a stored timestamp that will not parse gets its own sentence
+                    rather than the word "Invalid Date". */}
                 <p className={s.keyMeta}>
-                  {TEXT.firstTrusted(formatDate(prompt.previouslyTrusted.firstTrustedAtMs))} ·{" "}
-                  {prompt.algorithm}
+                  {Number.isNaN(new Date(prompt.previouslyTrusted.firstTrustedAtMs).getTime())
+                    ? t("hostKey.trustedMetaUndated", { algorithm })
+                    : t("hostKey.trustedMeta", {
+                        date: formatDate(locale, prompt.previouslyTrusted.firstTrustedAtMs),
+                        algorithm,
+                      })}
                 </p>
                 <pre className={s.randomart}>{prompt.previouslyTrusted.randomart}</pre>
               </section>
               <section className={[s.key, s.keyOffered].join(" ")}>
-                <p className={s.keyLabel}>{TEXT.offered}</p>
+                <p className={s.keyLabel}>{t("hostKey.offeredKey")}</p>
                 <p className={s.fingerprint}>{prompt.fingerprint}</p>
-                <p className={s.keyMeta}>
-                  {TEXT.firstSeenNow} · {prompt.algorithm}
-                </p>
+                <p className={s.keyMeta}>{t("hostKey.offeredMeta", { algorithm })}</p>
                 <pre className={s.randomart}>{prompt.randomart}</pre>
               </section>
             </div>
           ) : (
             <div className={s.single}>
               <dl className={s.facts}>
-                <dt className={s.factLabel}>{TEXT.algorithm}</dt>
+                <dt className={s.factLabel}>{t("hostKey.algorithm")}</dt>
                 {/* Peer-supplied text. Rendered as text, never as markup. */}
                 <dd className={s.factValue}>{prompt.algorithm}</dd>
-                <dt className={s.factLabel}>{TEXT.fingerprint}</dt>
+                <dt className={s.factLabel}>{t("hostKey.fingerprint")}</dt>
                 <dd className={s.fingerprint}>{prompt.fingerprint}</dd>
               </dl>
               <div className={s.randomartBlock}>
-                <p className={s.keyLabel}>{TEXT.randomart}</p>
+                <p className={s.keyLabel}>{t("hostKey.randomart")}</p>
                 <pre className={s.randomart}>{prompt.randomart}</pre>
               </div>
             </div>
           )}
 
-          <p className={changed ? s.compareNoteAlarm : s.compareNote}>{TEXT.compare}</p>
+          <p className={changed ? s.compareNoteAlarm : s.compareNote}>{t("hostKey.compare")}</p>
 
           {changed && (
             <div className={s.confirm}>
               <label className={s.confirmLabel} htmlFor={`${id}-confirmation`}>
-                {TEXT.confirmLabel(needed)}
+                {confirmLabel}
               </label>
               <TextInput
                 id={`${id}-confirmation`}
@@ -211,24 +192,24 @@ export function HostKeyDialog({
                 onChange={setConfirmation}
                 mono
                 disabled={busy}
-                ariaLabel={TEXT.confirmLabel(needed)}
+                ariaLabel={confirmLabel}
               />
-              <p className={s.confirmHint}>{TEXT.confirmHint}</p>
+              <p className={s.confirmHint}>{t("hostKey.confirmHint")}</p>
             </div>
           )}
 
           {failure !== null && (
             <div className={s.failure}>
-              <FailureNotice failure={failure} title={TEXT.decisionRefused} />
+              <FailureNotice failure={failure} title={t("hostKey.decisionRefused")} />
             </div>
           )}
         </div>
 
         <footer className={s.footer}>
-          <p className={s.audited}>{TEXT.audited}</p>
+          <p className={s.audited}>{t("hostKey.audited")}</p>
           <div className={s.actions}>
             <Button variant="secondary" onClick={onReject} disabled={busy}>
-              {changed ? TEXT.changedReject : TEXT.unknownReject}
+              {changed ? t("hostKey.changed.reject") : t("hostKey.unknown.reject")}
             </Button>
             {changed ? (
               // Deliberately `danger`: replacing a contradicted key widens
@@ -238,11 +219,11 @@ export function HostKeyDialog({
                 onClick={() => onReplace(confirmation.trim())}
                 disabled={!canReplace}
               >
-                {busy ? TEXT.deciding : TEXT.changedReplace}
+                {busy ? t("hostKey.deciding") : t("hostKey.changed.replace")}
               </Button>
             ) : (
               <Button variant="primary" onClick={onAccept} disabled={busy}>
-                {busy ? TEXT.deciding : TEXT.unknownAccept}
+                {busy ? t("hostKey.deciding") : t("hostKey.unknown.accept")}
               </Button>
             )}
           </div>

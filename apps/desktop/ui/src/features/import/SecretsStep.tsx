@@ -18,41 +18,10 @@ import { Field } from "@/components/Field";
 import { Button } from "@/components/Button";
 import { Icon } from "@/components/Icon";
 import { TextInput } from "@/components/TextInput";
+import { formatBytes, isolateLtr, useLocale, useT } from "@/i18n";
 import type { ImportDetection, IpcFailure } from "@/lib/ipc";
 
-import { formatBytes } from "./SourceStep";
 import s from "./ImportWizard.module.css";
-
-const TEXT = {
-  encryptedTitle: "The file is encrypted",
-  encryptedLead:
-    "Remoter needs the document password to read the credentials inside. The parse happens in the core, in a sandboxed reader; nothing is written to your vault until you commit.",
-  plainTitle: "Nothing to supply",
-  plainLead:
-    "This file needs no password. The next step reads it and shows you the tree it would create.",
-  passwordLabel: "Document password",
-  passwordHelp: "The password mRemoteNG asks for when it opens this file.",
-  show: "Show",
-  hide: "Hide",
-  parseFailed: "That file could not be read.",
-  retry: "Try again",
-
-  defaultTitle: "This file was not really protected",
-  defaultBody:
-    "It carries no password of its own. mRemoteNG encrypts such files with a password published in its own source, so anyone who has ever held a copy of this file could read every credential in it. The report after the parse will confirm what was found.",
-
-  legacyTitle: "This file uses legacy AES-CBC with an MD5-derived key",
-  legacyBody:
-    "Remoter can read it. You should know that anyone who has had a copy of this file could have read it too, without much effort. Consider the credentials inside it exposed and change them on the servers after the import.",
-
-  fullFileTitle: "The whole document is encrypted",
-  fullFileBody:
-    "Not just the passwords — the structure too. Nothing changes about the import; it tells you how the file was configured.",
-
-  keysTitle: "About private keys",
-  keysBody:
-    "Keys named by this file are imported as references to the files they already live in. Remoter does not read the key material here, so no key passphrase is asked for.",
-} as const;
 
 interface SecretsStepProps {
   detection: ImportDetection | null;
@@ -76,6 +45,8 @@ export function SecretsStep({
   failure,
   onRetry,
 }: SecretsStepProps) {
+  const t = useT("import");
+  const { code: locale } = useLocale();
   const needsPassword = detection?.passwordRequired ?? false;
   const doc = detection?.document ?? null;
   // mRemoteNG writes a file that asks for no password by encrypting it with a
@@ -86,8 +57,12 @@ export function SecretsStep({
   return (
     <div className={`${s.step} ${s.narrow}`}>
       <div className={s.stepHead}>
-        <h2 className={s.stepTitle}>{needsPassword ? TEXT.encryptedTitle : TEXT.plainTitle}</h2>
-        <p className={s.stepLead}>{needsPassword ? TEXT.encryptedLead : TEXT.plainLead}</p>
+        <h2 className={s.stepTitle}>
+          {needsPassword ? t("secrets.encryptedTitle") : t("secrets.plainTitle")}
+        </h2>
+        <p className={s.stepLead}>
+          {needsPassword ? t("secrets.encryptedLead") : t("secrets.plainLead")}
+        </p>
       </div>
 
       <div className={s.card}>
@@ -96,17 +71,27 @@ export function SecretsStep({
             <Icon name="file" size={17} />
           </span>
           <div className={s.fileMeta}>
-            <span className={s.fileName}>{path}</span>
+            {/* A path is left-to-right by specification, whichever way the
+                interface around it runs. */}
+            <span className={s.fileName}>{isolateLtr(path)}</span>
             <span className={s.fileFacts}>
-              {detection === null ? "" : `${formatBytes(detection.sizeBytes)} · `}
-              <strong>{detection?.formatLabel ?? "Format chosen by you"}</strong>
-              {doc === null || doc.confVersion === null ? "" : ` · confVersion ${doc.confVersion}`}
+              {detection === null ? "" : `${formatBytes(locale, detection.sizeBytes)} · `}
+              {/* The format's name comes from the core and is a product name:
+                  never translated, isolated because it sits in a row of facts. */}
+              <strong>
+                {detection?.formatLabel == null || detection.formatLabel === ""
+                  ? t("secrets.formatChosen")
+                  : isolateLtr(detection.formatLabel)}
+              </strong>
+              {doc === null || doc.confVersion === null
+                ? ""
+                : ` · ${t("secrets.confVersion", { version: isolateLtr(doc.confVersion) })}`}
             </span>
           </div>
         </div>
 
         {needsPassword && (
-          <Field label={TEXT.passwordLabel} help={TEXT.passwordHelp}>
+          <Field label={t("secrets.passwordLabel")} help={t("secrets.passwordHelp")}>
             <div className={s.passwordField}>
               <span className={s.passwordInput}>
                 <TextInput
@@ -114,11 +99,11 @@ export function SecretsStep({
                   onChange={onPassword}
                   type={reveal ? "text" : "password"}
                   autoFocus
-                  ariaLabel={TEXT.passwordLabel}
+                  ariaLabel={t("secrets.passwordLabel")}
                 />
               </span>
               <Button variant="ghost" size="sm" onClick={() => onReveal(!reveal)}>
-                {reveal ? TEXT.hide : TEXT.show}
+                {reveal ? t("secrets.hide") : t("secrets.show")}
               </Button>
             </div>
           </Field>
@@ -127,23 +112,28 @@ export function SecretsStep({
         {failure !== null && (
           <FailureNotice
             failure={failure}
-            title={TEXT.parseFailed}
+            title={t("secrets.parseFailed")}
             onRetry={onRetry}
-            retryLabel={TEXT.retry}
+            retryLabel={t("secrets.retry")}
           />
         )}
       </div>
 
       {usedDefault && (
-        <Callout tone="danger" title={TEXT.defaultTitle}>
-          <p>{TEXT.defaultBody}</p>
+        <Callout tone="danger" title={t("secrets.defaultTitle")}>
+          <p>{t("secrets.defaultBody")}</p>
         </Callout>
       )}
 
       {doc !== null && doc.legacyCipher && (
-        <Callout tone="danger" title={TEXT.legacyTitle}>
-          <p>{TEXT.legacyBody}</p>
+        <Callout tone="danger" title={t("secrets.legacyTitle")}>
+          <p>{t("secrets.legacyBody")}</p>
+          {/* Quoted straight out of the document being imported: attribute
+              names and their values, so the reader can find them in their own
+              file. Never translated (docs/features/i18n.md). */}
           <p className={s.findingCode}>
+            {/* eslint-disable-next-line remoter-i18n/no-literal-jsx-text --
+                mRemoteNG attribute name, quoted from the file, never translated */}
             {`BlockCipherMode="${doc.cipher.toUpperCase()}"`}
             {doc.kdfIterations === null ? "" : ` · KdfIterations=${doc.kdfIterations}`}
           </p>
@@ -151,14 +141,14 @@ export function SecretsStep({
       )}
 
       {doc !== null && doc.fullFileEncryption && (
-        <Callout tone="info" title={TEXT.fullFileTitle}>
-          <p>{TEXT.fullFileBody}</p>
+        <Callout tone="info" title={t("secrets.fullFileTitle")}>
+          <p>{t("secrets.fullFileBody")}</p>
         </Callout>
       )}
 
       {detection?.format === "ssh-config" && (
-        <Callout tone="neutral" title={TEXT.keysTitle}>
-          <p>{TEXT.keysBody}</p>
+        <Callout tone="neutral" title={t("secrets.keysTitle")}>
+          <p>{t("secrets.keysBody")}</p>
         </Callout>
       )}
     </div>

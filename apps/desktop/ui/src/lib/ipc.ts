@@ -205,12 +205,24 @@ export interface PasswordStrength {
   /** 0–4, zxcvbn-style. */
   score: number;
   entropyBits: number;
-  /** `"Weak" | "Fair" | "Good" | "Strong"` */
+  /**
+   * `"Weak" | "Fair" | "Good" | "Strong"` — English, from the core.
+   *
+   * **Do not render this.** Pass `entropyBits` to `useStrengthText` from
+   * `@/i18n` instead: it derives the same word from the same bits through the
+   * catalogue, so a reader who chose another language is not told about their
+   * password in English. The field stays because the DTO in
+   * `crates/remoter-ipc/src/dto.rs` still carries it.
+   */
   label: string;
   /**
    * Plain-language consequence, e.g. "Centuries of guessing at a billion
    * attempts a second." A bit count alone changes nobody's behaviour, so this
-   * sentence is the point — show it, not just the number.
+   * sentence is the point.
+   *
+   * **Do not render this** either, and for the same reason — `useStrengthText`
+   * returns it as `explanation`, translated, with the number as an ICU plural
+   * so it inflects and its digits follow the locale.
    */
   explanation: string;
   acceptable: boolean;
@@ -1331,6 +1343,13 @@ export interface Tunnel {
  * Every message names what failed, where, and what to do next — the failure
  * taxonomy in docs/architecture/session-pipeline.md. "Connection failed" is
  * never an acceptable string to show.
+ *
+ * The text is English, because the core produces it and the core is not the
+ * presentation layer. `code` is what makes that survivable: it is stable,
+ * documented and never shown, and `locales/<lang>/errors.json` is keyed by it.
+ * Render a failure through `FailureNotice`, or through `useFailureText` from
+ * `@/i18n` — never by reading `message` or `actions` straight into JSX, which
+ * puts English on screen for every reader who chose another language.
  */
 export interface IpcFailure {
   code: string;
@@ -1340,6 +1359,15 @@ export interface IpcFailure {
   actions: string[];
 }
 
+/**
+ * Whatever a rejected command threw, as a failure.
+ *
+ * The literal below is the only user-visible English in this file, and it is
+ * reached only when the rejection has no shape at all — a panic inside a
+ * command, a transport failure below Tauri. It is still translated: `unknown`
+ * is a code like any other in `errors.json`, so `useFailureText` renders the
+ * catalogue's sentence and this one is the fallback behind it.
+ */
 export function asFailure(e: unknown): IpcFailure {
   if (typeof e === "object" && e !== null && "code" in e && "message" in e) {
     return e as IpcFailure;

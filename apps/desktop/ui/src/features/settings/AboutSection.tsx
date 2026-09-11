@@ -28,38 +28,16 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 
 import { Button } from "@/components/Button";
 import { FailureNotice } from "@/components/FailureNotice";
+import { useT } from "@/i18n";
 import { asFailure, type IpcFailure } from "@/lib/ipc";
 
 import { SettingsSection } from "./SettingsSection";
 import s from "./AboutSection.module.css";
 
-const TEXT = {
-  title: "About",
-  description: "What this build is, and the terms it is under.",
-
-  versionLabel: "Version",
-  versionReading: "Reading…",
-  versionUnavailable: "Unavailable",
-
-  licenceLabel: "Licence",
-  licenceValue: "GNU General Public License, version 3 or later (GPL-3.0-or-later)",
-
-  exceptionLabel: "Plugins",
-  exceptionValue:
-    "This build cannot load plugins. There is no plugin host in it yet — only the ABI the future one will use. When there is: a WebAssembly plugin that talks to Remoter only through the published plugin ABI may be licensed on any terms you choose, which is the interface exception in LICENSE-EXCEPTION.",
-
-  updatesLabel: "Updates",
-  updatesValue:
-    "Remoter checks for a newer release only if you turn the check on, and it never installs one. See the Updates section.",
-
-  repositoryLabel: "Source",
-  repositoryOpen: "Open the repository",
-  repositoryFailed: "The system browser did not open.",
-} as const;
-
 const REPOSITORY_URL = "https://github.com/bbesli/Remoter";
 
 export function AboutSection() {
+  const t = useT("settings");
   const [openFailure, setOpenFailure] = useState<IpcFailure | null>(null);
 
   const version = useQuery({
@@ -82,32 +60,32 @@ export function AboutSection() {
   }
 
   const versionText = version.isPending
-    ? TEXT.versionReading
+    ? t("about.versionReading")
     : version.isError
-      ? TEXT.versionUnavailable
+      ? t("about.versionUnavailable")
       : version.data;
 
   return (
-    <SettingsSection title={TEXT.title} description={TEXT.description}>
+    <SettingsSection title={t("about.title")} description={t("about.description")}>
       <dl className={s.facts}>
-        <dt className={s.term}>{TEXT.versionLabel}</dt>
+        <dt className={s.term}>{t("about.versionLabel")}</dt>
         <dd className={[s.value, s.mono].join(" ")}>{versionText}</dd>
 
-        <dt className={s.term}>{TEXT.licenceLabel}</dt>
-        <dd className={s.value}>{TEXT.licenceValue}</dd>
+        <dt className={s.term}>{t("about.licenceLabel")}</dt>
+        <dd className={s.value}>{t("about.licenceValue")}</dd>
 
-        <dt className={s.term}>{TEXT.exceptionLabel}</dt>
-        <dd className={s.value}>{TEXT.exceptionValue}</dd>
+        <dt className={s.term}>{t("about.exceptionLabel")}</dt>
+        <dd className={s.value}>{t("about.exceptionValue")}</dd>
 
-        <dt className={s.term}>{TEXT.updatesLabel}</dt>
-        <dd className={s.value}>{TEXT.updatesValue}</dd>
+        <dt className={s.term}>{t("about.updatesLabel")}</dt>
+        <dd className={s.value}>{t("about.updatesValue")}</dd>
 
-        <dt className={s.term}>{TEXT.repositoryLabel}</dt>
+        <dt className={s.term}>{t("about.repositoryLabel")}</dt>
         <dd className={s.value}>
           <div className={s.repository}>
             <code className={["selectable", s.url].join(" ")}>{REPOSITORY_URL}</code>
             <Button size="sm" onClick={() => void open()}>
-              {TEXT.repositoryOpen}
+              {t("about.repositoryOpen")}
             </Button>
           </div>
         </dd>
@@ -116,7 +94,7 @@ export function AboutSection() {
       {openFailure !== null && (
         <FailureNotice
           failure={openFailure}
-          title={TEXT.repositoryFailed}
+          title={t("about.repositoryFailed")}
           onRetry={() => void open()}
         />
       )}

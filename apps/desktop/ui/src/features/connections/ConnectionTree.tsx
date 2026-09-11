@@ -23,6 +23,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { TFunction } from "i18next";
 import clsx from "clsx";
 
 import { BusyButton, BusyStatus, SkeletonRows } from "@/components/Busy";
@@ -30,6 +31,7 @@ import { Button } from "@/components/Button";
 import { Callout } from "@/components/Callout";
 import { Icon } from "@/components/Icon";
 import { TextInput } from "@/components/TextInput";
+import { documentDirection, inlineStartOffset, isolate, useT } from "@/i18n";
 import { asFailure, ipc, type TreeNode } from "@/lib/ipc";
 import { invalidateAfterTreeChange, qk } from "@/lib/queryKeys";
 import { useApp } from "@/stores/app";
@@ -40,48 +42,6 @@ import { NodeRow, type DropBand } from "./NodeRow";
 import { useConnectionEditor } from "./ConnectionEditor";
 import { useFocusTrap } from "./focusTrap";
 import s from "./ConnectionTree.module.css";
-
-const TEXT = {
-  filterPlaceholder: "Filter connections…",
-  filterLabel: "Filter the connection tree",
-  openPalette: "Open the command palette",
-  favourites: "Favourites",
-  allConnections: "All connections",
-  loading: "Reading the vault…",
-  loadFailed: "The tree could not be read",
-  emptyVault: "This vault has no connections yet. Create one to get started.",
-  noMatches: (q: string) => `Nothing in the tree matches “${q}”.`,
-  newConnection: "New connection",
-  newFolder: "New folder",
-  connect: "Connect",
-  edit: "Edit",
-  del: "Delete",
-  deleteTitle: "Delete this entry?",
-  deleteFolder: (n: number) => `It contains ${n} ${n === 1 ? "entry" : "entries"}, which go with it.`,
-  deleteIrreversible: "Deleting writes the vault immediately. There is no undo in this version.",
-  deleteFailed: "The entry was not deleted",
-  deleting: "Deleting…",
-  cancel: "Cancel",
-  confirmDelete: "Delete",
-  tree: "Connections",
-
-  moveFailed: "The entry was not moved",
-  dismiss: "Dismiss",
-  moving: "Moving…",
-  refuseSelf: "An entry cannot be dropped onto itself.",
-  refuseDescendant: "A folder cannot be moved inside something it contains.",
-  refuseNotFolder: "Only a folder can hold other entries.",
-  refuseGone: "That entry is no longer in the tree.",
-  movedInto: (name: string, parent: string) => `Moved “${name}” into “${parent}”.`,
-  movedToTop: (name: string) => `Moved “${name}” to the top level.`,
-  movedAbove: (name: string, anchor: string) => `Moved “${name}” above “${anchor}”.`,
-  movedBelow: (name: string, anchor: string) => `Moved “${name}” below “${anchor}”.`,
-  movedOutOf: (name: string, parent: string) => `Moved “${name}” out of “${parent}”.`,
-  atFirst: (name: string) => `“${name}” is already first among its siblings.`,
-  atLast: (name: string) => `“${name}” is already last among its siblings.`,
-  atTopLevel: (name: string) => `“${name}” is already at the top level.`,
-  cannotIndent: (name: string) => `“${name}” has no folder directly above it to move into.`,
-} as const;
 
 /**
  * There is no favourite flag in the node DTO, so the sidebar reads the tag the
@@ -94,6 +54,26 @@ const ROOT_KEY = " root";
 
 /** Keeps the context menu clear of the window edge it was opened against. */
 const MENU_MARGIN = 180;
+
+/**
+ * Where the menu should sit, given the physical point it was opened at.
+ *
+ * `clientX` counts from the left edge of the viewport in every layout, but the
+ * menu grows toward the reading end — rightwards under LTR, leftwards under
+ * RTL — so the edge it can fall off is a *different physical edge* in each
+ * direction. Clamping against the right edge in both was the bug that made an
+ * Arabic layout's menu run off the left of the window.
+ *
+ * The y axis needs no such mapping: the block axis is top-to-bottom in every
+ * locale this application ships, so `top` is already the logical property.
+ */
+function menuAnchor(x: number, y: number): { x: number; y: number } {
+  const clampedX =
+    documentDirection() === "rtl"
+      ? Math.max(x, MENU_MARGIN)
+      : Math.min(x, window.innerWidth - MENU_MARGIN);
+  return { x: clampedX, y: Math.min(y, window.innerHeight - MENU_MARGIN) };
+}
 
 /** How long a drag rests on a closed folder before the folder opens under it. */
 const AUTO_EXPAND_MS = 600;
@@ -222,19 +202,35 @@ function movesFor(plan: DropPlan, draggedId: string, siblings: readonly TreeNode
   return steps;
 }
 
-function describeMove(dragged: TreeNode, target: TreeNode | null, band: DropBand): string {
-  if (target === null) return TEXT.movedToTop(dragged.name);
+/**
+ * The sentence a completed move is announced with.
+ *
+ * `t` is passed in rather than read from a hook: this is a pure function, and
+ * the names in it are user data from the vault, so every one is isolated
+ * before it reaches the message. Without that a folder named in Arabic
+ * reverses the English sentence it lands in.
+ */
+function describeMove(
+  t: TFunction<"connections">,
+  dragged: TreeNode,
+  target: TreeNode | null,
+  band: DropBand,
+): string {
+  const name = isolate(dragged.name);
+  if (target === null) return t("move.movedToTop", { name });
   switch (band) {
     case "into":
-      return TEXT.movedInto(dragged.name, target.name);
+      return t("move.movedInto", { name, parent: isolate(target.name) });
     case "before":
-      return TEXT.movedAbove(dragged.name, target.name);
+      return t("move.movedAbove", { name, anchor: isolate(target.name) });
     case "after":
-      return TEXT.movedBelow(dragged.name, target.name);
+      return t("move.movedBelow", { name, anchor: isolate(target.name) });
   }
 }
 
 export function ConnectionTree() {
+  const t = useT("connections");
+  const tCommon = useT("common");
   const selectedNodeId = useApp((st) => st.selectedNodeId);
   const select = useApp((st) => st.select);
   const expanded = useApp((st) => st.expanded);
@@ -298,7 +294,7 @@ export function ConnectionTree() {
   }, [nodes]);
 
   const favourites = useMemo(
-    () => nodes.filter((n) => n.tags.some((t) => FAVOURITE_TAGS.has(fold(t)))),
+    () => nodes.filter((n) => n.tags.some((tag) => FAVOURITE_TAGS.has(fold(tag)))),
     [nodes],
   );
 
@@ -409,7 +405,10 @@ export function ConnectionTree() {
     },
     onError: async (error) => {
       await refreshTree();
-      setAnnouncement(`${TEXT.moveFailed}. ${asFailure(error).message}`);
+      // The core's own sentence, read out after ours. It arrives complete and
+      // punctuated, so it is interpolated rather than glued on with a full stop
+      // that a language putting the subject last would want somewhere else.
+      setAnnouncement(t("move.failedAnnounce", { reason: asFailure(error).message }));
     },
   });
 
@@ -462,11 +461,7 @@ export function ConnectionTree() {
   // The menu is positioned in viewport coordinates, so it has to be kept
   // inside the window rather than trusting the click point near an edge.
   const onContextMenu = useCallback((id: string, x: number, y: number) => {
-    setMenu({
-      x: Math.min(x, window.innerWidth - MENU_MARGIN),
-      y: Math.min(y, window.innerHeight - MENU_MARGIN),
-      nodeId: id,
-    });
+    setMenu({ ...menuAnchor(x, y), nodeId: id });
   }, []);
 
   // The row hands back an id; the menu needs the node, which only the index
@@ -613,16 +608,20 @@ export function ConnectionTree() {
       }
 
       const target = index.byId.get(targetId);
-      if (target === undefined) return { targetId, band, plan: null, reason: TEXT.refuseGone };
-      if (target.id === dragId) return { targetId, band, plan: null, reason: TEXT.refuseSelf };
+      if (target === undefined) {
+        return { targetId, band, plan: null, reason: t("move.refuseGone") };
+      }
+      if (target.id === dragId) {
+        return { targetId, band, plan: null, reason: t("move.refuseSelf") };
+      }
 
       if (band === "into") {
         if (blocked.has(target.id)) {
-          return { targetId, band, plan: null, reason: TEXT.refuseDescendant };
+          return { targetId, band, plan: null, reason: t("move.refuseDescendant") };
         }
         // A group is not a container in the core, whatever its glyph suggests.
         if (target.kind !== "folder") {
-          return { targetId, band, plan: null, reason: TEXT.refuseNotFolder };
+          return { targetId, band, plan: null, reason: t("move.refuseNotFolder") };
         }
         const kids = siblingsWithout(target.id, dragId);
         return { targetId, band, plan: { parentId: target.id, index: kids.length }, reason: null };
@@ -630,11 +629,11 @@ export function ConnectionTree() {
 
       const parentId = target.parentId;
       if (parentId !== null && blocked.has(parentId)) {
-        return { targetId, band, plan: null, reason: TEXT.refuseDescendant };
+        return { targetId, band, plan: null, reason: t("move.refuseDescendant") };
       }
       const sibs = siblingsWithout(parentId, dragId);
       const at = sibs.findIndex((n) => n.id === target.id);
-      if (at < 0) return { targetId, band, plan: null, reason: TEXT.refuseGone };
+      if (at < 0) return { targetId, band, plan: null, reason: t("move.refuseGone") };
       return {
         targetId,
         band,
@@ -642,7 +641,7 @@ export function ConnectionTree() {
         reason: null,
       };
     },
-    [blocked, dragId, index, siblingsWithout],
+    [blocked, dragId, index, siblingsWithout, t],
   );
 
   const onDragStartRow = useCallback(
@@ -692,14 +691,17 @@ export function ConnectionTree() {
     const dragged = index.byId.get(draggedId);
     if (dragged === undefined) return;
     if (state.plan === null) {
-      setAnnouncement(state.reason ?? TEXT.refuseGone);
+      setAnnouncement(state.reason ?? t("move.refuseGone"));
       return;
     }
 
     const sibs = siblingsWithout(state.plan.parentId, draggedId);
     const target = state.targetId === null ? null : (index.byId.get(state.targetId) ?? null);
-    runMove(movesFor(state.plan, draggedId, sibs), describeMove(dragged, target, state.band));
-  }, [dragId, index, siblingsWithout, runMove, clearDrop]);
+    runMove(
+      movesFor(state.plan, draggedId, sibs),
+      describeMove(t, dragged, target, state.band),
+    );
+  }, [dragId, index, siblingsWithout, runMove, clearDrop, t]);
 
   const onDragEndRow = useCallback(() => {
     clearDrop();
@@ -720,34 +722,44 @@ export function ConnectionTree() {
       switch (action) {
         case "up": {
           if (at === 0) {
-            setAnnouncement(TEXT.atFirst(node.name));
+            setAnnouncement(t("move.atFirst", { name: isolate(node.name) }));
             return;
           }
           const anchor = without[at - 1];
           const plan: DropPlan = { parentId: node.parentId, index: at - 1 };
           runMove(
             movesFor(plan, node.id, without),
-            anchor === undefined ? TEXT.movedToTop(node.name) : TEXT.movedAbove(node.name, anchor.name),
+            anchor === undefined
+              ? t("move.movedToTop", { name: isolate(node.name) })
+              : t("move.movedAbove", {
+                  name: isolate(node.name),
+                  anchor: isolate(anchor.name),
+                }),
           );
           return;
         }
         case "down": {
           if (at >= sibs.length - 1) {
-            setAnnouncement(TEXT.atLast(node.name));
+            setAnnouncement(t("move.atLast", { name: isolate(node.name) }));
             return;
           }
           const anchor = without[at];
           const plan: DropPlan = { parentId: node.parentId, index: at + 1 };
           runMove(
             movesFor(plan, node.id, without),
-            anchor === undefined ? TEXT.movedToTop(node.name) : TEXT.movedBelow(node.name, anchor.name),
+            anchor === undefined
+              ? t("move.movedToTop", { name: isolate(node.name) })
+              : t("move.movedBelow", {
+                  name: isolate(node.name),
+                  anchor: isolate(anchor.name),
+                }),
           );
           return;
         }
         case "out": {
           const parentId = node.parentId;
           if (parentId === null) {
-            setAnnouncement(TEXT.atTopLevel(node.name));
+            setAnnouncement(t("move.atTopLevel", { name: isolate(node.name) }));
             return;
           }
           const parent = index.byId.get(parentId);
@@ -756,25 +768,31 @@ export function ConnectionTree() {
           const parentAt = uncles.findIndex((n) => n.id === parent.id);
           if (parentAt < 0) return;
           const plan: DropPlan = { parentId: parent.parentId, index: parentAt + 1 };
-          runMove(movesFor(plan, node.id, uncles), TEXT.movedOutOf(node.name, parent.name));
+          runMove(
+            movesFor(plan, node.id, uncles),
+            t("move.movedOutOf", { name: isolate(node.name), parent: isolate(parent.name) }),
+          );
           return;
         }
         case "in": {
           const previous = at === 0 ? undefined : sibs[at - 1];
           if (previous === undefined || previous.kind !== "folder") {
-            setAnnouncement(TEXT.cannotIndent(node.name));
+            setAnnouncement(t("move.cannotIndent", { name: isolate(node.name) }));
             return;
           }
           const kids = siblingsWithout(previous.id, node.id);
           const plan: DropPlan = { parentId: previous.id, index: kids.length };
           // Open the folder, or the node the user just moved leaves the screen.
           if (!expanded.has(previous.id)) toggleExpanded(previous.id);
-          runMove(movesFor(plan, node.id, kids), TEXT.movedInto(node.name, previous.name));
+          runMove(
+            movesFor(plan, node.id, kids),
+            t("move.movedInto", { name: isolate(node.name), parent: isolate(previous.name) }),
+          );
           return;
         }
       }
     },
-    [index, siblingsWithout, runMove, expanded, toggleExpanded],
+    [index, siblingsWithout, runMove, expanded, toggleExpanded, t],
   );
 
   // ------------------------------------------------------------ keyboard ----
@@ -904,24 +922,31 @@ export function ConnectionTree() {
           <TextInput
             value={filter}
             onChange={setFilter}
-            placeholder={TEXT.filterPlaceholder}
-            ariaLabel={TEXT.filterLabel}
+            placeholder={t("tree.filterPlaceholder")}
+            ariaLabel={t("tree.filterLabel")}
           />
         </span>
         <button
           type="button"
           className={s.shortcut}
-          title={TEXT.openPalette}
-          aria-label={TEXT.openPalette}
+          title={t("tree.openPalette")}
+          aria-label={t("tree.openPalette")}
           onClick={() => setPaletteOpen(true)}
         >
+          {/* eslint-disable remoter-i18n/no-literal-jsx-text --
+              key names. A keycap says Ctrl whatever the interface language is
+              (docs/features/i18n.md, "What is never translated"). The block
+              form rather than disable-next-line: a bare text child starts on
+              the line the comment ends on, so the one-line directive covers
+              nothing. */}
           Ctrl K
+          {/* eslint-enable remoter-i18n/no-literal-jsx-text */}
         </button>
       </div>
 
       {failure !== null && (
         <div className={s.notice}>
-          <Callout tone="danger" title={TEXT.loadFailed}>
+          <Callout tone="danger" title={t("tree.loadFailed")}>
             {failure.message}
           </Callout>
         </div>
@@ -931,7 +956,7 @@ export function ConnectionTree() {
           live region below is silent to anyone who can see the screen. */}
       {moveMutation.isPending && (
         <div className={s.status}>
-          <BusyStatus label={TEXT.moving} size={14} />
+          <BusyStatus label={t("move.inProgress")} size={14} />
         </div>
       )}
 
@@ -942,18 +967,20 @@ export function ConnectionTree() {
       */}
       {moveFailure !== null && (
         <div className={s.notice}>
-          <Callout tone="danger" title={TEXT.moveFailed}>
+          <Callout tone="danger" title={t("move.failed")}>
             <span className={s.noticeBody}>
               <span>{moveFailure.message}</span>
               {moveFailure.detail !== null && (
                 <span className={s.noticeDetail}>{moveFailure.detail}</span>
               )}
               {moveFailure.actions.length > 0 && (
-                <span className={s.noticeDetail}>{moveFailure.actions.join(" · ")}</span>
+                <span className={s.noticeDetail}>
+                  {moveFailure.actions.join(` ${t("punctuation.detail")} `)}
+                </span>
               )}
               <span className={s.noticeActions}>
                 <Button variant="ghost" size="sm" onClick={() => resetMove()}>
-                  {TEXT.dismiss}
+                  {tCommon("action.dismiss")}
                 </Button>
               </span>
             </span>
@@ -965,18 +992,14 @@ export function ConnectionTree() {
         ref={scrollerRef}
         className={clsx(s.scroller, rootTargeted && s.dropRoot)}
         role="tree"
-        aria-label={TEXT.tree}
+        aria-label={t("tree.label")}
         tabIndex={0}
         {...(cursorKey === null ? {} : { "aria-activedescendant": rowDomId(cursorKey) })}
         onKeyDown={onKeyDown}
         onContextMenu={(e) => {
           if (e.target !== e.currentTarget) return;
           e.preventDefault();
-          setMenu({
-            x: Math.min(e.clientX, window.innerWidth - MENU_MARGIN),
-            y: Math.min(e.clientY, window.innerHeight - MENU_MARGIN),
-            nodeId: null,
-          });
+          setMenu({ ...menuAnchor(e.clientX, e.clientY), nodeId: null });
         }}
         onDragOver={(e) => {
           // Rows stop their own dragover, so anything arriving here is the
@@ -1003,7 +1026,7 @@ export function ConnectionTree() {
         {nodesQuery.isPending && (
           <>
             <div className={s.status}>
-              <BusyStatus label={TEXT.loading} size={14} />
+              <BusyStatus label={t("tree.loading")} size={14} />
             </div>
             <div className={s.skeleton}>
               <SkeletonRows count={6} height="var(--space-5)" />
@@ -1019,11 +1042,11 @@ export function ConnectionTree() {
                 <span className={s.sectionGlyph}>
                   <Icon name="star" size={12} />
                 </span>
-                {TEXT.favourites}
+                {t("tree.sectionFavourites")}
               </div>
             ) : row.section === "tree" && (previous === undefined || previous.section === "favourite") ? (
               <div className={s.sectionHeader} key="h-tree">
-                {TEXT.allConnections}
+                {t("tree.sectionAll")}
               </div>
             ) : null;
 
@@ -1062,14 +1085,16 @@ export function ConnectionTree() {
 
         {nodesQuery.isSuccess && rows.length === 0 && (
           <p className={s.empty}>
-            {filter.trim() === "" ? TEXT.emptyVault : TEXT.noMatches(filter.trim())}
+            {filter.trim() === ""
+              ? t("tree.emptyVault")
+              : t("tree.noMatches", { query: isolate(filter.trim()) })}
           </p>
         )}
       </div>
 
       {/* Drag-and-drop is invisible to a screen reader; this is where it speaks. */}
       <div className={s.live} role="status" aria-live="polite">
-        {moveMutation.isPending ? TEXT.moving : announcement}
+        {moveMutation.isPending ? t("move.inProgress") : announcement}
       </div>
 
       <div className={s.footer}>
@@ -1087,14 +1112,14 @@ export function ConnectionTree() {
             }
           >
             <Icon name="plus" size={13} />
-            {TEXT.newConnection}
+            {t("tree.newConnection")}
           </Button>
         </span>
         <Button
           variant="ghost"
           size="sm"
-          title={TEXT.newFolder}
-          ariaLabel={TEXT.newFolder}
+          title={t("tree.newFolder")}
+          ariaLabel={t("tree.newFolder")}
           onClick={() =>
             openEditor({ mode: "create", parentId: creationParent(selectedNode), kind: "folder" })
           }
@@ -1107,7 +1132,19 @@ export function ConnectionTree() {
         <div
           className={s.menu}
           role="menu"
-          style={{ left: `${menu.x}px`, top: `${menu.y}px` }}
+          // `inset-inline-start`, not `left`: this is the one box in the
+          // frontend positioned from JavaScript rather than from a stylesheet,
+          // and it was also the one physical inset left anywhere. `menu.x` is
+          // a physical viewport coordinate — see `inlineStartOffset` for why
+          // that has to be mirrored before it can be used logically. The menu
+          // is `position: fixed`, so the containing block is the viewport and
+          // `window.innerWidth` is the right width to mirror against; it is
+          // read at render rather than stored because the menu dismisses
+          // itself on `resize`, so this value cannot go stale while it is open.
+          style={{
+            insetInlineStart: `${inlineStartOffset(menu.x, window.innerWidth, documentDirection())}px`,
+            top: `${menu.y}px`,
+          }}
           onClick={(e) => e.stopPropagation()}
         >
           {/* First, because it is what the menu is most often opened for. */}
@@ -1123,7 +1160,7 @@ export function ConnectionTree() {
             }}
           >
             <Icon name="server" size={13} />
-            {TEXT.connect}
+            {t("menu.connect")}
           </button>
           <div className={s.menuSeparator} />
           <button
@@ -1140,7 +1177,7 @@ export function ConnectionTree() {
             }}
           >
             <Icon name="plus" size={13} />
-            {TEXT.newConnection}
+            {t("tree.newConnection")}
           </button>
           <button
             type="button"
@@ -1152,7 +1189,7 @@ export function ConnectionTree() {
             }}
           >
             <Icon name="folder" size={13} />
-            {TEXT.newFolder}
+            {t("tree.newFolder")}
           </button>
           <div className={s.menuSeparator} />
           <button
@@ -1167,7 +1204,7 @@ export function ConnectionTree() {
             }}
           >
             <Icon name="settings" size={13} />
-            {TEXT.edit}
+            {t("menu.edit")}
           </button>
           <button
             type="button"
@@ -1181,7 +1218,7 @@ export function ConnectionTree() {
             }}
           >
             <Icon name="trash" size={13} />
-            {TEXT.del}
+            {t("menu.delete")}
           </button>
         </div>
       )}
@@ -1193,20 +1230,30 @@ export function ConnectionTree() {
             className={s.confirm}
             role="alertdialog"
             aria-modal="true"
-            aria-label={TEXT.deleteTitle}
+            aria-label={t("delete.title")}
             // Somewhere for focus to land if the buttons are ever taken away.
             tabIndex={-1}
           >
-            <h2 className={s.confirmTitle}>{TEXT.deleteTitle}</h2>
+            <h2 className={s.confirmTitle}>{t("delete.title")}</h2>
             <Callout tone="danger">
-              <span className={s.confirmName}>{pendingDelete.name}</span>
-              {descendantCount(pendingDelete.id) > 0
-                ? ` — ${TEXT.deleteFolder(descendantCount(pendingDelete.id))} `
-                : " "}
-              {TEXT.deleteIrreversible}
+              {/* The name is the subject of the two sentences that follow, so
+                  it stays a span of its own rather than being interpolated
+                  into them: it is user data of any length and any script, and
+                  it carries the weight the rest of the callout does not. The
+                  dash is layout punctuation between the two, not copy. */}
+              <span className={s.confirmName}>{isolate(pendingDelete.name)}</span>
+              {descendantCount(pendingDelete.id) > 0 ? (
+                <>
+                  {" — "}
+                  {t("delete.contains", { count: descendantCount(pendingDelete.id) })}{" "}
+                </>
+              ) : (
+                " "
+              )}
+              {t("delete.irreversible")}
             </Callout>
             {deleteFailure !== null && (
-              <Callout tone="danger" title={TEXT.deleteFailed}>
+              <Callout tone="danger" title={t("delete.failed")}>
                 {deleteFailure.message}
               </Callout>
             )}
@@ -1216,15 +1263,15 @@ export function ConnectionTree() {
                 onClick={() => setPendingDelete(null)}
                 disabled={deleteMutation.isPending}
               >
-                {TEXT.cancel}
+                {tCommon("action.cancel")}
               </Button>
               <BusyButton
                 variant="danger"
                 busy={deleteMutation.isPending}
-                busyLabel={TEXT.deleting}
+                busyLabel={t("delete.inProgress")}
                 onClick={() => deleteMutation.mutate(pendingDelete.id)}
               >
-                {TEXT.confirmDelete}
+                {t("delete.confirm")}
               </BusyButton>
             </div>
           </div>
