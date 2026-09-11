@@ -241,6 +241,12 @@
   color: var(--danger-text);
 }
 
+/* Stands where the Print button would be on an engine that cannot print. */
+.actionNote {
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+}
+
 /* ------------------------------------------------- transcription check ---- */
 
 .confirmBlock {

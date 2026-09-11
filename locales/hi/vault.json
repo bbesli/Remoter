@@ -1,18 +1,15 @@
 {
   "_comment_file": "The vault surfaces: choosing a vault, creating one, the recovery key, and unlocking. This is the first thing a new user reads and the last thing a locked-out one reads, so it carries more security-critical copy than any other namespace. Anything marked SECURITY-CRITICAL describes permanent, unrecoverable data loss; softening it into something gentler is a foreseeable source of harm, and those strings get a second reader before a translation is accepted (docs/features/i18n.md).",
-
   "probe": {
     "_comment_reading": "The cleartext header of the vault file is being read. Nothing is decrypted at this point — say 'header', not 'vault'.",
     "reading": "वॉल्ट हेडर पढ़ा जा रहा है…"
   },
-
   "kdf": {
     "_comment_": "Argon2id key derivation takes about a second by design. Shown beside the spinner on every screen that derives a key — creating a vault, unlocking one, adding or rotating a key slot. It is an explanation of a security property, not an apology for a slow program: do not turn 'deliberately slow' into 'this may take a moment'.",
     "slow": "कुंजी-व्युत्पत्ति जान-बूझकर धीमी रखी गई है। यही लागत चोरी हुई वॉल्ट फ़ाइल पर हमला करना महँगा बनाती है।",
     "_comment_slowWithSummary": "{summary} is the cost this vault was written with, e.g. 'Argon2id, 256 MiB, t=3'. It is produced by the core and is never translated.",
     "slowWithSummary": "कुंजी-व्युत्पत्ति जान-बूझकर धीमी रखी गई है — {summary}। यही लागत चोरी हुई वॉल्ट फ़ाइल पर हमला करना महँगा बनाती है।"
   },
-
   "keyfile": {
     "_comment_": "A key file is a second factor: any file the user chooses becomes part of the key. These strings are shared by the unlock screen, the create wizard and the vault-settings dialogs.",
     "label": "कुंजी फ़ाइल",
@@ -29,7 +26,6 @@
       "isABackup": "{name} किसी वॉल्ट का रोलिंग बैकअप है, कुंजी फ़ाइल नहीं। कोई दूसरी फ़ाइल चुनें।"
     }
   },
-
   "slot": {
     "_comment_": "The four ways a vault can be opened, named on the unlock screen's cards. Each is a noun phrase, not a verb: they name a method, they are not an instruction to use it.",
     "password": "मास्टर पासवर्ड",
@@ -38,7 +34,6 @@
     "_comment_keychain": "The system keychain (Keychain on macOS, Secret Service on Linux, Credential Manager on Windows) is holding the key for this machine. Phrased from the user's side: they asked to be remembered.",
     "keychain": "इस डिवाइस पर याद रखें"
   },
-
   "picker": {
     "_comment_": "The launch screen. It lists the vaults this machine has opened before; nothing on it decrypts anything.",
     "title": "कोई वॉल्ट खोलें",
@@ -76,7 +71,6 @@
     "_comment_settingsHint": "Its tooltip. It names the three settings worth changing before a vault is ever opened.",
     "settingsHint": "सेटिंग्स — भाषा, थीम और शॉर्टकट"
   },
-
   "detail": {
     "_comment_": "The panel beside the list, describing whichever vault is under the pointer. It reads the cleartext header only.",
     "probeFailed": "इस वॉल्ट का हेडर पढ़ा नहीं जा सका।",
@@ -104,7 +98,6 @@
       "keychain": "इस डिवाइस पर सेव किया हुआ"
     }
   },
-
   "firstRun": {
     "_comment_": "What the launch screen says instead of a list when this machine has never opened a vault. 'Pick a vault' is a meaningless instruction when there are none, so it offers two doors.",
     "title": "कुछ भी करने से पहले Remoter को एक वॉल्ट चाहिए",
@@ -116,7 +109,6 @@
     "emptyTitle": "खाली शुरुआत करें",
     "emptyHelp": "चार चरण: फ़ाइल कहाँ रहेगी, एक मास्टर पासवर्ड, एक वैकल्पिक कुंजी फ़ाइल, और आपकी रिकवरी कुंजी।"
   },
-
   "wizard": {
     "_comment_": "The frame around the four create-vault steps: title bar, the stepper, and the two footer buttons.",
     "windowTitle": "वॉल्ट बनाएँ",
@@ -136,7 +128,6 @@
     "continue": "आगे बढ़ें",
     "createAction": "वॉल्ट बनाएँ"
   },
-
   "create": {
     "_comment_": "Steps 1 to 3 of the create-vault wizard. Step 4 is the 'recovery' group below.",
     "creating": "कुंजी निकाली जा रही है और वॉल्ट लिखा जा रहा है…",
@@ -232,7 +223,6 @@
       "required": "अब वॉल्ट खोलने के लिए यह फ़ाइल ज़रूरी है। अगर यह खो गई, तो सिर्फ़ आपकी रिकवरी कुंजी ही काम आएगी।"
     }
   },
-
   "recovery": {
     "_comment_": "Step 4, and the same panel again when a recovery key is rotated from vault settings. The key is shown exactly once and is stored nowhere, which is why this screen makes the user retype part of it.",
     "heading": "आपकी रिकवरी कुंजी",
@@ -248,11 +238,18 @@
     "copied": "क्लिपबोर्ड पर कॉपी हो गई।",
     "copyFailed": "इस सिस्टम ने कॉपी करने की अनुमति नहीं दी। कुंजी को लिखकर रख लें या प्रिंट कर लें।",
     "_comment_download": "A verb on a button: save the key as a plain text file.",
-    "download": "टेक्स्ट फ़ाइल के रूप में डाउनलोड करें",
-    "downloadFailed": "इस सिस्टम ने फ़ाइल सेव करने की अनुमति नहीं दी। इसके बजाय कुंजी प्रिंट कर लें।",
+    "download": "टेक्स्ट फ़ाइल के रूप में सहेजें",
+    "saveTitle": "अपनी रिकवरी कुंजी सहेजें",
+    "filterText": "टेक्स्ट फ़ाइल",
+    "saving": "सहेजी जा रही है…",
+    "saved": "{path} में सहेजी गई",
+    "savedPlaintext": "वह फ़ाइल साधारण टेक्स्ट है, वॉल्ट के एन्क्रिप्शन के बाहर। जो कोई डिस्क पढ़ सकता है, वह कुंजी भी पढ़ सकता है। इसे वैसे ही सँभालकर रखें जैसे पासपोर्ट रखते हैं, या कुंजी सुरक्षित जगह पहुँच जाने पर इसे मिटा दें।",
+    "saveFailed": "रिकवरी कुंजी सहेजी नहीं गई।",
+    "saveDialogFailed": "इस सिस्टम ने सहेजने का डायलॉग नहीं खोला। कुंजी कॉपी कर लें या लिखकर रख लें।",
     "_comment_print": "A verb on a button: send the key to a printer.",
     "print": "प्रिंट करें",
     "printFailed": "इस सिस्टम ने प्रिंट डायलॉग नहीं खोला। कुंजी कॉपी कर लें या लिखकर रख लें।",
+    "printUnavailable": "यह सिस्टम इस विंडो से प्रिंट नहीं कर सकता।",
     "_comment_confirmPrompt": "{group} is which group of the key to retype — a position, counting from one. The group itself is highlighted in the grid above. This is one sentence rather than a sentence assembled around a number: split sentences do not survive translation.",
     "confirmPrompt": "यह पुष्टि करने के लिए कि कुंजी आपके पास सुरक्षित है, समूह {group, number} — जो ऊपर हाइलाइट किया गया है — टाइप करें।",
     "_comment_targetGroupAria": "The accessible name of that highlighted group, read aloud instead of the four characters in it.",
@@ -281,7 +278,6 @@
       "warning": "{title} {body}"
     }
   },
-
   "unlock": {
     "_comment_": "The unlock screen. It lists the slots this vault's header actually has, so a vault with one password slot shows one card and no invented alternatives.",
     "windowTitle": "वॉल्ट अनलॉक करें",

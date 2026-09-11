@@ -63,6 +63,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         commands::generate_passphrase,
         commands::password_strength,
         commands::generate_keyfile,
+        commands::recovery_sheet_write,
         commands::suggest_vault_path,
         // --- tree ---
         commands::tree_list,

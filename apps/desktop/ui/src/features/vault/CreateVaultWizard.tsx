@@ -30,6 +30,7 @@ import { asFailure, ipc } from "@/lib/ipc";
 import type { IpcFailure, PasswordStrength } from "@/lib/ipc";
 import { useApp } from "@/stores/app";
 
+import { useImportIntent } from "./importIntent";
 import { keyfileFilters, keyfileRefusal } from "./keyfile";
 import { StepHeading, WizardShell } from "./RecoveryKeyScreen";
 import type { WizardStep } from "./RecoveryKeyScreen";
@@ -157,7 +158,12 @@ function meterTone(score: number): "weak" | "fair" | "strong" {
 export function CreateVaultWizard() {
   const t = useT("vault");
   const tCommon = useT("common");
+  // One line of copy from the import namespace, for the case where this wizard
+  // is the detour between the first-run import door and the importer itself.
+  const tImport = useT("import");
   const go = useApp((state) => state.go);
+  const importWanted = useImportIntent((state) => state.wanted);
+  const setImportWanted = useImportIntent((state) => state.setWanted);
 
   const [step, setStep] = useState<WizardStep>(1);
   const [maxVisited, setMaxVisited] = useState<WizardStep>(1);
@@ -537,11 +543,15 @@ export function CreateVaultWizard() {
 
   const onBack = useCallback(() => {
     if (step === 1) {
+      // Backing out of creation abandons whatever the launch screen was asked
+      // for. Leaving the intent set would open the importer after some later,
+      // unrelated vault creation.
+      setImportWanted(false);
       go({ name: "picker" });
       return;
     }
     setStep((current) => (current - 1) as WizardStep);
-  }, [step, go]);
+  }, [step, go, setImportWanted]);
 
   // Nothing is written to disk until the end of step 3, which is why the first
   // two steps say the same thing.
@@ -581,6 +591,15 @@ export function CreateVaultWizard() {
             badge={null}
             lead={t("create.location.lead")}
           />
+
+          {/* Someone who pressed "bring across what I have" and landed on a
+              create-a-vault form has every reason to think the button did
+              nothing. Say where they are and what happens at the end of it. */}
+          {importWanted && (
+            <Callout tone="info" title={tImport("firstRun.calloutTitle")}>
+              <p>{tImport("firstRun.calloutBody")}</p>
+            </Callout>
+          )}
 
           <div className={s.fields}>
             <Field

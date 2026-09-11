@@ -295,12 +295,20 @@
         "Utiliser plutôt l'agent SSH de la plateforme"
       ]
     },
-    "_comment_unsupported-format": "The first action quotes a command. Translate the sentence around it if there is one; never translate the command itself, and keep its flags exactly as they are.",
+    "_comment_unsupported-format": "The refusal is a real limitation, not a conversion the user can perform: no protocol in this build can authenticate with a key of that kind, so the actions must not suggest converting the file. The three algorithm names in the first action are algorithm names, not words; leave them exactly as they are.",
     "unsupported-format": {
-      "message": "Cette clé est dans un format que cette build ne stocke pas. Rien n'a été écrit.",
+      "message": "C’est une clé privée d’un type avec lequel aucun protocole de cette version ne peut s’authentifier. Rien n’a été écrit.",
       "actions": [
-        "La convertir avec `ssh-keygen -p -m PKCS8 -f '<file>'`",
-        "Utiliser plutôt l'agent SSH de la plateforme"
+        "Utiliser plutôt une clé Ed25519, ECDSA ou RSA",
+        "Utiliser plutôt l’agent SSH du système"
+      ]
+    },
+    "_comment_legacy-encrypted": "Different from unsupported-format: the key itself is fine, it is the PEM container that is encrypted, and Remoter has to read the container before it can store the key. The first action quotes two commands. Translate the sentence around them if there is one; never translate the commands themselves, and keep `<file>` and `<copy>` exactly as they are. The word 'copy' is load-bearing: `ssh-keygen -p` rewrites the file it is given, and the user's key file is very often shared with other tools.",
+    "legacy-encrypted": {
+      "message": "Cette clé est chiffrée à l’intérieur de son propre conteneur PEM, et Remoter doit pouvoir lire le conteneur avant de pouvoir enregistrer la clé. Rien n’a été écrit.",
+      "actions": [
+        "Convertir une copie : `cp <file> <copy>` puis `ssh-keygen -p -m PKCS8 -f <copy>`",
+        "Utiliser plutôt l’agent SSH du système"
       ]
     },
     "passphrase-required": {
@@ -320,7 +328,7 @@
       ]
     },
     "purpose-refused": {
-      "message": "Cet identifiant est restreint et ne peut pas être utilisé ainsi.",
+      "message": "La restriction de cet identifiant ne couvre pas l'usage prévu, le coffre-fort a donc refusé de l'ouvrir. Élargissez la restriction dans les paramètres de l'identifiant, ou choisissez un identifiant qui autorise déjà cet usage.",
       "actions": [
         "Choisir un autre identifiant",
         "Élargir la restriction de l'identifiant"

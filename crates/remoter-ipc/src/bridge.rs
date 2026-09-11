@@ -31,7 +31,11 @@ use remoter_proto::{
     CredentialKind, CredentialProvider, Fingerprint, HostPort, KeyBorrow, KnownKey, ProtocolError,
     TrustSource, TrustStore,
 };
-use remoter_vault::{ExposeSecret as _, Purpose, Secret};
+use remoter_proto_rdp::RDP_ID;
+use remoter_proto_ssh::SSH_ID;
+use remoter_proto_ssh::sftp::SFTP_ID;
+use remoter_proto_vnc::VNC_ID;
+use remoter_vault::{ExposeSecret as _, Purpose, Secret, VaultError};
 use serde::{Deserialize, Serialize};
 
 use crate::error::IpcError;
@@ -141,6 +145,96 @@ impl CredentialProvider for VaultCredentials {
     }
 }
 
+/// The purpose a stored password is borrowed under, for the protocol the
+/// session is actually opening.
+///
+/// **The purpose is a security control, not a label.** It is what the vault
+/// checks the credential's own restriction against
+/// (`docs/architecture/session-pipeline.md` §3), so it has to name the protocol
+/// in front of the user. A constant here — every borrow asking for
+/// `SshPassword` — meant an RDP, VNC or SFTP session asked the vault for an SSH
+/// password, and a credential the importer had correctly restricted to RDP
+/// refused its own connection.
+///
+/// `None` for a protocol no purpose names: the caller refuses rather than
+/// falling back, because a fallback is a restriction check asked about the
+/// wrong protocol, which is the defect this function exists to remove.
+fn password_purpose(protocol: &ProtocolId) -> Option<Purpose> {
+    match protocol.as_str() {
+        SSH_ID => Some(Purpose::SshPassword),
+        SFTP_ID => Some(Purpose::SftpPassword),
+        RDP_ID => Some(Purpose::RdpCredentials),
+        VNC_ID => Some(Purpose::VncPassword),
+        _ => None,
+    }
+}
+
+/// The same, for private key material.
+///
+/// Only the two SSH-transport protocols have one: RDP and VNC authenticate with
+/// a password or a ticket, never with a stored private key, so a key credential
+/// on one of those is refused rather than borrowed and thrown away at the
+/// handshake.
+fn private_key_purpose(protocol: &ProtocolId) -> Option<Purpose> {
+    match protocol.as_str() {
+        SSH_ID => Some(Purpose::SshPrivateKey),
+        SFTP_ID => Some(Purpose::SftpPrivateKey),
+        _ => None,
+    }
+}
+
+/// "The credential `db-01 root` is restricted to ssh and cannot be used for
+/// `rdp`" — the failure taxonomy's purpose mismatch, with the real lists in it.
+///
+/// One function, because the same statement is reached two ways: this crate
+/// checks the restriction before it asks the vault, and the vault checks it
+/// again as it opens the field. Both name the credential and both name the
+/// protocol, so which one fired is not something the user has to care about.
+fn purpose_refused(credential: &str, allowed: &[ProtocolId], attempted: &ProtocolId) -> IpcError {
+    let list = allowed
+        .iter()
+        .map(ProtocolId::as_str)
+        .collect::<Vec<_>>()
+        .join(", ");
+    let attempted = attempted.as_str();
+    // An empty list means "unrestricted", which cannot reach here — but saying
+    // "restricted to  and cannot be used" if it ever did would be worse than a
+    // slightly vaguer sentence.
+    let message = if list.is_empty() {
+        format!(
+            "The credential `{credential}` is restricted to other protocols and cannot be used \
+             for `{attempted}`."
+        )
+    } else {
+        format!(
+            "The credential `{credential}` is restricted to {list} and cannot be used for \
+             `{attempted}`."
+        )
+    };
+    IpcError::new("session.credential-purpose", message)
+        .with_actions(["Choose a credential", "Open the credential's settings"])
+}
+
+/// A failure from opening a secret field, as the interface should read it.
+///
+/// `PurposeRefused` is special-cased because the vault's own error carries only
+/// a [`Purpose`]: rendered as it stands it says "this credential is restricted
+/// and may not be used this way", with `SshPassword` as the diagnostic, which
+/// names neither the credential nor the connection the user was opening. Here
+/// both are known, so the statement is the same one the pre-check makes.
+fn borrow_failure(
+    err: &VaultError,
+    credential: &str,
+    allowed: &[ProtocolId],
+    attempted: &ProtocolId,
+    subject: &str,
+) -> IpcError {
+    match err {
+        VaultError::PurposeRefused(_) => purpose_refused(credential, allowed, attempted),
+        other => IpcError::from_vault(other, subject),
+    }
+}
+
 /// Stage 3 · Acquire. Borrows `credential` from the open vault, scoped to one
 /// connection attempt.
 ///
@@ -195,33 +289,36 @@ pub(crate) fn acquire(
     };
 
     if !props.permits(protocol) {
-        // The taxonomy's "this credential is restricted to SSH and cannot be
-        // used for RDP", with the real lists in it.
-        let allowed = props
-            .allowed_protocols
-            .iter()
-            .map(|p| p.as_str().to_owned())
-            .collect::<Vec<_>>()
-            .join(", ");
-        return Err(IpcError::new(
-            "session.credential-purpose",
-            format!(
-                "The credential `{}` is restricted to {allowed} and cannot be used for `{}`.",
-                node.name,
-                protocol.as_str()
-            ),
-        )
-        .with_actions(["Choose a credential", "Open the credential's settings"]));
+        return Err(purpose_refused(
+            &node.name,
+            &props.allowed_protocols,
+            protocol,
+        ));
     }
 
     let username = Some(props.username.clone()).filter(|u| !u.trim().is_empty());
     let domain = props.domain.clone();
+    // Moved out before `props.secret` is, so the restriction is still to hand
+    // when a borrow comes back refused.
+    let allowed = props.allowed_protocols;
 
     match props.secret {
         SecretKind::Password { .. } => {
+            let Some(purpose) = password_purpose(protocol) else {
+                return Err(IpcError::new(
+                    "session.protocol-unsupported",
+                    format!(
+                        "Nothing in this build knows how to present a password to a `{}` service, \
+                         so the credential `{}` was not opened.",
+                        protocol.as_str(),
+                        node.name
+                    ),
+                )
+                .with_actions(["Open its settings"]));
+            };
             let password = vault
-                .borrow_secret(id, "password", Purpose::SshPassword)
-                .map_err(|err| IpcError::from_vault(&err, subject))?;
+                .borrow_secret(id, "password", purpose)
+                .map_err(|err| borrow_failure(&err, &node.name, &allowed, protocol, subject))?;
             Ok(VaultCredentials {
                 username,
                 domain,
@@ -233,9 +330,20 @@ pub(crate) fn acquire(
             })
         }
         SecretKind::PrivateKey { .. } => {
+            let Some(purpose) = private_key_purpose(protocol) else {
+                return Err(IpcError::new(
+                    "session.credential-unsupported",
+                    format!(
+                        "The credential `{}` holds a private key, which `{}` sessions do not use.",
+                        node.name,
+                        protocol.as_str()
+                    ),
+                )
+                .with_actions(["Choose a credential"]));
+            };
             let material = vault
-                .borrow_private_key(id, Purpose::SshPrivateKey)
-                .map_err(|err| IpcError::from_vault(&err, subject))?;
+                .borrow_private_key(id, purpose)
+                .map_err(|err| borrow_failure(&err, &node.name, &allowed, protocol, subject))?;
             // `PrivateKeyMaterial` owns its `Secret`s and has no way to hand
             // them over, so they are moved out of it field by field; the
             // material is dropped — and zeroized — at the end of this scope
@@ -433,10 +541,203 @@ impl TrustStore for VaultTrustStore {
 )]
 mod tests {
     use super::*;
+    use remoter_core::{CredentialProps, KeyFormat, Node};
     use remoter_proto::{CredentialProviderExt as _, HostKeyOutcome, OfferedKey, verify_host_key};
+    use remoter_vault::Vault;
+
+    use crate::state::AppState;
+    use crate::test_support::{Scratch, open_vault};
 
     fn host() -> HostPort {
         HostPort::new("db-01.internal", 22).unwrap()
+    }
+
+    fn protocol(id: &str) -> ProtocolId {
+        ProtocolId::new(id).unwrap()
+    }
+
+    /// Puts one credential in the open vault, restricted to `allowed`, and
+    /// returns the reference a connection would carry.
+    ///
+    /// `field` and `material` are the secret it holds: `password` for a
+    /// password credential, `private_key` for a key one — the field names
+    /// `Vault::borrow_secret` and `Vault::borrow_private_key` read.
+    fn credential(
+        state: &AppState,
+        name: &str,
+        allowed: &[&str],
+        secret: SecretKind,
+        field: &str,
+        material: &[u8],
+    ) -> CredentialRef {
+        let mut guard = state.lock();
+        let vault = guard.vault_mut().unwrap();
+        let mut tree = vault.tree().unwrap();
+        let mut props = CredentialProps::new("administrator", secret);
+        props.allowed_protocols = allowed.iter().map(|id| protocol(id)).collect();
+        let node = Node::new(NodeKind::Credential(props), name, 1_700_000_000_000);
+        let id = node.id;
+        let patch = tree.insert(node).unwrap();
+        vault.apply(&tree, &patch).unwrap();
+        vault
+            .set_secret(*id.as_uuid(), field, Secret::new(material.to_vec()))
+            .unwrap();
+        CredentialRef::live(id)
+    }
+
+    fn password_credential(state: &AppState, name: &str, allowed: &[&str]) -> CredentialRef {
+        credential(
+            state,
+            name,
+            allowed,
+            SecretKind::Password {
+                sealed: Vault::sealed_placeholder(),
+            },
+            "password",
+            b"zzq-pw-9f13a7",
+        )
+    }
+
+    fn key_credential(state: &AppState, name: &str, allowed: &[&str]) -> CredentialRef {
+        credential(
+            state,
+            name,
+            allowed,
+            SecretKind::PrivateKey {
+                sealed_key: Vault::sealed_placeholder(),
+                sealed_passphrase: None,
+                format: KeyFormat::Pkcs8,
+            },
+            "private_key",
+            b"zzq-key-4b81c2",
+        )
+    }
+
+    /// The defect the first Windows run hit: every borrow asked the vault for
+    /// `Purpose::SshPassword`, so a credential the importer had restricted to
+    /// the protocol it came from refused its own session — RDP, VNC and SFTP
+    /// alike, with `SshPassword` as the only clue on screen.
+    #[test]
+    fn a_session_borrows_its_password_for_the_protocol_it_is_opening() {
+        let scratch = Scratch::new();
+        let Some(state) = open_vault(&scratch) else {
+            panic!("the vault could not be created");
+        };
+
+        for id in ["rdp", "vnc", "sftp", "ssh"] {
+            let reference = password_credential(&state, &format!("{id} account"), &[id]);
+            let mut guard = state.lock();
+            let borrowed = acquire(&mut guard, &reference, &protocol(id), "WIN-DC01");
+            assert!(
+                borrowed.is_ok(),
+                "a credential restricted to {id} refused a {id} session: {}",
+                borrowed.err().map(|e| e.message).unwrap_or_default()
+            );
+            let Ok(borrowed) = borrowed else { continue };
+            assert_eq!(borrowed.kind(), CredentialKind::Password);
+            assert_eq!(borrowed.with_password(&mut |bytes| bytes.len()), Some(13));
+        }
+    }
+
+    /// The other half of the same control: the restriction still has to hold.
+    /// A purpose derived from the protocol is only an improvement if it can
+    /// still say no.
+    #[test]
+    fn a_credential_restricted_to_ssh_refuses_an_rdp_session() {
+        let scratch = Scratch::new();
+        let Some(state) = open_vault(&scratch) else {
+            panic!("the vault could not be created");
+        };
+        let reference = password_credential(&state, "ssh only", &["ssh"]);
+
+        let mut guard = state.lock();
+        let refused = acquire(&mut guard, &reference, &protocol("rdp"), "WIN-DC01");
+        let Err(failure) = refused else {
+            panic!("an SSH-only credential opened an RDP session");
+        };
+        assert_eq!(failure.code, "session.credential-purpose");
+        // Both protocols named, and the credential with them: "restricted" on
+        // its own leaves the user to guess which of the two to change.
+        assert!(failure.message.contains("ssh only"), "{}", failure.message);
+        assert!(failure.message.contains("ssh"), "{}", failure.message);
+        assert!(failure.message.contains("rdp"), "{}", failure.message);
+    }
+
+    /// SFTP rides on an SSH transport, so the key is an SSH key — but the
+    /// restriction the user wrote says `sftp`, and that is the question the
+    /// vault has to be asked.
+    #[test]
+    fn an_sftp_file_pane_borrows_a_key_against_the_sftp_restriction() {
+        let scratch = Scratch::new();
+        let Some(state) = open_vault(&scratch) else {
+            panic!("the vault could not be created");
+        };
+        let reference = key_credential(&state, "sftp key", &["sftp"]);
+
+        let mut guard = state.lock();
+        let borrowed = acquire(&mut guard, &reference, &protocol("sftp"), "files on db-01");
+        assert!(
+            borrowed.is_ok(),
+            "an SFTP-only key refused an SFTP session: {}",
+            borrowed.err().map(|e| e.message).unwrap_or_default()
+        );
+        let Ok(borrowed) = borrowed else { return };
+        assert_eq!(borrowed.kind(), CredentialKind::PrivateKey);
+    }
+
+    /// A key credential on a protocol that has no use for one is refused where
+    /// the user can still read why, rather than borrowed, carried through the
+    /// pipeline and thrown away at a handshake that cannot use it.
+    #[test]
+    fn a_private_key_is_not_borrowed_for_a_protocol_that_cannot_use_one() {
+        let scratch = Scratch::new();
+        let Some(state) = open_vault(&scratch) else {
+            panic!("the vault could not be created");
+        };
+        let reference = key_credential(&state, "a key", &[]);
+
+        let mut guard = state.lock();
+        let refused = acquire(&mut guard, &reference, &protocol("rdp"), "WIN-DC01");
+        let Err(failure) = refused else {
+            panic!("a private key was borrowed for an RDP session");
+        };
+        assert_eq!(failure.code, "session.credential-unsupported");
+        assert!(failure.message.contains("rdp"), "{}", failure.message);
+    }
+
+    /// Every purpose the two mappings hand out names the protocol being
+    /// opened. A constant, or a fallback for a protocol with no purpose of its
+    /// own, would put the restriction check on the wrong protocol.
+    #[test]
+    fn a_purpose_is_never_borrowed_from_another_protocol() {
+        assert_eq!(
+            password_purpose(&protocol("rdp")),
+            Some(Purpose::RdpCredentials)
+        );
+        assert_eq!(
+            password_purpose(&protocol("vnc")),
+            Some(Purpose::VncPassword)
+        );
+        assert_eq!(
+            password_purpose(&protocol("sftp")),
+            Some(Purpose::SftpPassword)
+        );
+        assert_eq!(
+            password_purpose(&protocol("ssh")),
+            Some(Purpose::SshPassword)
+        );
+        assert_eq!(password_purpose(&protocol("telnet")), None);
+
+        assert_eq!(
+            private_key_purpose(&protocol("ssh")),
+            Some(Purpose::SshPrivateKey)
+        );
+        assert_eq!(
+            private_key_purpose(&protocol("sftp")),
+            Some(Purpose::SftpPrivateKey)
+        );
+        assert_eq!(private_key_purpose(&protocol("rdp")), None);
+        assert_eq!(private_key_purpose(&protocol("vnc")), None);
     }
 
     #[test]

@@ -38,6 +38,7 @@ import type { IpcFailure, RecentVault, SlotKind } from "@/lib/ipc";
 import { qk } from "@/lib/queryKeys";
 import { useApp } from "@/stores/app";
 
+import { useImportIntent } from "./importIntent";
 import s from "./VaultPicker.module.css";
 
 /**
@@ -119,6 +120,7 @@ export function VaultPicker() {
   const tCommon = useT("common");
   const { code: locale } = useLocale();
   const go = useApp((state) => state.go);
+  const setImportWanted = useImportIntent((state) => state.setWanted);
   const queryClient = useQueryClient();
 
   // Every key on this screen is built in lib/queryKeys.ts. The unlock screen
@@ -255,7 +257,17 @@ export function VaultPicker() {
         </div>
       ) : vaults.length === 0 ? (
         <FirstLaunch
-          onCreate={() => go({ name: "create" })}
+          // Both doors run the create wizard; only one of them is followed by
+          // the importer. The intent is what carries that across the two
+          // screens in between — see ./importIntent.ts.
+          onImport={() => {
+            setImportWanted(true);
+            go({ name: "create" });
+          }}
+          onCreate={() => {
+            setImportWanted(false);
+            go({ name: "create" });
+          }}
           onOpenFile={() => void chooseFile()}
           choosing={choosing}
           dialogError={dialogError}
@@ -714,11 +726,13 @@ function UnreachableDetail({
 // ----------------------------------------------------------- first launch ---
 
 function FirstLaunch({
+  onImport,
   onCreate,
   onOpenFile,
   choosing,
   dialogError,
 }: {
+  onImport: () => void;
   onCreate: () => void;
   onOpenFile: () => void;
   choosing: boolean;
@@ -726,6 +740,12 @@ function FirstLaunch({
 }) {
   const t = useT("vault");
   const tCommon = useT("common");
+  // The import door's copy lives in the import namespace rather than in
+  // vault.json: it describes the import flow, it has to stay in step with the
+  // wizard's own wording, and the sentence it replaces was a stub saying the
+  // wizard "arrives in a later version" — which stopped being true and left
+  // this door pointing at the create wizard and nothing else.
+  const tImport = useT("import");
 
   return (
     <div className={s.first}>
@@ -737,11 +757,14 @@ function FirstLaunch({
 
       <div className={s.doors}>
         {/* Import is the brighter door: most people arriving here already keep
-            their connections somewhere else. */}
-        <button type="button" className={`${s.door} ${s.doorPrimary}`} onClick={onCreate}>
+            their connections somewhere else. It cannot import anything yet —
+            there is no vault to import into — so it runs the same four steps
+            and then opens the wizard, and says so rather than leaving the
+            reader to discover that it did nothing they asked for. */}
+        <button type="button" className={`${s.door} ${s.doorPrimary}`} onClick={onImport}>
           <Icon name="download" size={20} />
           <span className={s.doorTitle}>{t("firstRun.importTitle")}</span>
-          <span className={s.doorHelp}>{t("firstRun.importHelp")}</span>
+          <span className={s.doorHelp}>{tImport("firstRun.doorHelp")}</span>
         </button>
         <button type="button" className={s.door} onClick={onCreate}>
           <Icon name="plus" size={20} />

@@ -324,6 +324,45 @@ describe("the preview", () => {
     expect(screen.getByText("Rotate these credentials")).toBeInTheDocument();
   });
 
+  /**
+   * A partial import is the case this screen used to render as a clean success.
+   * Four connections the parser could not represent showed up as a muted "2"
+   * in a tile labelled "unticked by you" — a count that is not even about them
+   * — under a green tick and "2 items are in your vault". Nothing on the last
+   * screen of the flow said which servers were missing, and the person reading
+   * it had thirty-seven to account for.
+   */
+  it("does not report a partial import as a clean success", async () => {
+    const user = userEvent.setup();
+    const partial = preview();
+    partial.report.counts.skipped = 2;
+    partial.report.findings = [
+      ...partial.report.findings,
+      { severity: "warning", kind: "skipped_item", item: "SQL_PROD", reason: "unusable_host" },
+      {
+        severity: "warning",
+        kind: "skipped_item",
+        item: "Open the ticket system",
+        reason: "unsupported_kind",
+      },
+    ];
+    mocked.parseImport.mockResolvedValue(partial);
+    mocked.commitImport.mockResolvedValue(result());
+    draw(<ImportWizard />);
+    await reachSecrets(user, detection());
+    await user.click(screen.getByRole("button", { name: "Read the file" }));
+    await screen.findByText("This is what you will get");
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.click(screen.getByRole("button", { name: "Choose the destination" }));
+    await user.click(await screen.findByRole("button", { name: "Review and commit" }));
+    await user.click(screen.getByRole("button", { name: "Import 4 items" }));
+
+    expect(await screen.findByText("2 items in the file did not come in")).toBeInTheDocument();
+    // And by name, so the reader knows which servers to go and look for.
+    expect(screen.getByText(/SQL_PROD/)).toBeInTheDocument();
+    expect(screen.getByText(/Open the ticket system/)).toBeInTheDocument();
+  });
+
   it("refuses to go on when everything has been unticked", async () => {
     const user = userEvent.setup();
     draw(<ImportWizard />);

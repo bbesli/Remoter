@@ -273,6 +273,25 @@ export interface CreateVaultResult {
   kdf: KdfParams | null;
 }
 
+/**
+ * The recovery sheet, and where the user chose to put it.
+ *
+ * The text is composed by the screen because the sheet is translated and the
+ * core has no catalogue — which makes this the one request that carries the
+ * recovery key inward. It is wrapped in `Secret` the moment it lands and is
+ * never logged; see `recovery_sheet_write` in `crates/remoter-ipc/src/commands.rs`.
+ */
+export interface RecoverySheet {
+  path: string;
+  text: string;
+}
+
+/** What was written, so the screen can name the file rather than say "done". */
+export interface RecoverySheetWritten {
+  path: string;
+  bytes: number;
+}
+
 export interface VaultState {
   unlocked: boolean;
   path: string | null;
@@ -1841,6 +1860,16 @@ export const ipc = {
   passwordStrength: (password: string) =>
     invoke<PasswordStrength>("password_strength", { password }),
   generateKeyfile: (path: string) => invoke<void>("generate_keyfile", { path }),
+  /**
+   * Saves the recovery sheet to a file the user picked with the system's save
+   * dialog.
+   *
+   * A WebView is not a browser: `<a download>` reports nothing back, so the
+   * screen could not tell a written file from a refused one — and on Windows it
+   * was always refused. This returns a result, so a failure is visible.
+   */
+  writeRecoverySheet: (req: RecoverySheet) =>
+    invoke<RecoverySheetWritten>("recovery_sheet_write", { req }),
   suggestVaultPath: (label: string) => invoke<string>("suggest_vault_path", { label }),
 
   // --- tree ---

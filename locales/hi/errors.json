@@ -295,12 +295,20 @@
         "इसके बजाय प्लेटफ़ॉर्म का SSH एजेंट इस्तेमाल करें"
       ]
     },
-    "_comment_unsupported-format": "The first action quotes a command. Translate the sentence around it if there is one; never translate the command itself, and keep its flags exactly as they are.",
+    "_comment_unsupported-format": "The refusal is a real limitation, not a conversion the user can perform: no protocol in this build can authenticate with a key of that kind, so the actions must not suggest converting the file. The three algorithm names in the first action are algorithm names, not words; leave them exactly as they are.",
     "unsupported-format": {
-      "message": "वह कुंजी ऐसे फ़ॉर्मैट में है जिसे यह बिल्ड संग्रहित नहीं करता। कुछ भी नहीं लिखा गया।",
+      "message": "यह ऐसी किस्म की निजी कुंजी है जिससे इस बिल्ड का कोई प्रोटोकॉल प्रमाणीकरण नहीं कर सकता। कुछ भी नहीं लिखा गया।",
       "actions": [
-        "इसे `ssh-keygen -p -m PKCS8 -f '<file>'` से बदलें",
-        "इसके बजाय प्लेटफ़ॉर्म का SSH एजेंट इस्तेमाल करें"
+        "इसके बजाय Ed25519, ECDSA या RSA कुंजी इस्तेमाल करें",
+        "इसके बजाय प्लैटफ़ॉर्म का SSH एजेंट इस्तेमाल करें"
+      ]
+    },
+    "_comment_legacy-encrypted": "Different from unsupported-format: the key itself is fine, it is the PEM container that is encrypted, and Remoter has to read the container before it can store the key. The first action quotes two commands. Translate the sentence around them if there is one; never translate the commands themselves, and keep `<file>` and `<copy>` exactly as they are. The word 'copy' is load-bearing: `ssh-keygen -p` rewrites the file it is given, and the user's key file is very often shared with other tools.",
+    "legacy-encrypted": {
+      "message": "यह कुंजी अपने ही PEM कंटेनर के भीतर एन्क्रिप्टेड है, और कुंजी संग्रहीत करने से पहले Remoter को वह कंटेनर पढ़ पाना ज़रूरी है। कुछ भी नहीं लिखा गया।",
+      "actions": [
+        "एक प्रति बदलें: `cp <file> <copy>` फिर `ssh-keygen -p -m PKCS8 -f <copy>`",
+        "इसके बजाय प्लैटफ़ॉर्म का SSH एजेंट इस्तेमाल करें"
       ]
     },
     "passphrase-required": {
@@ -320,7 +328,7 @@
       ]
     },
     "purpose-refused": {
-      "message": "यह क्रेडेंशियल प्रतिबंधित है और इस तरह इस्तेमाल नहीं किया जा सकता।",
+      "message": "इस क्रेडेंशियल का प्रतिबंध उस उपयोग को शामिल नहीं करता जिसके लिए इसे लिया जा रहा था, इसलिए वॉल्ट ने इसे खोलने से मना कर दिया। क्रेडेंशियल की सेटिंग में प्रतिबंध ढीला करें, या ऐसा क्रेडेंशियल चुनें जो इस उपयोग की अनुमति पहले से देता हो।",
       "actions": [
         "कोई दूसरा क्रेडेंशियल चुनें",
         "क्रेडेंशियल का प्रतिबंध ढीला करें"

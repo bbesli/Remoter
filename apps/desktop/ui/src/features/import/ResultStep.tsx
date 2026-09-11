@@ -19,7 +19,8 @@ import { Icon } from "@/components/Icon";
 import { isolate, useT } from "@/i18n";
 import type { ImportReport, ImportResult } from "@/lib/ipc";
 
-import { fileWasExposed, preservedLines, usedDefaultPassword } from "./findings";
+import { FindingItem } from "./FindingItem";
+import { fileWasExposed, preservedLines, refusedItems, usedDefaultPassword } from "./findings";
 import s from "./ImportWizard.module.css";
 
 interface ResultStepProps {
@@ -42,6 +43,19 @@ export function ResultStep({
   const findings = report?.findings ?? [];
   const exposed = fileWasExposed(findings) && result.secretsStored > 0;
   const preserved = preservedLines(t, findings);
+  /**
+   * What the parser refused. Named here rather than left to the report step,
+   * which the reader may have walked straight past: this is the last screen of
+   * the flow and the only one they are guaranteed to have seen.
+   */
+  const refused = refusedItems(findings);
+  /**
+   * The count the core counted, which can exceed the findings shown when the
+   * findings list hit its ceiling. The count is what the heading states; the
+   * list below it is as much of the detail as survived.
+   */
+  const refusedCount = report?.counts.skipped ?? refused.length;
+  const partial = refusedCount > 0;
   // The folder's breadcrumb is the user's own text; the stand-in for "no
   // folder at all" is interface copy and needs no isolate.
   const destination =
@@ -50,14 +64,40 @@ export function ResultStep({
   return (
     <div className={`${s.step} ${s.narrow}`}>
       <div className={s.resultHead}>
-        <span className={s.resultBadge} aria-hidden="true">
-          <Icon name="check" size={17} />
+        {/* A partial import does not get a green tick. See the note on
+            `.resultBadge[data-tone="warning"]`. */}
+        <span
+          className={s.resultBadge}
+          {...(partial ? { "data-tone": "warning" } : {})}
+          aria-hidden="true"
+        >
+          <Icon name={partial ? "alert" : "check"} size={17} />
         </span>
         <div className={s.stepHead}>
           <h2 className={s.stepTitle}>{t("result.title", { count: result.imported })}</h2>
           <p className={s.stepLead}>{t("result.lead", { folder: destination })}</p>
         </div>
       </div>
+
+      {partial && (
+        <Callout tone="warning" title={t("result.refusedTitle", { count: refusedCount })}>
+          <p>{t("result.refusedBody")}</p>
+          {refused.length > 0 && (
+            <ul className={s.findingList}>
+              {refused.map((finding, index) => (
+                // Keyed by position: two entries in a confCons.xml may carry
+                // the same name, and the list is ordered by the file.
+                <FindingItem key={index} finding={finding} />
+              ))}
+            </ul>
+          )}
+          {refused.length < refusedCount && (
+            <p className={s.panelNote}>
+              {t("result.refusedNotAllListed", { count: refusedCount - refused.length })}
+            </p>
+          )}
+        </Callout>
+      )}
 
       <div className={s.tiles}>
         <Tile value={result.imported} label={t("result.countImported")} tone="success" />

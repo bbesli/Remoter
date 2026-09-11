@@ -139,13 +139,29 @@ pub enum VaultError {
     #[error("that file is not a private key")]
     NotAPrivateKey,
 
-    /// The file is a private key, in a container this build does not store.
+    /// The file is a private key of a kind no protocol in this build can
+    /// authenticate with, whatever container it arrives in.
     ///
-    /// Named rather than silently filed under one of the three formats the
-    /// domain model has: storing a PKCS#1 key labelled as PKCS#8 would produce
-    /// a credential that fails at connect time, far from the mistake.
-    #[error("that is a {0} private key; convert it to OpenSSH or PKCS#8 before importing it")]
+    /// This is a real limitation and not a conversion gap: the two are not the
+    /// same answer, and telling a user to convert a key that would still be
+    /// refused afterwards wastes their afternoon. Containers that merely hold
+    /// the key material in a different envelope are re-enveloped on import
+    /// instead — see `crate::pkcs8`.
+    #[error("this build cannot authenticate with a {0} private key")]
     UnsupportedKeyFormat(&'static str),
+
+    /// The file is a private key in a legacy PEM container whose body is
+    /// enciphered — the RFC 1421 §4.6.1.3 `DEK-Info` header.
+    ///
+    /// Separate from [`VaultError::UnsupportedKeyFormat`] because the key
+    /// itself is perfectly usable: what is in the way is that re-enveloping it
+    /// as PKCS#8 means decrypting it first, and the step that identifies a key
+    /// file runs before the interface knows to ask for a passphrase.
+    #[error(
+        "that {0} private key is enciphered inside its PEM container; convert a copy to PKCS#8 \
+         or OpenSSH first"
+    )]
+    LegacyEncryptedKey(&'static str),
 
     /// The node is not a credential holding a private key.
     #[error("node {0} is not a private-key credential")]

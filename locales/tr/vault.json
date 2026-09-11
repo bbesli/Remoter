@@ -1,18 +1,15 @@
 {
   "_comment_file": "The vault surfaces: choosing a vault, creating one, the recovery key, and unlocking. This is the first thing a new user reads and the last thing a locked-out one reads, so it carries more security-critical copy than any other namespace. Anything marked SECURITY-CRITICAL describes permanent, unrecoverable data loss; softening it into something gentler is a foreseeable source of harm, and those strings get a second reader before a translation is accepted (docs/features/i18n.md).",
-
   "probe": {
     "_comment_reading": "The cleartext header of the vault file is being read. Nothing is decrypted at this point — say 'header', not 'vault'.",
     "reading": "Kasa başlığı okunuyor…"
   },
-
   "kdf": {
     "_comment_": "Argon2id key derivation takes about a second by design. Shown beside the spinner on every screen that derives a key — creating a vault, unlocking one, adding or rotating a key slot. It is an explanation of a security property, not an apology for a slow program: do not turn 'deliberately slow' into 'this may take a moment'.",
     "slow": "Anahtar türetme bilerek yavaştır. Çalınmış bir kasa dosyasına saldırmayı pahalıya mal eden şey bu maliyettir.",
     "_comment_slowWithSummary": "{summary} is the cost this vault was written with, e.g. 'Argon2id, 256 MiB, t=3'. It is produced by the core and is never translated.",
     "slowWithSummary": "Anahtar türetme bilerek yavaştır — {summary}. Çalınmış bir kasa dosyasına saldırmayı pahalıya mal eden şey bu maliyettir."
   },
-
   "keyfile": {
     "_comment_": "A key file is a second factor: any file the user chooses becomes part of the key. These strings are shared by the unlock screen, the create wizard and the vault-settings dialogs.",
     "label": "Anahtar dosyası",
@@ -29,7 +26,6 @@
       "isABackup": "{name}, bir kasanın dönüşümlü yedeğidir; anahtar dosyası değil. Başka bir dosya seçin."
     }
   },
-
   "slot": {
     "_comment_": "The four ways a vault can be opened, named on the unlock screen's cards. Each is a noun phrase, not a verb: they name a method, they are not an instruction to use it.",
     "password": "Ana parola",
@@ -38,7 +34,6 @@
     "_comment_keychain": "The system keychain (Keychain on macOS, Secret Service on Linux, Credential Manager on Windows) is holding the key for this machine. Phrased from the user's side: they asked to be remembered.",
     "keychain": "Bu cihazda hatırla"
   },
-
   "picker": {
     "_comment_": "The launch screen. It lists the vaults this machine has opened before; nothing on it decrypts anything.",
     "title": "Bir kasa açın",
@@ -76,7 +71,6 @@
     "_comment_settingsHint": "Its tooltip. It names the three settings worth changing before a vault is ever opened.",
     "settingsHint": "Ayarlar — dil, tema ve kısayollar"
   },
-
   "detail": {
     "_comment_": "The panel beside the list, describing whichever vault is under the pointer. It reads the cleartext header only.",
     "probeFailed": "Bu kasanın başlığı okunamadı.",
@@ -104,7 +98,6 @@
       "keychain": "Bu cihazda kayıtlı"
     }
   },
-
   "firstRun": {
     "_comment_": "What the launch screen says instead of a list when this machine has never opened a vault. 'Pick a vault' is a meaningless instruction when there are none, so it offers two doors.",
     "title": "Remoter'ın bir şey yapabilmesi için önce bir kasa gerekir",
@@ -116,7 +109,6 @@
     "emptyTitle": "Boş başla",
     "emptyHelp": "Dört adım: dosyanın nerede duracağı, bir ana parola, isteğe bağlı bir anahtar dosyası ve kurtarma anahtarınız."
   },
-
   "wizard": {
     "_comment_": "The frame around the four create-vault steps: title bar, the stepper, and the two footer buttons.",
     "windowTitle": "Kasa oluştur",
@@ -136,7 +128,6 @@
     "continue": "Devam",
     "createAction": "Kasayı oluştur"
   },
-
   "create": {
     "_comment_": "Steps 1 to 3 of the create-vault wizard. Step 4 is the 'recovery' group below.",
     "creating": "Anahtar türetiliyor ve kasa yazılıyor…",
@@ -232,7 +223,6 @@
       "required": "Bu dosya artık kasayı açmak için zorunlu. Onu kaybederseniz yalnızca kurtarma anahtarınız işe yarar."
     }
   },
-
   "recovery": {
     "_comment_": "Step 4, and the same panel again when a recovery key is rotated from vault settings. The key is shown exactly once and is stored nowhere, which is why this screen makes the user retype part of it.",
     "heading": "Kurtarma anahtarınız",
@@ -248,11 +238,18 @@
     "copied": "Panoya kopyalandı.",
     "copyFailed": "Bu sistem kopyalamaya izin vermedi. Anahtarı bir yere yazın ya da yazdırın.",
     "_comment_download": "A verb on a button: save the key as a plain text file.",
-    "download": "Metin olarak indir",
-    "downloadFailed": "Bu sistem dosyayı kaydetmeye izin vermedi. Bunun yerine anahtarı yazdırın.",
+    "download": "Metin dosyası olarak kaydet",
+    "saveTitle": "Kurtarma anahtarınızı kaydedin",
+    "filterText": "Metin dosyası",
+    "saving": "Kaydediliyor…",
+    "saved": "{path} konumuna kaydedildi",
+    "savedPlaintext": "Bu dosya, kasanın şifrelemesinin dışında kalan sıradan bir metin dosyasıdır. Diski okuyabilen herkes anahtarı da okuyabilir. Onu pasaportunuzu sakladığınız gibi saklayın ya da güvenli bir yere aldıktan sonra silin.",
+    "saveFailed": "Kurtarma anahtarı kaydedilmedi.",
+    "saveDialogFailed": "Bu sistem bir kaydetme iletişim kutusu açmadı. Anahtarı kopyalayın ya da bir yere yazın.",
     "_comment_print": "A verb on a button: send the key to a printer.",
     "print": "Yazdır",
     "printFailed": "Bu sistem bir yazdırma iletişim kutusu açmadı. Anahtarı kopyalayın ya da bir yere yazın.",
+    "printUnavailable": "Bu sistem bu pencereden yazdıramıyor.",
     "_comment_confirmPrompt": "{group} is which group of the key to retype — a position, counting from one. The group itself is highlighted in the grid above. This is one sentence rather than a sentence assembled around a number: split sentences do not survive translation.",
     "confirmPrompt": "Anahtarı güvenli bir yere aldığınızı doğrulamak için {group, number}. grubu — vurgulanmış olanı — yazın.",
     "_comment_targetGroupAria": "The accessible name of that highlighted group, read aloud instead of the four characters in it.",
@@ -281,7 +278,6 @@
       "warning": "{title} {body}"
     }
   },
-
   "unlock": {
     "_comment_": "The unlock screen. It lists the slots this vault's header actually has, so a vault with one password slot shows one card and no invented alternatives.",
     "windowTitle": "Kasanın kilidini aç",

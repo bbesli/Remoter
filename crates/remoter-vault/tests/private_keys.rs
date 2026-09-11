@@ -271,16 +271,19 @@ fn a_file_that_is_not_a_key_is_refused_with_a_clear_error() {
         Err(VaultError::NotAPrivateKey)
     ));
 
-    // A container this build cannot store is named rather than mis-filed.
-    let pkcs1 = dir.path().join("id_rsa");
+    // A key this build cannot authenticate with is named rather than mis-filed.
+    // PKCS#1 RSA and SEC 1 EC used to be refused here too; they are now
+    // re-enveloped as PKCS#8 on import, which `crates/remoter-vault/src/
+    // credential.rs` tests against real `ssh-keygen` output.
+    let dsa = dir.path().join("id_dsa");
     fs::write(
-        &pkcs1,
-        pem("RSA PRIVATE KEY", &[0x30, 0x03, 0x02, 0x01, 0x00]),
+        &dsa,
+        pem("DSA PRIVATE KEY", &[0x30, 0x03, 0x02, 0x01, 0x00]),
     )
     .unwrap();
     assert!(matches!(
-        vault.import_private_key(node, &pkcs1, None),
-        Err(VaultError::UnsupportedKeyFormat("PKCS#1 RSA PEM"))
+        vault.import_private_key(node, &dsa, None),
+        Err(VaultError::UnsupportedKeyFormat("OpenSSL DSA PEM"))
     ));
 
     // Nothing was stored by any of the three.

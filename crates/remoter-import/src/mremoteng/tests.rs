@@ -16,6 +16,7 @@ use remoter_core::{Node, Tree};
 
 use super::crypto::test_encrypt::encrypt;
 use super::*;
+use crate::error::XmlProblem;
 use crate::preview::PreviewKind as Kind;
 use crate::report::Severity;
 
@@ -89,8 +90,14 @@ Password="{admin}" RedirectDiskDrives="true" Colors="Colors16Bit" />
 }
 
 fn preview(xml: &str, password: Option<&str>) -> ImportPreview {
+    preview_bytes(xml.as_bytes(), password)
+}
+
+/// The same, for a fixture that is bytes rather than text — one with a
+/// byte-order mark on the front, as a real export has.
+fn preview_bytes(bytes: &[u8], password: Option<&str>) -> ImportPreview {
     let password = password.map(ImportedSecret::from);
-    parse(xml.as_bytes(), password.as_ref(), &Limits::new()).unwrap()
+    parse(bytes, password.as_ref(), &Limits::new()).unwrap()
 }
 
 /// `ImportPreview` is deliberately not comparable — it holds secrets — so a
@@ -523,17 +530,36 @@ fn a_protocol_this_build_does_not_know_is_kept_and_flagged() {
 }
 
 #[test]
-fn a_document_that_is_not_a_confcons_is_refused() {
+fn a_document_that_is_not_a_confcons_is_refused_by_name() {
+    // Choosing the wrong file is the ordinary way to meet this, so the refusal
+    // says what the file turned out to be rather than only what it was not.
+    // "This is not an mRemoteNG confCons.xml" leaves someone holding a Royal TS
+    // export with nothing to go on.
+    let ImportError::XmlNotWellFormed { problem, location } = refusal(
+        b"<?xml version=\"1.0\"?>\n<RoyalDocument><Object/></RoyalDocument>",
+        None,
+    ) else {
+        panic!("expected a located refusal");
+    };
     assert_eq!(
-        refusal(b"<RoyalDocument/>", None),
-        ImportError::WrongFormat {
-            expected: "an mRemoteNG confCons.xml"
+        problem,
+        XmlProblem::UnexpectedRoot {
+            found: "RoyalDocument".to_owned(),
+            expected: "Connections",
         }
     );
+    assert_eq!(location.line, 2);
+    // The element is already in the sentence; repeating it in the location
+    // would say it twice.
+    assert_eq!(location.element, None);
+
+    let ImportError::XmlNotWellFormed { problem, .. } = refusal(b"", None) else {
+        panic!("expected a located refusal");
+    };
     assert_eq!(
-        refusal(b"", None),
-        ImportError::WrongFormat {
-            expected: "an mRemoteNG confCons.xml"
+        problem,
+        XmlProblem::NoRootElement {
+            expected: "Connections",
         }
     );
 }
@@ -761,4 +787,380 @@ fn a_node_with_more_settings_than_the_ceiling_says_the_preview_is_partial() {
         .severity(),
         Severity::Warning
     );
+}
+
+// ------------------------------------------------ a real mRemoteNG export ---
+//
+// Everything above builds the *shape* of a confCons.xml. What follows builds
+// the *size* of one, because the two are not the same test: mRemoteNG writes
+// around a hundred and fifty attributes on every connection, two-thirds of them
+// `Inherit*` flags, in a UTF-8-with-BOM file with CRLF line endings and an XML
+// declaration on the first line. The attribute ceiling, the preservation pass,
+// the inheritance rules and the BOM strip all have to survive that, and none of
+// them is exercised by a five-attribute node.
+//
+// The attribute list is mRemoteNG 1.77's, in its own order and with its own
+// spellings and default values — `Colors="Colors16Bit"`, `RedirectSound="DoNotPlay"`,
+// `RDGatewayUsageMethod="Never"` — so that a mapping written against a
+// simplified idea of the format fails here rather than on the owner's machine.
+
+/// The non-inheritable half of an mRemoteNG 1.77 connection node.
+const RDP_SETTINGS: &str = concat!(
+    r#" Icon="mRemoteNG" Panel="General" PuttySession="Default Settings""#,
+    r#" ConnectToConsole="false" UseCredSsp="true" UseRestrictedAdmin="false""#,
+    r#" UseRCG="false" UseVmId="false" UseEnhancedMode="false" VmId="""#,
+    r#" RenderingEngine="IE" ICAEncryptionStrength="EncrBasic""#,
+    r#" RDPAuthenticationLevel="NoAuth" RDPMinutesToIdleTimeout="0""#,
+    r#" RDPAlertIdleTimeout="false" LoadBalanceInfo="" Colors="Colors16Bit""#,
+    r#" Resolution="FitToWindow" AutomaticResize="true" DisplayWallpaper="false""#,
+    r#" DisplayThemes="false" EnableFontSmoothing="false""#,
+    r#" EnableDesktopComposition="false" DisableFullWindowDrag="false""#,
+    r#" DisableMenuAnimations="false" DisableCursorShadow="false""#,
+    r#" DisableCursorBlinking="false" CacheBitmaps="false""#,
+    r#" RedirectDiskDrives="false" RedirectDiskDrivesCustom="""#,
+    r#" RedirectPrinters="false" RedirectClipboard="true" RedirectPorts="false""#,
+    r#" RedirectSmartCards="false" RedirectSound="DoNotPlay""#,
+    r#" RedirectAudioCapture="false" SoundQuality="Dynamic" RedirectKeys="false""#,
+    r#" Connected="false" PreExtApp="" PostExtApp="" MacAddress="" UserField="""#,
+    r#" ExtApp="" VNCCompression="CompNone" VNCEncoding="EncHextile""#,
+    r#" VNCAuthMode="AuthVNC" VNCProxyType="ProxyNone" VNCProxyIP="""#,
+    r#" VNCProxyPort="0" VNCProxyUsername="" VNCProxyPassword="""#,
+    r#" VNCColors="ColNormal" VNCSmartSizeMode="SmartSAspect" VNCViewOnly="false""#,
+    r#" RDGatewayUsageMethod="Never" RDGatewayHostname="""#,
+    r#" RDGatewayUseConnectionCredentials="Yes" RDGatewayUsername="""#,
+    r#" RDGatewayPassword="" RDGatewayDomain="" OpeningCommand="" SSHOptions="""#,
+    r#" EC2InstanceId="" EC2Region="""#,
+);
+
+/// The `Inherit*` half, which mRemoteNG writes in full on every node.
+///
+/// `inherited` selects the four the mapping reads — port, username, password
+/// and domain — so one function produces both a node that sets its own
+/// credential and a node that takes its parent's.
+fn inherit_flags(inherited: bool) -> String {
+    let value = if inherited { "true" } else { "false" };
+    let mut out = String::new();
+    for name in [
+        "CacheBitmaps",
+        "Colors",
+        "Description",
+        "DisplayThemes",
+        "DisplayWallpaper",
+        "EnableFontSmoothing",
+        "EnableDesktopComposition",
+        "DisableFullWindowDrag",
+        "DisableMenuAnimations",
+        "DisableCursorShadow",
+        "DisableCursorBlinking",
+        "Icon",
+        "Panel",
+        "Protocol",
+        "PuttySession",
+        "RedirectDiskDrives",
+        "RedirectKeys",
+        "RedirectPorts",
+        "RedirectPrinters",
+        "RedirectClipboard",
+        "RedirectSmartCards",
+        "RedirectSound",
+        "SoundQuality",
+        "RedirectAudioCapture",
+        "Resolution",
+        "AutomaticResize",
+        "UseConsoleSession",
+        "UseCredSsp",
+        "UseRestrictedAdmin",
+        "UseRCG",
+        "UseVmId",
+        "UseEnhancedMode",
+        "VmId",
+        "RenderingEngine",
+        "ICAEncryptionStrength",
+        "RDPAuthenticationLevel",
+        "RDPMinutesToIdleTimeout",
+        "RDPAlertIdleTimeout",
+        "LoadBalanceInfo",
+        "PreExtApp",
+        "PostExtApp",
+        "MacAddress",
+        "UserField",
+        "ExtApp",
+        "VNCCompression",
+        "VNCEncoding",
+        "VNCAuthMode",
+        "VNCProxyType",
+        "VNCProxyIP",
+        "VNCProxyPort",
+        "VNCProxyUsername",
+        "VNCProxyPassword",
+        "VNCColors",
+        "VNCSmartSizeMode",
+        "VNCViewOnly",
+        "RDGatewayUsageMethod",
+        "RDGatewayHostname",
+        "RDGatewayUseConnectionCredentials",
+        "RDGatewayUsername",
+        "RDGatewayPassword",
+        "RDGatewayDomain",
+        "SSHTunnelConnectionName",
+        "OpeningCommand",
+        "SSHOptions",
+        "EC2InstanceId",
+        "EC2Region",
+    ] {
+        out.push_str(&format!(r#" Inherit{name}="false""#));
+    }
+    // The four the mapping actually reads.
+    for name in ["Port", "Username", "Password", "Domain"] {
+        out.push_str(&format!(r#" Inherit{name}="{value}""#));
+    }
+    out
+}
+
+/// One connection node with the attribute set mRemoteNG really writes.
+fn real_node(
+    name: &str,
+    host: &str,
+    protocol: &str,
+    port: &str,
+    credential: Option<(&str, &str, &str)>,
+) -> String {
+    let (username, domain, password) = credential.unwrap_or(("", "", ""));
+    format!(
+        r#"<Node Name="{name}" Type="Connection" Descr="" Id="bb1a5c9e-{port}-4f0e-9c21-8b0f2a1d3e44" Username="{username}" Domain="{domain}" Password="{password}" Hostname="{host}" Protocol="{protocol}" SSHTunnelConnectionName="" Port="{port}"{RDP_SETTINGS}{flags} />"#,
+        flags = inherit_flags(credential.is_none()),
+    )
+}
+
+/// A `confCons.xml` as mRemoteNG writes one on Windows.
+///
+/// BOM, CRLF, XML declaration, a container that carries the credential and the
+/// port for everything under it, and connections that inherit them — the estate
+/// shape `docs/architecture/data-model.md` describes, at the fidelity the tool
+/// actually emits.
+fn real_export(cipher: CipherMode, file_password: &str) -> Vec<u8> {
+    let svc = secret(cipher, file_password, "hunter2", 1);
+    let admin = secret(cipher, file_password, "Tr0ub4dor&3", 2);
+    let body = format!(
+        "\r\n  <Node Name=\"Datacentre EU-West\" Type=\"Container\" Expanded=\"true\" \
+Descr=\"Frankfurt\" Icon=\"Server\" Panel=\"General\" Username=\"svc-deploy\" Domain=\"\" \
+Password=\"{svc}\" Hostname=\"\" Protocol=\"RDP\" Port=\"3389\">\r\n    {inherits}\r\n    \
+{explicit}\r\n  </Node>\r\n  {standalone}\r\n",
+        inherits = real_node("web-01", "web-01.eu.acme.internal", "RDP", "3389", None),
+        explicit = real_node(
+            "web-02",
+            "web-02.eu.acme.internal",
+            "SSH2",
+            "2022",
+            Some(("root", "", &admin)),
+        ),
+        standalone = real_node(
+            "SRV-DC01",
+            "srv-dc01.corp.local",
+            "RDP",
+            "3389",
+            Some(("administrator", "CORP", &admin)),
+        ),
+    );
+    let document = document(cipher, file_password, false, &body).replace('\n', "\r\n");
+    // mRemoteNG writes UTF-8 with a byte-order mark. A reader that treats it as
+    // content sees `<?xml` preceded by three bytes of nothing and refuses the
+    // file, which is one of the ways this import can fail before it starts.
+    let mut bytes = "\u{feff}".as_bytes().to_vec();
+    bytes.extend_from_slice(document.as_bytes());
+    bytes
+}
+
+#[test]
+fn a_real_mremoteng_export_comes_in_whole() {
+    let bytes = real_export(GCM, DEFAULT_PASSWORD);
+    // Detection has to recognise it too: the wizard preselects the format from
+    // this, and a file it cannot place is a file the user has to place by hand.
+    assert_eq!(
+        crate::detect(&bytes),
+        Some(crate::SourceFormat::MRemoteNg),
+        "a real export is not recognised as one"
+    );
+
+    let info = inspect(&bytes, &Limits::new()).unwrap();
+    assert_eq!(info.name, "Acme Production");
+    assert_eq!(info.conf_version.as_deref(), Some("2.6"));
+    assert!(
+        !info.password_required,
+        "the default password should open it"
+    );
+
+    let preview = parse(&bytes, None, &Limits::new()).unwrap();
+    let counts = preview.report().counts();
+    assert_eq!(counts.connections, 3);
+    assert_eq!(
+        counts.skipped, 0,
+        "nothing in a real export should be refused"
+    );
+    // One container, plus the folder the credentials land in.
+    assert_eq!(counts.folders, 2);
+    // Three accounts: the container's service account and two administrators
+    // that differ by domain. Two of them share a password and are still two
+    // credentials, because a credential is an account and not a password.
+    assert_eq!(counts.secrets, 3);
+
+    // The estate arrives with its structure intact rather than flattened: the
+    // container keeps the port and the credential, and the node that inherits
+    // them holds neither.
+    let Kind::Folder(folder) = &find(&preview, "Datacentre EU-West").kind else {
+        panic!("the container did not become a folder");
+    };
+    assert_eq!(folder.port, Inherited::Explicit(3389));
+    assert!(matches!(folder.credential, Inherited::Explicit(_)));
+    let web01 = connection(&preview, "web-01");
+    assert_eq!(web01.port, Inherited::Inherit);
+    assert_eq!(web01.credential, Inherited::Inherit);
+    let web02 = connection(&preview, "web-02");
+    assert_eq!(web02.port, Inherited::Explicit(2022));
+    assert!(matches!(web02.credential, Inherited::Explicit(_)));
+
+    // The RDP settings the domain model has no home for are kept verbatim…
+    let dc01 = find(&preview, "SRV-DC01");
+    assert_eq!(
+        dc01.custom_fields
+            .get("mremoteng.RDGatewayUsageMethod")
+            .map(String::as_str),
+        Some("Never")
+    );
+    assert_eq!(
+        dc01.custom_fields
+            .get("mremoteng.Colors")
+            .map(String::as_str),
+        Some("Colors16Bit")
+    );
+    // …and the `Inherit*` flags themselves are state, not settings, so none of
+    // them is copied in as data.
+    assert!(
+        dc01.custom_fields
+            .keys()
+            .all(|key| !key.contains("Inherit")),
+        "inheritance flags were preserved as settings"
+    );
+    // A node that inherits gets nothing copied onto it, which is the whole
+    // point of reading the flags rather than flattening.
+    assert!(
+        !find(&preview, "web-01")
+            .custom_fields
+            .contains_key("mremoteng.Port"),
+        "an inherited value was flattened onto the node that inherits it"
+    );
+
+    // And the file's protection is named for what it was.
+    assert!(
+        preview
+            .report()
+            .findings()
+            .contains(&Finding::DefaultFilePassword),
+        "a file on the published default password must say so"
+    );
+    // And it becomes a tree the domain model accepts, which is what the commit
+    // does with it. A preview that parses and then fails to insert would fail
+    // after the vault is open, which is the worst place for it.
+    let expected = preview.nodes().len();
+    let (nodes, _) = preview.into_parts();
+    let nodes: Vec<Node> = nodes
+        .into_iter()
+        .map(|node| {
+            // Standing in for the vault's sealing call.
+            let sealed = node.needs_sealing().then(|| vec![0x5a; 32]);
+            node.into_node(1_700_000_000_000, sealed).unwrap()
+        })
+        .collect();
+    assert_eq!(Tree::from_nodes(nodes).unwrap().len(), expected);
+}
+
+#[test]
+fn a_real_export_the_owner_put_a_password_on_asks_for_it_once() {
+    let bytes = real_export(GCM, "correct horse battery staple");
+
+    // The header alone is enough to know the wizard has to ask.
+    let info = inspect(&bytes, &Limits::new()).unwrap();
+    assert!(info.password_required);
+
+    // Asking is a different answer from being told the password is wrong: one
+    // is a field to fill in, the other is a field to fill in *again*.
+    assert_eq!(refusal(&bytes, None), ImportError::PasswordRequired);
+    assert_eq!(refusal(&bytes, Some("hunter2")), ImportError::WrongPassword);
+
+    let preview = preview_bytes(&bytes, Some("correct horse battery staple"));
+    assert_eq!(preview.report().counts().connections, 3);
+    assert_eq!(preview.report().counts().secrets, 3);
+    // A file with a real password is not the exposed case, so it is not named
+    // as one.
+    assert!(
+        !preview
+            .report()
+            .findings()
+            .contains(&Finding::DefaultFilePassword)
+    );
+}
+
+#[test]
+fn a_legacy_cbc_export_is_read_and_its_weakness_named() {
+    // mRemoteNG before 1.75, which plenty of estates are still exported from.
+    let bytes = real_export(CipherMode::Cbc, DEFAULT_PASSWORD);
+    let preview = parse(&bytes, None, &Limits::new()).unwrap();
+    assert_eq!(preview.report().counts().connections, 3);
+    assert_eq!(preview.report().counts().secrets, 3);
+    assert!(
+        preview
+            .report()
+            .findings()
+            .contains(&Finding::LegacyCbcEncryption)
+    );
+}
+
+#[test]
+fn a_password_attribute_that_was_never_encrypted_is_reported_not_stored() {
+    // The other half of "both forms of the password attribute": a Password that
+    // is not ciphertext at all. It cannot be told from a damaged ciphertext —
+    // and guessing would put a base64 blob in the vault as somebody's password
+    // — so the connection comes in without it and the report names the field.
+    let body = r#"<Node Name="srv02" Type="Connection" Hostname="srv02.corp.local" Protocol="RDP" Port="3389" Username="admin" Domain="CORP" Password="Sup3rSecret!" />"#;
+    let xml = document(GCM, DEFAULT_PASSWORD, false, body);
+    let preview = preview(&xml, None);
+    assert_eq!(preview.report().counts().connections, 1);
+    assert_eq!(preview.report().counts().secrets, 0);
+    assert!(
+        preview
+            .report()
+            .findings()
+            .contains(&Finding::SecretNotMapped {
+                item: "srv02".to_owned(),
+                field: "Password".to_owned(),
+            }),
+        "an unreadable password must be named, not silently dropped"
+    );
+    // Everything else about the connection survives it.
+    assert_eq!(connection(&preview, "srv02").host, "srv02.corp.local");
+}
+
+#[test]
+fn a_partial_import_counts_and_names_what_did_not_come_in() {
+    // The result screen is built from these two: the count says how much of the
+    // file is missing from the vault, and the findings say which parts. An
+    // import that reported the first without the second would look like a
+    // success with a footnote.
+    let body = r#"
+  <Node Name="good" Type="Connection" Hostname="good.example.com" Protocol="SSH2" />
+  <Node Name="SQL_PROD" Type="Connection" Hostname="SQL_PROD" Protocol="RDP" />
+  <Node Name="Open the ticket system" Type="ExtApp" Hostname="" Protocol="IntApp" />
+"#;
+    let xml = document(GCM, DEFAULT_PASSWORD, false, body);
+    let preview = preview(&xml, None);
+    assert_eq!(preview.report().counts().connections, 1);
+    assert_eq!(preview.report().counts().skipped, 2);
+    assert!(preview.report().findings().contains(&Finding::SkippedItem {
+        item: "SQL_PROD".to_owned(),
+        reason: SkipReason::UnusableHost,
+    }));
+    assert!(preview.report().findings().contains(&Finding::SkippedItem {
+        item: "Open the ticket system".to_owned(),
+        reason: SkipReason::UnsupportedKind,
+    }));
 }

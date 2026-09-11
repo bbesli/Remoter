@@ -1,6 +1,5 @@
 {
   "_comment_file": "The import wizard: eight steps that read an mRemoteNG, OpenSSH config or CSV file and write it into the vault. Loaded only when the wizard is opened. Two themes run through this namespace and neither may be softened in translation: nothing is written to the vault until step 7, and an import cannot be undone once it is. 'Remoter' is the product name and is never translated. 'mRemoteNG', 'ProxyJump', 'ProxyCommand', 'Host', 'Match', 'confVersion', 'AES-CBC' and 'MD5' are names from other products, protocols and file formats and are never translated either.",
-
   "wizard": {
     "_comment_title": "The screen's heading. A noun — the name of the screen — not the verb on a button.",
     "title": "İçe aktarma",
@@ -8,7 +7,17 @@
     "_comment_closeHint": "Tooltip on the same button. 'Esc' is a key name and is written as-is in every language.",
     "closeHint": "Kapat (Esc)"
   },
-
+  "firstRun": {
+    "_comment_": "Copy for the launch screen's import door and the vault creation it has to pass through on the way here. It lives in the import namespace rather than in vault.json because it describes the import flow and has to stay in step with the wizard's wording: the sentence it replaced was a stub promising the wizard 'in a later version', and the door it sat under led to the create-vault wizard and nowhere else.",
+    "_comment_doorHelp": "Under 'Bring across what I have' on the first-run screen. It names what happens in order, because a door that creates a vault when you asked it to import reads as the wrong button. mRemoteNG, CSV and ~/.ssh/config are a product name, a file format and a file path; none of them is translated.",
+    "doorHelp": "Önce bir kasa gerekir; bu yüzden burada bir kasa oluşturulur, ardından mRemoteNG, ~/.ssh/config ve CSV için içe aktarma sihirbazı açılır.",
+    "_comment_calloutTitle": "Shown at the top of the create-vault wizard when the user arrived through the import door. Short: it is a reassurance, not an instruction.",
+    "calloutTitle": "Sırada içe aktarma var",
+    "_comment_calloutBody": "The body under it. 'Nothing is read until then' is the same promise the wizard's own footer makes and must not be softened.",
+    "calloutBody": "Bu dört adımı tamamlayın; ardından içe aktarma sihirbazı açılır. O ana kadar eski bağlantı yöneticinizden hiçbir şey okunmaz.",
+    "_comment_openAndImport": "The last button of vault creation, replacing 'I have saved it — open the vault' when the import wizard follows it. It still confirms the recovery key has been saved: that confirmation is the whole point of the screen and must not be dropped in translation.",
+    "openAndImport": "Kaydettim — içe aktarmayı başlat"
+  },
   "rail": {
     "_comment_": "The eight-step progress rail down the top of the screen. Each label is one or two words in a narrow button, and each is a noun naming the step, not an instruction. Steps 3 and 7 are work the wizard does by itself; they are in the rail so the wait has a place on screen.",
     "label": "İçe aktarma adımları",
@@ -29,7 +38,6 @@
       "result": "Sonuç"
     }
   },
-
   "nav": {
     "_comment_": "The forward and back buttons in the footer. Imperative verbs, no trailing punctuation. Which forward label is shown depends on the step.",
     "back": "Geri",
@@ -43,14 +51,12 @@
     "toCommit": "Gözden geçir ve yaz",
     "done": "Bitti"
   },
-
   "footer": {
     "_comment_": "A standing note at the bottom of every step, saying whether the vault has been touched. SECURITY-CRITICAL: these three sentences are the wizard's promise about when it writes. Do not merge them, do not soften 'yet', and do not turn the warning into a reassurance.",
     "nothingWritten": "Kasanıza henüz hiçbir şey yazılmadı.",
     "willWrite": "Bu adım kasanıza yazar.",
     "written": "Tek bir işlem olarak yazıldı."
   },
-
   "gate": {
     "_comment_": "Why a disabled control is disabled. Each is a tooltip on the control itself, so it says what to do rather than what went wrong. Every one is a complete sentence.",
     "noFile": "İçe aktarmak istediğiniz dosyayı seçin.",
@@ -63,7 +69,6 @@
     "committed": "Bu içe aktarma zaten yazıldı. Yeniden içe aktarmak için yeni bir tane başlatın.",
     "ahead": "Önce bundan önceki adımları bitirin."
   },
-
   "source": {
     "_comment_": "Step 1 — choosing the file. Detection is done by reading the file's content, never its name.",
     "title": "İçe aktarılacak dosyayı seçin",
@@ -104,7 +109,6 @@
       "csvHint": "Bir başlık satırı ve her satırda bir bağlantı"
     }
   },
-
   "secrets": {
     "_comment_": "Step 2 — the document password, and the bad news that arrives with it. The password is typed here, handed to the core, and dropped. It is never shown, never stored and never logged.",
     "encryptedTitle": "Dosya şifreli",
@@ -139,13 +143,11 @@
     "keysTitle": "Özel anahtarlar hakkında",
     "keysBody": "Bu dosyanın adını verdiği anahtarlar, zaten bulundukları dosyalara birer başvuru olarak içe aktarılır. Remoter burada anahtar malzemesini okumaz, dolayısıyla hiçbir anahtar parolası sorulmaz."
   },
-
   "parse": {
     "_comment_": "Step 3 — the wait while the core reads the file. The user does nothing here.",
     "busy": "Dosya okunuyor…",
     "busyNote": "Ayrıştırma, çekirdekte, sınırlı arabelleklerle çalışan yalıtılmış bir okuyucuda yapılır. Bu adımda kasanıza hiçbir şey yazılmaz."
   },
-
   "preview": {
     "_comment_": "Step 4 — every node the import would create, with a checkbox beside it. This is the last screen on which anything can be left out.",
     "title": "Elinize geçecek olan şey bu",
@@ -183,7 +185,6 @@
     "truncatedTitle": "Bu, dosyanın tamamı değil",
     "truncatedBody": "Bir güvenlik sınırı, ayrıştırmayı belgenin sonuna gelmeden durdurdu. Gördüğünüz şey Remoter'ın okuduğu her şeydir ve bunu içe aktarmak güvenlidir; ama dosyanın içerdiği her şey olmayacaktır."
   },
-
   "tree": {
     "_comment_": "The preview tree itself: one row per node, each with a checkbox and small badges.",
     "_comment_group": "Accessible name of the whole tree, read by a screen reader on entering it.",
@@ -206,7 +207,6 @@
     "inherited": "devralındı",
     "inheritedTitle": "Bu düğümün kimlik bilgisi, tıpkı dosyadaki gibi üst öğesinden geliyor."
   },
-
   "report": {
     "_comment_": "Step 5 — the findings, grouped by severity, worst first.",
     "title": "Ayrıştırma neler buldu",
@@ -232,7 +232,6 @@
     "skippedTitle": "Bazı öğeler ayrıştırıcı tarafından dışarıda bırakıldı",
     "skippedBody": "Yukarıda gerekçeleriyle listeleniyorlar. Önizlemede yoklar ve içe aktarılmayacaklar; dosyanın kendisine dokunulmadığı için onlarla ilgili hiçbir şey kaybolmuyor."
   },
-
   "preserved": {
     "_comment_": "One line each in the 'kept but not interpreted' table. The left column is a field path — 'custom_fields.ProxyCommand' — and is never translated; these are the right column. 'verbatim' means the value was stored exactly as the file had it.",
     "connections": "{count, plural, one {# bağlantı} other {# bağlantı}} · birebir",
@@ -240,82 +239,62 @@
     "_comment_everyRow": "For a CSV column: every row of the file carried it.",
     "everyRow": "her satır · birebir"
   },
-
   "finding": {
     "_comment_": "One entry per thing the importer wants the user to know. Each has a title — the fact — and a body saying what it means for them. A verbatim scrap from the file is shown separately in a monospace line and is never translated. {item} is a connection or folder name from the file; {target}, {protocol}, {command}, {column}, {field}, {criteria} and {pattern} are all values read out of the file, in whatever script or syntax it had them.",
-
     "_comment_defaultFilePasswordTitle": "SECURITY-CRITICAL. The single most important finding in the wizard. mRemoteNG encrypts a file with no password of its own using a password published in its own source. Do not soften 'was not really protected' and do not turn 'change them on the servers' into a suggestion.",
     "defaultFilePasswordTitle": "Bu dosya, mRemoteNG'nin herkesçe bilinen varsayılan parolasıyla korunuyordu.",
     "defaultFilePasswordBody": "Aslında korunmuyordu. Bu dosyanın bir kopyasını eline geçirmiş olan herkes, sizin bildiğiniz hiçbir şeyi bilmeden içindeki her kimlik bilgisini okuyabilirdi. Buradan gelen parolaları ifşa olmuş sayın ve sunucularda değiştirin.",
-
     "_comment_legacyCbcEncryptionTitle": "SECURITY-CRITICAL. The pre-1.75 scheme: the key was an unsalted MD5 hash of the password and the ciphertext was unauthenticated. 'Consider the credentials exposed' is the actionable part.",
     "legacyCbcEncryptionTitle": "Bu dosya, MD5 ile türetilmiş anahtarlı eski AES-CBC yöntemini kullanıyor.",
     "legacyCbcEncryptionBody": "Remoter onu okuyabilir. Bir kopyası elinde olan herkes de fazla zorlanmadan okuyabilirdi; çünkü anahtar tuzsuz bir özetten geliyordu ve şifreli metin, kurcalamayı fark ettirecek hiçbir şey taşımıyordu. İçindeki kimlik bilgilerini ifşa olmuş sayın.",
-
     "fullFileEncryptionTitle": "Yalnızca parolalar değil, belgenin tamamı şifrelenmişti.",
     "fullFileEncryptionBody": "Kimlik bilgileriyle birlikte yapı da gizlenmişti. İçe aktarma açısından bir şey değişmez; bu, yalnızca dosyanın nasıl yapılandırıldığını söylediği için not edildi.",
-
     "_comment_secretsRecoveredTitle": "How many passwords the importer got out of the file.",
     "secretsRecoveredTitle": "{count, plural, one {Dosyadan # parola çıktı.} other {Dosyadan # parola çıktı.}}",
     "secretsRecoveredBody": "Bunlar, yazma adımını onayladığınız anda kasaya mühürlenir. Hiçbir zaman açık hâlde diske yazılmaz ve çekirdeğin dışına çıkmaz.",
-
     "_comment_credentialsDeduplicatedTitle": "The same username and password repeated across many connections became one shared credential. {credentials} counts the credential objects made, {connections} the connections now pointing at them.",
     "credentialsDeduplicatedTitle": "{credentials, plural, one {# kimlik bilgisi nesnesi} other {# kimlik bilgisi nesnesi}}, {connections, plural, one {# bağlantıyı} other {# bağlantıyı}} kapsıyor.",
     "credentialsDeduplicatedBody": "Bağlantılar boyunca yinelenen aynı kullanıcı adı ve parola tek bir kimlik bilgisine dönüştü; onu kullanan bağlantılar da bu kimlik bilgisine bağlandı. Bir kez değiştirdiğinizde her yerde değişir.",
-
     "_comment_unknownProtocolTitle": "{item} is the connection's name. The protocol name itself is shown separately and is never translated.",
     "unknownProtocolTitle": "{item}, Remoter'da bulunmayan bir protokol kullanıyordu.",
     "_comment_unknownProtocolBody": "{mappedTo} is the protocol it was imported as — SSH, RDP, VNC, SFTP. Never translated.",
     "unknownProtocolBody": "{mappedTo} olarak içe aktarıldı. Özgün değer özel bir alanda korunuyor, dolayısıyla onunla ilgili hiçbir şey kaybolmadı.",
-
     "skippedItemTitle": "{item} içe aktarılmadı.",
     "_comment_skippedItemBody": "One sentence per reason the parser refused an item. The reason names are wire values from the core and must stay exactly as they are; only the sentences are translated. 'other' is the fallback for a reason a newer core sends that this build has never seen.",
     "skippedItemBody": "{reason, select, unusable_host {Sunucu adı kullanılabilir olmadığı için dışarıda bırakıldı.} unusable_name {Adı boş ya da kullanılamaz olduğu için dışarıda bırakıldı.} unsupported_kind {Türünün burada bir karşılığı olmadığı için dışarıda bırakıldı.} empty {Boş olduğu için dışarıda bırakıldı.} other {Dışarıda bırakıldı.}}",
-
     "_comment_unmappedProxyCommandTitle": "'ProxyCommand' is an OpenSSH configuration keyword and is never translated.",
     "unmappedProxyCommandTitle": "{item}, doğrudan karşılığı olmayan bir ProxyCommand kullanıyor.",
     "unmappedProxyCommandBody": "Komut atılmak yerine özel bir alanda birebir saklandı. Bağlantı içe aktarılacak; ancak siz elle bir geçit kurana kadar vekil sunucuyu kullanmayacak.",
-
     "_comment_gatewayMappedTitle": "The best news the importer has: a ProxyJump in the file became a real, working chain of gateways in the vault.",
     "gatewayMappedTitle": "{item}, atlama sunucusu zinciri bozulmadan geliyor.",
     "gatewayMappedBody": "ProxyJump, {hops, plural, one {# atlamalık} other {# atlamalık}} gerçek bir geçit zincirine dönüştü; böylece bağlantı, başka hiçbir ayar gerekmeden ilk denemede çalışır.",
-
     "gatewaySynthesisedTitle": "{item} için ProxyJump satırından bir geçit oluşturuldu.",
     "_comment_gatewaySynthesisedBody": "{target} is the jump host's address, read out of the file.",
     "gatewaySynthesisedBody": "{target} atlama sunucusu dosyada bir bağlantı değildi, bu yüzden burada bir bağlantıya dönüştü ve artık üzerinden atlayan her şeyle paylaşılıyor.",
-
     "gatewayUnresolvedTitle": "{item}, çözümlenemeyen bir sunucu üzerinden atlıyor.",
     "gatewayUnresolvedBody": "Zincir {target} adresini anıyor; bu adres dosyada yok ve dosyadan kurulamadı. Bağlantı geçidi olmadan içe aktarılır ve siz bir geçit ekleyene kadar sunucuya ulaşamaz.",
-
     "_comment_secretNotMappedTitle": "SECURITY-ADJACENT. A password in a field Remoter has no home for. It was dropped rather than written somewhere unprotected, and the user is told so plainly because they may be relying on it.",
     "secretNotMappedTitle": "{item} üzerindeki bir sırrın gidecek yeri yoktu.",
     "secretNotMappedBody": "Veri modelinde karşılığı olmayan bir alandaydı ve bir sır, özel alanlarda asla tutulmayan tek şeydir. Korunmayacağı bir yere saklanmaktansa atıldı.",
-
     "_comment_matchBlockNotAppliedTitle": "'Match' is an OpenSSH configuration keyword — a conditional block — and is never translated.",
     "matchBlockNotAppliedTitle": "Bir Match bloğu okundu ama uygulanmadı.",
     "matchBlockNotAppliedBody": "Ölçütleri, bağlantının nasıl kurulduğuna bağlı ve bu, içe aktarma sırasında bilinmiyor; bu yüzden {options, plural, one {# seçeneği} other {# seçeneği}}, kendileri için tasarlanmamış olabilecek sunuculara uygulanmaktansa dışarıda bırakıldı.",
-
     "_comment_patternBlockAppliedTitle": "'Host' is the OpenSSH keyword that opens a block, and a wildcard one — 'Host *.acme' — applies to every matching connection. Never translated.",
     "patternBlockAppliedTitle": "Joker karakterli bir Host bloğu {connections, plural, one {# bağlantıya} other {# bağlantıya}} uygulandı.",
     "patternBlockAppliedBody": "Seçenekleri, adıyla eşleşen her bağlantıya, tıpkı ssh'ın kendisinin uygulayacağı gibi işlendi.",
-
     "_comment_settingsPreservedTitle": "Settings with no equivalent in Remoter, stored verbatim in custom fields instead of being dropped.",
     "settingsPreservedTitle": "{count, plural, one {# ayar, {item} üzerinde korundu ama yorumlanmadı.} other {# ayar, {item} üzerinde korundu ama yorumlanmadı.}}",
     "settingsPreservedBody": "Özel alanlarda, birebir duruyorlar. Hiçbir şey atılmadı — Remoter'ın ileriki bir sürümü bunları okumayı öğrenirse, orada duruyor olacaklar.",
-
     "_comment_unknownColumnTitle": "CSV only: a column heading the importer has no field for.",
     "unknownColumnTitle": "Dosyadaki bir sütun tanınmadı.",
     "unknownColumnBody": "Değerleri atılmak yerine her satırda özel bir alanda korundu.",
-
     "_comment_limitReachedTitle": "A parse limit stopped the read before the end of the file. The limit names are wire values from the core and must stay exactly as they are; only the sentences around them are translated.",
     "limitReachedTitle": "{limit, select, custom_fields {Bir güvenlik sınırı ayrıştırmayı durdurdu: çok fazla özel alan.} findings {Bir güvenlik sınırı ayrıştırmayı durdurdu: çok fazla bulgu.} nodes {Bir güvenlik sınırı ayrıştırmayı durdurdu: çok fazla düğüm.} other {Bir güvenlik sınırı ayrıştırmayı durdurdu.}}",
     "limitReachedBody": "Gördüğünüz şey, Remoter'ın sınıra gelene kadar okuduğu her şeydir. Bunu içe aktarmak güvenlidir; ama dosyanın tamamı olmayacaktır. Dosyayı bölün ya da parça parça içe aktarın.",
-
     "_comment_unknownTitle": "Shown when a newer core reports a finding this build has never heard of. It is deliberately honest about being unable to explain itself rather than inventing a meaning.",
     "unknownTitle": "Bu dosya, bu sürümün tanımadığı bir not üretti.",
     "unknownBody": "Not, içe aktarıcının bu sürümün bilmediği daha yeni bir parçasından geldi. Dosyanızda bir sorun yok; not yalnızca burada açıklanamıyor."
   },
-
   "destination": {
     "_comment_": "Step 6 — the vault folder the import lands in.",
     "title": "Bunlar nereye gitsin?",
@@ -333,7 +312,6 @@
     "_comment_chooseLabel": "Accessible name of the list of folders.",
     "chooseLabel": "Hedef klasör"
   },
-
   "commit": {
     "_comment_": "Step 7 — the last screen before anything is written, and the button that writes.",
     "title": "Yazmaya hazır",
@@ -358,13 +336,18 @@
     "transactionBody": "Bunun ya tamamı kasa dosyanıza ulaşır ya da hiçbiri. Remoter bir içe aktarmayı sonradan geri alamaz; bu yüzden istemediğiniz her şeyin işareti, düğmeye basmadan önce önizlemede kaldırılmalıdır — sonrasındaki tek çare, onu ağaçtan silmektir.",
     "nothing": "Hiçbir şey işaretli değil, dolayısıyla yazılacak bir şey de yok. Önizlemeye dönüp bir şeyler işaretleyin."
   },
-
   "result": {
     "_comment_": "Step 8 — what was written. The import is finished and cannot be taken back.",
     "_comment_title": "The heading. {count} nodes are now in the vault.",
     "title": "{count, plural, one {# öğe kasanızda} other {# öğe kasanızda}}",
     "_comment_lead": "{folder} is either a folder path from the vault or the 'destination.top' phrase.",
     "lead": "{folder} içine tek bir işlem olarak yazıldı.",
+    "_comment_refusedTitle": "SHOWN ONLY when the parser refused items — items that were in the file and are not in the vault, as opposed to ones the reader unticked. {count} is how many. Do not soften: an import that left part of the file behind is not a success, and this is the last screen the reader sees.",
+    "refusedTitle": "{count, plural, one {dosyadaki # öğe gelmedi} other {dosyadaki # öğe gelmedi}}",
+    "_comment_refusedBody": "Follows the heading, above the list of refused items. The advice is deliberate: there is no undo, so importing the corrected file again into the same folder would duplicate everything that did come in.",
+    "refusedBody": "Dosyadaydılar ve kasada onları karşılayan hiçbir şey yok. Geri kalan her şey yazıldı. Geldikleri uygulamada düzeltin ve dosyayı yeni bir klasöre yeniden içe aktarın; bu içe aktarma geri alınamaz.",
+    "_comment_refusedNotAllListed": "Shown under the list when the report stopped growing before the end of the file, so the names of the remaining refusals were never recorded. {count} is how many are missing from the list.",
+    "refusedNotAllListed": "{count, plural, one {# tanesi daha burada listelenmiyor: rapor dosya bitmeden büyümeyi durdurdu.} other {# tanesi daha burada listelenmiyor: rapor dosya bitmeden büyümeyi durdurdu.}}",
     "_comment_countImported": "Labels under the large numbers in the stat tiles. Plain nouns and noun phrases, lower case.",
     "countImported": "içe aktarıldı",
     "_comment_countSkipped": "Nodes left out because the user unticked them, as opposed to ones the parser refused.",
@@ -388,7 +371,6 @@
     "done": "Bitti",
     "another": "Başka bir dosya içe aktar"
   },
-
   "discard": {
     "_comment_": "The dialog shown when the user leaves the wizard with a parsed file still held in the core. SECURITY-ADJACENT: what is being dropped is not a screenful of data but the parsed file, with every password it recovered in plaintext. Leaving wipes them, which is the desired outcome — the cost is only that the file would have to be read again.",
     "title": "Bu içe aktarma atılsın mı?",

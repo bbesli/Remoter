@@ -295,12 +295,20 @@
         "Usar en su lugar el agente SSH de la plataforma"
       ]
     },
-    "_comment_unsupported-format": "The first action quotes a command. Translate the sentence around it if there is one; never translate the command itself, and keep its flags exactly as they are.",
+    "_comment_unsupported-format": "The refusal is a real limitation, not a conversion the user can perform: no protocol in this build can authenticate with a key of that kind, so the actions must not suggest converting the file. The three algorithm names in the first action are algorithm names, not words; leave them exactly as they are.",
     "unsupported-format": {
-      "message": "Esa clave está en un formato que esta compilación no almacena. No se ha escrito nada.",
+      "message": "Esa es una clave privada de un tipo con el que ningún protocolo de esta versión puede autenticarse. No se escribió nada.",
       "actions": [
-        "Convertirla con `ssh-keygen -p -m PKCS8 -f '<file>'`",
-        "Usar en su lugar el agente SSH de la plataforma"
+        "Usar una clave Ed25519, ECDSA o RSA en su lugar",
+        "Usar el agente SSH del sistema en su lugar"
+      ]
+    },
+    "_comment_legacy-encrypted": "Different from unsupported-format: the key itself is fine, it is the PEM container that is encrypted, and Remoter has to read the container before it can store the key. The first action quotes two commands. Translate the sentence around them if there is one; never translate the commands themselves, and keep `<file>` and `<copy>` exactly as they are. The word 'copy' is load-bearing: `ssh-keygen -p` rewrites the file it is given, and the user's key file is very often shared with other tools.",
+    "legacy-encrypted": {
+      "message": "Esa clave está cifrada dentro de su propio contenedor PEM, y Remoter necesita poder leer el contenedor antes de poder guardar la clave. No se escribió nada.",
+      "actions": [
+        "Convertir una copia: `cp <file> <copy>` y luego `ssh-keygen -p -m PKCS8 -f <copy>`",
+        "Usar el agente SSH del sistema en su lugar"
       ]
     },
     "passphrase-required": {
@@ -320,7 +328,7 @@
       ]
     },
     "purpose-refused": {
-      "message": "Esta credencial está restringida y no puede usarse de esta manera.",
+      "message": "La restricción de esta credencial no cubre el uso que se le iba a dar, así que la bóveda no la abrió. Amplía la restricción en los ajustes de la credencial o elige una credencial que ya permita ese uso.",
       "actions": [
         "Elegir otra credencial",
         "Ampliar la restricción de la credencial"

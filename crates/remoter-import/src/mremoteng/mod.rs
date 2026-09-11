@@ -41,7 +41,7 @@ use remoter_core::{
 
 pub use crypto::{CipherMode, DEFAULT_PASSWORD};
 
-use crate::error::ImportError;
+use crate::error::{ImportError, XmlProblem};
 use crate::limits::Limits;
 use crate::mapping::{
     CredentialPool, clean_description, clean_name, custom_key, parse_bool, parse_port, preserve,
@@ -49,7 +49,7 @@ use crate::mapping::{
 use crate::preview::{ImportPreview, PreviewBuilder, PreviewKind, PreviewNode, PreviewSecret};
 use crate::report::{Finding, SkipReason, SourceFormat};
 use crate::secret::ImportedSecret;
-use crate::xml::{BoundedXmlReader, Element, XmlEvent, as_text};
+use crate::xml::{BoundedXmlReader, Element, XmlEvent, as_text, name_in_message};
 
 use crypto::Decryptor;
 
@@ -72,6 +72,9 @@ const MAPPED: &[&str] = &[
 /// Attributes holding a secret in a field Remoter does not model. Never
 /// preserved; always reported.
 const UNMAPPED_SECRETS: &[&str] = &["RDGatewayPassword", "VNCProxyPassword"];
+
+/// The element a `confCons.xml` begins with.
+const ROOT_ELEMENT: &str = "Connections";
 
 /// What the root element says about the file, without reading its body.
 ///
@@ -98,7 +101,9 @@ pub struct DocumentInfo {
 /// # Errors
 ///
 /// Anything [`parse`] can fail with while reading a root element, plus
-/// [`ImportError::WrongFormat`] if the document is not a `<Connections>` one.
+/// [`ImportError::XmlNotWellFormed`] with
+/// [`XmlProblem::UnexpectedRoot`](crate::XmlProblem::UnexpectedRoot) if the
+/// document is not a `<Connections>` one.
 pub fn inspect(bytes: &[u8], limits: &Limits) -> Result<DocumentInfo, ImportError> {
     let text = as_text(bytes, limits)?;
     let mut reader = BoundedXmlReader::new(text, *limits);
@@ -215,16 +220,21 @@ impl Root {
 }
 
 /// Reads events until the `<Connections>` element opens, and describes it.
+///
+/// The two refusals here are what a user meets when they choose the wrong file
+/// — a Royal TS document, a `.rdg`, last week's screenshot — so both name what
+/// was found rather than only what was wanted.
 fn read_root(reader: &mut BoundedXmlReader<'_>) -> Result<Root, ImportError> {
     let Some(XmlEvent::Start(element)) = reader.next_event()? else {
-        return Err(ImportError::WrongFormat {
-            expected: "an mRemoteNG confCons.xml",
-        });
+        return Err(reader.refuse_unplaced(XmlProblem::NoRootElement {
+            expected: ROOT_ELEMENT,
+        }));
     };
-    if element.name != "Connections" {
-        return Err(ImportError::WrongFormat {
-            expected: "an mRemoteNG confCons.xml",
-        });
+    if element.name != ROOT_ELEMENT {
+        return Err(reader.refuse_unplaced(XmlProblem::UnexpectedRoot {
+            found: name_in_message(&element.name),
+            expected: ROOT_ELEMENT,
+        }));
     }
     Ok(Root {
         name: element

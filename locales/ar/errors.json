@@ -295,11 +295,19 @@
         "استخدام وكيل SSH الخاص بالنظام بدلًا من ذلك"
       ]
     },
-    "_comment_unsupported-format": "The first action quotes a command. Translate the sentence around it if there is one; never translate the command itself, and keep its flags exactly as they are.",
+    "_comment_unsupported-format": "The refusal is a real limitation, not a conversion the user can perform: no protocol in this build can authenticate with a key of that kind, so the actions must not suggest converting the file. The three algorithm names in the first action are algorithm names, not words; leave them exactly as they are.",
     "unsupported-format": {
-      "message": "هذا المفتاح بتنسيق لا تخزّنه هذه النسخة. لم يُكتب شيء.",
+      "message": "هذا مفتاح خاص من نوع لا يستطيع أي بروتوكول في هذه النسخة الاستيثاق به. لم يُكتب شيء.",
       "actions": [
-        "تحويله بالأمر `ssh-keygen -p -m PKCS8 -f '<file>'`",
+        "استخدام مفتاح Ed25519 أو ECDSA أو RSA بدلًا منه",
+        "استخدام وكيل SSH الخاص بالنظام بدلًا من ذلك"
+      ]
+    },
+    "_comment_legacy-encrypted": "Different from unsupported-format: the key itself is fine, it is the PEM container that is encrypted, and Remoter has to read the container before it can store the key. The first action quotes two commands. Translate the sentence around them if there is one; never translate the commands themselves, and keep `<file>` and `<copy>` exactly as they are. The word 'copy' is load-bearing: `ssh-keygen -p` rewrites the file it is given, and the user's key file is very often shared with other tools.",
+    "legacy-encrypted": {
+      "message": "هذا المفتاح مشفَّر داخل حاوية PEM الخاصة به، وعلى Remoter أن يقرأ الحاوية قبل أن يتمكن من تخزين المفتاح. لم يُكتب شيء.",
+      "actions": [
+        "تحويل نسخة: `cp <file> <copy>` ثم `ssh-keygen -p -m PKCS8 -f <copy>`",
         "استخدام وكيل SSH الخاص بالنظام بدلًا من ذلك"
       ]
     },
@@ -320,7 +328,7 @@
       ]
     },
     "purpose-refused": {
-      "message": "بيانات الاعتماد هذه مقيَّدة ولا يجوز استخدامها على هذا النحو.",
+      "message": "قيد بيانات الاعتماد هذه لا يشمل الاستخدام الذي كانت على وشك أن تُستخدم فيه، لذلك رفضت الخزنة فتحها. وسِّع القيد من إعدادات بيانات الاعتماد، أو اختر بيانات اعتماد تسمح بهذا الاستخدام أصلًا.",
       "actions": [
         "اختيار بيانات اعتماد أخرى",
         "توسيع قيد بيانات الاعتماد"

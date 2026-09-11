@@ -1,18 +1,15 @@
 {
   "_comment_file": "The vault surfaces: choosing a vault, creating one, the recovery key, and unlocking. This is the first thing a new user reads and the last thing a locked-out one reads, so it carries more security-critical copy than any other namespace. Anything marked SECURITY-CRITICAL describes permanent, unrecoverable data loss; softening it into something gentler is a foreseeable source of harm, and those strings get a second reader before a translation is accepted (docs/features/i18n.md).",
-
   "probe": {
     "_comment_reading": "The cleartext header of the vault file is being read. Nothing is decrypted at this point — say 'header', not 'vault'.",
     "reading": "正在读取保险库文件头…"
   },
-
   "kdf": {
     "_comment_": "Argon2id key derivation takes about a second by design. Shown beside the spinner on every screen that derives a key — creating a vault, unlocking one, adding or rotating a key slot. It is an explanation of a security property, not an apology for a slow program: do not turn 'deliberately slow' into 'this may take a moment'.",
     "slow": "密钥派生是被刻意设计得很慢的。正是这份开销，让被盗走的保险库文件难以被暴力破解。",
     "_comment_slowWithSummary": "{summary} is the cost this vault was written with, e.g. 'Argon2id, 256 MiB, t=3'. It is produced by the core and is never translated.",
     "slowWithSummary": "密钥派生是被刻意设计得很慢的——{summary}。正是这份开销，让被盗走的保险库文件难以被暴力破解。"
   },
-
   "keyfile": {
     "_comment_": "A key file is a second factor: any file the user chooses becomes part of the key. These strings are shared by the unlock screen, the create wizard and the vault-settings dialogs.",
     "label": "密钥文件",
@@ -29,7 +26,6 @@
       "isABackup": "{name} 是某个保险库的滚动备份，不是密钥文件。请另选一个文件。"
     }
   },
-
   "slot": {
     "_comment_": "The four ways a vault can be opened, named on the unlock screen's cards. Each is a noun phrase, not a verb: they name a method, they are not an instruction to use it.",
     "password": "主密码",
@@ -38,7 +34,6 @@
     "_comment_keychain": "The system keychain (Keychain on macOS, Secret Service on Linux, Credential Manager on Windows) is holding the key for this machine. Phrased from the user's side: they asked to be remembered.",
     "keychain": "在此设备上记住"
   },
-
   "picker": {
     "_comment_": "The launch screen. It lists the vaults this machine has opened before; nothing on it decrypts anything.",
     "title": "打开保险库",
@@ -76,7 +71,6 @@
     "_comment_settingsHint": "Its tooltip. It names the three settings worth changing before a vault is ever opened.",
     "settingsHint": "设置——语言、主题和快捷键"
   },
-
   "detail": {
     "_comment_": "The panel beside the list, describing whichever vault is under the pointer. It reads the cleartext header only.",
     "probeFailed": "无法读取此保险库的文件头。",
@@ -104,7 +98,6 @@
       "keychain": "已保存在此设备上"
     }
   },
-
   "firstRun": {
     "_comment_": "What the launch screen says instead of a list when this machine has never opened a vault. 'Pick a vault' is a meaningless instruction when there are none, so it offers two doors.",
     "title": "Remoter 需要先有一个保险库才能做任何事",
@@ -116,7 +109,6 @@
     "emptyTitle": "从空白开始",
     "emptyHelp": "四个步骤：文件放在哪里、一个主密码、一个可选的密钥文件，以及您的恢复密钥。"
   },
-
   "wizard": {
     "_comment_": "The frame around the four create-vault steps: title bar, the stepper, and the two footer buttons.",
     "windowTitle": "创建保险库",
@@ -136,7 +128,6 @@
     "continue": "继续",
     "createAction": "创建保险库"
   },
-
   "create": {
     "_comment_": "Steps 1 to 3 of the create-vault wizard. Step 4 is the 'recovery' group below.",
     "creating": "正在派生密钥并写入保险库…",
@@ -232,7 +223,6 @@
       "required": "从现在起，打开这个保险库必须有这个文件。如果您把它弄丢了，就只有恢复密钥还管用。"
     }
   },
-
   "recovery": {
     "_comment_": "Step 4, and the same panel again when a recovery key is rotated from vault settings. The key is shown exactly once and is stored nowhere, which is why this screen makes the user retype part of it.",
     "heading": "您的恢复密钥",
@@ -248,11 +238,18 @@
     "copied": "已复制到剪贴板。",
     "copyFailed": "此系统不允许复制。请改为把密钥抄下来或打印出来。",
     "_comment_download": "A verb on a button: save the key as a plain text file.",
-    "download": "下载为文本文件",
-    "downloadFailed": "此系统不允许保存文件。请改为打印这把密钥。",
+    "download": "保存为文本文件",
+    "saveTitle": "保存你的恢复密钥",
+    "filterText": "文本文件",
+    "saving": "正在保存…",
+    "saved": "已保存到 {path}",
+    "savedPlaintext": "该文件是普通文本，位于保险库的加密之外。任何能读取这块磁盘的人都能读到这把密钥。请像保管护照那样保管它，或者在密钥安置妥当后把它删除。",
+    "saveFailed": "恢复密钥没有保存。",
+    "saveDialogFailed": "此系统没有打开保存对话框。请改为复制密钥或把它抄下来。",
     "_comment_print": "A verb on a button: send the key to a printer.",
     "print": "打印",
     "printFailed": "此系统没有打开打印对话框。请改为复制密钥或把它抄下来。",
+    "printUnavailable": "此系统无法从这个窗口打印。",
     "_comment_confirmPrompt": "{group} is which group of the key to retype — a position, counting from one. The group itself is highlighted in the grid above. This is one sentence rather than a sentence assembled around a number: split sentences do not survive translation.",
     "confirmPrompt": "请输入第 {group, number} 组——也就是高亮的那一组——以确认您已经把它存放在安全的地方。",
     "_comment_targetGroupAria": "The accessible name of that highlighted group, read aloud instead of the four characters in it.",
@@ -281,7 +278,6 @@
       "warning": "{title} {body}"
     }
   },
-
   "unlock": {
     "_comment_": "The unlock screen. It lists the slots this vault's header actually has, so a vault with one password slot shows one card and no invented alternatives.",
     "windowTitle": "解锁保险库",

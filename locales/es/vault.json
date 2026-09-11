@@ -1,18 +1,15 @@
 {
   "_comment_file": "The vault surfaces: choosing a vault, creating one, the recovery key, and unlocking. This is the first thing a new user reads and the last thing a locked-out one reads, so it carries more security-critical copy than any other namespace. Anything marked SECURITY-CRITICAL describes permanent, unrecoverable data loss; softening it into something gentler is a foreseeable source of harm, and those strings get a second reader before a translation is accepted (docs/features/i18n.md).",
-
   "probe": {
     "_comment_reading": "The cleartext header of the vault file is being read. Nothing is decrypted at this point — say 'header', not 'vault'.",
     "reading": "Leyendo la cabecera de la bóveda…"
   },
-
   "kdf": {
     "_comment_": "Argon2id key derivation takes about a second by design. Shown beside the spinner on every screen that derives a key — creating a vault, unlocking one, adding or rotating a key slot. It is an explanation of a security property, not an apology for a slow program: do not turn 'deliberately slow' into 'this may take a moment'.",
     "slow": "La derivación de clave es lenta a propósito. Ese coste es lo que hace caro atacar un archivo de bóveda robado.",
     "_comment_slowWithSummary": "{summary} is the cost this vault was written with, e.g. 'Argon2id, 256 MiB, t=3'. It is produced by the core and is never translated.",
     "slowWithSummary": "La derivación de clave es lenta a propósito: {summary}. Ese coste es lo que hace caro atacar un archivo de bóveda robado."
   },
-
   "keyfile": {
     "_comment_": "A key file is a second factor: any file the user chooses becomes part of the key. These strings are shared by the unlock screen, the create wizard and the vault-settings dialogs.",
     "label": "Archivo de clave",
@@ -29,7 +26,6 @@
       "isABackup": "{name} es una copia de seguridad rotativa de una bóveda, no un archivo de clave. Elija otro archivo."
     }
   },
-
   "slot": {
     "_comment_": "The four ways a vault can be opened, named on the unlock screen's cards. Each is a noun phrase, not a verb: they name a method, they are not an instruction to use it.",
     "password": "Contraseña maestra",
@@ -38,7 +34,6 @@
     "_comment_keychain": "The system keychain (Keychain on macOS, Secret Service on Linux, Credential Manager on Windows) is holding the key for this machine. Phrased from the user's side: they asked to be remembered.",
     "keychain": "Recordar en este dispositivo"
   },
-
   "picker": {
     "_comment_": "The launch screen. It lists the vaults this machine has opened before; nothing on it decrypts anything.",
     "title": "Abrir una bóveda",
@@ -76,7 +71,6 @@
     "_comment_settingsHint": "Its tooltip. It names the three settings worth changing before a vault is ever opened.",
     "settingsHint": "Configuración: idioma, tema y atajos"
   },
-
   "detail": {
     "_comment_": "The panel beside the list, describing whichever vault is under the pointer. It reads the cleartext header only.",
     "probeFailed": "No se pudo leer la cabecera de esta bóveda.",
@@ -104,7 +98,6 @@
       "keychain": "Guardada en este dispositivo"
     }
   },
-
   "firstRun": {
     "_comment_": "What the launch screen says instead of a list when this machine has never opened a vault. 'Pick a vault' is a meaningless instruction when there are none, so it offers two doors.",
     "title": "Remoter necesita una bóveda antes de poder hacer nada",
@@ -116,7 +109,6 @@
     "emptyTitle": "Empezar de cero",
     "emptyHelp": "Cuatro pasos: dónde vive el archivo, una contraseña maestra, un archivo de clave opcional y su clave de recuperación."
   },
-
   "wizard": {
     "_comment_": "The frame around the four create-vault steps: title bar, the stepper, and the two footer buttons.",
     "windowTitle": "Crear una bóveda",
@@ -136,7 +128,6 @@
     "continue": "Continuar",
     "createAction": "Crear la bóveda"
   },
-
   "create": {
     "_comment_": "Steps 1 to 3 of the create-vault wizard. Step 4 is the 'recovery' group below.",
     "creating": "Derivando la clave y escribiendo la bóveda…",
@@ -232,7 +223,6 @@
       "required": "A partir de ahora este archivo es obligatorio para abrir la bóveda. Si lo pierde, solo funcionará su clave de recuperación."
     }
   },
-
   "recovery": {
     "_comment_": "Step 4, and the same panel again when a recovery key is rotated from vault settings. The key is shown exactly once and is stored nowhere, which is why this screen makes the user retype part of it.",
     "heading": "Su clave de recuperación",
@@ -248,11 +238,18 @@
     "copied": "Copiada al portapapeles.",
     "copyFailed": "Este sistema no permitió copiar. Anote la clave a mano o imprímala.",
     "_comment_download": "A verb on a button: save the key as a plain text file.",
-    "download": "Descargar como texto",
-    "downloadFailed": "Este sistema no permitió guardar el archivo. Imprima la clave.",
+    "download": "Guardar como archivo de texto",
+    "saveTitle": "Guarde su clave de recuperación",
+    "filterText": "Archivo de texto",
+    "saving": "Guardando…",
+    "saved": "Guardada en {path}",
+    "savedPlaintext": "Ese archivo es texto corriente, fuera del cifrado de la caja fuerte. Cualquiera que pueda leer el disco puede leer la clave. Guárdelo como guardaría un pasaporte, o bórrelo en cuanto tenga la clave a buen recaudo.",
+    "saveFailed": "La clave de recuperación no se guardó.",
+    "saveDialogFailed": "Este sistema no abrió ningún diálogo para guardar. Copie la clave o anótela a mano.",
     "_comment_print": "A verb on a button: send the key to a printer.",
     "print": "Imprimir",
     "printFailed": "Este sistema no abrió ningún diálogo de impresión. Copie la clave o anótela a mano.",
+    "printUnavailable": "Este sistema no puede imprimir desde esta ventana.",
     "_comment_confirmPrompt": "{group} is which group of the key to retype — a position, counting from one. The group itself is highlighted in the grid above. This is one sentence rather than a sentence assembled around a number: split sentences do not survive translation.",
     "confirmPrompt": "Escriba el grupo {group, number} —el resaltado— para confirmar que lo tiene guardado en un sitio seguro.",
     "_comment_targetGroupAria": "The accessible name of that highlighted group, read aloud instead of the four characters in it.",
@@ -281,7 +278,6 @@
       "warning": "{title} {body}"
     }
   },
-
   "unlock": {
     "_comment_": "The unlock screen. It lists the slots this vault's header actually has, so a vault with one password slot shows one card and no invented alternatives.",
     "windowTitle": "Desbloquear la bóveda",

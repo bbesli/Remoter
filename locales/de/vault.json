@@ -1,18 +1,15 @@
 {
   "_comment_file": "The vault surfaces: choosing a vault, creating one, the recovery key, and unlocking. This is the first thing a new user reads and the last thing a locked-out one reads, so it carries more security-critical copy than any other namespace. Anything marked SECURITY-CRITICAL describes permanent, unrecoverable data loss; softening it into something gentler is a foreseeable source of harm, and those strings get a second reader before a translation is accepted (docs/features/i18n.md).",
-
   "probe": {
     "_comment_reading": "The cleartext header of the vault file is being read. Nothing is decrypted at this point — say 'header', not 'vault'.",
     "reading": "Tresor-Header wird gelesen…"
   },
-
   "kdf": {
     "_comment_": "Argon2id key derivation takes about a second by design. Shown beside the spinner on every screen that derives a key — creating a vault, unlocking one, adding or rotating a key slot. It is an explanation of a security property, not an apology for a slow program: do not turn 'deliberately slow' into 'this may take a moment'.",
     "slow": "Die Schlüsselableitung ist absichtlich langsam. Genau dieser Aufwand macht es teuer, eine gestohlene Tresordatei anzugreifen.",
     "_comment_slowWithSummary": "{summary} is the cost this vault was written with, e.g. 'Argon2id, 256 MiB, t=3, p=4'. It is notation, not words: the function's name, a memory figure with its unit, and Argon2's own parameter letters. The interface composes it from numbers the core sends, and none of it is translated.",
     "slowWithSummary": "Die Schlüsselableitung ist absichtlich langsam – {summary}. Genau dieser Aufwand macht es teuer, eine gestohlene Tresordatei anzugreifen."
   },
-
   "keyfile": {
     "_comment_": "A key file is a second factor: any file the user chooses becomes part of the key. These strings are shared by the unlock screen, the create wizard and the vault-settings dialogs.",
     "label": "Schlüsseldatei",
@@ -29,7 +26,6 @@
       "isABackup": "{name} ist ein rollierendes Backup eines Tresors, keine Schlüsseldatei. Wählen Sie eine andere Datei."
     }
   },
-
   "slot": {
     "_comment_": "The four ways a vault can be opened, named on the unlock screen's cards. Each is a noun phrase, not a verb: they name a method, they are not an instruction to use it.",
     "password": "Master-Passwort",
@@ -38,7 +34,6 @@
     "_comment_keychain": "The system keychain (Keychain on macOS, Secret Service on Linux, Credential Manager on Windows) is holding the key for this machine. Phrased from the user's side: they asked to be remembered.",
     "keychain": "Auf diesem Gerät merken"
   },
-
   "picker": {
     "_comment_": "The launch screen. It lists the vaults this machine has opened before; nothing on it decrypts anything.",
     "title": "Tresor öffnen",
@@ -76,7 +71,6 @@
     "_comment_settingsHint": "Its tooltip. It names the three settings worth changing before a vault is ever opened.",
     "settingsHint": "Einstellungen – Sprache, Design und Tastenkürzel"
   },
-
   "detail": {
     "_comment_": "The panel beside the list, describing whichever vault is under the pointer. It reads the cleartext header only.",
     "probeFailed": "Der Header dieses Tresors konnte nicht gelesen werden.",
@@ -104,7 +98,6 @@
       "keychain": "Auf diesem Gerät gespeichert"
     }
   },
-
   "firstRun": {
     "_comment_": "What the launch screen says instead of a list when this machine has never opened a vault. 'Pick a vault' is a meaningless instruction when there are none, so it offers two doors.",
     "title": "Remoter braucht einen Tresor, bevor es irgendetwas tun kann",
@@ -116,7 +109,6 @@
     "emptyTitle": "Leer beginnen",
     "emptyHelp": "Vier Schritte: wo die Datei liegt, ein Master-Passwort, eine optionale Schlüsseldatei und Ihr Wiederherstellungsschlüssel."
   },
-
   "wizard": {
     "_comment_": "The frame around the four create-vault steps: title bar, the stepper, and the two footer buttons.",
     "windowTitle": "Tresor anlegen",
@@ -136,7 +128,6 @@
     "continue": "Weiter",
     "createAction": "Tresor anlegen"
   },
-
   "create": {
     "_comment_": "Steps 1 to 3 of the create-vault wizard. Step 4 is the 'recovery' group below.",
     "creating": "Der Schlüssel wird abgeleitet und der Tresor geschrieben…",
@@ -232,7 +223,6 @@
       "required": "Diese Datei wird ab jetzt zum Öffnen des Tresors benötigt. Wenn Sie sie verlieren, funktioniert nur noch Ihr Wiederherstellungsschlüssel."
     }
   },
-
   "recovery": {
     "_comment_": "Step 4, and the same panel again when a recovery key is rotated from vault settings. The key is shown exactly once and is stored nowhere, which is why this screen makes the user retype part of it.",
     "heading": "Ihr Wiederherstellungsschlüssel",
@@ -248,11 +238,18 @@
     "copied": "In die Zwischenablage kopiert.",
     "copyFailed": "Dieses System hat das Kopieren nicht zugelassen. Schreiben Sie den Schlüssel stattdessen ab oder drucken Sie ihn.",
     "_comment_download": "A verb on a button: save the key as a plain text file.",
-    "download": "Als Text herunterladen",
-    "downloadFailed": "Dieses System hat das Speichern der Datei nicht zugelassen. Drucken Sie den Schlüssel stattdessen.",
+    "download": "Als Textdatei speichern",
+    "saveTitle": "Wiederherstellungsschlüssel speichern",
+    "filterText": "Textdatei",
+    "saving": "Wird gespeichert…",
+    "saved": "Gespeichert unter {path}",
+    "savedPlaintext": "Diese Datei ist gewöhnlicher Text außerhalb der Verschlüsselung des Tresors. Wer die Festplatte lesen kann, kann den Schlüssel lesen. Bewahren Sie sie so auf, wie Sie einen Reisepass aufbewahren, oder löschen Sie sie, sobald der Schlüssel sicher liegt.",
+    "saveFailed": "Der Wiederherstellungsschlüssel wurde nicht gespeichert.",
+    "saveDialogFailed": "Dieses System hat keinen Speicherdialog geöffnet. Kopieren Sie den Schlüssel stattdessen oder schreiben Sie ihn ab.",
     "_comment_print": "A verb on a button: send the key to a printer.",
     "print": "Drucken",
     "printFailed": "Dieses System hat keinen Druckdialog geöffnet. Kopieren Sie den Schlüssel stattdessen oder schreiben Sie ihn ab.",
+    "printUnavailable": "Dieses System kann aus diesem Fenster nicht drucken.",
     "_comment_confirmPrompt": "{group} is which group of the key to retype — a position, counting from one. The group itself is highlighted in the grid above. This is one sentence rather than a sentence assembled around a number: split sentences do not survive translation.",
     "confirmPrompt": "Geben Sie Gruppe {group, number} ein – die hervorgehobene –, um zu bestätigen, dass Sie ihn sicher verwahrt haben.",
     "_comment_targetGroupAria": "The accessible name of that highlighted group, read aloud instead of the four characters in it.",
@@ -281,7 +278,6 @@
       "warning": "{title} {body}"
     }
   },
-
   "unlock": {
     "_comment_": "The unlock screen. It lists the slots this vault's header actually has, so a vault with one password slot shows one card and no invented alternatives.",
     "windowTitle": "Tresor entsperren",

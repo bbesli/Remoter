@@ -24,20 +24,24 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import type { TFunction } from "i18next";
+import { save } from "@tauri-apps/plugin-dialog";
 
 import { Badge } from "@/components/Badge";
 import { BusyButton, BusyStatus } from "@/components/Busy";
 import { Button } from "@/components/Button";
 import { Callout } from "@/components/Callout";
+import { FailureNotice } from "@/components/FailureNotice";
 import { Icon } from "@/components/Icon";
 import { Mark } from "@/components/Mark";
 import { TextInput } from "@/components/TextInput";
 import { formatDate, isolateLtr, useLocale, useT } from "@/i18n";
-import type { CreateVaultResult } from "@/lib/ipc";
+import { asFailure, ipc } from "@/lib/ipc";
+import type { CreateVaultResult, IpcFailure } from "@/lib/ipc";
 
 import { kdfSummary } from "./kdf";
 import { useApp } from "@/stores/app";
 
+import { useImportIntent } from "./importIntent";
 import s from "./RecoveryKeyScreen.module.css";
 
 export type WizardStep = 1 | 2 | 3 | 4;
@@ -216,13 +220,24 @@ function normaliseGroup(value: string): string {
   return value.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
 }
 
-function baseName(path: string): string {
-  const cut = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
-  return cut >= 0 ? path.slice(cut + 1) : path;
+/**
+ * The file name to offer in the save dialog, from the vault's own.
+ *
+ * Both separators, because the path came from the platform and the platform is
+ * Windows about as often as it is not. The `.rvault` suffix is dropped and
+ * `.txt` put in its place: the core refuses to write the sheet to a `.rvault`
+ * name, and a suggested name that is then refused is a trap rather than a
+ * suggestion.
+ */
+function sheetFileName(vaultPath: string): string {
+  const cut = Math.max(vaultPath.lastIndexOf("/"), vaultPath.lastIndexOf("\\"));
+  const base = cut >= 0 ? vaultPath.slice(cut + 1) : vaultPath;
+  const stem = base.replace(/\.rvault$/i, "");
+  return `recovery-key-${stem === "" ? "vault" : stem}.txt`;
 }
 
 /**
- * The plain-text sheet behind Download.
+ * The plain-text sheet behind Save.
  *
  * Nothing here is wrapped in a bidi isolate, unlike the rendered sheet: this
  * is a text file somebody will open in an editor, print, and possibly retype
@@ -255,6 +270,76 @@ function sheetText(
   ].join("\n");
 }
 
+/**
+ * Whether this WebView can print at all.
+ *
+ * Not every engine Remoter runs on has a print backend: in WKWebView
+ * `window.print` is simply not there, and calling a missing function would
+ * throw where an honest interface should never have offered the button. The
+ * engines that do have one — WebView2 on Windows, WebKitGTK on Linux — all
+ * expose it as a function, so its presence is the only signal available before
+ * the click.
+ *
+ * Read at render time rather than at module scope: a module-scope read runs
+ * once per process and would be wrong for the first screen in a test
+ * environment that installs it later.
+ */
+function printingIsAvailable(): boolean {
+  return typeof window !== "undefined" && typeof window.print === "function";
+}
+
+/**
+ * Puts text on the clipboard, by whichever route this WebView has.
+ *
+ * The async Clipboard API needs a secure context and a focused document, and
+ * rejects rather than throwing when it does not have them. `execCommand("copy")`
+ * is deprecated and is still the only thing that works in several embedded
+ * WebViews, so it is the fallback rather than the first choice. Resolves to
+ * whether the key is actually on the clipboard — never to "probably".
+ */
+async function copyText(text: string): Promise<boolean> {
+  if (navigator.clipboard !== undefined) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // Fall through: a rejection here is the ordinary "no permission in this
+      // context" case, not a reason to tell the user copying is impossible.
+    }
+  }
+  return copyBySelection(text);
+}
+
+/**
+ * The pre-Clipboard-API route: select text in an off-screen field and let the
+ * engine copy the selection.
+ *
+ * The field is positioned off-screen rather than hidden, because a
+ * `display: none` element cannot hold a selection and a selection is the whole
+ * mechanism. It is removed on every path — the recovery key must not be left
+ * sitting in a stray node.
+ */
+function copyBySelection(text: string): boolean {
+  const field = document.createElement("textarea");
+  field.value = text;
+  field.setAttribute("aria-hidden", "true");
+  field.setAttribute("tabindex", "-1");
+  field.style.position = "fixed";
+  field.style.top = "-9999px";
+  field.style.opacity = "0";
+  document.body.appendChild(field);
+  try {
+    field.focus();
+    field.select();
+    return document.execCommand("copy");
+  } catch {
+    return false;
+  } finally {
+    field.value = "";
+    field.remove();
+  }
+}
+
 export interface RecoveryKeyPanelProps {
   result: CreateVaultResult;
   /** Reported upward so the shell's footer button owns the gate. */
@@ -272,7 +357,17 @@ export function RecoveryKeyPanel({ result, onConfirmedChange }: RecoveryKeyPanel
   // The clipboard write is a promise, and on a Wayland session without a
   // portal it can sit unresolved for a moment.
   const [copying, setCopying] = useState(false);
+  // The save dialog, then the write, are both round trips.
+  const [saving, setSaving] = useState(false);
+  const [savedPath, setSavedPath] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  // A refused write comes back as a typed failure from the core, which says
+  // more than any sentence this screen could compose — so it is rendered whole
+  // rather than flattened into `actionError`.
+  const [saveFailure, setSaveFailure] = useState<IpcFailure | null>(null);
+  // Whether this engine has a printer. Fixed for the life of the screen: it
+  // describes the WebView, not anything the user can change from here.
+  const [printable] = useState(printingIsAvailable);
 
   const groups = result.recoveryKeyGroups;
   const target = normaliseGroup(groups[result.confirmGroupIndex] ?? "");
@@ -307,56 +402,111 @@ export function RecoveryKeyPanel({ result, onConfirmedChange }: RecoveryKeyPanel
   }, []);
 
   const onCopy = useCallback(() => {
-    if (!navigator.clipboard) {
-      setActionError(t("recovery.copyFailed"));
-      return;
-    }
     setCopying(true);
-    void navigator.clipboard
-      .writeText(fullKey)
+    void copyText(fullKey)
       .then(
-        () => {
-          setActionError(null);
-          setCopied(true);
+        (onClipboard) => {
+          if (onClipboard) {
+            setActionError(null);
+            setCopied(true);
+          } else {
+            // Reported, never assumed. A "Copied" badge over an empty
+            // clipboard is the same defect as a download that never happened.
+            setCopied(false);
+            setActionError(t("recovery.copyFailed"));
+          }
         },
         () => setActionError(t("recovery.copyFailed")),
       )
       .finally(() => setCopying(false));
   }, [fullKey, t]);
 
-  const onDownload = useCallback(() => {
-    // No filesystem plugin is a dependency and no IPC command writes arbitrary
-    // files, so the download goes through the WebView. Adding a dependency for
-    // this would need an ADR.
-    try {
-      const blob = new Blob([sheetText(t, locale, result, fullKey)], {
-        type: "text/plain;charset=utf-8",
-      });
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = `recovery-key-${baseName(result.path).replace(/\.rvault$/i, "")}.txt`;
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 0);
-      setActionError(null);
-    } catch {
-      setActionError(t("recovery.downloadFailed"));
-    }
+  /**
+   * Saves the sheet through the system's save dialog and the core.
+   *
+   * It used to be a browser download: a `Blob`, an `<a download>`, a
+   * programmatic click. That is the idiom of a page inside a browser, and this
+   * is a page inside a WebView, where three things are true at once — the
+   * engine may decline to download at all, nothing in the DOM reports back
+   * whether it did, and `anchor.click()` returns successfully either way. On
+   * Windows it declined, so the one control that saves the one copy of a
+   * recovery key did nothing and said nothing. The `try`/`catch` around it
+   * could never have caught that; there was no error to catch.
+   *
+   * The replacement is the dialog the rest of the application already uses and
+   * a command that returns a `Result`. Both halves can fail, both halves say
+   * so, and the file is written atomically with owner-only permissions by
+   * `recovery_sheet_write`.
+   */
+  const onSave = useCallback(() => {
+    setSaving(true);
+    setActionError(null);
+    setSaveFailure(null);
+    void (async () => {
+      let destination: string | null;
+      try {
+        destination = await save({
+          defaultPath: sheetFileName(result.path),
+          title: t("recovery.saveTitle"),
+          filters: [
+            { name: t("recovery.filterText"), extensions: ["txt"] },
+            { name: t("keyfile.filterAll"), extensions: ["*"] },
+          ],
+        });
+      } catch {
+        // The dialog plugin rejects when the platform has no file browser to
+        // start, or when the capability was never granted.
+        setActionError(t("recovery.saveDialogFailed"));
+        return;
+      }
+      // Null is the user closing the dialog. Not a failure, and not a moment
+      // to shout at them.
+      if (destination === null) return;
+
+      try {
+        const written = await ipc.writeRecoverySheet({
+          path: destination,
+          text: sheetText(t, locale, result, fullKey),
+        });
+        setSavedPath(written.path);
+      } catch (error: unknown) {
+        setSavedPath(null);
+        setSaveFailure(asFailure(error));
+      }
+    })().finally(() => setSaving(false));
   }, [fullKey, locale, result, t]);
 
+  /**
+   * Prints, and finds out whether anything was printed.
+   *
+   * `window.print()` returns `undefined` whether it opened a print dialog or
+   * did nothing at all, so its return value says nothing. What does say
+   * something is `beforeprint`: every engine that actually prepares a page
+   * fires it, synchronously, before the call returns. If it never arrived,
+   * nothing was printed and the user is told — rather than being left looking
+   * at a page that quietly put itself into its printing state.
+   */
   const onPrint = useCallback(() => {
+    let prepared = false;
+    const notePrepared = () => {
+      prepared = true;
+    };
+    window.addEventListener("beforeprint", notePrepared);
     document.body.dataset["printing"] = "recovery";
     try {
       window.print();
-      setActionError(null);
     } catch {
-      // Some WebView builds have no print backend at all. Without this the
-      // page would just be left in its printing state with nothing happening.
-      delete document.body.dataset["printing"];
-      setActionError(t("recovery.printFailed"));
+      prepared = false;
+    } finally {
+      window.removeEventListener("beforeprint", notePrepared);
     }
+
+    if (prepared) {
+      setActionError(null);
+      return;
+    }
+    delete document.body.dataset["printing"];
+    setActionError(t("recovery.printFailed"));
   }, [t]);
 
   if (target.length === 0) {
@@ -401,21 +551,58 @@ export function RecoveryKeyPanel({ result, onConfirmedChange }: RecoveryKeyPanel
             <Icon name="copy" size={13} />
             {t("recovery.copy")}
           </BusyButton>
-          <Button variant="secondary" size="sm" type="button" onClick={onDownload}>
+          <BusyButton
+            variant="secondary"
+            size="sm"
+            type="button"
+            busy={saving}
+            busyLabel={t("recovery.saving")}
+            onClick={onSave}
+          >
             <Icon name="download" size={13} />
             {t("recovery.download")}
-          </Button>
-          <Button variant="secondary" size="sm" type="button" onClick={onPrint}>
-            <Icon name="printer" size={13} />
-            {t("recovery.print")}
-          </Button>
+          </BusyButton>
+          {/* Offered only where it can work. An engine with no print backend
+              gets the sentence instead of the button: a control that does
+              nothing teaches the user that the screen is lying to them, and
+              this is the screen that can least afford that. */}
+          {printable ? (
+            <Button variant="secondary" size="sm" type="button" onClick={onPrint}>
+              <Icon name="printer" size={13} />
+              {t("recovery.print")}
+            </Button>
+          ) : (
+            <span className={s.actionNote}>{t("recovery.printUnavailable")}</span>
+          )}
           <span className={s.actionStatus} role="status">
             {copied ? t("recovery.copied") : ""}
           </span>
         </div>
       </div>
 
-      {actionError !== null && <div className={s.actionError}>{actionError}</div>}
+      {actionError !== null && (
+        <div className={s.actionError} role="alert">
+          {actionError}
+        </div>
+      )}
+
+      {/* The file is outside the vault from the moment it exists, and saying
+          where it landed is what lets someone check it before they leave a
+          screen they cannot come back to. */}
+      {savedPath !== null && (
+        <Callout tone="warning" title={t("recovery.saved", { path: isolateLtr(savedPath) })}>
+          {t("recovery.savedPlaintext")}
+        </Callout>
+      )}
+
+      {saveFailure !== null && (
+        <FailureNotice
+          failure={saveFailure}
+          title={t("recovery.saveFailed")}
+          onRetry={onSave}
+          retryLabel={t("recovery.download")}
+        />
+      )}
 
       <div className={s.confirmBlock}>
         {/* One string, not a sentence assembled around a number: split
@@ -482,8 +669,31 @@ export function RecoveryKeyPanel({ result, onConfirmedChange }: RecoveryKeyPanel
 
 export function RecoveryKeyScreen({ result }: { result: CreateVaultResult }) {
   const t = useT("vault");
+  // The import namespace for one label, because this is where the first-run
+  // import door finally lands and the button has to say so. See ./importIntent.ts.
+  const tImport = useT("import");
   const go = useApp((state) => state.go);
+  const importWanted = useImportIntent((state) => state.wanted);
+  const setImportWanted = useImportIntent((state) => state.setWanted);
   const [confirmed, setConfirmed] = useState(false);
+
+  /**
+   * The end of vault creation, and — when the user came in through the
+   * first-run import door — the start of the import.
+   *
+   * Two navigations, deliberately. The wizard leaves through `goBack()`, so
+   * the main window has to be the screen underneath it; going straight from
+   * here would leave the recovery key as the back target, and this screen must
+   * never be returned to.
+   */
+  const onOpen = useCallback(() => {
+    go({ name: "main" });
+    if (!importWanted) return;
+    // Consumed once: a second vault created later in the session must not
+    // inherit an intent from this one.
+    setImportWanted(false);
+    go({ name: "import" });
+  }, [go, importWanted, setImportWanted]);
 
   return (
     <WizardShell
@@ -494,8 +704,8 @@ export function RecoveryKeyScreen({ result }: { result: CreateVaultResult }) {
       busyLabel={null}
       back={null}
       next={{
-        label: t("recovery.nextLabel"),
-        onClick: () => go({ name: "main" }),
+        label: importWanted ? tImport("firstRun.openAndImport") : t("recovery.nextLabel"),
+        onClick: onOpen,
         disabled: !confirmed,
         reason: t("recovery.confirmBlocked"),
       }}

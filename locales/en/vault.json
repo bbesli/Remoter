@@ -1,18 +1,15 @@
 {
   "_comment_file": "The vault surfaces: choosing a vault, creating one, the recovery key, and unlocking. This is the first thing a new user reads and the last thing a locked-out one reads, so it carries more security-critical copy than any other namespace. Anything marked SECURITY-CRITICAL describes permanent, unrecoverable data loss; softening it into something gentler is a foreseeable source of harm, and those strings get a second reader before a translation is accepted (docs/features/i18n.md).",
-
   "probe": {
     "_comment_reading": "The cleartext header of the vault file is being read. Nothing is decrypted at this point — say 'header', not 'vault'.",
     "reading": "Reading the vault header…"
   },
-
   "kdf": {
     "_comment_": "Argon2id key derivation takes about a second by design. Shown beside the spinner on every screen that derives a key — creating a vault, unlocking one, adding or rotating a key slot. It is an explanation of a security property, not an apology for a slow program: do not turn 'deliberately slow' into 'this may take a moment'.",
     "slow": "Key derivation is deliberately slow. That cost is what makes a stolen vault file expensive to attack.",
     "_comment_slowWithSummary": "{summary} is the cost this vault was written with, e.g. 'Argon2id, 256 MiB, t=3, p=4'. It is notation, not words: the function's name, a memory figure with its unit, and Argon2's own parameter letters. The interface composes it from numbers the core sends, and none of it is translated.",
     "slowWithSummary": "Key derivation is deliberately slow — {summary}. That cost is what makes a stolen vault file expensive to attack."
   },
-
   "keyfile": {
     "_comment_": "A key file is a second factor: any file the user chooses becomes part of the key. These strings are shared by the unlock screen, the create wizard and the vault-settings dialogs.",
     "label": "Key file",
@@ -29,7 +26,6 @@
       "isABackup": "{name} is a rolling backup of a vault, not a key file. Choose a different file."
     }
   },
-
   "slot": {
     "_comment_": "The four ways a vault can be opened, named on the unlock screen's cards. Each is a noun phrase, not a verb: they name a method, they are not an instruction to use it.",
     "password": "Master password",
@@ -38,7 +34,6 @@
     "_comment_keychain": "The system keychain (Keychain on macOS, Secret Service on Linux, Credential Manager on Windows) is holding the key for this machine. Phrased from the user's side: they asked to be remembered.",
     "keychain": "Remember on this device"
   },
-
   "picker": {
     "_comment_": "The launch screen. It lists the vaults this machine has opened before; nothing on it decrypts anything.",
     "title": "Open a vault",
@@ -76,7 +71,6 @@
     "_comment_settingsHint": "Its tooltip. It names the three settings worth changing before a vault is ever opened.",
     "settingsHint": "Settings — language, theme and shortcuts"
   },
-
   "detail": {
     "_comment_": "The panel beside the list, describing whichever vault is under the pointer. It reads the cleartext header only.",
     "probeFailed": "This vault's header could not be read.",
@@ -104,7 +98,6 @@
       "keychain": "Saved on this device"
     }
   },
-
   "firstRun": {
     "_comment_": "What the launch screen says instead of a list when this machine has never opened a vault. 'Pick a vault' is a meaningless instruction when there are none, so it offers two doors.",
     "title": "Remoter needs a vault before it can do anything",
@@ -116,7 +109,6 @@
     "emptyTitle": "Start empty",
     "emptyHelp": "Four steps: where the file lives, a master password, an optional key file, and your recovery key."
   },
-
   "wizard": {
     "_comment_": "The frame around the four create-vault steps: title bar, the stepper, and the two footer buttons.",
     "windowTitle": "Create a vault",
@@ -136,7 +128,6 @@
     "continue": "Continue",
     "createAction": "Create the vault"
   },
-
   "create": {
     "_comment_": "Steps 1 to 3 of the create-vault wizard. Step 4 is the 'recovery' group below.",
     "creating": "Deriving the key and writing the vault…",
@@ -232,7 +223,6 @@
       "required": "This file is now required to open the vault. If you lose it, only your recovery key will work."
     }
   },
-
   "recovery": {
     "_comment_": "Step 4, and the same panel again when a recovery key is rotated from vault settings. The key is shown exactly once and is stored nowhere, which is why this screen makes the user retype part of it.",
     "heading": "Your recovery key",
@@ -247,12 +237,25 @@
     "copying": "Copying…",
     "copied": "Copied to the clipboard.",
     "copyFailed": "This system did not allow copying. Write the key down or print it instead.",
-    "_comment_download": "A verb on a button: save the key as a plain text file.",
-    "download": "Download as text",
-    "downloadFailed": "This system did not allow saving the file. Print the key instead.",
+    "_comment_download": "A verb on a button: open the system's save dialog and write the key to a plain text file. It was a browser-style download once, which did nothing at all on Windows — the key is 'download' only because renaming it would orphan nine translations.",
+    "download": "Save as a text file",
+    "_comment_saveTitle": "The title of the system's save dialog.",
+    "saveTitle": "Save your recovery key",
+    "_comment_filterText": "The file-type name the system dialog shows beside .txt.",
+    "filterText": "Text file",
+    "saving": "Saving…",
+    "_comment_saved": "{path} is where the file was written. Never translated.",
+    "saved": "Saved to {path}",
+    "_comment_savedPlaintext": "SECURITY-CRITICAL. The saved sheet is plain text outside the encrypted vault. Say what that means plainly; a reader who thinks the file is protected will leave it in a downloads folder.",
+    "savedPlaintext": "That file is ordinary text, outside the vault's encryption. Anyone who can read the disk can read the key. Keep it the way you would keep a passport, or delete it once you have it somewhere safe.",
+    "_comment_saveFailed": "The heading over the core's own explanation of why the write failed.",
+    "saveFailed": "The recovery key was not saved.",
+    "saveDialogFailed": "This system did not open a save dialog. Copy the key or write it down instead.",
     "_comment_print": "A verb on a button: send the key to a printer.",
     "print": "Print",
     "printFailed": "This system did not open a print dialog. Copy the key or write it down instead.",
+    "_comment_printUnavailable": "Stands where the Print button would be, on a system whose window cannot print at all. Offering a button that does nothing would be worse.",
+    "printUnavailable": "This system cannot print from this window.",
     "_comment_confirmPrompt": "{group} is which group of the key to retype — a position, counting from one. The group itself is highlighted in the grid above. This is one sentence rather than a sentence assembled around a number: split sentences do not survive translation.",
     "confirmPrompt": "Type group {group, number} — the highlighted one — to confirm you have it somewhere safe.",
     "_comment_targetGroupAria": "The accessible name of that highlighted group, read aloud instead of the four characters in it.",
@@ -281,7 +284,6 @@
       "warning": "{title} {body}"
     }
   },
-
   "unlock": {
     "_comment_": "The unlock screen. It lists the slots this vault's header actually has, so a vault with one password slot shows one card and no invented alternatives.",
     "windowTitle": "Unlock vault",

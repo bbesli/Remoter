@@ -295,11 +295,19 @@
         "Использовать вместо этого системный SSH-агент"
       ]
     },
-    "_comment_unsupported-format": "The first action quotes a command. Translate the sentence around it if there is one; never translate the command itself, and keep its flags exactly as they are.",
+    "_comment_unsupported-format": "The refusal is a real limitation, not a conversion the user can perform: no protocol in this build can authenticate with a key of that kind, so the actions must not suggest converting the file. The three algorithm names in the first action are algorithm names, not words; leave them exactly as they are.",
     "unsupported-format": {
-      "message": "Этот ключ в формате, который эта сборка не хранит. Ничего не записано.",
+      "message": "Это закрытый ключ такого типа, с которым ни один протокол в этой сборке не может выполнить аутентификацию. Ничего не записано.",
       "actions": [
-        "Преобразовать командой `ssh-keygen -p -m PKCS8 -f '<file>'`",
+        "Использовать вместо этого ключ Ed25519, ECDSA или RSA",
+        "Использовать вместо этого системный SSH-агент"
+      ]
+    },
+    "_comment_legacy-encrypted": "Different from unsupported-format: the key itself is fine, it is the PEM container that is encrypted, and Remoter has to read the container before it can store the key. The first action quotes two commands. Translate the sentence around them if there is one; never translate the commands themselves, and keep `<file>` and `<copy>` exactly as they are. The word 'copy' is load-bearing: `ssh-keygen -p` rewrites the file it is given, and the user's key file is very often shared with other tools.",
+    "legacy-encrypted": {
+      "message": "Этот ключ зашифрован внутри собственного PEM-контейнера, а Remoter должен уметь прочитать контейнер, прежде чем сохранить ключ. Ничего не записано.",
+      "actions": [
+        "Преобразовать копию: `cp <file> <copy>`, затем `ssh-keygen -p -m PKCS8 -f <copy>`",
         "Использовать вместо этого системный SSH-агент"
       ]
     },
@@ -320,7 +328,7 @@
       ]
     },
     "purpose-refused": {
-      "message": "Эти учётные данные ограничены и не могут использоваться таким образом.",
+      "message": "Ограничение этих учётных данных не охватывает предполагаемое применение, поэтому хранилище отказалось их открыть. Расширьте ограничение в настройках учётных данных или выберите учётные данные, которые уже допускают такое применение.",
       "actions": [
         "Выбрать другие учётные данные",
         "Расширить ограничение учётных данных"

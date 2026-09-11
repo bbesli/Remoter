@@ -1,6 +1,5 @@
 {
   "_comment_file": "The import wizard: eight steps that read an mRemoteNG, OpenSSH config or CSV file and write it into the vault. Loaded only when the wizard is opened. Two themes run through this namespace and neither may be softened in translation: nothing is written to the vault until step 7, and an import cannot be undone once it is. 'Remoter' is the product name and is never translated. 'mRemoteNG', 'ProxyJump', 'ProxyCommand', 'Host', 'Match', 'confVersion', 'AES-CBC' and 'MD5' are names from other products, protocols and file formats and are never translated either.",
-
   "wizard": {
     "_comment_title": "The screen's heading. A noun — the name of the screen — not the verb on a button.",
     "title": "الاستيراد",
@@ -8,7 +7,17 @@
     "_comment_closeHint": "Tooltip on the same button. 'Esc' is a key name and is written as-is in every language.",
     "closeHint": "إغلاق (Esc)"
   },
-
+  "firstRun": {
+    "_comment_": "Copy for the launch screen's import door and the vault creation it has to pass through on the way here. It lives in the import namespace rather than in vault.json because it describes the import flow and has to stay in step with the wizard's wording: the sentence it replaced was a stub promising the wizard 'in a later version', and the door it sat under led to the create-vault wizard and nowhere else.",
+    "_comment_doorHelp": "Under 'Bring across what I have' on the first-run screen. It names what happens in order, because a door that creates a vault when you asked it to import reads as the wrong button. mRemoteNG, CSV and ~/.ssh/config are a product name, a file format and a file path; none of them is translated.",
+    "doorHelp": "يلزم وجود خزنة أولًا، لذا يُنشئ هذا واحدة ثم يفتح معالج الاستيراد لـ mRemoteNG و~/.ssh/config وCSV.",
+    "_comment_calloutTitle": "Shown at the top of the create-vault wizard when the user arrived through the import door. Short: it is a reassurance, not an instruction.",
+    "calloutTitle": "الاستيراد هو الخطوة التالية",
+    "_comment_calloutBody": "The body under it. 'Nothing is read until then' is the same promise the wizard's own footer makes and must not be softened.",
+    "calloutBody": "أكمل هذه الخطوات الأربع ثم يُفتح معالج الاستيراد. حتى ذلك الحين لا يُقرأ أي شيء من مدير الاتصالات القديم.",
+    "_comment_openAndImport": "The last button of vault creation, replacing 'I have saved it — open the vault' when the import wizard follows it. It still confirms the recovery key has been saved: that confirmation is the whole point of the screen and must not be dropped in translation.",
+    "openAndImport": "حفظته — ابدأ الاستيراد"
+  },
   "rail": {
     "_comment_": "The eight-step progress rail down the top of the screen. Each label is one or two words in a narrow button, and each is a noun naming the step, not an instruction. Steps 3 and 7 are work the wizard does by itself; they are in the rail so the wait has a place on screen.",
     "label": "خطوات الاستيراد",
@@ -29,7 +38,6 @@
       "result": "النتيجة"
     }
   },
-
   "nav": {
     "_comment_": "The forward and back buttons in the footer. Imperative verbs, no trailing punctuation. Which forward label is shown depends on the step.",
     "back": "رجوع",
@@ -43,14 +51,12 @@
     "toCommit": "راجِع ثم اكتب",
     "done": "تم"
   },
-
   "footer": {
     "_comment_": "A standing note at the bottom of every step, saying whether the vault has been touched. SECURITY-CRITICAL: these three sentences are the wizard's promise about when it writes. Do not merge them, do not soften 'yet', and do not turn the warning into a reassurance.",
     "nothingWritten": "لم يُكتب شيء في خزنتك بعد.",
     "willWrite": "هذه الخطوة تكتب في خزنتك.",
     "written": "كُتب كمعاملة واحدة."
   },
-
   "gate": {
     "_comment_": "Why a disabled control is disabled. Each is a tooltip on the control itself, so it says what to do rather than what went wrong. Every one is a complete sentence.",
     "noFile": "اختر الملف الذي تريد استيراده.",
@@ -63,7 +69,6 @@
     "committed": "كُتب هذا الاستيراد بالفعل. ابدأ استيرادًا آخر للاستيراد من جديد.",
     "ahead": "أكمل الخطوات السابقة لهذه أولًا."
   },
-
   "source": {
     "_comment_": "Step 1 — choosing the file. Detection is done by reading the file's content, never its name.",
     "title": "اختر الملف الذي تريد استيراده",
@@ -104,7 +109,6 @@
       "csvHint": "صف ترويسة واحد، واتصال واحد في كل سطر"
     }
   },
-
   "secrets": {
     "_comment_": "Step 2 — the document password, and the bad news that arrives with it. The password is typed here, handed to the core, and dropped. It is never shown, never stored and never logged.",
     "encryptedTitle": "الملف مشفّر",
@@ -139,13 +143,11 @@
     "keysTitle": "عن المفاتيح الخاصة",
     "keysBody": "تُستورد المفاتيح التي يسمّيها هذا الملف كإشارات إلى الملفات التي تعيش فيها بالفعل. ولا يقرأ Remoter مادة المفاتيح هنا، فلا يُطلب أي عبارة مرور لمفتاح."
   },
-
   "parse": {
     "_comment_": "Step 3 — the wait while the core reads the file. The user does nothing here.",
     "busy": "جارٍ قراءة الملف…",
     "busyNote": "يجري التحليل في النواة، داخل قارئ معزول بمخازن محدودة الحجم. ولا يكتب شيئًا في خزنتك."
   },
-
   "preview": {
     "_comment_": "Step 4 — every node the import would create, with a checkbox beside it. This is the last screen on which anything can be left out.",
     "title": "هذا ما ستحصل عليه",
@@ -183,7 +185,6 @@
     "truncatedTitle": "هذا ليس الملف كاملًا",
     "truncatedBody": "أوقف حدٌّ وقائي التحليلَ قبل نهاية المستند. وما تراه هو كل ما قرأه Remoter، واستيراده آمن؛ لكنه لن يكون كل ما يحتويه الملف."
   },
-
   "tree": {
     "_comment_": "The preview tree itself: one row per node, each with a checkbox and small badges.",
     "_comment_group": "Accessible name of the whole tree, read by a screen reader on entering it.",
@@ -206,7 +207,6 @@
     "inherited": "موروثة",
     "inheritedTitle": "بيانات اعتماد هذه العقدة تأتي من العقدة الأصل، كما كانت في الملف."
   },
-
   "report": {
     "_comment_": "Step 5 — the findings, grouped by severity, worst first.",
     "title": "ما وجده التحليل",
@@ -232,7 +232,6 @@
     "skippedTitle": "تخطّى المحلّل بعض العناصر",
     "skippedBody": "هي مدرجة أعلاه مع سببها. وليست في المعاينة ولن تُستورد؛ والملف نفسه لم يُمَس، فلم يضع منها شيء."
   },
-
   "preserved": {
     "_comment_": "One line each in the 'kept but not interpreted' table. The left column is a field path — 'custom_fields.ProxyCommand' — and is never translated; these are the right column. 'verbatim' means the value was stored exactly as the file had it.",
     "connections": "{count, plural, zero {لا اتصالات} one {اتصال واحد} two {اتصالان} few {# اتصالات} many {# اتصالًا} other {# اتصال}} · حرفيًا",
@@ -240,82 +239,62 @@
     "_comment_everyRow": "For a CSV column: every row of the file carried it.",
     "everyRow": "كل صف · حرفيًا"
   },
-
   "finding": {
     "_comment_": "One entry per thing the importer wants the user to know. Each has a title — the fact — and a body saying what it means for them. A verbatim scrap from the file is shown separately in a monospace line and is never translated. {item} is a connection or folder name from the file; {target}, {protocol}, {command}, {column}, {field}, {criteria} and {pattern} are all values read out of the file, in whatever script or syntax it had them.",
-
     "_comment_defaultFilePasswordTitle": "SECURITY-CRITICAL. The single most important finding in the wizard. mRemoteNG encrypts a file with no password of its own using a password published in its own source. Do not soften 'was not really protected' and do not turn 'change them on the servers' into a suggestion.",
     "defaultFilePasswordTitle": "كان هذا الملف محميًا بكلمة مرور mRemoteNG الافتراضية المعروفة للجميع.",
     "defaultFilePasswordBody": "لم يكن محميًا في الحقيقة. فكل من حاز نسخة منه يومًا كان بوسعه قراءة كل بيانات الاعتماد بداخله دون أن يعرف شيئًا مما تعرفه. عامل كلمات المرور القادمة منه على أنها مكشوفة وغيّرها على الخوادم.",
-
     "_comment_legacyCbcEncryptionTitle": "SECURITY-CRITICAL. The pre-1.75 scheme: the key was an unsalted MD5 hash of the password and the ciphertext was unauthenticated. 'Consider the credentials exposed' is the actionable part.",
     "legacyCbcEncryptionTitle": "يستخدم هذا الملف نظام AES-CBC القديم بمفتاح مشتق بـ MD5.",
     "legacyCbcEncryptionBody": "يستطيع Remoter قراءته. وكذلك كان يستطيع أي شخص آخر لديه نسخة، دون جهد كبير، لأن المفتاح جاء من تجزئة بلا ملح ولأن النص المشفّر لم يحمل ما يكشف العبث به. اعتبر بيانات الاعتماد التي بداخله مكشوفة.",
-
     "fullFileEncryptionTitle": "كان المستند بأكمله مشفّرًا، لا كلمات مروره وحدها.",
     "fullFileEncryptionBody": "كانت البنية مخفية كما كانت بيانات الاعتماد. ولا يتغير شيء في الاستيراد؛ وإنما ذُكر هذا لأنه يخبرك كيف كان الملف مضبوطًا.",
-
     "_comment_secretsRecoveredTitle": "How many passwords the importer got out of the file.",
     "secretsRecoveredTitle": "{count, plural, zero {لم تخرج أي كلمة مرور من الملف.} one {خرجت كلمة مرور واحدة من الملف.} two {خرجت كلمتا مرور من الملف.} few {خرجت # كلمات مرور من الملف.} many {خرجت # كلمة مرور من الملف.} other {خرجت # كلمة مرور من الملف.}}",
     "secretsRecoveredBody": "تُختم في الخزنة في اللحظة التي تكتب فيها. ولا تُكتب أبدًا على القرص بنص واضح ولا تغادر النواة أبدًا.",
-
     "_comment_credentialsDeduplicatedTitle": "The same username and password repeated across many connections became one shared credential. {credentials} counts the credential objects made, {connections} the connections now pointing at them.",
     "credentialsDeduplicatedTitle": "تغطي {credentials, plural, zero {لا مجموعات بيانات اعتماد} one {مجموعة بيانات اعتماد واحدة} two {مجموعتا بيانات اعتماد} few {# مجموعات بيانات اعتماد} many {# مجموعة بيانات اعتماد} other {# مجموعة بيانات اعتماد}} الآن {connections, plural, zero {لا اتصالات} one {اتصالًا واحدًا} two {اتصالين} few {# اتصالات} many {# اتصالًا} other {# اتصال}}.",
     "credentialsDeduplicatedBody": "اسم المستخدم وكلمة المرور نفساهما مكررين عبر عدة اتصالات صارا مجموعة بيانات اعتماد واحدة لكل حالة، مرتبطة من الاتصالات التي كانت تستخدمها. وتغييرها مرة واحدة الآن يغيّرها في كل مكان.",
-
     "_comment_unknownProtocolTitle": "{item} is the connection's name. The protocol name itself is shown separately and is never translated.",
     "unknownProtocolTitle": "استخدم {item} بروتوكولًا لا يملكه Remoter.",
     "_comment_unknownProtocolBody": "{mappedTo} is the protocol it was imported as — SSH, RDP, VNC, SFTP. Never translated.",
     "unknownProtocolBody": "استُورد على أنه {mappedTo}. والقيمة الأصلية محفوظة في حقل مخصص، فلم يضع منها شيء.",
-
     "skippedItemTitle": "لم يُستورد {item}.",
     "_comment_skippedItemBody": "One sentence per reason the parser refused an item. The reason names are wire values from the core and must stay exactly as they are; only the sentences are translated. 'other' is the fallback for a reason a newer core sends that this build has never seen.",
     "skippedItemBody": "{reason, select, unusable_host {تُرك لأن اسم مضيفه غير صالح للاستخدام.} unusable_name {تُرك لأن اسمه كان فارغًا أو غير صالح للاستخدام.} unsupported_kind {تُرك لأن نوعه لا مقابل له هنا.} empty {تُرك لأنه كان فارغًا.} other {تُرك.}}",
-
     "_comment_unmappedProxyCommandTitle": "'ProxyCommand' is an OpenSSH configuration keyword and is never translated.",
     "unmappedProxyCommandTitle": "يستخدم {item} أمر ProxyCommand لا مقابل مباشر له.",
     "unmappedProxyCommandBody": "حُفظ الأمر حرفيًا في حقل مخصص بدلًا من إهماله. وسيُستورد الاتصال؛ لكنه لن يستخدم الوكيل حتى تُعِدّ له بوابة يدويًا.",
-
     "_comment_gatewayMappedTitle": "The best news the importer has: a ProxyJump in the file became a real, working chain of gateways in the vault.",
     "gatewayMappedTitle": "يصل {item} بسلسلة مضيفاته الوسيطة سليمة.",
     "gatewayMappedBody": "صار ProxyJump سلسلة بوابات حقيقية من {hops, plural, zero {# قفزة} one {قفزة واحدة} two {قفزتين} few {# قفزات} many {# قفزة} other {# قفزة}}، فيعمل الاتصال من المحاولة الأولى دون أي إعداد إضافي.",
-
     "gatewaySynthesisedTitle": "أُنشئت بوابة لـ {item} انطلاقًا من ProxyJump الخاص به.",
     "_comment_gatewaySynthesisedBody": "{target} is the jump host's address, read out of the file.",
     "gatewaySynthesisedBody": "لم يكن المضيف الوسيط {target} اتصالًا في الملف، فصار اتصالًا هنا وصار الآن مشتركًا بين كل ما يقفز عبره.",
-
     "gatewayUnresolvedTitle": "يقفز {item} عبر مضيف تعذّر استخلاصه.",
     "gatewayUnresolvedBody": "تسمّي السلسلة {target}، وهو ليس في الملف ولم يمكن بناؤه منه. سيُستورد الاتصال بلا بوابته ولن يصل إلى المضيف حتى تضيف واحدة.",
-
     "_comment_secretNotMappedTitle": "SECURITY-ADJACENT. A password in a field Remoter has no home for. It was dropped rather than written somewhere unprotected, and the user is told so plainly because they may be relying on it.",
     "secretNotMappedTitle": "سرّ على {item} لم يجد مكانًا يذهب إليه.",
     "secretNotMappedBody": "كان في حقل لا مكان له في نموذج البيانات، والسر هو الشيء الوحيد الذي لا يُحفظ أبدًا في حقل مخصص. فأُسقط بدلًا من تخزينه في مكان لا يكون محميًا فيه.",
-
     "_comment_matchBlockNotAppliedTitle": "'Match' is an OpenSSH configuration keyword — a conditional block — and is never translated.",
     "matchBlockNotAppliedTitle": "قُرئت كتلة Match لكنها لم تُطبَّق.",
     "matchBlockNotAppliedBody": "معاييرها تعتمد على كيفية إجراء الاتصال، وهو أمر غير معروف وقت الاستيراد، لذا {options, plural, zero {لم يُترك منها أي خيار} one {تُرك خيار واحد منها} two {تُرك خياران منها} few {تُركت # خيارات منها} many {تُرك # خيارًا منها} other {تُرك # خيار منها}} بدلًا من تطبيق تلك الخيارات على مضيفات قد لا تكون مقصودة بها.",
-
     "_comment_patternBlockAppliedTitle": "'Host' is the OpenSSH keyword that opens a block, and a wildcard one — 'Host *.acme' — applies to every matching connection. Never translated.",
     "patternBlockAppliedTitle": "طُبِّقت كتلة Host ذات محرف بدل على {connections, plural, zero {لا اتصالات} one {اتصال واحد} two {اتصالين} few {# اتصالات} many {# اتصالًا} other {# اتصال}}.",
     "patternBlockAppliedBody": "أُدمجت خياراتها في كل اتصال طابق اسمُه نمطَها، بالطريقة نفسها التي كان ssh سيطبّقها بها.",
-
     "_comment_settingsPreservedTitle": "Settings with no equivalent in Remoter, stored verbatim in custom fields instead of being dropped.",
     "settingsPreservedTitle": "{count, plural, zero {لم يُحفظ أي إعداد على {item}.} one {حُفظ إعداد واحد على {item} دون تفسيره.} two {حُفظ إعدادان على {item} دون تفسيرهما.} few {حُفظت # إعدادات على {item} دون تفسيرها.} many {حُفظ # إعدادًا على {item} دون تفسيره.} other {حُفظ # إعداد على {item} دون تفسيره.}}",
     "settingsPreservedBody": "هي في حقول مخصصة، حرفيًا. ولم يُهمل شيء — فإن تعلّم إصدار لاحق من Remoter قراءتها، فستكون موجودة.",
-
     "_comment_unknownColumnTitle": "CSV only: a column heading the importer has no field for.",
     "unknownColumnTitle": "لم يُتعرَّف على عمود في الملف.",
     "unknownColumnBody": "حُفظت قيمه في حقل مخصص على كل صف بدلًا من إهمالها.",
-
     "_comment_limitReachedTitle": "A parse limit stopped the read before the end of the file. The limit names are wire values from the core and must stay exactly as they are; only the sentences around them are translated.",
     "limitReachedTitle": "{limit, select, custom_fields {أوقف حدٌّ وقائي التحليل: حقول مخصصة أكثر من اللازم.} findings {أوقف حدٌّ وقائي التحليل: ملاحظات أكثر من اللازم.} nodes {أوقف حدٌّ وقائي التحليل: عقد أكثر من اللازم.} other {أوقف حدٌّ وقائي التحليل.}}",
     "limitReachedBody": "ما تراه هو كل ما قرأه Remoter قبل بلوغ الحد. واستيراده آمن؛ لكنه لن يكون الملف كاملًا. قسّم الملف، أو استورده على أجزاء.",
-
     "_comment_unknownTitle": "Shown when a newer core reports a finding this build has never heard of. It is deliberately honest about being unable to explain itself rather than inventing a meaning.",
     "unknownTitle": "أنتج هذا الملف ملاحظة لا يتعرّف عليها هذا الإصدار.",
     "unknownBody": "جاءت من جزء في المستورِد أحدث مما تعرفه هذه النسخة. لا خطأ في ملفك؛ لكن لا يمكن شرح الملاحظة هنا."
   },
-
   "destination": {
     "_comment_": "Step 6 — the vault folder the import lands in.",
     "title": "أين ينبغي أن يذهب هذا؟",
@@ -333,7 +312,6 @@
     "_comment_chooseLabel": "Accessible name of the list of folders.",
     "chooseLabel": "مجلد الوجهة"
   },
-
   "commit": {
     "_comment_": "Step 7 — the last screen before anything is written, and the button that writes.",
     "title": "جاهز للكتابة",
@@ -358,13 +336,18 @@
     "transactionBody": "إما أن يصل هذا كله إلى ملف خزنتك أو لا يصل منه شيء. ولا يستطيع Remoter التراجع عن استيراد بعد وقوعه، فكل ما لا تريده ينبغي إلغاء تحديده في المعاينة قبل ضغط الزر — وحذفه من الشجرة هو العلاج الوحيد بعده.",
     "nothing": "لا شيء محدَّد، فليس هناك ما يُكتب. ارجع إلى المعاينة وحدِّد شيئًا."
   },
-
   "result": {
     "_comment_": "Step 8 — what was written. The import is finished and cannot be taken back.",
     "_comment_title": "The heading. {count} nodes are now in the vault.",
     "title": "{count, plural, zero {لا عناصر في خزنتك} one {عنصر واحد صار في خزنتك} two {عنصران صارا في خزنتك} few {# عناصر صارت في خزنتك} many {# عنصرًا صار في خزنتك} other {# عنصر صار في خزنتك}}",
     "_comment_lead": "{folder} is either a folder path from the vault or the 'destination.top' phrase.",
     "lead": "كُتب في {folder} كمعاملة واحدة.",
+    "_comment_refusedTitle": "SHOWN ONLY when the parser refused items — items that were in the file and are not in the vault, as opposed to ones the reader unticked. {count} is how many. Do not soften: an import that left part of the file behind is not a success, and this is the last screen the reader sees.",
+    "refusedTitle": "{count, plural, zero {لم يبقَ أي عنصر من الملف خارج الخزنة} one {عنصر واحد من الملف لم يدخل} two {عنصران من الملف لم يدخلا} few {# عناصر من الملف لم تدخل} many {# عنصرًا من الملف لم يدخل} other {# عنصر من الملف لم يدخل}}",
+    "_comment_refusedBody": "Follows the heading, above the list of refused items. The advice is deliberate: there is no undo, so importing the corrected file again into the same folder would duplicate everything that did come in.",
+    "refusedBody": "كانت في الملف ولا يقابلها شيء في الخزنة. وكُتب كل ما عداها. صحّحها في التطبيق الذي أتت منه ثم استورد ذلك الملف مرة أخرى إلى مجلد جديد؛ فهذا الاستيراد لا يمكن التراجع عنه.",
+    "_comment_refusedNotAllListed": "Shown under the list when the report stopped growing before the end of the file, so the names of the remaining refusals were never recorded. {count} is how many are missing from the list.",
+    "refusedNotAllListed": "{count, plural, zero {لا شيء آخر غير مُدرج هنا.} one {وواحد آخر غير مُدرج هنا: توقّف التقرير عن النمو قبل نهاية الملف.} two {واثنان آخران غير مُدرجين هنا: توقّف التقرير عن النمو قبل نهاية الملف.} few {و# أخرى غير مُدرجة هنا: توقّف التقرير عن النمو قبل نهاية الملف.} many {و# عنصرًا آخر غير مُدرج هنا: توقّف التقرير عن النمو قبل نهاية الملف.} other {و# عنصر آخر غير مُدرج هنا: توقّف التقرير عن النمو قبل نهاية الملف.}}",
     "_comment_countImported": "Labels under the large numbers in the stat tiles. Plain nouns and noun phrases, lower case.",
     "countImported": "مستوردة",
     "_comment_countSkipped": "Nodes left out because the user unticked them, as opposed to ones the parser refused.",
@@ -388,7 +371,6 @@
     "done": "تم",
     "another": "استورد ملفًا آخر"
   },
-
   "discard": {
     "_comment_": "The dialog shown when the user leaves the wizard with a parsed file still held in the core. SECURITY-ADJACENT: what is being dropped is not a screenful of data but the parsed file, with every password it recovered in plaintext. Leaving wipes them, which is the desired outcome — the cost is only that the file would have to be read again.",
     "title": "هل تتخلص من هذا الاستيراد؟",

@@ -1,6 +1,5 @@
 {
   "_comment_file": "The import wizard: eight steps that read an mRemoteNG, OpenSSH config or CSV file and write it into the vault. Loaded only when the wizard is opened. Two themes run through this namespace and neither may be softened in translation: nothing is written to the vault until step 7, and an import cannot be undone once it is. 'Remoter' is the product name and is never translated. 'mRemoteNG', 'ProxyJump', 'ProxyCommand', 'Host', 'Match', 'confVersion', 'AES-CBC' and 'MD5' are names from other products, protocols and file formats and are never translated either.",
-
   "wizard": {
     "_comment_title": "The screen's heading. A noun — the name of the screen — not the verb on a button.",
     "title": "Import",
@@ -8,7 +7,17 @@
     "_comment_closeHint": "Tooltip on the same button. 'Esc' is a key name and is written as-is in every language.",
     "closeHint": "Close (Esc)"
   },
-
+  "firstRun": {
+    "_comment_": "Copy for the launch screen's import door and the vault creation it has to pass through on the way here. It lives in the import namespace rather than in vault.json because it describes the import flow and has to stay in step with the wizard's wording: the sentence it replaced was a stub promising the wizard 'in a later version', and the door it sat under led to the create-vault wizard and nowhere else.",
+    "_comment_doorHelp": "Under 'Bring across what I have' on the first-run screen. It names what happens in order, because a door that creates a vault when you asked it to import reads as the wrong button. mRemoteNG, CSV and ~/.ssh/config are a product name, a file format and a file path; none of them is translated.",
+    "doorHelp": "A vault has to exist first, so this creates one — then opens the import wizard for mRemoteNG, ~/.ssh/config and CSV.",
+    "_comment_calloutTitle": "Shown at the top of the create-vault wizard when the user arrived through the import door. Short: it is a reassurance, not an instruction.",
+    "calloutTitle": "Your import is next",
+    "_comment_calloutBody": "The body under it. 'Nothing is read until then' is the same promise the wizard's own footer makes and must not be softened.",
+    "calloutBody": "Finish these four steps and the import wizard opens on the other side. Nothing from your old connection manager is read until then.",
+    "_comment_openAndImport": "The last button of vault creation, replacing 'I have saved it — open the vault' when the import wizard follows it. It still confirms the recovery key has been saved: that confirmation is the whole point of the screen and must not be dropped in translation.",
+    "openAndImport": "I have saved it — start the import"
+  },
   "rail": {
     "_comment_": "The eight-step progress rail down the top of the screen. Each label is one or two words in a narrow button, and each is a noun naming the step, not an instruction. Steps 3 and 7 are work the wizard does by itself; they are in the rail so the wait has a place on screen.",
     "label": "Import steps",
@@ -29,7 +38,6 @@
       "result": "Result"
     }
   },
-
   "nav": {
     "_comment_": "The forward and back buttons in the footer. Imperative verbs, no trailing punctuation. Which forward label is shown depends on the step.",
     "back": "Back",
@@ -43,14 +51,12 @@
     "toCommit": "Review and commit",
     "done": "Done"
   },
-
   "footer": {
     "_comment_": "A standing note at the bottom of every step, saying whether the vault has been touched. SECURITY-CRITICAL: these three sentences are the wizard's promise about when it writes. Do not merge them, do not soften 'yet', and do not turn the warning into a reassurance.",
     "nothingWritten": "Nothing has been written to your vault yet.",
     "willWrite": "This step writes to your vault.",
     "written": "Written as one transaction."
   },
-
   "gate": {
     "_comment_": "Why a disabled control is disabled. Each is a tooltip on the control itself, so it says what to do rather than what went wrong. Every one is a complete sentence.",
     "noFile": "Choose the file you want to import.",
@@ -63,7 +69,6 @@
     "committed": "This import has already been written. Start another one to import again.",
     "ahead": "Finish the steps before this one first."
   },
-
   "source": {
     "_comment_": "Step 1 — choosing the file. Detection is done by reading the file's content, never its name.",
     "title": "Choose the file to import",
@@ -104,7 +109,6 @@
       "csvHint": "A header row and one connection per line"
     }
   },
-
   "secrets": {
     "_comment_": "Step 2 — the document password, and the bad news that arrives with it. The password is typed here, handed to the core, and dropped. It is never shown, never stored and never logged.",
     "encryptedTitle": "The file is encrypted",
@@ -139,13 +143,11 @@
     "keysTitle": "About private keys",
     "keysBody": "Keys named by this file are imported as references to the files they already live in. Remoter does not read the key material here, so no key passphrase is asked for."
   },
-
   "parse": {
     "_comment_": "Step 3 — the wait while the core reads the file. The user does nothing here.",
     "busy": "Reading the file…",
     "busyNote": "The parse runs in the core, in a sandboxed reader with bounded buffers. Nothing is written to your vault by it."
   },
-
   "preview": {
     "_comment_": "Step 4 — every node the import would create, with a checkbox beside it. This is the last screen on which anything can be left out.",
     "title": "This is what you will get",
@@ -183,7 +185,6 @@
     "truncatedTitle": "This is not the whole file",
     "truncatedBody": "A safety limit stopped the parse before the end of the document. What you see is everything Remoter read, and importing it is safe; it will not be everything the file contains."
   },
-
   "tree": {
     "_comment_": "The preview tree itself: one row per node, each with a checkbox and small badges.",
     "_comment_group": "Accessible name of the whole tree, read by a screen reader on entering it.",
@@ -206,7 +207,6 @@
     "inherited": "inherited",
     "inheritedTitle": "This node's credential comes from its parent, as it did in the file."
   },
-
   "report": {
     "_comment_": "Step 5 — the findings, grouped by severity, worst first.",
     "title": "What the parse found",
@@ -232,7 +232,6 @@
     "skippedTitle": "Some items were left out by the parser",
     "skippedBody": "They are listed above with the reason. They are not in the preview and will not be imported; the file itself is untouched, so nothing about them is lost."
   },
-
   "preserved": {
     "_comment_": "One line each in the 'kept but not interpreted' table. The left column is a field path — 'custom_fields.ProxyCommand' — and is never translated; these are the right column. 'verbatim' means the value was stored exactly as the file had it.",
     "connections": "{count, plural, one {# connection} other {# connections}} · verbatim",
@@ -240,82 +239,62 @@
     "_comment_everyRow": "For a CSV column: every row of the file carried it.",
     "everyRow": "every row · verbatim"
   },
-
   "finding": {
     "_comment_": "One entry per thing the importer wants the user to know. Each has a title — the fact — and a body saying what it means for them. A verbatim scrap from the file is shown separately in a monospace line and is never translated. {item} is a connection or folder name from the file; {target}, {protocol}, {command}, {column}, {field}, {criteria} and {pattern} are all values read out of the file, in whatever script or syntax it had them.",
-
     "_comment_defaultFilePasswordTitle": "SECURITY-CRITICAL. The single most important finding in the wizard. mRemoteNG encrypts a file with no password of its own using a password published in its own source. Do not soften 'was not really protected' and do not turn 'change them on the servers' into a suggestion.",
     "defaultFilePasswordTitle": "This file was protected with mRemoteNG's well-known default password.",
     "defaultFilePasswordBody": "It was not really protected. Anyone who has ever held a copy of it could read every credential inside without knowing anything you know. Treat the passwords coming across as exposed and change them on the servers.",
-
     "_comment_legacyCbcEncryptionTitle": "SECURITY-CRITICAL. The pre-1.75 scheme: the key was an unsalted MD5 hash of the password and the ciphertext was unauthenticated. 'Consider the credentials exposed' is the actionable part.",
     "legacyCbcEncryptionTitle": "This file uses the legacy AES-CBC scheme with an MD5-derived key.",
     "legacyCbcEncryptionBody": "Remoter can read it. So could anyone else with a copy, without much effort, because the key came from an unsalted hash and the ciphertext carried nothing to detect tampering. Consider the credentials inside it exposed.",
-
     "fullFileEncryptionTitle": "The whole document was encrypted, not just its passwords.",
     "fullFileEncryptionBody": "The structure was hidden as well as the credentials. Nothing changes about the import; it is noted because it tells you how the file was configured.",
-
     "_comment_secretsRecoveredTitle": "How many passwords the importer got out of the file.",
     "secretsRecoveredTitle": "{count, plural, one {# password came out of the file.} other {# passwords came out of the file.}}",
     "secretsRecoveredBody": "They are sealed into the vault at the moment you commit. They are never written to disk in the clear and never leave the core.",
-
     "_comment_credentialsDeduplicatedTitle": "The same username and password repeated across many connections became one shared credential. {credentials} counts the credential objects made, {connections} the connections now pointing at them.",
     "credentialsDeduplicatedTitle": "{credentials, plural, one {# credential object covers} other {# credential objects cover}} {connections, plural, one {# connection} other {# connections}}.",
     "credentialsDeduplicatedBody": "The same username and password repeated across connections became one credential each, linked from the connections that used it. Changing it once now changes it everywhere.",
-
     "_comment_unknownProtocolTitle": "{item} is the connection's name. The protocol name itself is shown separately and is never translated.",
     "unknownProtocolTitle": "{item} used a protocol Remoter does not have.",
     "_comment_unknownProtocolBody": "{mappedTo} is the protocol it was imported as — SSH, RDP, VNC, SFTP. Never translated.",
     "unknownProtocolBody": "It was imported as {mappedTo}. The original value is kept in a custom field, so nothing about it is lost.",
-
     "skippedItemTitle": "{item} was not imported.",
     "_comment_skippedItemBody": "One sentence per reason the parser refused an item. The reason names are wire values from the core and must stay exactly as they are; only the sentences are translated. 'other' is the fallback for a reason a newer core sends that this build has never seen.",
     "skippedItemBody": "{reason, select, unusable_host {It was left out because its host name was not usable.} unusable_name {It was left out because its name was empty or not usable.} unsupported_kind {It was left out because its type has no equivalent here.} empty {It was left out because it was empty.} other {It was left out.}}",
-
     "_comment_unmappedProxyCommandTitle": "'ProxyCommand' is an OpenSSH configuration keyword and is never translated.",
     "unmappedProxyCommandTitle": "{item} uses a ProxyCommand that has no direct equivalent.",
     "unmappedProxyCommandBody": "The command is kept verbatim in a custom field rather than dropped. The connection will import; it will not use the proxy until you wire up a gateway for it by hand.",
-
     "_comment_gatewayMappedTitle": "The best news the importer has: a ProxyJump in the file became a real, working chain of gateways in the vault.",
     "gatewayMappedTitle": "{item} arrives with its jump-host chain intact.",
     "gatewayMappedBody": "ProxyJump became a real gateway chain of {hops, plural, one {# hop} other {# hops}}, so the connection works from the first attempt without any further setup.",
-
     "gatewaySynthesisedTitle": "A gateway for {item} was created from its ProxyJump.",
     "_comment_gatewaySynthesisedBody": "{target} is the jump host's address, read out of the file.",
     "gatewaySynthesisedBody": "The jump host {target} was not a connection in the file, so it became one here and is now shared by everything that jumps through it.",
-
     "gatewayUnresolvedTitle": "{item} jumps through a host that could not be resolved.",
     "gatewayUnresolvedBody": "The chain names {target}, which is not in the file and could not be built from it. The connection imports without its gateway and will not reach the host until you add one.",
-
     "_comment_secretNotMappedTitle": "SECURITY-ADJACENT. A password in a field Remoter has no home for. It was dropped rather than written somewhere unprotected, and the user is told so plainly because they may be relying on it.",
     "secretNotMappedTitle": "A secret on {item} had nowhere to go.",
     "secretNotMappedBody": "It was in a field the domain model has no home for, and a secret is the one thing that is never kept in a custom field. It was dropped rather than stored somewhere it would not be protected.",
-
     "_comment_matchBlockNotAppliedTitle": "'Match' is an OpenSSH configuration keyword — a conditional block — and is never translated.",
     "matchBlockNotAppliedTitle": "A Match block was read but not applied.",
     "matchBlockNotAppliedBody": "Its criteria depend on how the connection is being made, which is not known at import time, so its {options, plural, one {# option was} other {# options were}} left out rather than applied to hosts they may not be meant for.",
-
     "_comment_patternBlockAppliedTitle": "'Host' is the OpenSSH keyword that opens a block, and a wildcard one — 'Host *.acme' — applies to every matching connection. Never translated.",
     "patternBlockAppliedTitle": "A wildcard Host block was applied to {connections, plural, one {# connection} other {# connections}}.",
     "patternBlockAppliedBody": "Its options were folded into every connection whose name it matched, the same way ssh itself would apply them.",
-
     "_comment_settingsPreservedTitle": "Settings with no equivalent in Remoter, stored verbatim in custom fields instead of being dropped.",
     "settingsPreservedTitle": "{count, plural, one {# setting on {item} was kept but not interpreted.} other {# settings on {item} were kept but not interpreted.}}",
     "settingsPreservedBody": "They are in custom fields, verbatim. Nothing was discarded — if a later version of Remoter learns to read them, they will be there.",
-
     "_comment_unknownColumnTitle": "CSV only: a column heading the importer has no field for.",
     "unknownColumnTitle": "A column in the file was not recognised.",
     "unknownColumnBody": "Its values were kept in a custom field on each row rather than thrown away.",
-
     "_comment_limitReachedTitle": "A parse limit stopped the read before the end of the file. The limit names are wire values from the core and must stay exactly as they are; only the sentences around them are translated.",
     "limitReachedTitle": "{limit, select, custom_fields {A safety limit stopped the parse: too many custom fields.} findings {A safety limit stopped the parse: too many findings.} nodes {A safety limit stopped the parse: too many nodes.} other {A safety limit stopped the parse.}}",
     "limitReachedBody": "What you see is everything Remoter read before the limit. Importing it is safe; it will not be the whole file. Split the file, or import it in parts.",
-
     "_comment_unknownTitle": "Shown when a newer core reports a finding this build has never heard of. It is deliberately honest about being unable to explain itself rather than inventing a meaning.",
     "unknownTitle": "This file produced a note this version does not recognise.",
     "unknownBody": "It came from a newer part of the importer than this build knows about. Nothing is wrong with your file; the note simply cannot be explained here."
   },
-
   "destination": {
     "_comment_": "Step 6 — the vault folder the import lands in.",
     "title": "Where should this go?",
@@ -333,7 +312,6 @@
     "_comment_chooseLabel": "Accessible name of the list of folders.",
     "chooseLabel": "Destination folder"
   },
-
   "commit": {
     "_comment_": "Step 7 — the last screen before anything is written, and the button that writes.",
     "title": "Ready to write",
@@ -358,13 +336,18 @@
     "transactionBody": "Either all of this reaches your vault file or none of it does. Remoter cannot undo an import afterwards, so anything you did not want should be unticked in the preview before you press the button — deleting it from the tree is the only remedy after.",
     "nothing": "Nothing is ticked, so there is nothing to write. Go back to the preview and tick something."
   },
-
   "result": {
     "_comment_": "Step 8 — what was written. The import is finished and cannot be taken back.",
     "_comment_title": "The heading. {count} nodes are now in the vault.",
     "title": "{count, plural, one {# item is in your vault} other {# items are in your vault}}",
     "_comment_lead": "{folder} is either a folder path from the vault or the 'destination.top' phrase.",
     "lead": "Written into {folder} as one transaction.",
+    "_comment_refusedTitle": "SHOWN ONLY when the parser refused items — items that were in the file and are not in the vault, as opposed to ones the reader unticked. {count} is how many. Do not soften: an import that left part of the file behind is not a success, and this is the last screen the reader sees.",
+    "refusedTitle": "{count, plural, one {# item in the file did not come in} other {# items in the file did not come in}}",
+    "_comment_refusedBody": "Follows the heading, above the list of refused items. The advice is deliberate: there is no undo, so importing the corrected file again into the same folder would duplicate everything that did come in.",
+    "refusedBody": "They were in the file and nothing in the vault stands for them. Everything else was written. Correct them in the application they came from and import that file again into a new folder — this import cannot be undone.",
+    "_comment_refusedNotAllListed": "Shown under the list when the report stopped growing before the end of the file, so the names of the remaining refusals were never recorded. {count} is how many are missing from the list.",
+    "refusedNotAllListed": "{count, plural, one {# more is not listed here: the report stopped growing before the end of the file.} other {# more are not listed here: the report stopped growing before the end of the file.}}",
     "_comment_countImported": "Labels under the large numbers in the stat tiles. Plain nouns and noun phrases, lower case.",
     "countImported": "imported",
     "_comment_countSkipped": "Nodes left out because the user unticked them, as opposed to ones the parser refused.",
@@ -388,7 +371,6 @@
     "done": "Done",
     "another": "Import another file"
   },
-
   "discard": {
     "_comment_": "The dialog shown when the user leaves the wizard with a parsed file still held in the core. SECURITY-ADJACENT: what is being dropped is not a screenful of data but the parsed file, with every password it recovered in plaintext. Leaving wipes them, which is the desired outcome — the cost is only that the file would have to be read again.",
     "title": "Discard this import?",

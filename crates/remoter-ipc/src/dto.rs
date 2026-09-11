@@ -208,6 +208,44 @@ pub struct CreateVaultResultDto {
     pub kdf: Option<KdfParamsDto>,
 }
 
+/// The recovery sheet the screen composed, and where the user chose to put it.
+///
+/// The text travels inward because the sheet is a translated document — the
+/// core has no catalogue and cannot write "Your recovery key" in the reader's
+/// language. What it carries, though, is the recovery key itself, so this is
+/// secret-bearing in the direction this crate normally only sees passwords
+/// travel.
+///
+/// `Debug` is written by hand for that reason: a derived one would print the
+/// key the moment a caller formatted the request into a trace or an error
+/// (CLAUDE.md §0.2). `Clone` is deliberately absent — one copy is enough, and
+/// the command wraps it in `Secret` on arrival so it is zeroized on every exit
+/// path.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecoverySheetDto {
+    pub path: String,
+    pub text: String,
+}
+
+impl fmt::Debug for RecoverySheetDto {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RecoverySheetDto")
+            .field("path", &self.path)
+            .field("text", &"<redacted>")
+            .finish()
+    }
+}
+
+/// What was written, so the screen can name the file it just created rather
+/// than saying "done".
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecoverySheetWrittenDto {
+    pub path: String,
+    pub bytes: u64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VaultStateDto {
@@ -354,6 +392,12 @@ pub enum CredentialInputDto {
 pub struct PrivateKeyInfoDto {
     pub path: String,
     /// `"openssh" | "pkcs8" | "putty-ppk"`
+    ///
+    /// The container the vault would *store* the key in, which for a legacy
+    /// PKCS#1 RSA or SEC 1 EC `.pem` is `"pkcs8"` rather than the banner the
+    /// file carries: those are re-enveloped on import so the vault holds one
+    /// representation. Saying what will be stored is what makes this field
+    /// agree with the credential the editor is about to create.
     pub format: String,
     /// The container's name as a person would say it: "OpenSSH", "PKCS#8",
     /// "PuTTY PPK".

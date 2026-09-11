@@ -1,6 +1,5 @@
 {
   "_comment_file": "The import wizard: eight steps that read an mRemoteNG, OpenSSH config or CSV file and write it into the vault. Loaded only when the wizard is opened. Two themes run through this namespace and neither may be softened in translation: nothing is written to the vault until step 7, and an import cannot be undone once it is. 'Remoter' is the product name and is never translated. 'mRemoteNG', 'ProxyJump', 'ProxyCommand', 'Host', 'Match', 'confVersion', 'AES-CBC' and 'MD5' are names from other products, protocols and file formats and are never translated either.",
-
   "wizard": {
     "_comment_title": "The screen's heading. A noun — the name of the screen — not the verb on a button.",
     "title": "导入",
@@ -8,7 +7,17 @@
     "_comment_closeHint": "Tooltip on the same button. 'Esc' is a key name and is written as-is in every language.",
     "closeHint": "关闭（Esc）"
   },
-
+  "firstRun": {
+    "_comment_": "Copy for the launch screen's import door and the vault creation it has to pass through on the way here. It lives in the import namespace rather than in vault.json because it describes the import flow and has to stay in step with the wizard's wording: the sentence it replaced was a stub promising the wizard 'in a later version', and the door it sat under led to the create-vault wizard and nowhere else.",
+    "_comment_doorHelp": "Under 'Bring across what I have' on the first-run screen. It names what happens in order, because a door that creates a vault when you asked it to import reads as the wrong button. mRemoteNG, CSV and ~/.ssh/config are a product name, a file format and a file path; none of them is translated.",
+    "doorHelp": "必须先有一个保险库，所以这里会先创建一个，然后打开 mRemoteNG、~/.ssh/config 和 CSV 的导入向导。",
+    "_comment_calloutTitle": "Shown at the top of the create-vault wizard when the user arrived through the import door. Short: it is a reassurance, not an instruction.",
+    "calloutTitle": "接下来是导入",
+    "_comment_calloutBody": "The body under it. 'Nothing is read until then' is the same promise the wizard's own footer makes and must not be softened.",
+    "calloutBody": "完成这四个步骤，导入向导随即打开。在那之前，不会读取您原有连接管理器中的任何内容。",
+    "_comment_openAndImport": "The last button of vault creation, replacing 'I have saved it — open the vault' when the import wizard follows it. It still confirms the recovery key has been saved: that confirmation is the whole point of the screen and must not be dropped in translation.",
+    "openAndImport": "我已保存——开始导入"
+  },
   "rail": {
     "_comment_": "The eight-step progress rail down the top of the screen. Each label is one or two words in a narrow button, and each is a noun naming the step, not an instruction. Steps 3 and 7 are work the wizard does by itself; they are in the rail so the wait has a place on screen.",
     "label": "导入步骤",
@@ -29,7 +38,6 @@
       "result": "结果"
     }
   },
-
   "nav": {
     "_comment_": "The forward and back buttons in the footer. Imperative verbs, no trailing punctuation. Which forward label is shown depends on the step.",
     "back": "上一步",
@@ -43,14 +51,12 @@
     "toCommit": "复核并提交",
     "done": "完成"
   },
-
   "footer": {
     "_comment_": "A standing note at the bottom of every step, saying whether the vault has been touched. SECURITY-CRITICAL: these three sentences are the wizard's promise about when it writes. Do not merge them, do not soften 'yet', and do not turn the warning into a reassurance.",
     "nothingWritten": "目前还没有向您的保险库写入任何内容。",
     "willWrite": "这一步会写入您的保险库。",
     "written": "已作为一次事务写入。"
   },
-
   "gate": {
     "_comment_": "Why a disabled control is disabled. Each is a tooltip on the control itself, so it says what to do rather than what went wrong. Every one is a complete sentence.",
     "noFile": "请选择您要导入的文件。",
@@ -63,7 +69,6 @@
     "committed": "这次导入已经写入完成。要再导入一次，请重新开始一轮。",
     "ahead": "请先完成这一步之前的各个步骤。"
   },
-
   "source": {
     "_comment_": "Step 1 — choosing the file. Detection is done by reading the file's content, never its name.",
     "title": "选择要导入的文件",
@@ -104,7 +109,6 @@
       "csvHint": "一行表头，每行一个连接"
     }
   },
-
   "secrets": {
     "_comment_": "Step 2 — the document password, and the bad news that arrives with it. The password is typed here, handed to the core, and dropped. It is never shown, never stored and never logged.",
     "encryptedTitle": "此文件已加密",
@@ -139,13 +143,11 @@
     "keysTitle": "关于私钥",
     "keysBody": "此文件中提到的密钥，是以指向它们原有文件的引用形式导入的。Remoter 在这里不会读取密钥内容，所以也不会向您索要密钥口令。"
   },
-
   "parse": {
     "_comment_": "Step 3 — the wait while the core reads the file. The user does nothing here.",
     "busy": "正在读取文件…",
     "busyNote": "解析在内核里进行，使用的是带缓冲区上限的沙箱化读取器。它不会向您的保险库写入任何东西。"
   },
-
   "preview": {
     "_comment_": "Step 4 — every node the import would create, with a checkbox beside it. This is the last screen on which anything can be left out.",
     "title": "这就是您将会得到的东西",
@@ -183,7 +185,6 @@
     "truncatedTitle": "这不是文件的全部内容",
     "truncatedBody": "一项安全上限让解析在文档结束之前就停了下来。您看到的是 Remoter 读到的全部内容，导入它是安全的；但它不会是这个文件里的全部内容。"
   },
-
   "tree": {
     "_comment_": "The preview tree itself: one row per node, each with a checkbox and small badges.",
     "_comment_group": "Accessible name of the whole tree, read by a screen reader on entering it.",
@@ -206,7 +207,6 @@
     "inherited": "继承",
     "inheritedTitle": "这个节点的凭据来自它的上级，与它在文件中的情况一致。"
   },
-
   "report": {
     "_comment_": "Step 5 — the findings, grouped by severity, worst first.",
     "title": "解析发现了什么",
@@ -232,7 +232,6 @@
     "skippedTitle": "有些条目被解析器排除在外",
     "skippedBody": "它们连同原因都列在上面。它们不在预览里，也不会被导入；文件本身没有被改动，所以关于它们的信息没有任何损失。"
   },
-
   "preserved": {
     "_comment_": "One line each in the 'kept but not interpreted' table. The left column is a field path — 'custom_fields.ProxyCommand' — and is never translated; these are the right column. 'verbatim' means the value was stored exactly as the file had it.",
     "connections": "{count, plural, other {# 个连接}} · 原样保留",
@@ -240,82 +239,62 @@
     "_comment_everyRow": "For a CSV column: every row of the file carried it.",
     "everyRow": "每一行都有 · 原样保留"
   },
-
   "finding": {
     "_comment_": "One entry per thing the importer wants the user to know. Each has a title — the fact — and a body saying what it means for them. A verbatim scrap from the file is shown separately in a monospace line and is never translated. {item} is a connection or folder name from the file; {target}, {protocol}, {command}, {column}, {field}, {criteria} and {pattern} are all values read out of the file, in whatever script or syntax it had them.",
-
     "_comment_defaultFilePasswordTitle": "SECURITY-CRITICAL. The single most important finding in the wizard. mRemoteNG encrypts a file with no password of its own using a password published in its own source. Do not soften 'was not really protected' and do not turn 'change them on the servers' into a suggestion.",
     "defaultFilePasswordTitle": "这个文件是用 mRemoteNG 那个众所周知的默认密码保护的。",
     "defaultFilePasswordBody": "它其实根本没有受到保护。任何曾经拿到过这个文件副本的人，不需要知道您所知道的任何东西，就能读出里面的每一份凭据。请把导入过来的这些密码视为已经泄露，并到各台服务器上把它们改掉。",
-
     "_comment_legacyCbcEncryptionTitle": "SECURITY-CRITICAL. The pre-1.75 scheme: the key was an unsalted MD5 hash of the password and the ciphertext was unauthenticated. 'Consider the credentials exposed' is the actionable part.",
     "legacyCbcEncryptionTitle": "这个文件使用的是旧式 AES-CBC 方案，密钥由 MD5 派生。",
     "legacyCbcEncryptionBody": "Remoter 能读它。任何拿到副本的人也能读，而且不费多少力气，因为密钥来自一个没有加盐的哈希，密文里也没有任何可以察觉篡改的东西。请把里面的凭据视为已经泄露。",
-
     "fullFileEncryptionTitle": "整份文档都被加密了，而不只是里面的密码。",
     "fullFileEncryptionBody": "被藏起来的除了凭据还有结构。这不会改变导入的任何环节；记下这一点，是因为它告诉您这个文件当初是怎么配置的。",
-
     "_comment_secretsRecoveredTitle": "How many passwords the importer got out of the file.",
     "secretsRecoveredTitle": "{count, plural, other {从这个文件里取出了 # 个密码。}}",
     "secretsRecoveredBody": "它们会在您提交的那一刻封入保险库。它们绝不会以明文写到磁盘上，也绝不会离开内核。",
-
     "_comment_credentialsDeduplicatedTitle": "The same username and password repeated across many connections became one shared credential. {credentials} counts the credential objects made, {connections} the connections now pointing at them.",
     "credentialsDeduplicatedTitle": "{credentials, plural, other {# 个凭据对象}}覆盖了{connections, plural, other {# 个连接}}。",
     "credentialsDeduplicatedBody": "在多个连接上重复出现的同一组用户名和密码，各自合并成了一份凭据，再由用到它的那些连接引用。现在改一次，处处都改了。",
-
     "_comment_unknownProtocolTitle": "{item} is the connection's name. The protocol name itself is shown separately and is never translated.",
     "unknownProtocolTitle": "{item} 用的协议是 Remoter 没有的。",
     "_comment_unknownProtocolBody": "{mappedTo} is the protocol it was imported as — SSH, RDP, VNC, SFTP. Never translated.",
     "unknownProtocolBody": "它是按 {mappedTo} 导入的。原来的值保存在一个自定义字段里，所以关于它的信息没有任何损失。",
-
     "skippedItemTitle": "{item} 没有被导入。",
     "_comment_skippedItemBody": "One sentence per reason the parser refused an item. The reason names are wire values from the core and must stay exactly as they are; only the sentences are translated. 'other' is the fallback for a reason a newer core sends that this build has never seen.",
     "skippedItemBody": "{reason, select, unusable_host {它被排除了，因为它的主机名无法使用。} unusable_name {它被排除了，因为它的名称为空或无法使用。} unsupported_kind {它被排除了，因为它的类型在这里没有对应项。} empty {它被排除了，因为它是空的。} other {它被排除了。}}",
-
     "_comment_unmappedProxyCommandTitle": "'ProxyCommand' is an OpenSSH configuration keyword and is never translated.",
     "unmappedProxyCommandTitle": "{item} 使用了一条没有直接对应项的 ProxyCommand。",
     "unmappedProxyCommandBody": "这条命令没有被丢掉，而是原样保存在一个自定义字段里。连接可以导入；但在您手动为它配好网关之前，它不会走那个代理。",
-
     "_comment_gatewayMappedTitle": "The best news the importer has: a ProxyJump in the file became a real, working chain of gateways in the vault.",
     "gatewayMappedTitle": "{item} 连同它的跳板链一起完整地带了过来。",
     "gatewayMappedBody": "ProxyJump 变成了一条真正的、{hops, plural, other {# 跳}}的网关链，因此这个连接第一次尝试就能用，不需要再做任何配置。",
-
     "gatewaySynthesisedTitle": "已根据 {item} 的 ProxyJump 为它创建了一个网关。",
     "_comment_gatewaySynthesisedBody": "{target} is the jump host's address, read out of the file.",
     "gatewaySynthesisedBody": "跳板机 {target} 在文件里并不是一个连接，所以在这里它被建成了一个连接，现在由所有经它跳转的条目共用。",
-
     "gatewayUnresolvedTitle": "{item} 经由一台无法解析出来的主机跳转。",
     "gatewayUnresolvedBody": "这条链里写着 {target}，而它不在文件中，也无法从文件里构建出来。这个连接会在没有网关的情况下导入，在您补上一个之前，它到不了目标主机。",
-
     "_comment_secretNotMappedTitle": "SECURITY-ADJACENT. A password in a field Remoter has no home for. It was dropped rather than written somewhere unprotected, and the user is told so plainly because they may be relying on it.",
     "secretNotMappedTitle": "{item} 上有一份机密无处安放。",
     "secretNotMappedBody": "它所在的字段在这里的数据模型中没有归属，而机密是唯一绝不会被放进自定义字段的东西。因此它被丢弃了，而不是存到一个保护不了它的地方。",
-
     "_comment_matchBlockNotAppliedTitle": "'Match' is an OpenSSH configuration keyword — a conditional block — and is never translated.",
     "matchBlockNotAppliedTitle": "读到了一个 Match 块，但没有套用它。",
     "matchBlockNotAppliedBody": "它的条件取决于连接是怎么发起的，而这一点在导入时无从得知，所以它的 {options, plural, other {# 个选项}}被略过了，而不是套用到未必适用的主机上。",
-
     "_comment_patternBlockAppliedTitle": "'Host' is the OpenSSH keyword that opens a block, and a wildcard one — 'Host *.acme' — applies to every matching connection. Never translated.",
     "patternBlockAppliedTitle": "一个带通配符的 Host 块被套用到了{connections, plural, other {# 个连接}}上。",
     "patternBlockAppliedBody": "它的选项被并入了每一个名称与之匹配的连接，方式与 ssh 自己套用它们的方式相同。",
-
     "_comment_settingsPreservedTitle": "Settings with no equivalent in Remoter, stored verbatim in custom fields instead of being dropped.",
     "settingsPreservedTitle": "{count, plural, other {在 {item} 上有 # 项设置被保留了下来，但没有被解读。}}",
     "settingsPreservedBody": "它们原样存放在自定义字段里。没有任何内容被丢弃——如果以后某个版本的 Remoter 学会了读懂它们，它们就在那里等着。",
-
     "_comment_unknownColumnTitle": "CSV only: a column heading the importer has no field for.",
     "unknownColumnTitle": "文件里有一列没有被识别。",
     "unknownColumnBody": "它的值没有被丢掉，而是保存在每一行的一个自定义字段里。",
-
     "_comment_limitReachedTitle": "A parse limit stopped the read before the end of the file. The limit names are wire values from the core and must stay exactly as they are; only the sentences around them are translated.",
     "limitReachedTitle": "{limit, select, custom_fields {一项安全上限中止了解析：自定义字段太多。} findings {一项安全上限中止了解析：发现项太多。} nodes {一项安全上限中止了解析：节点太多。} other {一项安全上限中止了解析。}}",
     "limitReachedBody": "您看到的是 Remoter 在触到上限之前读到的全部内容。导入它是安全的；但它不会是整个文件。请把文件拆开，或者分批导入。",
-
     "_comment_unknownTitle": "Shown when a newer core reports a finding this build has never heard of. It is deliberately honest about being unable to explain itself rather than inventing a meaning.",
     "unknownTitle": "这个文件产生了一条此版本不认识的提示。",
     "unknownBody": "它来自导入器中比此版本更新的部分。您的文件没有任何问题；只是这条提示在这里无法解释清楚。"
   },
-
   "destination": {
     "_comment_": "Step 6 — the vault folder the import lands in.",
     "title": "这些内容该放到哪里？",
@@ -333,7 +312,6 @@
     "_comment_chooseLabel": "Accessible name of the list of folders.",
     "chooseLabel": "目标文件夹"
   },
-
   "commit": {
     "_comment_": "Step 7 — the last screen before anything is written, and the button that writes.",
     "title": "可以写入了",
@@ -358,13 +336,18 @@
     "transactionBody": "这些内容要么全部进入您的保险库文件，要么一个都不进。Remoter 事后无法撤销一次导入，所以凡是您不想要的，都应该在按下按钮之前于预览里取消勾选——按下之后，唯一的补救办法就是从树里把它删掉。",
     "nothing": "什么都没有勾选，因此没有可写入的内容。请回到预览，勾选一些内容。"
   },
-
   "result": {
     "_comment_": "Step 8 — what was written. The import is finished and cannot be taken back.",
     "_comment_title": "The heading. {count} nodes are now in the vault.",
     "title": "{count, plural, other {已有 # 个条目进入您的保险库}}",
     "_comment_lead": "{folder} is either a folder path from the vault or the 'destination.top' phrase.",
     "lead": "已作为一次事务写入 {folder}。",
+    "_comment_refusedTitle": "SHOWN ONLY when the parser refused items — items that were in the file and are not in the vault, as opposed to ones the reader unticked. {count} is how many. Do not soften: an import that left part of the file behind is not a success, and this is the last screen the reader sees.",
+    "refusedTitle": "{count, plural, other {文件中有 # 个条目没有进入保险库}}",
+    "_comment_refusedBody": "Follows the heading, above the list of refused items. The advice is deliberate: there is no undo, so importing the corrected file again into the same folder would duplicate everything that did come in.",
+    "refusedBody": "它们在文件里，但保险库中没有任何条目与之对应。其余内容都已写入。请在它们原来的程序中改正，然后把该文件重新导入到一个新文件夹——本次导入无法撤销。",
+    "_comment_refusedNotAllListed": "Shown under the list when the report stopped growing before the end of the file, so the names of the remaining refusals were never recorded. {count} is how many are missing from the list.",
+    "refusedNotAllListed": "{count, plural, other {另有 # 个未在此列出：报告在文件结束前就停止增长了。}}",
     "_comment_countImported": "Labels under the large numbers in the stat tiles. Plain nouns and noun phrases, lower case.",
     "countImported": "项已导入",
     "_comment_countSkipped": "Nodes left out because the user unticked them, as opposed to ones the parser refused.",
@@ -388,7 +371,6 @@
     "done": "完成",
     "another": "再导入一个文件"
   },
-
   "discard": {
     "_comment_": "The dialog shown when the user leaves the wizard with a parsed file still held in the core. SECURITY-ADJACENT: what is being dropped is not a screenful of data but the parsed file, with every password it recovered in plaintext. Leaving wipes them, which is the desired outcome — the cost is only that the file would have to be read again.",
     "title": "丢弃这次导入？",

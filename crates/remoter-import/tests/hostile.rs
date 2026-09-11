@@ -19,7 +19,7 @@
 use std::path::Path;
 
 use remoter_import::ssh_config::{MemoryConfigFiles, OsConfigFiles};
-use remoter_import::{ImportError, ImportedSecret, Limits, csv, mremoteng, ssh_config};
+use remoter_import::{ImportError, ImportedSecret, Limits, XmlProblem, csv, mremoteng, ssh_config};
 
 /// Every parser, behind one signature, so a hostile input can be pointed at
 /// all three without three copies of the assertion.
@@ -58,9 +58,16 @@ fn a_parameter_entity_xxe_that_carries_no_doctype_still_resolves_nothing() {
     // No DTD, so the DOCTYPE refusal does not fire and the entity reference
     // itself has to be the thing that is refused.
     let attack = br#"<Connections Name="&xxe;" Protected="" ConfVersion="2.6" />"#;
+    let Err(ImportError::XmlNotWellFormed { problem, .. }) =
+        mremoteng::parse(attack, None, &Limits::new())
+    else {
+        panic!("expected a located refusal");
+    };
     assert_eq!(
-        mremoteng::parse(attack, None, &Limits::new()).map(|_| ()),
-        Err(ImportError::EntityRefused)
+        problem,
+        XmlProblem::UnknownEntity {
+            attribute: Some("Name".to_owned())
+        }
     );
 }
 
@@ -189,13 +196,7 @@ fn a_truncated_document_is_reported_as_truncated_rather_than_guessed_at() {
         let outcome = mremoteng::parse(&full[..cut], None, &Limits::new());
         if let Err(err) = outcome {
             assert!(
-                matches!(
-                    err,
-                    ImportError::Truncated { .. }
-                        | ImportError::MalformedXml { .. }
-                        | ImportError::WrongFormat { .. }
-                        | ImportError::EntityRefused
-                ),
+                matches!(err, ImportError::XmlNotWellFormed { .. }),
                 "cut at {cut} gave {err:?}"
             );
         }

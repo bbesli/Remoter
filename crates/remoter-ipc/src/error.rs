@@ -24,7 +24,7 @@ use std::path::Path;
 
 use remoter_core::{CoreError, ValidationError};
 use remoter_import::ImportError;
-use remoter_vault::{UnlockError, VaultError};
+use remoter_vault::{Purpose, UnlockError, VaultError};
 use serde::Serialize;
 
 /// A structured failure, serialised to the `IpcFailure` interface in
@@ -355,15 +355,32 @@ impl IpcError {
                 "Choose the private key rather than its .pub companion",
                 "Use the platform SSH agent instead",
             ]),
+            // A real limitation, so the actions do not suggest a conversion:
+            // the key would still be refused afterwards, and by the server too.
             VaultError::UnsupportedKeyFormat(what) => Self::new(
                 "key.unsupported-format",
                 format!(
-                    "That key is in {what} format, which this build does not store. \
+                    "That is a {what} private key, and no protocol in this build can \
+                     authenticate with one. Nothing was written."
+                ),
+            )
+            .with_actions([
+                "Use an Ed25519, ECDSA or RSA key instead",
+                "Use the platform SSH agent instead",
+            ]),
+            // A conversion gap, and the remedy says `copy` on purpose: the key
+            // file is very often shared with other tools, and `ssh-keygen -p`
+            // rewrites the file it is given in place.
+            VaultError::LegacyEncryptedKey(what) => Self::new(
+                "key.legacy-encrypted",
+                format!(
+                    "That {what} key is encrypted inside its own PEM container, and Remoter \
+                     has to be able to read the container before it can store the key. \
                      Nothing was written."
                 ),
             )
             .with_actions([
-                "Convert it with `ssh-keygen -p -m PKCS8 -f <file>`",
+                "Convert a copy: `cp <file> <copy>` then `ssh-keygen -p -m PKCS8 -f <copy>`",
                 "Use the platform SSH agent instead",
             ]),
             VaultError::NotAPrivateKeyCredential(id) => Self::new(
@@ -445,9 +462,13 @@ impl IpcError {
             .with_actions(["Re-enter the secret", "Open a backup beside the vault"]),
             VaultError::PurposeRefused(purpose) => Self::new(
                 "credential.purpose-refused",
-                "This credential is restricted and may not be used this way.",
+                format!(
+                    "That credential's restriction does not cover {use_}, so the vault refused \
+                     to open it. Widen the restriction in the credential's settings, or choose a \
+                     credential that already allows {use_}.",
+                    use_ = purpose_text(*purpose)
+                ),
             )
-            .with_detail(format!("{purpose:?}"))
             .with_actions(["Choose another credential", "Widen the credential's restriction"]),
             VaultError::Core(inner) => Self::from_core(inner),
         }
@@ -877,6 +898,34 @@ impl IpcError {
     }
 }
 
+/// What a borrowed credential was about to be used for, as a reader would say
+/// it.
+///
+/// A `Purpose` is a Rust identifier — `SshPassword`, `RdpCredentials` — and
+/// putting one on screen as a diagnostic tells the user nothing: it names
+/// neither a protocol they recognise nor anything they can act on. This is the
+/// half of [`VaultError::PurposeRefused`] worth showing.
+///
+/// The session path composes a better sentence still, because it also knows
+/// which credential and which connection (`purpose_refused` in bridge.rs). This
+/// is what every other caller gets, and it is a protocol plus a next step
+/// rather than an enum variant.
+const fn purpose_text(purpose: Purpose) -> &'static str {
+    match purpose {
+        Purpose::SshPassword | Purpose::SshPrivateKey => "SSH sessions",
+        Purpose::SftpPassword | Purpose::SftpPrivateKey => "SFTP sessions",
+        Purpose::RdpCredentials => "RDP sessions",
+        Purpose::VncPassword => "VNC sessions",
+        Purpose::FtpPassword => "FTP sessions",
+        // Neither is checked against the protocol restriction at all —
+        // `protocol_for` in remoter-vault maps them to no protocol — so
+        // neither can reach the refusal today. Worded anyway: a match that
+        // cannot go stale is cheaper than remembering that it might.
+        Purpose::Reveal => "being shown on screen",
+        Purpose::Export => "being exported",
+    }
+}
+
 /// Upper-cases the first character of a gerund phrase such as
 /// "reading the vault", so it can start a sentence.
 fn capitalise(text: &str) -> String {
@@ -902,5 +951,76 @@ impl From<&CoreError> for IpcError {
 impl From<&ImportError> for IpcError {
     fn from(err: &ImportError) -> Self {
         Self::from_import(err, "that file")
+    }
+}
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test code"
+)]
+mod tests {
+    use super::*;
+
+    /// What the user met on the first Windows run: a refusal that named the
+    /// restriction but not what had been refused, with `SshPassword` — a Rust
+    /// identifier — as the only detail. Nothing in it says which protocol was
+    /// being opened or what to change, and the detail is actively misleading
+    /// when the session was RDP.
+    #[test]
+    fn a_refused_purpose_names_the_protocol_and_the_way_out() {
+        let failure = IpcError::from_vault(
+            &VaultError::PurposeRefused(Purpose::RdpCredentials),
+            "this vault",
+        );
+
+        assert_eq!(failure.code, "credential.purpose-refused");
+        assert!(
+            failure.message.contains("RDP sessions"),
+            "the protocol is not named: {}",
+            failure.message
+        );
+        assert!(
+            failure.message.contains("settings"),
+            "the way out is not named: {}",
+            failure.message
+        );
+        // A Rust variant name is not a diagnostic a user can act on, and
+        // `SshPassword` on an RDP failure was worse than none.
+        assert!(
+            failure
+                .detail
+                .as_deref()
+                .is_none_or(|detail| !detail.contains("Password")),
+            "the raw purpose is still being shown: {:?}",
+            failure.detail
+        );
+        assert_eq!(failure.actions.len(), 2);
+    }
+
+    /// Every purpose reads as something a user recognises, so the sentence
+    /// above cannot degrade into an identifier for a purpose added later.
+    #[test]
+    fn every_purpose_reads_as_a_protocol_or_an_action() {
+        for purpose in [
+            Purpose::SshPassword,
+            Purpose::SshPrivateKey,
+            Purpose::SftpPassword,
+            Purpose::SftpPrivateKey,
+            Purpose::RdpCredentials,
+            Purpose::VncPassword,
+            Purpose::FtpPassword,
+            Purpose::Reveal,
+            Purpose::Export,
+        ] {
+            let text = purpose_text(purpose);
+            assert!(!text.is_empty());
+            assert!(
+                !text.contains("Password") && !text.contains("Credentials"),
+                "{purpose:?} is being shown as its Rust name: {text}"
+            );
+        }
     }
 }

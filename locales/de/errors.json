@@ -295,11 +295,19 @@
         "Stattdessen den SSH-Agenten der Plattform verwenden"
       ]
     },
-    "_comment_unsupported-format": "The first action quotes a command. Translate the sentence around it if there is one; never translate the command itself, and keep its flags exactly as they are.",
+    "_comment_unsupported-format": "The refusal is a real limitation, not a conversion the user can perform: no protocol in this build can authenticate with a key of that kind, so the actions must not suggest converting the file. The three algorithm names in the first action are algorithm names, not words; leave them exactly as they are.",
     "unsupported-format": {
-      "message": "Dieser Schlüssel liegt in einem Format vor, das dieser Build nicht speichert. Es wurde nichts geschrieben.",
+      "message": "Das ist ein privater Schlüssel einer Art, mit der sich kein Protokoll in diesem Build authentifizieren kann. Es wurde nichts geschrieben.",
       "actions": [
-        "Mit `ssh-keygen -p -m PKCS8 -f '<file>'` umwandeln",
+        "Stattdessen einen Ed25519-, ECDSA- oder RSA-Schlüssel verwenden",
+        "Stattdessen den SSH-Agenten der Plattform verwenden"
+      ]
+    },
+    "_comment_legacy-encrypted": "Different from unsupported-format: the key itself is fine, it is the PEM container that is encrypted, and Remoter has to read the container before it can store the key. The first action quotes two commands. Translate the sentence around them if there is one; never translate the commands themselves, and keep `<file>` and `<copy>` exactly as they are. The word 'copy' is load-bearing: `ssh-keygen -p` rewrites the file it is given, and the user's key file is very often shared with other tools.",
+    "legacy-encrypted": {
+      "message": "Dieser Schlüssel ist in seinem eigenen PEM-Container verschlüsselt, und Remoter muss den Container lesen können, bevor der Schlüssel gespeichert werden kann. Es wurde nichts geschrieben.",
+      "actions": [
+        "Eine Kopie umwandeln: `cp <file> <copy>`, dann `ssh-keygen -p -m PKCS8 -f <copy>`",
         "Stattdessen den SSH-Agenten der Plattform verwenden"
       ]
     },
@@ -320,7 +328,7 @@
       ]
     },
     "purpose-refused": {
-      "message": "Diese Anmeldedaten sind eingeschränkt und dürfen nicht auf diese Weise verwendet werden.",
+      "message": "Die Einschränkung dieser Anmeldedaten deckt den vorgesehenen Verwendungszweck nicht ab, deshalb hat der Tresor sie nicht geöffnet. Erweitern Sie die Einschränkung in den Einstellungen der Anmeldedaten, oder wählen Sie Anmeldedaten, die diesen Zweck bereits zulassen.",
       "actions": [
         "Andere Anmeldedaten wählen",
         "Die Einschränkung der Anmeldedaten erweitern"

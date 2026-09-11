@@ -226,6 +226,19 @@ export function usedDefaultPassword(findings: readonly ImportFinding[]): boolean
   return findings.some((f) => f.kind === "default_file_password");
 }
 
+/**
+ * The items the parser refused: in the file, not in the vault.
+ *
+ * Distinct from the nodes the user unticked in the preview, which are also
+ * "skipped" and which the result screen counts separately. These are the ones
+ * nobody chose to leave behind — a connection with no usable hostname, an
+ * mRemoteNG external-application entry — and they are the difference between an
+ * import that succeeded and one that half-succeeded.
+ */
+export function refusedItems(findings: readonly ImportFinding[]): ImportFinding[] {
+  return findings.filter((f) => f.kind === "skipped_item");
+}
+
 /** How many connections arrive with a gateway chain the importer built for them. */
 export function gatewayFindingCount(findings: readonly ImportFinding[]): number {
   return findings.filter((f) => f.kind === "gateway_mapped" || f.kind === "gateway_synthesised")

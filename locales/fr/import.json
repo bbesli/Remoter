@@ -7,6 +7,17 @@
     "_comment_closeHint": "Tooltip on the same button. 'Esc' is a key name and is written as-is in every language.",
     "closeHint": "Fermer (Esc)"
   },
+  "firstRun": {
+    "_comment_": "Copy for the launch screen's import door and the vault creation it has to pass through on the way here. It lives in the import namespace rather than in vault.json because it describes the import flow and has to stay in step with the wizard's wording: the sentence it replaced was a stub promising the wizard 'in a later version', and the door it sat under led to the create-vault wizard and nowhere else.",
+    "_comment_doorHelp": "Under 'Bring across what I have' on the first-run screen. It names what happens in order, because a door that creates a vault when you asked it to import reads as the wrong button. mRemoteNG, CSV and ~/.ssh/config are a product name, a file format and a file path; none of them is translated.",
+    "doorHelp": "Un coffre-fort doit exister d'abord : ceci en crée un, puis ouvre l'assistant d'importation pour mRemoteNG, ~/.ssh/config et CSV.",
+    "_comment_calloutTitle": "Shown at the top of the create-vault wizard when the user arrived through the import door. Short: it is a reassurance, not an instruction.",
+    "calloutTitle": "Votre importation vient ensuite",
+    "_comment_calloutBody": "The body under it. 'Nothing is read until then' is the same promise the wizard's own footer makes and must not be softened.",
+    "calloutBody": "Terminez ces quatre étapes et l'assistant d'importation s'ouvrira ensuite. D'ici là, rien n'est lu depuis votre ancien gestionnaire de connexions.",
+    "_comment_openAndImport": "The last button of vault creation, replacing 'I have saved it — open the vault' when the import wizard follows it. It still confirms the recovery key has been saved: that confirmation is the whole point of the screen and must not be dropped in translation.",
+    "openAndImport": "Je l'ai enregistrée — démarrer l'importation"
+  },
   "rail": {
     "_comment_": "The eight-step progress rail down the top of the screen. Each label is one or two words in a narrow button, and each is a noun naming the step, not an instruction. Steps 3 and 7 are work the wizard does by itself; they are in the rail so the wait has a place on screen.",
     "label": "Étapes de l'import",
@@ -331,6 +342,12 @@
     "title": "{count, plural, one {# élément se trouve dans votre coffre-fort} many {# éléments se trouvent dans votre coffre-fort} other {# éléments se trouvent dans votre coffre-fort}}",
     "_comment_lead": "{folder} is either a folder path from the vault or the 'destination.top' phrase.",
     "lead": "Écrit dans {folder} en une seule transaction.",
+    "_comment_refusedTitle": "SHOWN ONLY when the parser refused items — items that were in the file and are not in the vault, as opposed to ones the reader unticked. {count} is how many. Do not soften: an import that left part of the file behind is not a success, and this is the last screen the reader sees.",
+    "refusedTitle": "{count, plural, one {# élément du fichier n'est pas arrivé} many {# éléments du fichier ne sont pas arrivés} other {# éléments du fichier ne sont pas arrivés}}",
+    "_comment_refusedBody": "Follows the heading, above the list of refused items. The advice is deliberate: there is no undo, so importing the corrected file again into the same folder would duplicate everything that did come in.",
+    "refusedBody": "Ils étaient dans le fichier et rien dans le coffre-fort ne les représente. Tout le reste a été écrit. Corrigez-les dans l'application d'origine, puis réimportez ce fichier dans un nouveau dossier : cette importation ne peut pas être annulée.",
+    "_comment_refusedNotAllListed": "Shown under the list when the report stopped growing before the end of the file, so the names of the remaining refusals were never recorded. {count} is how many are missing from the list.",
+    "refusedNotAllListed": "{count, plural, one {# autre n'est pas listé ici : le rapport a cessé de croître avant la fin du fichier.} many {# autres ne sont pas listés ici : le rapport a cessé de croître avant la fin du fichier.} other {# autres ne sont pas listés ici : le rapport a cessé de croître avant la fin du fichier.}}",
     "_comment_countImported": "Labels under the large numbers in the stat tiles. Plain nouns and noun phrases, lower case.",
     "countImported": "importés",
     "_comment_countSkipped": "Nodes left out because the user unticked them, as opposed to ones the parser refused.",

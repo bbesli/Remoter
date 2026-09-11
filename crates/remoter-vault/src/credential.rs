@@ -31,6 +31,29 @@
 //! - PuTTY PPK: the format described in PuTTY's `sshpubk.c` — a
 //!   `PuTTY-User-Key-File-<version>:` line, then an `Encryption:` line whose
 //!   value is `none` for an unencrypted key.
+//! - PKCS#1 RSA: RFC 8017 §A.1.2 — `RSAPrivateKey` under
+//!   `BEGIN RSA PRIVATE KEY`. AWS EC2 hands one out with every key pair it
+//!   generates, and `ssh-keygen` wrote them by default until OpenSSH 7.8.
+//! - SEC 1 elliptic curve: RFC 5915 §3 — `ECPrivateKey` under
+//!   `BEGIN EC PRIVATE KEY`, which is what `ssh-keygen -m PEM -t ecdsa`
+//!   writes.
+//! - RFC 1421 §4.6.1.3 — a `DEK-Info:` header inside a PEM block means the
+//!   body below it is enciphered, whatever the banner said.
+//!
+//! # Normalising on the way in
+//!
+//! The last two of those are containers `remoter_core::KeyFormat` cannot name,
+//! and both hold exactly what a PKCS#8 `PrivateKeyInfo` holds. Rather than
+//! refuse them — which made the private-key option unusable for most of the
+//! `.pem` files an administrator actually has — they are re-enveloped as
+//! PKCS#8 as the file is read, by [`crate::pkcs8`], and stored under that
+//! label. The rewrite is structural: no cipher, no key derivation, no key byte
+//! changed. Everything below the vault therefore sees one representation and
+//! never has to know which file it came from.
+//!
+//! Enciphered legacy PEM bodies are the exception, and are refused by name:
+//! reaching their plaintext needs the passphrase, and this is the step that
+//! runs *before* the interface knows to ask for one.
 
 use std::fmt;
 use std::path::Path;
@@ -70,24 +93,47 @@ impl ImportedKey {
     /// Takes the buffer by value rather than by reference so that the only copy
     /// of the key material ends up inside the returned [`Secret`], which zeroes
     /// it on drop.
+    ///
+    /// A legacy PEM container is re-enveloped as PKCS#8 here; see the module
+    /// documentation. The buffer that came off disk is dropped — and therefore
+    /// wiped — in that case, so only the normalised copy survives the call.
     pub fn from_bytes(bytes: Vec<u8>) -> Result<Self, VaultError> {
         // Wrapped first: every early return below drops this, and dropping it
         // wipes the buffer even when the file turns out not to be a key.
         let material = Secret::new(bytes);
-        let (format, encrypted) = detect(material.expose_secret())?;
-        Ok(Self {
-            format,
-            encrypted,
-            material,
-        })
+        match detect(material.expose_secret())? {
+            Identified::AsIs { format, encrypted } => Ok(Self {
+                format,
+                encrypted,
+                material,
+            }),
+            Identified::Normalised { pkcs8 } => {
+                // Explicit rather than left to the end of the function: the
+                // file's own bytes have no further use once the PKCS#8 copy
+                // exists, and the sooner they are gone the smaller the window
+                // in which both copies are resident.
+                drop(material);
+                Ok(Self {
+                    format: KeyFormat::Pkcs8,
+                    // Only an unencrypted body is ever re-enveloped, so this
+                    // is a fact about the rewrite and not an assumption about
+                    // the file.
+                    encrypted: false,
+                    material: Secret::new(pkcs8),
+                })
+            }
+        }
     }
 
     /// Reads a key file, refusing anything that is not a private key.
     ///
-    /// The error says which of the two it is: a file that is not a key at all
-    /// ([`VaultError::NotAPrivateKey`]) or a key in a container this build does
-    /// not store ([`VaultError::UnsupportedKeyFormat`]). Neither message quotes
-    /// the file's contents.
+    /// The error says which of the three it is: a file that is not a key at all
+    /// ([`VaultError::NotAPrivateKey`]), a key of a kind no protocol here can
+    /// authenticate with ([`VaultError::UnsupportedKeyFormat`]), or a key whose
+    /// legacy PEM container is itself encrypted
+    /// ([`VaultError::LegacyEncryptedKey`]) — three different remedies, which
+    /// is why they are three errors. None of the messages quotes the file's
+    /// contents.
     pub fn read(path: &Path) -> Result<Self, VaultError> {
         let metadata = std::fs::metadata(path)
             .map_err(|e| VaultError::io("reading the private key", path, e))?;
@@ -220,35 +266,85 @@ pub fn private_key_credential(
     )
 }
 
-/// Identifies a private key container, and whether its material is encrypted.
-fn detect(bytes: &[u8]) -> Result<(KeyFormat, bool), VaultError> {
+/// What reading a key file decided to do with it.
+enum Identified {
+    /// The file is in a container the domain model names; it is stored exactly
+    /// as it was read.
+    AsIs { format: KeyFormat, encrypted: bool },
+    /// The file was in a legacy PEM container and has been re-enveloped as a
+    /// PKCS#8 document; see [`crate::pkcs8`]. Always unencrypted, because only
+    /// an unencrypted body can be re-enveloped without the passphrase.
+    Normalised { pkcs8: Vec<u8> },
+}
+
+/// Identifies a private key container, and decides how it is stored.
+fn detect(bytes: &[u8]) -> Result<Identified, VaultError> {
     let text = std::str::from_utf8(bytes).map_err(|_| VaultError::NotAPrivateKey)?;
     let text = text.trim_start_matches('\u{feff}').trim_start();
 
     if text.starts_with("PuTTY-User-Key-File-") {
-        return detect_ppk(text);
+        let (format, encrypted) = detect_ppk(text)?;
+        return Ok(Identified::AsIs { format, encrypted });
     }
 
-    let (label, body) = pem_block(text).ok_or(VaultError::NotAPrivateKey)?;
-    match label {
-        "OPENSSH PRIVATE KEY" => detect_openssh(&body),
+    let block = pem_block(text).ok_or(VaultError::NotAPrivateKey)?;
+    match block.label {
+        "OPENSSH PRIVATE KEY" => {
+            let (format, encrypted) = detect_openssh(&block.body)?;
+            Ok(Identified::AsIs { format, encrypted })
+        }
         "PRIVATE KEY" => {
-            require_der_sequence(&body)?;
-            Ok((KeyFormat::Pkcs8, false))
+            require_der_sequence(&block.body)?;
+            Ok(Identified::AsIs {
+                format: KeyFormat::Pkcs8,
+                encrypted: false,
+            })
         }
         "ENCRYPTED PRIVATE KEY" => {
-            require_der_sequence(&body)?;
-            Ok((KeyFormat::Pkcs8, true))
+            require_der_sequence(&block.body)?;
+            Ok(Identified::AsIs {
+                format: KeyFormat::Pkcs8,
+                encrypted: true,
+            })
         }
-        // Real private keys, in containers `remoter_core::KeyFormat` cannot
-        // name. Refused by name rather than filed under PKCS#8: the two are
-        // different ASN.1 structures and an adapter told the wrong one fails at
-        // connect time.
-        "RSA PRIVATE KEY" => Err(VaultError::UnsupportedKeyFormat("PKCS#1 RSA PEM")),
+        // Real private keys in containers `remoter_core::KeyFormat` cannot
+        // name. They are not mis-filed under PKCS#8 — the ASN.1 structures
+        // differ, and a label that lies is a label — they are *converted* into
+        // PKCS#8, which is a structural rewrite of the same key material.
+        //
+        // A body carrying an RFC 1421 `DEK-Info` header is ciphertext, so
+        // there is nothing to re-envelope without the passphrase. This step
+        // runs before the interface knows to ask for one, so the honest answer
+        // is to name the container and say what is in the way.
+        "RSA PRIVATE KEY" if block.enciphered => {
+            Err(VaultError::LegacyEncryptedKey("PKCS#1 RSA PEM"))
+        }
+        "RSA PRIVATE KEY" => Ok(Identified::Normalised {
+            pkcs8: crate::pkcs8::from_pkcs1_rsa(&block.body)?,
+        }),
+        "EC PRIVATE KEY" if block.enciphered => {
+            Err(VaultError::LegacyEncryptedKey("SEC 1 elliptic curve PEM"))
+        }
+        "EC PRIVATE KEY" => Ok(Identified::Normalised {
+            pkcs8: crate::pkcs8::from_sec1_ec(&block.body)?,
+        }),
+        // Not a conversion gap. OpenSSH disabled `ssh-dss` by default in 7.0
+        // and removed it outright in 10.0, so a DSA key cannot authenticate a
+        // session this build could open even if the vault stored it.
         "DSA PRIVATE KEY" => Err(VaultError::UnsupportedKeyFormat("OpenSSL DSA PEM")),
-        "EC PRIVATE KEY" => Err(VaultError::UnsupportedKeyFormat("SEC 1 elliptic curve PEM")),
         _ => Err(VaultError::NotAPrivateKey),
     }
+}
+
+/// The first PEM block in a document, decoded.
+struct PemBlock<'a> {
+    /// The text between `-----BEGIN ` and `-----`.
+    label: &'a str,
+    /// The base64 body, decoded.
+    body: Zeroizing<Vec<u8>>,
+    /// Whether the block carried an RFC 1421 §4.6.1.3 `DEK-Info:` header,
+    /// which means the body below it is enciphered whatever the banner said.
+    enciphered: bool,
 }
 
 /// The label and decoded body of the first PEM block in a document.
@@ -256,9 +352,10 @@ fn detect(bytes: &[u8]) -> Result<(KeyFormat, bool), VaultError> {
 /// Returns `None` if there is no `-----BEGIN x-----` / `-----END x-----` pair,
 /// or if what lies between them is not base64. That second case is what stops a
 /// text file with a pasted header from being accepted as a key.
-fn pem_block(text: &str) -> Option<(&str, Zeroizing<Vec<u8>>)> {
+fn pem_block(text: &str) -> Option<PemBlock<'_>> {
     let mut label: Option<&str> = None;
     let mut base64 = Zeroizing::new(String::new());
+    let mut enciphered = false;
 
     for line in text.lines() {
         let line = line.trim();
@@ -273,9 +370,12 @@ fn pem_block(text: &str) -> Option<(&str, Zeroizing<Vec<u8>>)> {
             // A legacy encrypted PEM carries `Proc-Type:` and `DEK-Info:`
             // headers inside the block. A colon is not in the base64 alphabet,
             // so it identifies such a line unambiguously; skipping it lets the
-            // block still decode, and lets the caller refuse the container by
-            // name rather than as "not a key".
+            // block still decode, and noting the `DEK-Info` lets the caller
+            // tell ciphertext from a key it can re-envelope.
             if line.contains(':') {
+                if line.starts_with("DEK-Info:") {
+                    enciphered = true;
+                }
                 continue;
             }
             base64.push_str(line);
@@ -284,7 +384,11 @@ fn pem_block(text: &str) -> Option<(&str, Zeroizing<Vec<u8>>)> {
 
     let label = label?;
     let decoded = data_encoding::BASE64.decode(base64.as_bytes()).ok()?;
-    Some((label, Zeroizing::new(decoded)))
+    Some(PemBlock {
+        label,
+        body: Zeroizing::new(decoded),
+        enciphered,
+    })
 }
 
 /// Rejects a body that is not a DER `SEQUENCE`.
@@ -450,17 +554,18 @@ mod tests {
     }
 
     #[test]
-    fn a_key_in_a_container_this_build_cannot_store_is_named_not_guessed() {
-        for (label, expected) in [
-            ("RSA PRIVATE KEY", "PKCS#1 RSA PEM"),
-            ("DSA PRIVATE KEY", "OpenSSL DSA PEM"),
-            ("EC PRIVATE KEY", "SEC 1 elliptic curve PEM"),
-        ] {
-            let bytes = samples::pem(label, &[0x30, 0x03, 0x02, 0x01, 0x00]);
-            match ImportedKey::from_bytes(bytes) {
-                Err(VaultError::UnsupportedKeyFormat(named)) => assert_eq!(named, expected),
-                other => panic!("expected UnsupportedKeyFormat for {label}, got {other:?}"),
+    fn a_key_this_build_cannot_authenticate_with_is_named_not_guessed() {
+        // DSA is the one refusal here that is a real limitation rather than a
+        // missing conversion: OpenSSH disabled `ssh-dss` in 7.0 and removed it
+        // in 10.0, so storing the key would only move the failure to connect
+        // time. PKCS#1 RSA and SEC 1 EC used to sit in this list and are now
+        // re-enveloped instead — see the tests below.
+        let bytes = samples::pem("DSA PRIVATE KEY", &[0x30, 0x03, 0x02, 0x01, 0x00]);
+        match ImportedKey::from_bytes(bytes) {
+            Err(VaultError::UnsupportedKeyFormat(named)) => {
+                assert_eq!(named, "OpenSSL DSA PEM");
             }
+            other => panic!("expected UnsupportedKeyFormat for DSA, got {other:?}"),
         }
     }
 
@@ -476,7 +581,25 @@ mod tests {
 
         assert!(matches!(
             ImportedKey::from_bytes(document.into_bytes()),
-            Err(VaultError::UnsupportedKeyFormat("PKCS#1 RSA PEM"))
+            Err(VaultError::LegacyEncryptedKey("PKCS#1 RSA PEM"))
+        ));
+    }
+
+    #[test]
+    fn a_pem_body_that_is_not_the_structure_its_banner_claims_is_refused() {
+        // The banner says PKCS#1, the body is a bare INTEGER. Re-enveloping it
+        // unexamined would build a PKCS#8 document around nonsense, and the
+        // failure would surface at connect time instead of here.
+        let bytes = samples::pem("RSA PRIVATE KEY", &[0x02, 0x01, 0x00]);
+        assert!(matches!(
+            ImportedKey::from_bytes(bytes),
+            Err(VaultError::NotAPrivateKey)
+        ));
+
+        let bytes = samples::pem("EC PRIVATE KEY", &[0x02, 0x01, 0x00]);
+        assert!(matches!(
+            ImportedKey::from_bytes(bytes),
+            Err(VaultError::NotAPrivateKey)
         ));
     }
 
@@ -527,5 +650,267 @@ mod tests {
             format!("{:?}", credential.secret),
             "SecretKind::Agent(<redacted>)"
         );
+    }
+}
+
+/// The containers `ssh-keygen` actually writes, read as real files.
+///
+/// Every key here is generated by the system's own `ssh-keygen` inside the
+/// test process and destroyed with the temporary directory it was written to.
+/// No key file is committed — `CLAUDE.md` §9 forbids it, and `.gitignore`
+/// refuses `*.pem` and `*.key` — and a hand-written fixture would only ever be
+/// evidence about the fixture. What has to be true is that Remoter reads the
+/// files administrators have, so the files under test are made by the tool
+/// that made theirs.
+///
+/// The proof that a re-enveloped key is still the same key is `ssh-keygen -y`,
+/// which derives the public half from a private key file. Running it on the
+/// original and on what the vault stored must produce the same public key: that
+/// is one assertion covering both "a real SSH implementation can read this"
+/// and "no key byte changed on the way through".
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test code"
+)]
+mod real_keys {
+    use std::path::Path;
+    use std::process::Command;
+
+    use super::*;
+
+    /// Runs `ssh-keygen`, returning its stdout.
+    ///
+    /// Absence of the tool is a hard failure rather than a skip: a test that
+    /// quietly does nothing on the machine where it matters is worse than no
+    /// test, and `ssh-keygen` ships with every OpenSSH client.
+    fn ssh_keygen(args: &[&str]) -> Vec<u8> {
+        let output = Command::new("ssh-keygen")
+            .args(args)
+            .output()
+            .expect("ssh-keygen must be on PATH: these tests read real key files, not fixtures");
+        assert!(
+            output.status.success(),
+            "ssh-keygen {args:?} failed: {}",
+            // A generation diagnostic, never key material.
+            String::from_utf8_lossy(&output.stderr)
+        );
+        output.stdout
+    }
+
+    /// Generates a key pair with `ssh-keygen` and returns the private key file.
+    ///
+    /// `passphrase` is the empty string for an unencrypted key, exactly as
+    /// `-N ""` means on the command line.
+    fn generate(dir: &Path, name: &str, passphrase: &str, extra: &[&str]) -> Vec<u8> {
+        let path = dir.join(name);
+        let path = path.to_str().expect("a temporary path is valid UTF-8");
+        let mut args = vec!["-q", "-C", "remoter-test", "-N", passphrase, "-f", path];
+        args.extend_from_slice(extra);
+        ssh_keygen(&args);
+        std::fs::read(path).unwrap()
+    }
+
+    /// The public half `ssh-keygen` derives from a private key file, which is
+    /// the identity the server will check.
+    fn public_half(dir: &Path, name: &str, key: &[u8]) -> Vec<u8> {
+        let path = dir.join(name);
+        std::fs::write(&path, key).unwrap();
+        // `ssh-keygen -y` refuses a key file other users could read, exactly as
+        // the SSH client does. The file written here is made private so the
+        // tool will read it; `ssh-keygen` does this for the ones it writes.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+        }
+        let path = path.to_str().expect("a temporary path is valid UTF-8");
+        // The comment is not part of the identity and `-y` does not print one,
+        // so the whole line can be compared.
+        ssh_keygen(&["-y", "-f", path])
+    }
+
+    #[test]
+    fn an_aws_style_pkcs1_rsa_pem_is_accepted_and_is_still_the_same_key() {
+        // This is the file AWS EC2 hands out with every key pair it generates,
+        // and what `ssh-keygen` wrote by default until OpenSSH 7.8. It used to
+        // be refused outright.
+        let dir = tempfile::tempdir().unwrap();
+        let original = generate(
+            dir.path(),
+            "aws.pem",
+            "",
+            &["-t", "rsa", "-b", "2048", "-m", "PEM"],
+        );
+        assert!(
+            original.starts_with(b"-----BEGIN RSA PRIVATE KEY-----"),
+            "ssh-keygen -m PEM did not write a PKCS#1 container"
+        );
+
+        let key = ImportedKey::from_bytes(original.clone()).unwrap();
+        assert_eq!(key.format(), KeyFormat::Pkcs8);
+        assert!(!key.is_encrypted());
+
+        let stored = key.material().expose_secret();
+        assert!(
+            stored.starts_with(b"-----BEGIN PRIVATE KEY-----"),
+            "the vault stored something that is not a PKCS#8 document"
+        );
+
+        assert_eq!(
+            public_half(dir.path(), "stored", stored),
+            public_half(dir.path(), "original", &original),
+            "the re-enveloped key is not the key that went in"
+        );
+    }
+
+    #[test]
+    fn a_sec1_ec_pem_is_accepted_and_is_still_the_same_key() {
+        let dir = tempfile::tempdir().unwrap();
+        let original = generate(
+            dir.path(),
+            "ec.pem",
+            "",
+            &["-t", "ecdsa", "-b", "256", "-m", "PEM"],
+        );
+        assert!(
+            original.starts_with(b"-----BEGIN EC PRIVATE KEY-----"),
+            "ssh-keygen -m PEM -t ecdsa did not write a SEC 1 container"
+        );
+
+        let key = ImportedKey::from_bytes(original.clone()).unwrap();
+        assert_eq!(key.format(), KeyFormat::Pkcs8);
+        assert!(!key.is_encrypted());
+
+        let stored = key.material().expose_secret();
+        assert!(stored.starts_with(b"-----BEGIN PRIVATE KEY-----"));
+        assert_eq!(
+            public_half(dir.path(), "stored", stored),
+            public_half(dir.path(), "original", &original),
+            "the re-enveloped key is not the key that went in"
+        );
+    }
+
+    #[test]
+    fn every_container_ssh_keygen_writes_is_recognised() {
+        let dir = tempfile::tempdir().unwrap();
+        let cases: [(&str, &str, &[&str], KeyFormat, bool); 6] = [
+            // (name, passphrase, ssh-keygen arguments, stored as, encrypted)
+            ("openssh", "", &["-t", "ed25519"], KeyFormat::OpenSsh, false),
+            (
+                "openssh-locked",
+                "correct horse battery staple",
+                &["-t", "ed25519"],
+                KeyFormat::OpenSsh,
+                true,
+            ),
+            (
+                "pkcs8",
+                "",
+                &["-t", "rsa", "-b", "2048", "-m", "PKCS8"],
+                KeyFormat::Pkcs8,
+                false,
+            ),
+            (
+                "pkcs8-locked",
+                "correct horse battery staple",
+                &["-t", "rsa", "-b", "2048", "-m", "PKCS8"],
+                KeyFormat::Pkcs8,
+                true,
+            ),
+            (
+                "pkcs1",
+                "",
+                &["-t", "rsa", "-b", "2048", "-m", "PEM"],
+                KeyFormat::Pkcs8,
+                false,
+            ),
+            (
+                "sec1",
+                "",
+                &["-t", "ecdsa", "-b", "256", "-m", "PEM"],
+                KeyFormat::Pkcs8,
+                false,
+            ),
+        ];
+
+        for (name, passphrase, extra, format, encrypted) in cases {
+            let bytes = generate(dir.path(), name, passphrase, extra);
+            let key = ImportedKey::from_bytes(bytes)
+                .unwrap_or_else(|err| panic!("{name} was refused: {err}"));
+            assert_eq!(key.format(), format, "for {name}");
+            assert_eq!(key.is_encrypted(), encrypted, "for {name}");
+        }
+    }
+
+    #[test]
+    fn a_passphrase_protected_legacy_pem_is_named_rather_than_mis_stored() {
+        // `ssh-keygen -m PEM -N <passphrase>` writes PKCS#1 with an RFC 1421
+        // `DEK-Info` header: the body is ciphertext. Re-enveloping it needs the
+        // passphrase, which this step does not have — it is the step that runs
+        // so the interface knows whether to ask for one. The refusal therefore
+        // names the container and the reason rather than calling the file
+        // something it is not.
+        let dir = tempfile::tempdir().unwrap();
+        let bytes = generate(
+            dir.path(),
+            "locked.pem",
+            "correct horse battery staple",
+            &["-t", "rsa", "-b", "2048", "-m", "PEM"],
+        );
+        assert!(
+            String::from_utf8_lossy(&bytes).contains("DEK-Info:"),
+            "ssh-keygen did not write a legacy encrypted PEM"
+        );
+
+        match ImportedKey::from_bytes(bytes) {
+            Err(VaultError::LegacyEncryptedKey(named)) => {
+                assert_eq!(named, "PKCS#1 RSA PEM");
+            }
+            other => panic!("expected LegacyEncryptedKey, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn no_refusal_and_no_debug_line_quotes_the_file() {
+        // The likeliest way to leak a key from this module is a message that
+        // repeats what it could not read.
+        let dir = tempfile::tempdir().unwrap();
+        let bytes = generate(
+            dir.path(),
+            "leak.pem",
+            "correct horse battery staple",
+            &["-t", "rsa", "-b", "2048", "-m", "PEM"],
+        );
+
+        let error = ImportedKey::from_bytes(bytes.clone()).unwrap_err();
+        let rendered = format!("{error:?} {error}");
+        for line in String::from_utf8_lossy(&bytes)
+            .lines()
+            .filter(|line| !line.starts_with("-----") && !line.contains(':') && !line.is_empty())
+        {
+            assert!(!rendered.contains(line), "a key fragment reached the error");
+        }
+
+        let accepted = generate(
+            dir.path(),
+            "shown.pem",
+            "",
+            &["-t", "rsa", "-b", "2048", "-m", "PEM"],
+        );
+        let key = ImportedKey::from_bytes(accepted).unwrap();
+        let rendered = format!("{key:?}");
+        assert!(rendered.contains("<redacted>"));
+        for line in String::from_utf8_lossy(key.material().expose_secret())
+            .lines()
+            .filter(|line| !line.starts_with("-----"))
+        {
+            assert!(
+                !rendered.contains(line),
+                "the normalised key material reached Debug"
+            );
+        }
     }
 }

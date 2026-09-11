@@ -295,12 +295,20 @@
         "Usar o agente SSH da plataforma em vez disso"
       ]
     },
-    "_comment_unsupported-format": "The first action quotes a command. Translate the sentence around it if there is one; never translate the command itself, and keep its flags exactly as they are.",
+    "_comment_unsupported-format": "The refusal is a real limitation, not a conversion the user can perform: no protocol in this build can authenticate with a key of that kind, so the actions must not suggest converting the file. The three algorithm names in the first action are algorithm names, not words; leave them exactly as they are.",
     "unsupported-format": {
-      "message": "Essa chave está em um formato que esta compilação não guarda. Nada foi escrito.",
+      "message": "Essa é uma chave privada de um tipo com o qual nenhum protocolo desta versão consegue se autenticar. Nada foi gravado.",
       "actions": [
-        "Converter com `ssh-keygen -p -m PKCS8 -f '<file>'`",
-        "Usar o agente SSH da plataforma em vez disso"
+        "Usar uma chave Ed25519, ECDSA ou RSA no lugar",
+        "Usar o agente SSH da plataforma no lugar"
+      ]
+    },
+    "_comment_legacy-encrypted": "Different from unsupported-format: the key itself is fine, it is the PEM container that is encrypted, and Remoter has to read the container before it can store the key. The first action quotes two commands. Translate the sentence around them if there is one; never translate the commands themselves, and keep `<file>` and `<copy>` exactly as they are. The word 'copy' is load-bearing: `ssh-keygen -p` rewrites the file it is given, and the user's key file is very often shared with other tools.",
+    "legacy-encrypted": {
+      "message": "Essa chave está criptografada dentro do próprio contêiner PEM, e o Remoter precisa conseguir ler o contêiner antes de guardar a chave. Nada foi gravado.",
+      "actions": [
+        "Converter uma cópia: `cp <file> <copy>` e depois `ssh-keygen -p -m PKCS8 -f <copy>`",
+        "Usar o agente SSH da plataforma no lugar"
       ]
     },
     "passphrase-required": {
@@ -320,7 +328,7 @@
       ]
     },
     "purpose-refused": {
-      "message": "Esta credencial é restrita e não pode ser usada desta forma.",
+      "message": "A restrição desta credencial não cobre o uso pretendido, por isso o cofre não a abriu. Amplie a restrição nas configurações da credencial ou escolha uma credencial que já permita esse uso.",
       "actions": [
         "Escolher outra credencial",
         "Ampliar a restrição da credencial"

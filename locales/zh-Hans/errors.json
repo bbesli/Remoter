@@ -295,12 +295,20 @@
         "改用平台的 SSH 代理"
       ]
     },
-    "_comment_unsupported-format": "The first action quotes a command. Translate the sentence around it if there is one; never translate the command itself, and keep its flags exactly as they are.",
+    "_comment_unsupported-format": "The refusal is a real limitation, not a conversion the user can perform: no protocol in this build can authenticate with a key of that kind, so the actions must not suggest converting the file. The three algorithm names in the first action are algorithm names, not words; leave them exactly as they are.",
     "unsupported-format": {
-      "message": "该密钥的格式是此版本不会存储的。未写入任何内容。",
+      "message": "这是一个本版本中任何协议都无法用来认证的私钥类型。未写入任何内容。",
       "actions": [
-        "用 `ssh-keygen -p -m PKCS8 -f '<file>'` 转换",
-        "改用平台的 SSH 代理"
+        "改用 Ed25519、ECDSA 或 RSA 密钥",
+        "改用系统的 SSH 代理"
+      ]
+    },
+    "_comment_legacy-encrypted": "Different from unsupported-format: the key itself is fine, it is the PEM container that is encrypted, and Remoter has to read the container before it can store the key. The first action quotes two commands. Translate the sentence around them if there is one; never translate the commands themselves, and keep `<file>` and `<copy>` exactly as they are. The word 'copy' is load-bearing: `ssh-keygen -p` rewrites the file it is given, and the user's key file is very often shared with other tools.",
+    "legacy-encrypted": {
+      "message": "该密钥在它自己的 PEM 容器内被加密，而 Remoter 必须先能读取该容器才能存储密钥。未写入任何内容。",
+      "actions": [
+        "转换一份副本：先 `cp <file> <copy>`，再 `ssh-keygen -p -m PKCS8 -f <copy>`",
+        "改用系统的 SSH 代理"
       ]
     },
     "passphrase-required": {
@@ -320,7 +328,7 @@
       ]
     },
     "purpose-refused": {
-      "message": "此凭据受限，不能以这种方式使用。",
+      "message": "此凭据的限制不包含它即将被用于的用途，因此保险库拒绝打开它。请在该凭据的设置中放宽限制，或改用一个已允许该用途的凭据。",
       "actions": [
         "选择其他凭据",
         "放宽该凭据的限制"

@@ -86,6 +86,34 @@ pub(crate) const PKCS8_KEY: &str =
 pub(crate) const PKCS8_ENCRYPTED_KEY: &str =
     "-----BEGIN ENCRYPTED PRIVATE KEY-----\nMIIBAA==\n-----END ENCRYPTED PRIVATE KEY-----\n";
 
+/// Generates a private key file with the system's own `ssh-keygen`.
+///
+/// `passphrase` is the empty string for an unencrypted key, exactly as `-N ""`
+/// means on the command line; `args` carries the type and container flags.
+///
+/// Real `ssh-keygen` output rather than a fixture, because what is under test
+/// is whether Remoter reads the files administrators actually have. No key
+/// file is committed — `CLAUDE.md` §9 forbids it — and the one written here
+/// goes into the scratch directory, which is removed when its guard drops.
+///
+/// Returns `None` when `ssh-keygen` is not on PATH or refused, so a caller can
+/// say so rather than unwrapping: this crate denies `unwrap` in tests as well.
+pub(crate) fn ssh_keygen(
+    scratch: &Scratch,
+    name: &str,
+    passphrase: &str,
+    args: &[&str],
+) -> Option<PathBuf> {
+    let path = scratch.join(name);
+    let path_arg = path.to_str()?;
+    let output = std::process::Command::new("ssh-keygen")
+        .args(["-q", "-C", "remoter-test", "-N", passphrase, "-f", path_arg])
+        .args(args)
+        .output()
+        .ok()?;
+    output.status.success().then_some(path)
+}
+
 /// Whether a path exists, for a test that asserts a file was written.
 pub(crate) fn exists(path: &Path) -> bool {
     path.exists()

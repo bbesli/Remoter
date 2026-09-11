@@ -1009,12 +1009,17 @@ impl Vault {
     ///
     /// The format comes from the file's content, never from its name: a `.pem`
     /// holding an OpenSSH container is ordinary. A file that is not a private
-    /// key is refused with [`VaultError::NotAPrivateKey`]; a key in a container
-    /// this build does not store is refused by name with
-    /// [`VaultError::UnsupportedKeyFormat`]. Neither message, and no log line
-    /// on this path, contains any part of the key.
+    /// key is refused with [`VaultError::NotAPrivateKey`]; a key of a kind no
+    /// protocol here can authenticate with, with
+    /// [`VaultError::UnsupportedKeyFormat`]; a key whose legacy PEM container
+    /// is itself encrypted, with [`VaultError::LegacyEncryptedKey`]. No
+    /// message, and no log line on this path, contains any part of the key.
     ///
-    /// Returns the detected format, which is also written to the node.
+    /// Returns the format the key was *stored* under, which is also written to
+    /// the node. That is not always the container the file was in: a legacy
+    /// PKCS#1 RSA or SEC 1 EC PEM is re-enveloped as PKCS#8 on the way in, so
+    /// the vault holds one representation of the material. See
+    /// `crate::credential` for why.
     pub fn import_private_key(
         &mut self,
         node: Uuid,
@@ -1810,7 +1815,7 @@ fn protocol_for(purpose: Purpose) -> Option<ProtocolId> {
         Purpose::SshPassword | Purpose::SshPrivateKey => "ssh",
         Purpose::RdpCredentials => "rdp",
         Purpose::VncPassword => "vnc",
-        Purpose::SftpPassword => "sftp",
+        Purpose::SftpPassword | Purpose::SftpPrivateKey => "sftp",
         Purpose::FtpPassword => "ftp",
         Purpose::Reveal | Purpose::Export => return None,
     };
@@ -2833,6 +2838,37 @@ mod tests {
         let reopened =
             Vault::open(&path, UnlockMethod::password(Secret::new("pw".into()))).unwrap();
         assert_eq!(reopened.backup_count(), 2);
+    }
+
+    /// The restriction check is only as good as this mapping: whatever
+    /// `protocol_for` answers is the protocol the credential is asked to
+    /// permit. A purpose that resolved to the wrong protocol would refuse a
+    /// correctly restricted credential — and, in the other direction, ask the
+    /// wrong question of the restriction the user wrote.
+    #[test]
+    fn every_connection_purpose_names_its_own_protocol() {
+        for (purpose, protocol) in [
+            (Purpose::SshPassword, "ssh"),
+            (Purpose::SshPrivateKey, "ssh"),
+            (Purpose::RdpCredentials, "rdp"),
+            (Purpose::VncPassword, "vnc"),
+            (Purpose::SftpPassword, "sftp"),
+            // A key for a file pane is an SSH key, but the restriction it is
+            // checked against says `sftp`.
+            (Purpose::SftpPrivateKey, "sftp"),
+            (Purpose::FtpPassword, "ftp"),
+        ] {
+            assert_eq!(
+                protocol_for(purpose).map(|id| id.as_str().to_owned()),
+                Some(String::from(protocol)),
+                "{purpose:?} resolved to the wrong protocol"
+            );
+        }
+
+        // Neither is a connection, so neither is checked against a protocol
+        // restriction at all.
+        assert_eq!(protocol_for(Purpose::Reveal), None);
+        assert_eq!(protocol_for(Purpose::Export), None);
     }
 
     #[test]

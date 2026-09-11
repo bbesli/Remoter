@@ -27,6 +27,7 @@ mod credential;
 mod crypto;
 mod error;
 mod header;
+mod pkcs8;
 mod recovery;
 mod secret;
 mod settings;
@@ -48,6 +49,14 @@ pub use vault::{CreateOptions, Vault};
 /// Purpose a borrowed credential may be used for. Recorded in the audit log and
 /// checked against the credential's own restriction, so an importer mistake or
 /// a mistyped protocol cannot spray a password at the wrong service.
+///
+/// A purpose names one protocol, because that is what the restriction is stated
+/// in: the caller must pick the variant for the protocol it is actually
+/// opening, never a convenient constant. Picking one variant for every protocol
+/// turns the check into "is this credential allowed for SSH?" no matter what is
+/// being opened, which refuses every correctly restricted RDP, VNC and SFTP
+/// credential and, worse, would pass an SSH-only one if the constant ever
+/// changed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Purpose {
@@ -56,6 +65,14 @@ pub enum Purpose {
     RdpCredentials,
     VncPassword,
     SftpPassword,
+    /// A private key borrowed for an SFTP session.
+    ///
+    /// SFTP is a subsystem of an SSH connection (RFC 4254 §6.5), so the *key*
+    /// is an SSH key — but the restriction the user wrote is per protocol, and
+    /// `sftp` is a protocol of its own in the data model. A credential marked
+    /// "SFTP only" must open an SFTP file pane, and an SSH-only one must not,
+    /// so the two cannot share a purpose that resolves to `ssh`.
+    SftpPrivateKey,
     FtpPassword,
     /// Shown to the user on screen, on an explicit action. Always audited.
     Reveal,

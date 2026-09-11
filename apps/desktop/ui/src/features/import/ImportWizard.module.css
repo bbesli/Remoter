@@ -777,6 +777,20 @@
   border-radius: var(--radius-full);
 }
 
+/**
+ * An import that left part of the file behind.
+ *
+ * A green tick over "33 items are in your vault" is a lie when four more were
+ * refused, and it is the kind of lie a user only discovers when they go looking
+ * for a server at two in the morning. The badge carries the warning tone and an
+ * alert glyph, so the tone is not colour alone.
+ */
+.resultBadge[data-tone="warning"] {
+  color: var(--warning);
+  background: var(--warning-tint);
+  border-color: var(--warning);
+}
+
 /* ------------------------------------------------------------- footer ---- */
 
 .footer {

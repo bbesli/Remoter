@@ -70,7 +70,7 @@ mod secret;
 pub mod ssh_config;
 mod xml;
 
-pub use error::{ImportError, ReadFailure};
+pub use error::{ImportError, ReadFailure, XmlLocation, XmlProblem};
 pub use limits::Limits;
 pub use preview::{
     ImportPreview, NodeSummary, PreviewCredential, PreviewKind, PreviewNode, PreviewSecret,

@@ -1,6 +1,5 @@
 {
   "_comment_file": "The import wizard: eight steps that read an mRemoteNG, OpenSSH config or CSV file and write it into the vault. Loaded only when the wizard is opened. Two themes run through this namespace and neither may be softened in translation: nothing is written to the vault until step 7, and an import cannot be undone once it is. 'Remoter' is the product name and is never translated. 'mRemoteNG', 'ProxyJump', 'ProxyCommand', 'Host', 'Match', 'confVersion', 'AES-CBC' and 'MD5' are names from other products, protocols and file formats and are never translated either.",
-
   "wizard": {
     "_comment_title": "The screen's heading. A noun — the name of the screen — not the verb on a button.",
     "title": "Импорт",
@@ -8,7 +7,17 @@
     "_comment_closeHint": "Tooltip on the same button. 'Esc' is a key name and is written as-is in every language.",
     "closeHint": "Закрыть (Esc)"
   },
-
+  "firstRun": {
+    "_comment_": "Copy for the launch screen's import door and the vault creation it has to pass through on the way here. It lives in the import namespace rather than in vault.json because it describes the import flow and has to stay in step with the wizard's wording: the sentence it replaced was a stub promising the wizard 'in a later version', and the door it sat under led to the create-vault wizard and nowhere else.",
+    "_comment_doorHelp": "Under 'Bring across what I have' on the first-run screen. It names what happens in order, because a door that creates a vault when you asked it to import reads as the wrong button. mRemoteNG, CSV and ~/.ssh/config are a product name, a file format and a file path; none of them is translated.",
+    "doorHelp": "Сначала нужно хранилище — оно создаётся здесь, а затем открывается мастер импорта для mRemoteNG, ~/.ssh/config и CSV.",
+    "_comment_calloutTitle": "Shown at the top of the create-vault wizard when the user arrived through the import door. Short: it is a reassurance, not an instruction.",
+    "calloutTitle": "Следующий шаг — импорт",
+    "_comment_calloutBody": "The body under it. 'Nothing is read until then' is the same promise the wizard's own footer makes and must not be softened.",
+    "calloutBody": "Пройдите эти четыре шага, и откроется мастер импорта. До этого момента из вашего прежнего менеджера подключений ничего не читается.",
+    "_comment_openAndImport": "The last button of vault creation, replacing 'I have saved it — open the vault' when the import wizard follows it. It still confirms the recovery key has been saved: that confirmation is the whole point of the screen and must not be dropped in translation.",
+    "openAndImport": "Я сохранил — начать импорт"
+  },
   "rail": {
     "_comment_": "The eight-step progress rail down the top of the screen. Each label is one or two words in a narrow button, and each is a noun naming the step, not an instruction. Steps 3 and 7 are work the wizard does by itself; they are in the rail so the wait has a place on screen.",
     "label": "Шаги импорта",
@@ -29,7 +38,6 @@
       "result": "Итог"
     }
   },
-
   "nav": {
     "_comment_": "The forward and back buttons in the footer. Imperative verbs, no trailing punctuation. Which forward label is shown depends on the step.",
     "back": "Назад",
@@ -43,14 +51,12 @@
     "toCommit": "Проверить и записать",
     "done": "Готово"
   },
-
   "footer": {
     "_comment_": "A standing note at the bottom of every step, saying whether the vault has been touched. SECURITY-CRITICAL: these three sentences are the wizard's promise about when it writes. Do not merge them, do not soften 'yet', and do not turn the warning into a reassurance.",
     "nothingWritten": "В ваше хранилище пока ничего не записано.",
     "willWrite": "Этот шаг записывает в ваше хранилище.",
     "written": "Записано одной транзакцией."
   },
-
   "gate": {
     "_comment_": "Why a disabled control is disabled. Each is a tooltip on the control itself, so it says what to do rather than what went wrong. Every one is a complete sentence.",
     "noFile": "Выберите файл, который хотите импортировать.",
@@ -63,7 +69,6 @@
     "committed": "Этот импорт уже записан. Чтобы импортировать снова, начните новый.",
     "ahead": "Сначала завершите предыдущие шаги."
   },
-
   "source": {
     "_comment_": "Step 1 — choosing the file. Detection is done by reading the file's content, never its name.",
     "title": "Выберите файл для импорта",
@@ -104,7 +109,6 @@
       "csvHint": "Строка заголовков и по одному подключению в строке"
     }
   },
-
   "secrets": {
     "_comment_": "Step 2 — the document password, and the bad news that arrives with it. The password is typed here, handed to the core, and dropped. It is never shown, never stored and never logged.",
     "encryptedTitle": "Файл зашифрован",
@@ -139,13 +143,11 @@
     "keysTitle": "О закрытых ключах",
     "keysBody": "Ключи, названные в этом файле, импортируются как ссылки на файлы, в которых они уже лежат. Ключевой материал Remoter здесь не читает, поэтому парольная фраза ключа не запрашивается."
   },
-
   "parse": {
     "_comment_": "Step 3 — the wait while the core reads the file. The user does nothing here.",
     "busy": "Читается файл…",
     "busyNote": "Разбор идёт в ядре, в изолированном читателе с ограниченными буферами. В ваше хранилище он ничего не записывает."
   },
-
   "preview": {
     "_comment_": "Step 4 — every node the import would create, with a checkbox beside it. This is the last screen on which anything can be left out.",
     "title": "Вот что вы получите",
@@ -183,7 +185,6 @@
     "truncatedTitle": "Это не весь файл",
     "truncatedBody": "Защитное ограничение остановило разбор, не дойдя до конца документа. То, что вы видите, — это всё, что прочитал Remoter, и импортировать это безопасно; но это не всё, что есть в файле."
   },
-
   "tree": {
     "_comment_": "The preview tree itself: one row per node, each with a checkbox and small badges.",
     "_comment_group": "Accessible name of the whole tree, read by a screen reader on entering it.",
@@ -206,7 +207,6 @@
     "inherited": "унаследовано",
     "inheritedTitle": "Учётные данные этого узла приходят от родителя — так же, как это было в файле."
   },
-
   "report": {
     "_comment_": "Step 5 — the findings, grouped by severity, worst first.",
     "title": "Что обнаружил разбор",
@@ -232,7 +232,6 @@
     "skippedTitle": "Часть элементов разборщик оставил за бортом",
     "skippedBody": "Они перечислены выше вместе с причиной. Их нет в предпросмотре и они не будут импортированы; сам файл не тронут, поэтому ничего из них не потеряно."
   },
-
   "preserved": {
     "_comment_": "One line each in the 'kept but not interpreted' table. The left column is a field path — 'custom_fields.ProxyCommand' — and is never translated; these are the right column. 'verbatim' means the value was stored exactly as the file had it.",
     "connections": "{count, plural, one {# подключение} few {# подключения} many {# подключений} other {# подключения}} · дословно",
@@ -240,82 +239,62 @@
     "_comment_everyRow": "For a CSV column: every row of the file carried it.",
     "everyRow": "каждая строка · дословно"
   },
-
   "finding": {
     "_comment_": "One entry per thing the importer wants the user to know. Each has a title — the fact — and a body saying what it means for them. A verbatim scrap from the file is shown separately in a monospace line and is never translated. {item} is a connection or folder name from the file; {target}, {protocol}, {command}, {column}, {field}, {criteria} and {pattern} are all values read out of the file, in whatever script or syntax it had them.",
-
     "_comment_defaultFilePasswordTitle": "SECURITY-CRITICAL. The single most important finding in the wizard. mRemoteNG encrypts a file with no password of its own using a password published in its own source. Do not soften 'was not really protected' and do not turn 'change them on the servers' into a suggestion.",
     "defaultFilePasswordTitle": "Этот файл был защищён общеизвестным паролем mRemoteNG по умолчанию.",
     "defaultFilePasswordBody": "На самом деле он не был защищён. Любой, у кого когда-либо была его копия, мог прочитать в нём все учётные данные, не зная ничего из того, что знаете вы. Считайте приходящие пароли скомпрометированными и смените их на серверах.",
-
     "_comment_legacyCbcEncryptionTitle": "SECURITY-CRITICAL. The pre-1.75 scheme: the key was an unsalted MD5 hash of the password and the ciphertext was unauthenticated. 'Consider the credentials exposed' is the actionable part.",
     "legacyCbcEncryptionTitle": "Этот файл использует устаревшую схему AES-CBC с ключом, выведенным через MD5.",
     "legacyCbcEncryptionBody": "Remoter может его прочитать. И любой другой, у кого есть копия, тоже мог бы — без особых усилий, потому что ключ получен из хеша без соли, а шифртекст не нёс ничего, что позволило бы обнаружить подмену. Считайте учётные данные внутри него скомпрометированными.",
-
     "fullFileEncryptionTitle": "Зашифрован был весь документ, а не только пароли в нём.",
     "fullFileEncryptionBody": "Вместе с учётными данными была скрыта и структура. На импорт это не влияет; отмечено потому, что говорит вам, как файл был настроен.",
-
     "_comment_secretsRecoveredTitle": "How many passwords the importer got out of the file.",
     "secretsRecoveredTitle": "{count, plural, one {Из файла извлечён # пароль.} few {Из файла извлечено # пароля.} many {Из файла извлечено # паролей.} other {Из файла извлечено # пароля.}}",
     "secretsRecoveredBody": "Они будут запечатаны в хранилище в момент записи. Они никогда не пишутся на диск в открытом виде и никогда не покидают ядро.",
-
     "_comment_credentialsDeduplicatedTitle": "The same username and password repeated across many connections became one shared credential. {credentials} counts the credential objects made, {connections} the connections now pointing at them.",
     "credentialsDeduplicatedTitle": "{credentials, plural, one {# набор учётных данных охватывает} few {# набора учётных данных охватывают} many {# наборов учётных данных охватывают} other {# набора учётных данных охватывают}} {connections, plural, one {# подключение} few {# подключения} many {# подключений} other {# подключения}}.",
     "credentialsDeduplicatedBody": "Одно и то же имя пользователя с паролем, повторявшееся у нескольких подключений, стало одним набором учётных данных, на который ссылаются использовавшие его подключения. Теперь достаточно изменить его один раз, чтобы изменилось везде.",
-
     "_comment_unknownProtocolTitle": "{item} is the connection's name. The protocol name itself is shown separately and is never translated.",
     "unknownProtocolTitle": "«{item}» использовало протокол, которого у Remoter нет.",
     "_comment_unknownProtocolBody": "{mappedTo} is the protocol it was imported as — SSH, RDP, VNC, SFTP. Never translated.",
     "unknownProtocolBody": "Оно импортировано как {mappedTo}. Исходное значение сохранено в пользовательском поле, поэтому о нём ничего не потеряно.",
-
     "skippedItemTitle": "«{item}» не импортировано.",
     "_comment_skippedItemBody": "One sentence per reason the parser refused an item. The reason names are wire values from the core and must stay exactly as they are; only the sentences are translated. 'other' is the fallback for a reason a newer core sends that this build has never seen.",
     "skippedItemBody": "{reason, select, unusable_host {Оставлено за бортом: имя его хоста непригодно.} unusable_name {Оставлено за бортом: его имя пустое или непригодно.} unsupported_kind {Оставлено за бортом: его типу здесь нет соответствия.} empty {Оставлено за бортом: оно было пустым.} other {Оставлено за бортом.}}",
-
     "_comment_unmappedProxyCommandTitle": "'ProxyCommand' is an OpenSSH configuration keyword and is never translated.",
     "unmappedProxyCommandTitle": "«{item}» использует ProxyCommand, которому нет прямого соответствия.",
     "unmappedProxyCommandBody": "Команда сохранена дословно в пользовательском поле, а не отброшена. Подключение импортируется; прокси оно использовать не будет, пока вы вручную не соберёте для него шлюз.",
-
     "_comment_gatewayMappedTitle": "The best news the importer has: a ProxyJump in the file became a real, working chain of gateways in the vault.",
     "gatewayMappedTitle": "«{item}» приходит с нетронутой цепочкой промежуточных узлов.",
     "gatewayMappedBody": "ProxyJump стал настоящей цепочкой шлюзов из {hops, plural, one {# перехода} few {# переходов} many {# переходов} other {# переходов}}, поэтому подключение работает с первой попытки и без дополнительной настройки.",
-
     "gatewaySynthesisedTitle": "Шлюз для «{item}» создан из его ProxyJump.",
     "_comment_gatewaySynthesisedBody": "{target} is the jump host's address, read out of the file.",
     "gatewaySynthesisedBody": "Промежуточный узел {target} не был подключением в файле, поэтому стал им здесь, и теперь его разделяет всё, что проходит через него.",
-
     "gatewayUnresolvedTitle": "«{item}» проходит через узел, который не удалось определить.",
     "gatewayUnresolvedBody": "В цепочке назван {target}, которого нет в файле и которого из файла собрать не удалось. Подключение импортируется без шлюза и не достанет до хоста, пока вы не добавите шлюз.",
-
     "_comment_secretNotMappedTitle": "SECURITY-ADJACENT. A password in a field Remoter has no home for. It was dropped rather than written somewhere unprotected, and the user is told so plainly because they may be relying on it.",
     "secretNotMappedTitle": "Секрету на «{item}» некуда было деться.",
     "secretNotMappedBody": "Он был в поле, которому в модели данных нет места, а секрет — единственное, что никогда не сохраняется в пользовательском поле. Он был отброшен, а не записан туда, где остался бы без защиты.",
-
     "_comment_matchBlockNotAppliedTitle": "'Match' is an OpenSSH configuration keyword — a conditional block — and is never translated.",
     "matchBlockNotAppliedTitle": "Блок Match прочитан, но не применён.",
     "matchBlockNotAppliedBody": "Его условия зависят от того, как именно устанавливается подключение, а во время импорта это неизвестно. Поэтому {options, plural, one {# его параметр был пропущен, а не применён к хостам, для которых он может быть не предназначен} few {# его параметра были пропущены, а не применены к хостам, для которых они могут быть не предназначены} many {# его параметров было пропущено, а не применено к хостам, для которых они могут быть не предназначены} other {# его параметра было пропущено, а не применено к хостам, для которых они могут быть не предназначены}}.",
-
     "_comment_patternBlockAppliedTitle": "'Host' is the OpenSSH keyword that opens a block, and a wildcard one — 'Host *.acme' — applies to every matching connection. Never translated.",
     "patternBlockAppliedTitle": "Блок Host с подстановочным шаблоном применён к {connections, plural, one {# подключению} few {# подключениям} many {# подключениям} other {# подключениям}}.",
     "patternBlockAppliedBody": "Его параметры влиты в каждое подключение, имя которого ему соответствовало, — ровно так, как их применил бы сам ssh.",
-
     "_comment_settingsPreservedTitle": "Settings with no equivalent in Remoter, stored verbatim in custom fields instead of being dropped.",
     "settingsPreservedTitle": "{count, plural, one {# настройка на «{item}» сохранена, но не истолкована.} few {# настройки на «{item}» сохранены, но не истолкованы.} many {# настроек на «{item}» сохранено, но не истолковано.} other {# настройки на «{item}» сохранено, но не истолковано.}}",
     "settingsPreservedBody": "Они в пользовательских полях, дословно. Ничего не отброшено — если будущая версия Remoter научится их читать, они будут на месте.",
-
     "_comment_unknownColumnTitle": "CSV only: a column heading the importer has no field for.",
     "unknownColumnTitle": "Один из столбцов файла не распознан.",
     "unknownColumnBody": "Его значения сохранены в пользовательском поле каждой строки, а не выброшены.",
-
     "_comment_limitReachedTitle": "A parse limit stopped the read before the end of the file. The limit names are wire values from the core and must stay exactly as they are; only the sentences around them are translated.",
     "limitReachedTitle": "{limit, select, custom_fields {Защитное ограничение остановило разбор: слишком много пользовательских полей.} findings {Защитное ограничение остановило разбор: слишком много замечаний.} nodes {Защитное ограничение остановило разбор: слишком много узлов.} other {Защитное ограничение остановило разбор.}}",
     "limitReachedBody": "То, что вы видите, — это всё, что Remoter прочитал до ограничения. Импортировать это безопасно; но это будет не весь файл. Разделите файл или импортируйте его частями.",
-
     "_comment_unknownTitle": "Shown when a newer core reports a finding this build has never heard of. It is deliberately honest about being unable to explain itself rather than inventing a meaning.",
     "unknownTitle": "Этот файл породил замечание, которого эта версия не знает.",
     "unknownBody": "Оно пришло из более новой части импортёра, чем известно этой сборке. С вашим файлом всё в порядке; просто объяснить это замечание здесь невозможно."
   },
-
   "destination": {
     "_comment_": "Step 6 — the vault folder the import lands in.",
     "title": "Куда это положить?",
@@ -333,7 +312,6 @@
     "_comment_chooseLabel": "Accessible name of the list of folders.",
     "chooseLabel": "Папка назначения"
   },
-
   "commit": {
     "_comment_": "Step 7 — the last screen before anything is written, and the button that writes.",
     "title": "Готово к записи",
@@ -358,13 +336,18 @@
     "transactionBody": "Либо всё это попадёт в файл вашего хранилища, либо ничего. Отменить импорт после этого Remoter не может, поэтому всё, что вам не нужно, следует снять с отметки в предпросмотре до нажатия кнопки: после неё единственный способ — удалить это из дерева.",
     "nothing": "Ничего не отмечено, поэтому записывать нечего. Вернитесь в предпросмотр и отметьте что-нибудь."
   },
-
   "result": {
     "_comment_": "Step 8 — what was written. The import is finished and cannot be taken back.",
     "_comment_title": "The heading. {count} nodes are now in the vault.",
     "title": "{count, plural, one {# элемент теперь в вашем хранилище} few {# элемента теперь в вашем хранилище} many {# элементов теперь в вашем хранилище} other {# элемента теперь в вашем хранилище}}",
     "_comment_lead": "{folder} is either a folder path from the vault or the 'destination.top' phrase.",
     "lead": "Записано в {folder} одной транзакцией.",
+    "_comment_refusedTitle": "SHOWN ONLY when the parser refused items — items that were in the file and are not in the vault, as opposed to ones the reader unticked. {count} is how many. Do not soften: an import that left part of the file behind is not a success, and this is the last screen the reader sees.",
+    "refusedTitle": "{count, plural, one {# элемент из файла не попал в хранилище} few {# элемента из файла не попали в хранилище} many {# элементов из файла не попали в хранилище} other {# элемента из файла не попали в хранилище}}",
+    "_comment_refusedBody": "Follows the heading, above the list of refused items. The advice is deliberate: there is no undo, so importing the corrected file again into the same folder would duplicate everything that did come in.",
+    "refusedBody": "Они были в файле, и в хранилище им ничего не соответствует. Всё остальное записано. Исправьте их в той программе, откуда они пришли, и импортируйте этот файл заново в новую папку — отменить этот импорт нельзя.",
+    "_comment_refusedNotAllListed": "Shown under the list when the report stopped growing before the end of the file, so the names of the remaining refusals were never recorded. {count} is how many are missing from the list.",
+    "refusedNotAllListed": "{count, plural, one {ещё # не показан здесь: отчёт перестал расти раньше конца файла.} few {ещё # не показаны здесь: отчёт перестал расти раньше конца файла.} many {ещё # не показаны здесь: отчёт перестал расти раньше конца файла.} other {ещё # не показано здесь: отчёт перестал расти раньше конца файла.}}",
     "_comment_countImported": "Labels under the large numbers in the stat tiles. Plain nouns and noun phrases, lower case.",
     "countImported": "импортировано",
     "_comment_countSkipped": "Nodes left out because the user unticked them, as opposed to ones the parser refused.",
@@ -388,7 +371,6 @@
     "done": "Готово",
     "another": "Импортировать другой файл"
   },
-
   "discard": {
     "_comment_": "The dialog shown when the user leaves the wizard with a parsed file still held in the core. SECURITY-ADJACENT: what is being dropped is not a screenful of data but the parsed file, with every password it recovered in plaintext. Leaving wipes them, which is the desired outcome — the cost is only that the file would have to be read again.",
     "title": "Отбросить этот импорт?",

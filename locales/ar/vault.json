@@ -1,18 +1,15 @@
 {
   "_comment_file": "The vault surfaces: choosing a vault, creating one, the recovery key, and unlocking. This is the first thing a new user reads and the last thing a locked-out one reads, so it carries more security-critical copy than any other namespace. Anything marked SECURITY-CRITICAL describes permanent, unrecoverable data loss; softening it into something gentler is a foreseeable source of harm, and those strings get a second reader before a translation is accepted (docs/features/i18n.md).",
-
   "probe": {
     "_comment_reading": "The cleartext header of the vault file is being read. Nothing is decrypted at this point — say 'header', not 'vault'.",
     "reading": "جارٍ قراءة ترويسة الخزنة…"
   },
-
   "kdf": {
     "_comment_": "Argon2id key derivation takes about a second by design. Shown beside the spinner on every screen that derives a key — creating a vault, unlocking one, adding or rotating a key slot. It is an explanation of a security property, not an apology for a slow program: do not turn 'deliberately slow' into 'this may take a moment'.",
     "slow": "اشتقاق المفتاح بطيء عن قصد. هذه التكلفة هي ما يجعل مهاجمة ملف خزنة مسروق باهظة.",
     "_comment_slowWithSummary": "{summary} is the cost this vault was written with, e.g. 'Argon2id, 256 MiB, t=3'. It is produced by the core and is never translated.",
     "slowWithSummary": "اشتقاق المفتاح بطيء عن قصد — {summary}. هذه التكلفة هي ما يجعل مهاجمة ملف خزنة مسروق باهظة."
   },
-
   "keyfile": {
     "_comment_": "A key file is a second factor: any file the user chooses becomes part of the key. These strings are shared by the unlock screen, the create wizard and the vault-settings dialogs.",
     "label": "ملف المفتاح",
@@ -29,7 +26,6 @@
       "isABackup": "{name} نسخة احتياطية متعاقبة من خزنة، وليس ملف مفتاح. اختر ملفًا آخر."
     }
   },
-
   "slot": {
     "_comment_": "The four ways a vault can be opened, named on the unlock screen's cards. Each is a noun phrase, not a verb: they name a method, they are not an instruction to use it.",
     "password": "كلمة المرور الرئيسية",
@@ -38,7 +34,6 @@
     "_comment_keychain": "The system keychain (Keychain on macOS, Secret Service on Linux, Credential Manager on Windows) is holding the key for this machine. Phrased from the user's side: they asked to be remembered.",
     "keychain": "التذكّر على هذا الجهاز"
   },
-
   "picker": {
     "_comment_": "The launch screen. It lists the vaults this machine has opened before; nothing on it decrypts anything.",
     "title": "فتح خزنة",
@@ -76,7 +71,6 @@
     "_comment_settingsHint": "Its tooltip. It names the three settings worth changing before a vault is ever opened.",
     "settingsHint": "الإعدادات — اللغة والسمة والاختصارات"
   },
-
   "detail": {
     "_comment_": "The panel beside the list, describing whichever vault is under the pointer. It reads the cleartext header only.",
     "probeFailed": "تعذّرت قراءة ترويسة هذه الخزنة.",
@@ -104,7 +98,6 @@
       "keychain": "محفوظة على هذا الجهاز"
     }
   },
-
   "firstRun": {
     "_comment_": "What the launch screen says instead of a list when this machine has never opened a vault. 'Pick a vault' is a meaningless instruction when there are none, so it offers two doors.",
     "title": "يحتاج Remoter إلى خزنة قبل أن يفعل أي شيء",
@@ -116,7 +109,6 @@
     "emptyTitle": "ابدأ من فارغ",
     "emptyHelp": "أربع خطوات: أين يوجد الملف، وكلمة مرور رئيسية، وملف مفتاح اختياري، ثم مفتاح الاسترداد."
   },
-
   "wizard": {
     "_comment_": "The frame around the four create-vault steps: title bar, the stepper, and the two footer buttons.",
     "windowTitle": "إنشاء خزنة",
@@ -136,7 +128,6 @@
     "continue": "متابعة",
     "createAction": "إنشاء الخزنة"
   },
-
   "create": {
     "_comment_": "Steps 1 to 3 of the create-vault wizard. Step 4 is the 'recovery' group below.",
     "creating": "جارٍ اشتقاق المفتاح وكتابة الخزنة…",
@@ -232,7 +223,6 @@
       "required": "صار هذا الملف مطلوبًا لفتح الخزنة. وإن فقدته، فلن يعمل إلا مفتاح الاسترداد."
     }
   },
-
   "recovery": {
     "_comment_": "Step 4, and the same panel again when a recovery key is rotated from vault settings. The key is shown exactly once and is stored nowhere, which is why this screen makes the user retype part of it.",
     "heading": "مفتاح الاسترداد الخاص بك",
@@ -248,11 +238,18 @@
     "copied": "نُسخ إلى الحافظة.",
     "copyFailed": "لم يسمح هذا النظام بالنسخ. اكتب المفتاح بخط اليد أو اطبعه بدلًا من ذلك.",
     "_comment_download": "A verb on a button: save the key as a plain text file.",
-    "download": "تنزيل كملف نصي",
-    "downloadFailed": "لم يسمح هذا النظام بحفظ الملف. اطبع المفتاح بدلًا من ذلك.",
+    "download": "حفظ كملف نصي",
+    "saveTitle": "احفظ مفتاح الاسترداد",
+    "filterText": "ملف نصي",
+    "saving": "جارٍ الحفظ…",
+    "saved": "حُفظ في {path}",
+    "savedPlaintext": "هذا الملف نص عادي خارج تشفير الخزنة. كل من يستطيع قراءة القرص يستطيع قراءة المفتاح. احفظه كما تحفظ جواز سفرك، أو احذفه بمجرد أن يصبح المفتاح في مكان آمن.",
+    "saveFailed": "لم يُحفظ مفتاح الاسترداد.",
+    "saveDialogFailed": "لم يفتح هذا النظام مربع حوار الحفظ. انسخ المفتاح أو اكتبه بخط اليد بدلًا من ذلك.",
     "_comment_print": "A verb on a button: send the key to a printer.",
     "print": "طباعة",
     "printFailed": "لم يفتح هذا النظام مربع حوار الطباعة. انسخ المفتاح أو اكتبه بخط اليد بدلًا من ذلك.",
+    "printUnavailable": "لا يستطيع هذا النظام الطباعة من هذه النافذة.",
     "_comment_confirmPrompt": "{group} is which group of the key to retype — a position, counting from one. The group itself is highlighted in the grid above. This is one sentence rather than a sentence assembled around a number: split sentences do not survive translation.",
     "confirmPrompt": "اكتب المجموعة رقم {group, number} — وهي المُظلَّلة — لتؤكد أنها عندك في مكان آمن.",
     "_comment_targetGroupAria": "The accessible name of that highlighted group, read aloud instead of the four characters in it.",
@@ -281,7 +278,6 @@
       "warning": "{title} {body}"
     }
   },
-
   "unlock": {
     "_comment_": "The unlock screen. It lists the slots this vault's header actually has, so a vault with one password slot shows one card and no invented alternatives.",
     "windowTitle": "فتح قفل الخزنة",

@@ -37,10 +37,10 @@ use zeroize::Zeroizing;
 use crate::dto::{
     AppSettingsDto, BackupDto, CreateNodeDto, CreateVaultRequestDto, CreateVaultResultDto,
     CredentialInputDto, EffectiveConnectionDto, KdfParamsDto, NodeDto, PasswordStrengthDto,
-    PrivateKeyInfoDto, ProtocolSchemaDto, RecentVaultDto, ResolvedFieldDto, SearchHitDto,
-    SettingFieldDto, SettingKindDto, SettingOptionDto, SettingOptionLabelDto, ShortcutDto, SlotDto,
-    UnlockRequestDto, UpdateCheckDto, UpdateNodeDto, UpdateReleaseDto, VaultProbeDto,
-    VaultStateDto,
+    PrivateKeyInfoDto, ProtocolSchemaDto, RecentVaultDto, RecoverySheetDto,
+    RecoverySheetWrittenDto, ResolvedFieldDto, SearchHitDto, SettingFieldDto, SettingKindDto,
+    SettingOptionDto, SettingOptionLabelDto, ShortcutDto, SlotDto, UnlockRequestDto,
+    UpdateCheckDto, UpdateNodeDto, UpdateReleaseDto, VaultProbeDto, VaultStateDto,
 };
 use crate::error::IpcError;
 use crate::recents::{Recents, sync_provider, sync_warning};
@@ -581,6 +581,162 @@ pub(crate) fn password_strength(password: String) -> Result<PasswordStrengthDto,
 #[tauri::command]
 pub(crate) fn generate_keyfile(path: String) -> Result<(), IpcError> {
     write_keyfile(Path::new(&path))
+}
+
+/// Writes the recovery sheet to a file the user picked with the system's save
+/// dialog.
+///
+/// **Why this is a command at all.** The screen used to build a `Blob`, hang it
+/// off an `<a download>` and click it. That is a browser idiom, and a WebView
+/// is not a browser: nothing in the DOM API reports whether a download actually
+/// started, so `anchor.click()` returns successfully whether the file was
+/// written, silently refused, or dropped on the floor. On Windows it was
+/// dropped, and the only control that saves the one copy of a recovery key
+/// failed without saying so. A command returns a `Result`, which is the whole
+/// point — a failure here has to be visible.
+///
+/// The text arrives already composed, because the sheet is translated and the
+/// core has no catalogue. It is treated as the secret it is from the first
+/// line.
+#[tauri::command]
+pub(crate) fn recovery_sheet_write(
+    state: State<'_, AppState>,
+    req: RecoverySheetDto,
+) -> Result<RecoverySheetWrittenDto, IpcError> {
+    recovery_sheet_write_impl(&state, req)
+}
+
+fn recovery_sheet_write_impl(
+    state: &AppState,
+    req: RecoverySheetDto,
+) -> Result<RecoverySheetWrittenDto, IpcError> {
+    let RecoverySheetDto { path, text } = req;
+
+    // A `Secret` before anything fallible runs, so every early return below
+    // unwinds through its `Drop` rather than leaving the recovery key on the
+    // heap unwiped. Nothing in this function formats or logs it.
+    let text = Secret::new(text);
+    let path = PathBuf::from(path);
+
+    if path.as_os_str().is_empty() {
+        return Err(IpcError::invalid_request(
+            "path",
+            "no destination was chosen",
+        ));
+    }
+    if text.expose_secret().trim().is_empty() {
+        return Err(IpcError::invalid_request(
+            "text",
+            "an empty recovery sheet would be worse than no file, because it looks like one",
+        ));
+    }
+    if path.is_dir() {
+        return Err(IpcError::bad_path(
+            &path,
+            "it is a folder, and the sheet is written as one file",
+        ));
+    }
+
+    // The save dialog will happily offer the vault's own file name, and the
+    // user standing on this screen has had a `.rvault` under the cursor for
+    // the last three steps. Writing a text file over a vault destroys it, and
+    // the vault this sheet belongs to is the one that would be destroyed — the
+    // recovery key would then be a key to nothing. This refuses both the open
+    // vault by path and the extension in general, because a vault that is not
+    // currently open is no less ruined.
+    if let Some(open) = state
+        .lock()
+        .vault_peek()
+        .map(|vault| vault.path().to_owned())
+    {
+        if same_file(&path, &open) {
+            return Err(IpcError::bad_path(
+                &path,
+                "that is the vault itself, and writing the sheet over it would destroy \
+                 the vault this key opens",
+            ));
+        }
+    }
+    if path
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("rvault"))
+    {
+        return Err(IpcError::bad_path(
+            &path,
+            "a `.rvault` name belongs to a vault, and the sheet is a plain text file — \
+             writing it there would overwrite a vault",
+        ));
+    }
+
+    let bytes = write_sheet_atomically(&path, text.expose_secret().as_bytes())?;
+
+    Ok(RecoverySheetWrittenDto {
+        path: path.display().to_string(),
+        bytes,
+    })
+}
+
+/// Whether two paths name the same file, as well as this can be told without a
+/// platform call.
+///
+/// `fs::canonicalize` is the honest answer and is used when both sides resolve;
+/// a destination that does not exist yet cannot be canonicalised, so the
+/// comparison falls back to the paths as written. A false negative here costs
+/// the guard above, never a wrong write.
+fn same_file(a: &Path, b: &Path) -> bool {
+    match (fs::canonicalize(a), fs::canonicalize(b)) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => a == b,
+    }
+}
+
+/// Writes the sheet to a temporary file beside the target and renames over it.
+///
+/// Atomic for the same reason every other write in this application is: a
+/// failure halfway must leave either the previous file or the new one, never a
+/// truncated recovery key that looks complete. Owner-only where the file system
+/// carries permissions — the sheet is key material in plaintext, and the mode
+/// is set at open time rather than afterwards so there is no window in which it
+/// is world-readable.
+///
+/// Returns the number of bytes written.
+fn write_sheet_atomically(path: &Path, bytes: &[u8]) -> Result<u64, IpcError> {
+    use std::io::Write as _;
+
+    let Some(name) = path.file_name() else {
+        return Err(IpcError::bad_path(path, "it does not name a file to write"));
+    };
+    let mut temporary_name = name.to_os_string();
+    temporary_name.push(".remoter-part");
+    let temporary = path.with_file_name(temporary_name);
+
+    // A leftover part file from a previous run would otherwise block
+    // `create_new` forever; removing it first also means the handle below is
+    // always one this process created, rather than a file — or a symlink —
+    // somebody else left in a shared folder.
+    let _ = fs::remove_file(&temporary);
+    let mut file = create_owner_only(&temporary, "recovery sheet")?;
+
+    let written = file
+        .write_all(bytes)
+        .and_then(|()| file.sync_all())
+        .and_then(|()| file.metadata().map(|meta| meta.len()));
+    drop(file);
+
+    let size = match written {
+        Ok(size) => size,
+        Err(err) => {
+            let _ = fs::remove_file(&temporary);
+            return Err(IpcError::io("writing the recovery sheet", &temporary, &err));
+        }
+    };
+
+    if let Err(err) = fs::rename(&temporary, path) {
+        let _ = fs::remove_file(&temporary);
+        return Err(IpcError::io("saving the recovery sheet", path, &err));
+    }
+
+    Ok(size)
 }
 
 /// A path to offer for a new vault, based on its name.
@@ -1636,7 +1792,7 @@ fn write_keyfile(path: &Path) -> Result<(), IpcError> {
     let mut bytes = Secret::new(vec![0u8; KEYFILE_BYTES]);
     getrandom::fill(bytes.expose_secret_mut()).map_err(|_| IpcError::csprng())?;
 
-    let mut file = create_owner_only(path)?;
+    let mut file = create_owner_only(path, "key file")?;
     let written = file
         .write_all(bytes.expose_secret())
         .and_then(|()| file.sync_all());
@@ -1656,9 +1812,14 @@ fn write_keyfile(path: &Path) -> Result<(), IpcError> {
     Ok(())
 }
 
-/// Creates the key file with owner-only permissions applied at open time.
+/// Creates a file holding key material, with owner-only permissions applied at
+/// open time.
+///
+/// `subject` names the thing being written — "key file", "recovery sheet" — so
+/// the failure says which file the user is looking at rather than naming the
+/// wrong one.
 #[cfg(unix)]
-fn create_owner_only(path: &Path) -> Result<fs::File, IpcError> {
+fn create_owner_only(path: &Path, subject: &str) -> Result<fs::File, IpcError> {
     use std::os::unix::fs::OpenOptionsExt as _;
 
     fs::OpenOptions::new()
@@ -1666,11 +1827,11 @@ fn create_owner_only(path: &Path) -> Result<fs::File, IpcError> {
         .create_new(true)
         .mode(0o600)
         .open(path)
-        .map_err(|err| keyfile_create_error(path, &err))
+        .map_err(|err| owner_only_create_error(path, subject, &err))
 }
 
 #[cfg(not(unix))]
-fn create_owner_only(path: &Path) -> Result<fs::File, IpcError> {
+fn create_owner_only(path: &Path, subject: &str) -> Result<fs::File, IpcError> {
     // Windows inherits the parent directory's ACL, and the per-user profile
     // directory is already owner-only. Narrowing the ACL explicitly needs an
     // API this crate does not reach for; `verify_owner_only` is the check.
@@ -1678,19 +1839,19 @@ fn create_owner_only(path: &Path) -> Result<fs::File, IpcError> {
         .write(true)
         .create_new(true)
         .open(path)
-        .map_err(|err| keyfile_create_error(path, &err))
+        .map_err(|err| owner_only_create_error(path, subject, &err))
 }
 
-/// Maps a failure to create the key file, keeping the "never overwritten"
+/// Maps a failure to create such a file, keeping the "never overwritten"
 /// sentence for the case the user will actually hit.
-fn keyfile_create_error(path: &Path, err: &std::io::Error) -> IpcError {
+fn owner_only_create_error(path: &Path, subject: &str, err: &std::io::Error) -> IpcError {
     if err.kind() == std::io::ErrorKind::AlreadyExists {
         return IpcError::bad_path(
             path,
-            "a file already exists there, and a key file is never overwritten",
+            format!("a file already exists there, and a {subject} is never overwritten"),
         );
     }
-    IpcError::io("creating the key file", path, err)
+    IpcError::io(&format!("creating the {subject}"), path, err)
 }
 
 /// Confirms nobody but the owner can read the key file.
@@ -4409,6 +4570,184 @@ mod tests {
         }
     }
 
+    /// The sheet reaches the disk, whole, at the path the user chose.
+    ///
+    /// This is the test the `<a download>` it replaces could never have: a
+    /// WebView download reports nothing back, so nothing about it could be
+    /// asserted. Delete `recovery_sheet_write` and this stops compiling, which
+    /// is the point — the control now has a result to check.
+    #[test]
+    fn a_recovery_sheet_is_written_where_it_was_asked_for() {
+        let scratch = Scratch::new();
+        let state = AppState::with_config_dir(scratch.join("config"));
+        let target = scratch.join("recovery-key.txt");
+        // Not a real key: a recovery key is never committed to this
+        // repository, and what is under test is the writing, not the key.
+        let sheet = "Remoter recovery key\n\nAAAA-BBBB-CCCC-DDDD\n";
+
+        let written = recovery_sheet_write_impl(
+            &state,
+            RecoverySheetDto {
+                path: target.display().to_string(),
+                text: sheet.to_owned(),
+            },
+        );
+        assert!(written.is_ok(), "writing failed: {}", why(&written));
+        let Ok(written) = written else { return };
+
+        assert_eq!(written.bytes, sheet.len() as u64);
+        assert_eq!(
+            fs::read_to_string(&target).ok().as_deref(),
+            Some(sheet),
+            "the sheet on disk must be byte-for-byte what was shown"
+        );
+
+        // Nothing is left behind: a half-written part file beside a recovery
+        // key is a second copy of it nobody knows about.
+        assert!(
+            !scratch.join("recovery-key.txt.remoter-part").exists(),
+            "the temporary file should be gone"
+        );
+
+        // Saving twice over the same name replaces it rather than failing —
+        // the system dialog already asked about overwriting.
+        assert!(
+            recovery_sheet_write_impl(
+                &state,
+                RecoverySheetDto {
+                    path: target.display().to_string(),
+                    text: sheet.to_owned(),
+                },
+            )
+            .is_ok()
+        );
+    }
+
+    /// The save dialog opens on the folder holding the vault, with the vault
+    /// itself one click away. Writing the sheet over it would destroy the vault
+    /// the key opens, which is the one outcome this screen exists to prevent.
+    #[test]
+    fn a_recovery_sheet_never_lands_on_a_vault() {
+        let scratch = Scratch::new();
+        let state = AppState::with_config_dir(scratch.join("config"));
+        let vault_path = scratch.join("work.rvault");
+        assert!(vault_create_impl(&state, create_request(&vault_path, PASSPHRASE)).is_ok());
+
+        let before = fs::read(&vault_path).unwrap_or_default();
+        assert!(!before.is_empty(), "the vault should have bytes to lose");
+
+        let onto_the_open_vault = recovery_sheet_write_impl(
+            &state,
+            RecoverySheetDto {
+                path: vault_path.display().to_string(),
+                text: String::from("Remoter recovery key\n\nAAAA-BBBB\n"),
+            },
+        );
+        assert!(
+            onto_the_open_vault.is_err(),
+            "the sheet must not be written over the vault it unlocks"
+        );
+        assert_eq!(
+            fs::read(&vault_path).unwrap_or_default(),
+            before,
+            "the vault file must be untouched"
+        );
+
+        // And not over a vault that merely is not open, either: it is no less
+        // ruined for belonging to somebody else's profile.
+        let other = scratch.join("archive.RVault");
+        assert!(
+            recovery_sheet_write_impl(
+                &state,
+                RecoverySheetDto {
+                    path: other.display().to_string(),
+                    text: String::from("Remoter recovery key\n\nAAAA-BBBB\n"),
+                },
+            )
+            .is_err(),
+            "a `.rvault` name is refused whatever its case"
+        );
+        assert!(!other.exists());
+    }
+
+    /// An empty sheet is refused rather than written. A zero-byte file called
+    /// `recovery-key.txt` is the worst possible outcome: it looks like the
+    /// backup is made.
+    #[test]
+    fn an_empty_recovery_sheet_is_refused() {
+        let scratch = Scratch::new();
+        let state = AppState::with_config_dir(scratch.join("config"));
+        let target = scratch.join("empty.txt");
+
+        assert!(
+            recovery_sheet_write_impl(
+                &state,
+                RecoverySheetDto {
+                    path: target.display().to_string(),
+                    text: String::from("   \n\n"),
+                },
+            )
+            .is_err()
+        );
+        assert!(!target.exists(), "nothing should have been created");
+
+        // A folder is not a file to write, and saying so beats an io error.
+        assert!(
+            recovery_sheet_write_impl(
+                &state,
+                RecoverySheetDto {
+                    path: scratch.join("").display().to_string(),
+                    text: String::from("Remoter recovery key\n"),
+                },
+            )
+            .is_err()
+        );
+    }
+
+    /// The sheet is key material in plaintext. It is created at 0600, never
+    /// created wide and narrowed afterwards.
+    #[cfg(unix)]
+    #[test]
+    fn a_recovery_sheet_is_readable_only_by_its_owner() {
+        use std::os::unix::fs::PermissionsExt as _;
+
+        let scratch = Scratch::new();
+        let state = AppState::with_config_dir(scratch.join("config"));
+        let target = scratch.join("recovery-key.txt");
+        assert!(
+            recovery_sheet_write_impl(
+                &state,
+                RecoverySheetDto {
+                    path: target.display().to_string(),
+                    text: String::from("Remoter recovery key\n\nAAAA-BBBB\n"),
+                },
+            )
+            .is_ok()
+        );
+
+        let mode = fs::metadata(&target)
+            .map(|metadata| metadata.permissions().mode() & 0o777)
+            .unwrap_or(0o777);
+        assert_eq!(mode, 0o600, "the sheet carries a recovery key");
+    }
+
+    /// A request is not a place a recovery key may appear in a log.
+    #[test]
+    fn a_recovery_sheet_request_redacts_its_text() {
+        let printed = format!(
+            "{:?}",
+            RecoverySheetDto {
+                path: String::from("/tmp/recovery-key.txt"),
+                text: String::from("AAAA-BBBB-CCCC-DDDD"),
+            }
+        );
+        assert!(
+            !printed.contains("AAAA-BBBB-CCCC-DDDD"),
+            "the recovery key must never reach a formatter: {printed}"
+        );
+        assert!(printed.contains("/tmp/recovery-key.txt"));
+    }
+
     #[cfg(unix)]
     #[test]
     fn a_generated_key_file_is_readable_only_by_its_owner() {
@@ -5234,7 +5573,9 @@ mod passphrase_gate_tests {
 #[cfg(test)]
 mod credential_tests {
     use super::*;
-    use crate::test_support::{PKCS8_ENCRYPTED_KEY, PKCS8_KEY, Scratch, open_vault, why};
+    use crate::test_support::{
+        PKCS8_ENCRYPTED_KEY, PKCS8_KEY, Scratch, open_vault, ssh_keygen, why,
+    };
 
     fn credential(name: &str, credential: CredentialInputDto) -> CreateNodeDto {
         CreateNodeDto {
@@ -5289,19 +5630,56 @@ mod credential_tests {
             assert!(err.actions.iter().any(|action| action.contains(".pub")));
         }
 
-        // And a container this build does not store is refused by name.
-        let pkcs1 = scratch.write(
-            "id_rsa",
-            "-----BEGIN RSA PRIVATE KEY-----\nMIIBAA==\n-----END RSA PRIVATE KEY-----\n",
+        // A PKCS#1 RSA `.pem` — what AWS EC2 hands out with every key pair it
+        // generates — used to be refused here. It is now re-enveloped as
+        // PKCS#8 on the way in, so the editor sees a key it can store.
+        let pkcs1 = ssh_keygen(
+            &scratch,
+            "aws.pem",
+            "",
+            &["-t", "rsa", "-b", "2048", "-m", "PEM"],
         );
-        let refused = key_inspect_impl(pkcs1.display().to_string());
-        assert!(
-            refused
-                .as_ref()
-                .is_err_and(|err| err.code == "key.unsupported-format")
+        assert!(pkcs1.is_some(), "ssh-keygen must be on PATH for this test");
+        if let Some(pkcs1) = pkcs1 {
+            let inspected = key_inspect_impl(pkcs1.display().to_string());
+            assert!(
+                inspected.is_ok(),
+                "a PKCS#1 RSA .pem was refused: {}",
+                why(&inspected)
+            );
+            if let Ok(info) = inspected {
+                assert_eq!(info.format, "pkcs8");
+                assert!(!info.encrypted);
+            }
+        }
+
+        // A legacy PEM whose body is enciphered cannot be re-enveloped without
+        // the passphrase, and this call is what runs before the editor knows to
+        // ask for one. It is refused by name, with a remedy that does not
+        // rewrite the user's own file.
+        let locked = ssh_keygen(
+            &scratch,
+            "locked.pem",
+            "correct horse battery staple",
+            &["-t", "rsa", "-b", "2048", "-m", "PEM"],
         );
-        if let Err(err) = refused {
-            assert!(err.message.contains("PKCS#1"), "message: {}", err.message);
+        assert!(locked.is_some(), "ssh-keygen must be on PATH for this test");
+        if let Some(locked) = locked {
+            let refused = key_inspect_impl(locked.display().to_string());
+            assert!(
+                refused
+                    .as_ref()
+                    .is_err_and(|err| err.code == "key.legacy-encrypted"),
+                "expected key.legacy-encrypted, got {}",
+                why(&refused)
+            );
+            if let Err(err) = refused {
+                assert!(err.message.contains("PKCS#1"), "message: {}", err.message);
+                assert!(
+                    err.actions.iter().any(|action| action.contains("copy")),
+                    "the remedy must not tell the user to rewrite their own key file"
+                );
+            }
         }
     }
 
@@ -5389,6 +5767,70 @@ mod credential_tests {
         assert_eq!(vault.has_secret(id, "private_key").ok(), Some(true));
         assert_eq!(vault.has_secret(id, "passphrase").ok(), Some(true));
         assert_eq!(vault.has_secret(id, "password").ok(), Some(false));
+    }
+
+    #[test]
+    #[expect(
+        clippy::panic,
+        reason = "a credential test without a vault has nothing left to assert"
+    )]
+    fn an_aws_pem_becomes_a_working_credential() {
+        // The file the owner actually chose was an AWS EC2 key pair — PKCS#1
+        // RSA under `BEGIN RSA PRIVATE KEY` — and the editor refused it. This
+        // is that file, generated rather than committed, taken all the way to a
+        // sealed credential.
+        let scratch = Scratch::new();
+        let Some(state) = open_vault(&scratch) else {
+            panic!("the vault could not be created");
+        };
+        let Some(key_file) = ssh_keygen(
+            &scratch,
+            "dvp-api-srv-key-pair.pem",
+            "",
+            &["-t", "rsa", "-b", "2048", "-m", "PEM"],
+        ) else {
+            panic!("ssh-keygen must be on PATH for this test");
+        };
+
+        let created = node_create_impl(
+            &state,
+            &mut credential(
+                "Administrator",
+                CredentialInputDto::PrivateKey {
+                    path: key_file.display().to_string(),
+                    passphrase: None,
+                },
+            ),
+        );
+        assert!(created.is_ok(), "creating failed: {}", why(&created));
+        let Ok(created) = created else {
+            panic!("creating failed");
+        };
+        assert_eq!(created.secret_kind.as_deref(), Some("privateKey"));
+        // Stored under the one label the domain model has for this material,
+        // so nothing downstream has to know which file it came from.
+        assert_eq!(created.key_format.as_deref(), Some("pkcs8"));
+        assert!(!created.has_passphrase);
+
+        let Ok(id) = Uuid::parse_str(&created.id) else {
+            panic!("the node id should be a uuid");
+        };
+        let mut guard = state.lock();
+        let Ok(vault) = guard.vault_mut() else {
+            panic!("the vault should be open");
+        };
+        let borrowed = vault.borrow_private_key(id, remoter_vault::Purpose::SshPrivateKey);
+        let Ok(borrowed) = borrowed else {
+            panic!("the stored key could not be borrowed back");
+        };
+        assert!(
+            borrowed
+                .key()
+                .expose_secret()
+                .starts_with(b"-----BEGIN PRIVATE KEY-----"),
+            "the vault sealed something that is not a PKCS#8 document"
+        );
+        assert!(borrowed.passphrase().is_none());
     }
 
     #[test]
