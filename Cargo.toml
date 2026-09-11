@@ -129,6 +129,17 @@ dbg_macro = "deny"
 print_stdout = "deny"
 print_stderr = "deny"
 
+[profile.dev]
+# Line tables rather than full DWARF. A workspace this size builds a separate
+# test binary per crate, each statically linking ironrdp, russh and the rest
+# and carrying a full copy of their debug info — which took `target/debug`
+# past sixty gigabytes in a day of repeated test runs. Line tables keep the
+# file and line numbers a panic trace needs; what is lost is variable
+# inspection in a debugger, which is a deliberate trade for a build directory
+# that fits on the disk. Use `--profile release-debug` when a debugger is
+# actually needed.
+debug = "line-tables-only"
+
 [profile.release]
 opt-level = 3
 lto = "fat"
