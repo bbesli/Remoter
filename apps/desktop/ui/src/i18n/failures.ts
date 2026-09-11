@@ -21,7 +21,11 @@
  * - `detail` is a machine diagnostic — an OS error string, a node id, a Rust
  *   `Display` — and passes through unless the catalogue deliberately overrides
  *   it. It is what a reader copies into a bug report, and a translated one is
- *   useless to whoever reads that report.
+ *   useless to whoever reads that report;
+ * - an action is relabelled from the entry's own list by position, and failing
+ *   that from the shared lexicon, by the English sentence the core sent. The
+ *   second is what translates the connection-failure taxonomy, whose actions
+ *   are composed rather than written per code — see [`SHARED_ACTIONS`].
  *
  * Two decisions in here are worth the paragraph each:
  *
@@ -45,6 +49,7 @@
 import { useTranslation } from "react-i18next";
 
 import { SOURCE_LOCALE } from "./locales";
+
 
 /**
  * The part of `IpcFailure` this needs, described structurally so the
@@ -90,6 +95,93 @@ export interface FailureCatalogue {
  */
 const CODE = /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/;
 
+/**
+ * The actions that cannot be labelled where the failure is, and the key each
+ * one is translated under in `errors.json`.
+ *
+ * A `session.*` failure does not carry its own list of sentences. The core
+ * turns a `NextAction` into English in one place — `action_text` in
+ * `crates/remoter-ipc/src/session.rs` — and every session failure draws from
+ * that set, plus the handful of sentences session.rs and bridge.rs write
+ * themselves. So the same seventeen sentences appear under forty-odd codes,
+ * and **positional labels cannot translate them**:
+ *
+ * - the order differs per failure. `session.credential-required` offers
+ *   "enter a credential" first from one arm and "choose a different
+ *   credential" first from another, so position 0 is not one sentence;
+ * - some codes have no fixed list at all. A session that fails while running
+ *   arrives as `session.failed` (and a transfer as `sftp.transfer-failed`)
+ *   carrying whatever actions the underlying failure offered — any of the
+ *   seventeen, in any order;
+ * - `session.hop-failed` substitutes the *inner* failure's actions when a hop
+ *   failed on the far end's identity (`ProtocolError::next_actions`). A
+ *   positional label there would title the button that says "verify the
+ *   fingerprint with the server's administrator" as "edit the gateway chain",
+ *   which is the one mislabelling in this file that could get someone
+ *   compromised.
+ *
+ * The same problem turns up in miniature wherever one code is raised from
+ * several places with a different button each time —
+ * `node.field-not-applicable` asks for a credential, for a folder, or for the
+ * connection instead, depending which field was patched — and those sentences
+ * are here for the same reason.
+ *
+ * So an action is looked up by **what the core actually sent**, against this
+ * table, whenever the failure's own entry has no label at that position. The
+ * English sentences below are the join and must match the Rust exactly;
+ * `failures.catalogue.test.ts` parses it and fails if they drift.
+ */
+export const SHARED_ACTIONS: ReadonlyMap<string, string> = new Map<string, string>([
+  // `action_text`, in the order the Rust declares it.
+  ["Open this connection's settings", "open-connection-settings"],
+  ["Edit the gateway chain", "edit-gateway-chain"],
+  ["Check the address, or the DNS server that should know it", "check-address"],
+  ["Check that the service is listening on that port", "check-service"],
+  ["Check the firewall, or the gateway in front of it", "check-firewall"],
+  ["Check the network connection", "check-network"],
+  ["Try again", "retry"],
+  ["Reconnect", "reconnect"],
+  ["Choose a different credential", "choose-different-credential"],
+  ["Enter a credential for this attempt", "enter-credential"],
+  ["Choose a different authentication method", "choose-auth-method"],
+  ["Review the host key", "review-host-key"],
+  [
+    "Verify the fingerprint with the server's administrator before doing anything else",
+    "verify-fingerprint-out-of-band",
+  ],
+  ["Pin the certificate to this connection", "pin-certificate"],
+  ["Close another session, or raise the limit", "close-another-session-or-raise-limit"],
+  ["Contact the server's administrator", "contact-server-administrator"],
+  ["Report this — it is a defect in Remoter", "report-defect"],
+  // The sentences session.rs and bridge.rs write at the call site.
+  ["Choose a credential", "choose-credential"],
+  ["Open the credential's settings", "open-credential-settings"],
+  ["Choose a credential for the gateway", "choose-gateway-credential"],
+  ["Open its settings", "open-its-settings"],
+  ["Verify the fingerprint out of band", "verify-fingerprint"],
+  ["Contact the administrator", "contact-administrator"],
+  ["Close another session", "close-another-session"],
+  ["Open settings", "open-settings"],
+  ["Refresh the list", "refresh-list"],
+  ["Try connecting again", "try-connecting-again"],
+  ["Close the tab", "close-tab"],
+  ["Use an SSH or SFTP connection", "use-ssh-or-sftp"],
+  ["Report this", "report-this"],
+  ["Unlock the vault", "unlock-vault"],
+  ["Change the policy in vault settings", "change-lock-policy"],
+  // Codes raised from several places with a different button each time. Same
+  // problem, smaller: `node.field-not-applicable` is raised seven times in
+  // commands.rs and asks for something different every time, so a label at
+  // position 0 would be the wrong sentence six times out of seven.
+  ["Select a connection or a credential", "select-connection-or-credential"],
+  ["Create a credential and point this connection at it", "create-credential-for-connection"],
+  ["Select a connection or a folder", "select-connection-or-folder"],
+  ["Edit the connection instead", "edit-connection-instead"],
+  ["Edit a connection or a folder instead", "edit-connection-or-folder-instead"],
+  ["Unlock with a password or your recovery key", "unlock-with-password-or-recovery-key"],
+  ["Use a password or recovery slot", "use-password-or-recovery-slot"],
+]);
+
 /** `en`, and any regional English a settings file might name. */
 function isSourceLanguage(language: string): boolean {
   return language === SOURCE_LOCALE || language.startsWith(`${SOURCE_LOCALE}-`);
@@ -107,11 +199,14 @@ function asSent(failure: CoreFailure): FailureText {
 /**
  * Translate one failure. Pure: every decision comes from the arguments.
  *
- * Actions are matched by position, because that is what the core promises — an
- * ordered list, most useful first. A catalogue entry with fewer labels than the
- * core sent (the core gained an action, the translation has not caught up)
- * relabels the ones it has and leaves the rest in English, which is better than
- * dropping a way out the reader could have taken.
+ * Actions are matched by position first, because that is what the core
+ * promises for a failure that writes its own list — ordered, most useful
+ * first. Where the entry has no label at that position, the sentence the core
+ * sent is looked up in the shared lexicon (see [`SHARED_ACTIONS`]), which is
+ * how every `session.*` action is translated and the only way the ones whose
+ * order or membership varies per failure can be. Anything neither knows is
+ * left in English, which is better than dropping a way out the reader could
+ * have taken.
  */
 export function resolveFailureText(
   failure: CoreFailure,
@@ -127,8 +222,15 @@ export function resolveFailureText(
     message: catalogue.has(messageKey) ? catalogue.read(messageKey) : failure.message,
     detail: catalogue.has(detailKey) ? catalogue.read(detailKey) : failure.detail,
     actions: failure.actions.map((action, index) => {
-      const key = `${code}.actions.${index}`;
-      return catalogue.has(key) ? catalogue.read(key) : action;
+      const positional = `${code}.actions.${index}`;
+      if (catalogue.has(positional)) return catalogue.read(positional);
+      // Keyed by the English sentence itself, so an action that moved, or that
+      // came from a failure wrapped inside this one, is still translated.
+      const shared = SHARED_ACTIONS.get(action);
+      if (shared !== undefined && catalogue.has(`action.${shared}`)) {
+        return catalogue.read(`action.${shared}`);
+      }
+      return action;
     }),
   };
 }

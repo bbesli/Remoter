@@ -1,5 +1,5 @@
 {
-  "_comment_file": "Every failure the core can hand the interface, keyed by the stable `code` on `IpcError` (crates/remoter-ipc/src/error.rs). The code is the join: the core sends a code, a sentence, an optional diagnostic and an ordered list of next actions, and this file supplies the sentence and the actions in the reader's language. A code with no entry here is not broken — the core's own English is rendered instead, which is what a failure newly added in Rust should look like until it is translated. Four rules for anyone editing this file. (1) `actions` is positional: the order is the order the core offered, and a label is used only when the entry has one at that position. (2) No sentence here may quote a password, a passphrase, a key or any other secret — a failure is the one moment an implementation is tempted to say what it was given. (3) The sentences carry no placeholders. The core fills its own sentence with the specifics (a path, a slot number, a byte offset) and those cannot be recovered from the finished string, so each sentence here is written to stay true without them; an English reader is shown the core's own sentence, specifics and all, and every other language is shown this one. (4) A message says what failed and what the reader can do about it. 'An error occurred' is never an acceptable translation of anything below.",
+  "_comment_file": "Every failure the core can hand the interface, keyed by the stable `code` on `IpcError`. The codes are raised all over `crates/remoter-ipc` — error.rs, session.rs, sftp.rs, tunnel.rs, commands.rs, state.rs, bridge.rs, vault_admin.rs, import.rs, recents.rs, audit.rs — and `src/i18n/failures.catalogue.test.ts` reads every one of those files, so a code with no entry here is a failing build rather than a sentence that turns up in English months later. The code is the join: the core sends a code, a sentence, an optional diagnostic and an ordered list of next actions, and this file supplies the sentence and the actions in the reader's language. Six rules for anyone editing this file. (1) `actions` is positional: the order is the order the core offered, and a label is used only when the entry has one at that position. (2) The `action` object at the end of this file is the shared lexicon, keyed by what the action means rather than by the failure it belongs to. Two kinds of entry rely on it and carry no `actions` of their own: every `session.*` failure, whose actions the core composes from a fixed set (`action_text` in session.rs) in an order that depends on what actually failed; and a code the core raises from several places with a different button each time, where one positional label would be the wrong sentence for every other arm. The lexicon labels those by the sentence the core sent. Positional labels still win where an entry has them. (3) No sentence here may quote a password, a passphrase, a key or any other secret — a failure is the one moment an implementation is tempted to say what it was given. (4) The sentences carry no placeholders. The core fills its own sentence with the specifics (a path, a slot number, a byte offset) and those cannot be recovered from the finished string, so each sentence here is written to stay true without them; an English reader is shown the core's own sentence, specifics and all, and every other language is shown this one. (5) A message says what failed and what the reader can do about it. 'An error occurred' is never an acceptable translation of anything below. (6) A few entries deliberately carry no `message` at all, and say so in a `_comment_`: for those the core composes the only description of what happened, so the reader is shown that sentence rather than a generalisation of it.",
   "unknown": {
     "_comment_": "Not a code the core sends: `asFailure` in apps/desktop/ui/src/lib/ipc.ts uses it when a rejection arrives with no shape at all — a panic inside a command, or a transport failure below Tauri. It is the last sentence in the application and should never be reached.",
     "message": "Что-то пошло не так."
@@ -54,12 +54,9 @@
         "Выбрать один из способов, которые предлагает это хранилище"
       ]
     },
-    "_comment_fido2-unsupported": "The core sends this code both when a hardware key is offered as a way in and when one is added as a key slot, so the sentence has to stay true of both.",
+    "_comment_fido2-unsupported": "The core sends this code both when a hardware key is offered as a way in and when one is added as a key slot, so the sentence has to stay true of both. It has no `actions` of its own for the same reason: the two arms offer differently worded buttons, and the shared `action` lexicon at the end of this file labels whichever one the core sent.",
     "fido2-unsupported": {
-      "message": "Разблокировка аппаратным ключом не реализована в этой версии Remoter.",
-      "actions": [
-        "Использовать пароль или ключ восстановления"
-      ]
+      "message": "Разблокировка аппаратным ключом не реализована в этой версии Remoter."
     },
     "not-a-vault": {
       "message": "Этот файл не является хранилищем Remoter.",
@@ -207,6 +204,52 @@
         "Открыть резервную копию рядом с хранилищем",
         "Сообщить об этом"
       ]
+    },
+    "label-empty": {
+      "message": "Хранилищу нужно имя.",
+      "actions": [
+        "Ввести имя для этого хранилища"
+      ]
+    },
+    "_comment_password-empty": "The core raises this both for a vault's master password and for a key slot's password, so the sentence has to stay true of both.",
+    "password-empty": {
+      "message": "Этот пароль пуст, а из пустого ничего вывести нельзя.",
+      "actions": [
+        "Ввести пароль",
+        "Сгенерировать парольную фразу"
+      ]
+    },
+    "_comment_password-too-weak": "SECURITY-CRITICAL. The refusal must keep its reason: a weak password is not rescued by the key derivation function, and a vault is only as strong as its weakest slot. A translation that softens this into 'consider a stronger password' invites the user to keep the one they typed.",
+    "password-too-weak": {
+      "message": "Этот пароль слишком легко угадать, а хранилище настолько прочно, насколько прочен его слабейший слот. Argon2id повышает цену каждой попытки, но не спасёт пароль, который злоумышленник пробует одним из первых.",
+      "actions": [
+        "Сгенерировать парольную фразу",
+        "Использовать более длинный и менее предсказуемый пароль"
+      ]
+    },
+    "kdf-upgrade-refused": {
+      "message": "Этим не открыть слот, который нужно усилить, поэтому слот остался ровно таким, каким был.",
+      "actions": [
+        "Ввести пароль, с которым было создано это хранилище",
+        "Оставить пока так — хранилище всё ещё открывается"
+      ]
+    },
+    "_comment_locked-unsaved": "SECURITY-CRITICAL in the data-loss sense: the vault is safe, the keys are gone from memory, and unsaved changes are gone with them. A translation must keep both facts. Do not imply the changes can be recovered.",
+    "locked-unsaved": {
+      "message": "Хранилище заблокировано, а его ключи стёрты, но файл записать не удалось, поэтому всё изменённое после последнего удачного сохранения потеряно.",
+      "actions": [
+        "Проверить диск или сетевой ресурс, где хранится хранилище",
+        "Разблокировать заново и проверить, чего не хватает"
+      ]
+    },
+    "_comment_unlock-throttled": "SECURITY-CRITICAL. Like vault.unlock-failed, this sentence must not say which factor was wrong. It must also keep its reassurance: the wait is a delay, not a lockout, and a translation that reads like the vault has been sealed will send people looking for their recovery key when they do not need it.",
+    "unlock-throttled": {
+      "message": "Слишком много неудачных попыток разблокировки подряд, поэтому следующая подождёт. Ничего не заблокировано навсегда: хранилище откроется, как только ожидание закончится.",
+      "actions": [
+        "Дождаться окончания отсчёта",
+        "Использовать ключ восстановления",
+        "Проверить файл-ключ, если это хранилище его использует"
+      ]
     }
   },
   "request": {
@@ -258,6 +301,13 @@
       "actions": [
         "Преобразовать командой `ssh-keygen -p -m PKCS8 -f <file>`",
         "Использовать вместо этого системный SSH-агент"
+      ]
+    },
+    "passphrase-required": {
+      "message": "Этот ключ защищён парольной фразой, и без неё Remoter не сможет использовать его для аутентификации.",
+      "actions": [
+        "Ввести парольную фразу ключа",
+        "Выбрать ключ без парольной фразы"
       ]
     }
   },
@@ -329,6 +379,10 @@
       "actions": [
         "Выбрать подключение"
       ]
+    },
+    "_comment_field-not-applicable": "No `actions` of its own: the core raises this from seven places with a different instruction each time — select a credential, create one, edit the connection, edit a folder — so a label at position 0 would be the wrong sentence six times out of seven. The shared `action` lexicon at the end of this file translates each of them by what the core actually sent.",
+    "field-not-applicable": {
+      "message": "Это поле неприменимо к элементу такого рода."
     }
   },
   "tree": {
@@ -490,6 +544,26 @@
       "actions": [
         "Выбрать другой файл",
         "Сообщить об этом"
+      ]
+    },
+    "unknown-format": {
+      "message": "Этот файл не в том формате, который импортирует Remoter: это ни документ mRemoteNG, ни конфигурация OpenSSH, ни экспорт CSV.",
+      "actions": [
+        "Выбрать исходный формат вручную",
+        "Экспортировать подключения заново в CSV"
+      ]
+    },
+    "orphaned-nodes": {
+      "message": "Этот файл дал элементы, папок которых нет в импорте, поэтому дерево построить не удалось. Ничего не записано.",
+      "actions": [
+        "Импортировать файл целиком",
+        "Сообщить об этом"
+      ]
+    },
+    "no-such-preview": {
+      "message": "Этот предпросмотр импорта больше не хранится: он был применён, отменён или сброшен при блокировке хранилища. Ничего не записано.",
+      "actions": [
+        "Выбрать файл заново"
       ]
     }
   },
@@ -685,6 +759,401 @@
         "Ввести положительное число",
         "Очистить поле, чтобы унаследовать значение"
       ]
+    },
+    "protocol-missing": {
+      "message": "Подключению нужен протокол: SSH, RDP, VNC или SFTP.",
+      "actions": [
+        "Выбрать протокол"
+      ]
     }
+  },
+  "session": {
+    "no-address": {
+      "message": "У этого подключения нет адреса. Откройте его настройки и укажите адрес."
+    },
+    "invalid-host": {
+      "message": "Такой адрес Remoter использовать не может. Проверьте его в настройках подключения."
+    },
+    "invalid-port": {
+      "message": "У этого подключения нет пригодного порта. Откройте его настройки и задайте порт от 1 до 65535."
+    },
+    "gateway-cycle": {
+      "message": "Цепочка шлюзов замыкается на себе: один из переходов встречается в ней дважды."
+    },
+    "gateway-too-long": {
+      "message": "В этой цепочке шлюзов больше переходов, чем Remoter проходит."
+    },
+    "gateway-deleted": {
+      "message": "Один из переходов этой цепочки шлюзов ссылается на удалённое подключение."
+    },
+    "gateway-credential-required": {
+      "message": "У одного из переходов этой цепочки шлюзов нет учётных данных для аутентификации."
+    },
+    "gateway-not-a-connection": {
+      "message": "Один из переходов этой цепочки шлюзов указывает на то, что подключением не является."
+    },
+    "limit": {
+      "message": "Открыто столько сеансов, сколько допускает предел. Закройте один или увеличьте предел в настройках."
+    },
+    "credential-deleted": {
+      "message": "Учётные данные, которые использовало это подключение, удалены. Выберите другие или введите их сейчас."
+    },
+    "credential-purpose": {
+      "message": "Эти учётные данные ограничены другими применениями и здесь использоваться не могут."
+    },
+    "credential-required": {
+      "message": "Для этого подключения нет учётных данных, а анонимного входа в SSH не бывает."
+    },
+    "credential-no-username": {
+      "message": "В этих учётных данных нет имени учётной записи, а анонимного входа в SSH не бывает."
+    },
+    "credential-not-a-credential": {
+      "message": "То, на что ссылается это подключение, не является учётными данными, поэтому войти с их помощью нельзя."
+    },
+    "credential-external": {
+      "message": "Эти учётные данные хранит другой поставщик, а в этой сборке нет плагина, способного их получить."
+    },
+    "credential-unsupported": {
+      "message": "Эти учётные данные — сертификат, а сеансы этого протокола сертификаты не используют."
+    },
+    "dns": {
+      "message": "Этот адрес не удалось разрешить. Проверьте имя или свой DNS."
+    },
+    "refused": {
+      "message": "Сервер отклонил подключение. Служба запущена?"
+    },
+    "timeout": {
+      "message": "Сервер не ответил вовремя. Проверьте брандмауэр или шлюз."
+    },
+    "unreachable": {
+      "message": "Этот адрес недостижим с этой машины. Проверьте сеть."
+    },
+    "hop-failed": {
+      "message": "До цели не удалось добраться через цепочку шлюзов: один из переходов не удался. В подробностях — какой и почему."
+    },
+    "io": {
+      "message": "Подключение прервалось при чтении или записи. В подробностях — при каком именно."
+    },
+    "host-key-unknown": {
+      "message": "Сервер предъявил ключ хоста, которого Remoter раньше не видел, и сеанс не смог задать о нём вопрос."
+    },
+    "_comment_host-key-changed": "SECURITY-CRITICAL. The reader decides from this sentence whether to trust the server in front of them, and a changed host key is what an interception looks like (docs/security/threat-model.md, T3). A translation must keep all three parts: the key is not the one that was trusted, this can mean someone is intercepting, and the two keys are in the details. Do not soften it into a routine warning, and do not suggest accepting the key.",
+    "host-key-changed": {
+      "message": "Ключ, предъявленный этим сервером, — не тот, которому Remoter для него доверяет. Это может означать, что кто-то перехватывает подключение. В подробностях показаны доверенный ключ и предъявленный."
+    },
+    "host-key-rejected": {
+      "message": "Ключ, предъявленный сервером, не был принят, поэтому сеанс не продолжился."
+    },
+    "host-key-nothing-to-replace": {
+      "message": "Для этого хоста пока ничего не сохранено, поэтому заменять нечего. Проверьте отпечаток и примите его либо откажитесь."
+    },
+    "fingerprint-malformed": {
+      "message": "Это не отпечаток SHA-256, поэтому сравнить его с тем, что предъявил сервер, не удалось."
+    },
+    "confirmation-mismatch": {
+      "message": "Это не то подтверждение, что показано на экране, поэтому сохранённый ключ хоста остался нетронутым."
+    },
+    "no-shared-algorithm": {
+      "message": "Сервер предлагает только алгоритмы, которые Remoter больше не принимает. Они перечислены в подробностях."
+    },
+    "_comment_certificate-untrusted": "SECURITY-CRITICAL. This is the sentence a reader decides from when a server's certificate cannot be validated. A translation must keep the last clause: until the reason is resolved, there is no proof this is the intended server. Do not soften it, and do not imply the session may be continued safely.",
+    "certificate-untrusted": {
+      "message": "Сертификат, предъявленный этим сервером, не является доверенным. В подробностях — почему. Пока это не решено, нет доказательства, что это именно тот сервер, к которому вы обращались."
+    },
+    "handshake-failed": {
+      "message": "Рукопожатие не завершилось, поэтому сеанс не открылся. В подробностях — на чём оно остановилось."
+    },
+    "trust-store": {
+      "message": "Хранилище не смогло записать решение по ключу хоста, поэтому оно не сохранено."
+    },
+    "auth-rejected": {
+      "message": "Сервер отклонил эти учётные данные."
+    },
+    "auth-method-unavailable": {
+      "message": "Сервер не принимает такой способ аутентификации. В подробностях перечислены те, что он предлагает."
+    },
+    "auth-cancelled": {
+      "message": "Вход был отменён, поэтому сеанс не открылся."
+    },
+    "agent-unavailable": {
+      "message": "Агент SSH не запущен, или этот процесс не может обратиться к его сокету."
+    },
+    "setting-invalid": {
+      "message": "Одна из настроек этого подключения непригодна. В подробностях — какая именно и какой она должна быть."
+    },
+    "setting-required": {
+      "message": "У одной из настроек этого подключения нет значения, а без него подключение не открыть."
+    },
+    "protocol-unsupported": {
+      "message": "Эта сборка открывает только сеансы SSH и SFTP."
+    },
+    "unsupported": {
+      "message": "Сеансы этого протокола такого не поддерживают."
+    },
+    "disconnected": {
+      "message": "Сервер закрыл подключение."
+    },
+    "network-lost": {
+      "message": "Сетевое подключение потеряно."
+    },
+    "protocol-violation": {
+      "message": "Сервер прислал то, чего протокол не допускает."
+    },
+    "cancelled": {
+      "message": "Сеанс был отменён до открытия."
+    },
+    "closed": {
+      "message": "Этот сеанс больше не выполняется."
+    },
+    "no-such-session": {
+      "message": "Этот сеанс больше не открыт. Его вкладку можно закрыть."
+    },
+    "no-such-node": {
+      "message": "Этого подключения больше нет в хранилище. Возможно, его удалили в другом окне."
+    },
+    "no-such-prompt": {
+      "message": "Этот вопрос о ключе хоста больше не открыт. Возможно, сеанс перестал ждать."
+    },
+    "frozen": {
+      "message": "Хранилище заблокировано, а его политика — замораживать ввод в сеансах до разблокировки. Сеанс всё ещё подключён."
+    },
+    "event-stream-closed": {
+      "message": "Поток вывода сеанса был закрыт раньше самого сеанса, поэтому сеанс завершён."
+    },
+    "task-failed": {
+      "message": "Сеанс завершился внутренней ошибкой и был закрыт. Ничего другого это не затронуло."
+    },
+    "shutdown-timeout": {
+      "message": "Сеанс не завершился вовремя и был остановлен принудительно. Об этом дефекте стоит сообщить."
+    },
+    "internal": {
+      "message": "Remoter столкнулся с внутренней ошибкой. Об этом дефекте стоит сообщить."
+    },
+    "failed": {
+      "_comment_": "Deliberately has no `message`. The core composes this one at the moment of failure — it is a diagnostic sentence naming what went wrong, with no `detail` beside it — so a generalised translation here would replace the only account of what happened. The reader sees the core's English sentence and translated action buttons. If SessionFailureDto ever carries the taxonomy code instead of this wrapper, give this entry a message and remove the note."
+    }
+  },
+  "sftp": {
+    "session-not-ready": {
+      "message": "Этот сеанс не подключён, поэтому просматривать в нём пока нечего. Панель файлов открывается на подключении, которое уже прошло аутентификацию.",
+      "actions": [
+        "Подождать подключения",
+        "Открыть подключение заново"
+      ]
+    },
+    "directory-not-empty": {
+      "message": "Этот каталог не удалён. Каталог можно удалить только пустым, а этот, возможно, не пуст.",
+      "actions": [
+        "Удалить и его содержимое",
+        "Открыть и посмотреть"
+      ]
+    },
+    "transfer-running": {
+      "message": "Эта передача ещё не завершилась, поэтому повторять пока нечего.",
+      "actions": [
+        "Сначала остановить её",
+        "Дождаться её завершения"
+      ]
+    },
+    "_comment_unsafe-name": "The name in question came from the remote server. The point of the sentence is that Remoter refused to take the server's word for where a file should land; a translation must not turn it into a complaint about the user's choice of folder.",
+    "unsafe-name": {
+      "message": "Этот файл нельзя сохранить в ту папку: имя, которое дал ему сервер, не является обычным именем файла.",
+      "actions": [
+        "Задать имя самостоятельно",
+        "Сохранить в другом месте"
+      ]
+    },
+    "no-such-pane": {
+      "message": "Эта панель файлов больше не открыта. Возможно, её сеанс завершился.",
+      "actions": [
+        "Закрыть панель",
+        "Открыть панель файлов заново"
+      ]
+    },
+    "no-such-transfer": {
+      "message": "Этой передачи нет в очереди этой панели.",
+      "actions": [
+        "Обновить список передач"
+      ]
+    },
+    "subsystem-unavailable": {
+      "message": "Этот сервер не открыл подсистему SFTP. На одних серверах она отключена, на других доступна лишь отдельным учётным записям.",
+      "actions": [
+        "Попросить администратора сервера включить подсистему SFTP",
+        "Воспользоваться терминалом"
+      ]
+    },
+    "listing-too-large": {
+      "message": "В этом каталоге больше, чем Remoter читает за один листинг.",
+      "actions": [
+        "Открыть вложенный каталог",
+        "Использовать для этого каталога терминал"
+      ]
+    },
+    "rename-failed": {
+      "message": "Этот файл не удалось переименовать. На большинстве серверов переименование не может пересечь границу файловой системы, и попытка отклоняется именно так.",
+      "actions": [
+        "Скопировать туда и удалить оригинал",
+        "Переименовать в пределах той же файловой системы"
+      ]
+    },
+    "transfer-failed": {
+      "_comment_": "Deliberately has no `message`, for the same reason as session.failed: the sentence is the transfer's own diagnostic, composed when it failed, and there is no detail beside it to fall back on."
+    }
+  },
+  "tunnel": {
+    "no-such-tunnel": {
+      "message": "Этот туннель больше не открыт.",
+      "actions": [
+        "Обновить список туннелей"
+      ]
+    },
+    "_comment_bind-exposed": "SECURITY-CRITICAL. This is the sentence that stands between a forward bound to localhost and one the whole local network can use. A translation must keep both halves: the address is not loopback, and the forward would therefore be reachable from the local network. Do not soften it into a note about a preference.",
+    "bind-exposed": {
+      "message": "Это не адрес обратной петли, поэтому такая переадресация будет доступна из локальной сети. Отметьте параметр, который это подтверждает, или привяжите её к localhost.",
+      "actions": [
+        "Привязать к localhost",
+        "Открыть доступ намеренно"
+      ]
+    },
+    "_comment_host-key-unknown": "SECURITY-CRITICAL. A tunnel has no window in which to ask about an unknown host key, so the sentence sends the reader to a session where the fingerprint can be reviewed. A translation must not suggest the key can be accepted from here, and must keep the instruction to review the fingerprint.",
+    "host-key-unknown": {
+      "message": "Этот сервер предъявил ключ хоста, которому Remoter не велено доверять, а у туннеля нет окна, чтобы спросить. Сначала откройте к нему сеанс, проверьте отпечаток и примите его там.",
+      "actions": [
+        "Открыть сеанс к этому подключению",
+        "Проверить ключ хоста там"
+      ]
+    }
+  },
+  "update": {
+    "failed": {
+      "message": "Проверка обновлений не завершилась.",
+      "actions": [
+        "Повторить попытку",
+        "Или открыть страницу выпусков в браузере"
+      ]
+    },
+    "unreachable": {
+      "message": "Remoter не смог обратиться к github.com, чтобы поискать более новый выпуск.",
+      "actions": [
+        "Проверить сетевое подключение этой машины",
+        "Повторить попытку",
+        "Или открыть страницу выпусков в браузере"
+      ]
+    },
+    "unreadable": {
+      "message": "GitHub ответил, но не списком выпусков, который Remoter смог бы прочитать.",
+      "actions": [
+        "Повторить попытку",
+        "Или открыть страницу выпусков в браузере"
+      ]
+    },
+    "rate-limited": {
+      "message": "GitHub пока не отвечает на новые проверки обновлений из этой сети.",
+      "actions": [
+        "Повторить попытку позже",
+        "Или открыть страницу выпусков в браузере"
+      ]
+    },
+    "no-releases": {
+      "message": "На GitHub нет опубликованного списка выпусков Remoter.",
+      "actions": [
+        "Открыть репозиторий в браузере"
+      ]
+    },
+    "refused": {
+      "message": "GitHub отклонил проверку обновлений.",
+      "actions": [
+        "Повторить попытку позже",
+        "Или открыть страницу выпусков в браузере"
+      ]
+    }
+  },
+  "keyfile": {
+    "_comment_unprotected": "SECURITY-CRITICAL. The refusal exists because a key file that every account on the machine can read is not a second factor at all. A translation must keep the reason and the consequence — it was not written — and must not present this as a permissions warning the user may wave away.",
+    "unprotected": {
+      "message": "Этот файл-ключ нельзя ограничить вашей учётной записью: файловая система, на которой он лежит, не хранит права доступа, поэтому прочитать его сможет любая учётная запись на этой машине. Файл-ключ, доступный всем, не является вторым фактором, поэтому он не был записан.",
+      "actions": [
+        "Выбрать место на диске, который хранит права доступа",
+        "Зашифровать съёмный носитель и затем записать на него файл-ключ"
+      ]
+    }
+  },
+  "slot": {
+    "label-empty": {
+      "message": "Слоту ключа нужно имя, чтобы в списке было видно, что это за ключ.",
+      "actions": [
+        "Ввести имя для этого слота"
+      ]
+    }
+  },
+  "shortcut": {
+    "terminal-reserved": {
+      "message": "Это сочетание принадлежит удалённому хосту: его должен получать терминал в фокусе, поэтому привязка здесь не дала бы ему дойти до оболочки.",
+      "actions": [
+        "Выбрать другое сочетание",
+        "Назначить его как сочетание приложения, доступное через префикс терминала"
+      ]
+    }
+  },
+  "audit": {
+    "export-encode": {
+      "message": "Записи аудита не удалось закодировать, поэтому ничего не записано.",
+      "actions": []
+    }
+  },
+  "recents": {
+    "encode": {
+      "message": "Список недавних хранилищ не удалось закодировать, поэтому он не записан.",
+      "actions": []
+    }
+  },
+  "settings": {
+    "encode": {
+      "message": "Ваши настройки не удалось закодировать, поэтому они не сохранены.",
+      "actions": []
+    }
+  },
+  "_comment_action": "The shared action lexicon: one entry per action sentence that cannot be labelled where the failure is, translated once. Two kinds of action end up here: the ones the core composes for a session failure (`action_text` in session.rs), which turn up under dozens of codes in an order that depends on what failed; and the ones belonging to a code the core raises from several places with a different button each time, where a label at a fixed position would be the wrong sentence for every other arm. `src/i18n/failures.ts` holds the English sentence for each key and looks an action up here when the failure's own entry has no label at that position; `failures.catalogue.test.ts` checks that list against the Rust, so a wording change there fails the build here. These are button labels: keep them short, and keep them in the imperative or verbal-noun form the rest of this file uses.",
+  "action": {
+    "open-connection-settings": "Открыть настройки этого подключения",
+    "edit-gateway-chain": "Изменить цепочку шлюзов",
+    "check-address": "Проверить адрес или DNS-сервер, который должен его знать",
+    "check-service": "Проверить, слушает ли служба этот порт",
+    "check-firewall": "Проверить брандмауэр или шлюз перед ним",
+    "check-network": "Проверить сетевое подключение",
+    "retry": "Повторить попытку",
+    "reconnect": "Переподключиться",
+    "choose-different-credential": "Выбрать другие учётные данные",
+    "enter-credential": "Ввести учётные данные для этой попытки",
+    "choose-auth-method": "Выбрать другой способ аутентификации",
+    "review-host-key": "Проверить ключ хоста",
+    "verify-fingerprint-out-of-band": "Сверить отпечаток с администратором сервера, прежде чем делать что-либо ещё",
+    "pin-certificate": "Закрепить сертификат за этим подключением",
+    "close-another-session-or-raise-limit": "Закрыть другой сеанс или увеличить предел",
+    "contact-server-administrator": "Связаться с администратором сервера",
+    "report-defect": "Сообщить об этом — это дефект Remoter",
+    "choose-credential": "Выбрать учётные данные",
+    "open-credential-settings": "Открыть настройки учётных данных",
+    "choose-gateway-credential": "Выбрать учётные данные для шлюза",
+    "open-its-settings": "Открыть его настройки",
+    "verify-fingerprint": "Сверить отпечаток по другому каналу",
+    "contact-administrator": "Связаться с администратором",
+    "close-another-session": "Закрыть другой сеанс",
+    "open-settings": "Открыть настройки",
+    "refresh-list": "Обновить список",
+    "try-connecting-again": "Попробовать подключиться снова",
+    "close-tab": "Закрыть вкладку",
+    "use-ssh-or-sftp": "Использовать подключение SSH или SFTP",
+    "report-this": "Сообщить об этом",
+    "unlock-vault": "Разблокировать хранилище",
+    "select-connection-or-credential": "Выбрать подключение или учётные данные",
+    "create-credential-for-connection": "Создать учётные данные и указать их в этом подключении",
+    "select-connection-or-folder": "Выбрать подключение или папку",
+    "edit-connection-instead": "Изменить вместо этого подключение",
+    "edit-connection-or-folder-instead": "Изменить вместо этого подключение или папку",
+    "unlock-with-password-or-recovery-key": "Использовать пароль или ключ восстановления",
+    "use-password-or-recovery-slot": "Использовать пароль или слот восстановления",
+    "change-lock-policy": "Изменить политику в настройках хранилища"
   }
 }

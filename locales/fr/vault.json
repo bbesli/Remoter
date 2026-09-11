@@ -40,6 +40,12 @@
     "lede": "Rien n'est déchiffré tant que vous n'en déverrouillez pas un.",
     "loading": "Lecture de la liste des coffres-forts récents…",
     "listFailed": "La liste des coffres-forts récents n'a pas pu être lue.",
+    "_comment_unreachable": "Why a remembered vault cannot be opened. The core sends a stable kind (\"missing\", \"unreadable\", \"not-a-file\") and the values; these are the sentences it sends them for. {path} is the vault's file path and {detail} is the operating system's own error text: neither is translated, and both are inserted as data, so a brace or a bracket in a file name cannot become message syntax.",
+    "unreachable": {
+      "missing": "{path} est introuvable. Si le fichier se trouve sur un support amovible ou un partage réseau, connectez-le puis réessayez.",
+      "unreadable": "{path} n’a pas pu être lu : {detail}",
+      "not-a-file": "{path} n’est plus un fichier."
+    },
     "_comment_openFromFile": "A button. The ellipsis means a file dialog opens, which is a convention worth keeping in every language that has it.",
     "openFromFile": "Ouvrir depuis un fichier…",
     "createNew": "Créer un coffre-fort",
@@ -79,8 +85,10 @@
     "_comment_backups": "Copies of the vault file that Remoter writes beside it as it saves, oldest rotated out. Not the user's own backups.",
     "backups": "Sauvegardes tournantes",
     "noBackups": "Aucune sauvegarde n'a encore été écrite à côté de ce fichier.",
-    "_comment_syncTitle": "The vault sits in a folder that a cloud service synchronises. The body text under it comes from the core.",
+    "_comment_syncTitle": "The vault sits in a folder that a cloud service synchronises. The body text under it is detail.syncWarning.",
     "syncTitle": "Dans un dossier synchronisé",
+    "_comment_syncWarning": "The body of the \"In a synced folder\" callout. {provider} is the cloud service's brand name (Dropbox, OneDrive, iCloud Drive) and is never translated; it appears twice. SECURITY-RELEVANT: the second half says the provider keeps earlier copies of the encrypted file, so changing a password today does not retract yesterday's copies. Do not drop it.",
+    "syncWarning": "Ce coffre se trouve dans un dossier {provider}. Cela fonctionne, mais le modifier depuis deux machines à la fois laissera une copie de conflit, et {provider} conserve les versions antérieures du fichier chiffré.",
     "unreachableTitle": "Ce coffre-fort est inaccessible",
     "slotBadge": {
       "_comment_": "Tooltips on the small icons in a row of the list, saying which unlock methods that vault has. Read aloud by a screen reader, so each one is a full noun phrase rather than a word.",
@@ -173,7 +181,7 @@
       "hide": "Masquer",
       "rating": "Évaluation de ce mot de passe…",
       "_comment_bits": "The estimated entropy of the typed password, beside a five-segment meter. '≈' is 'approximately'. A bit is the unit of information; keep the unit and pluralise it the way your language does.",
-      "bits": "{count, plural, one {≈ # bit} other {≈ # bits}}",
+      "bits": "{count, plural, one {≈ # bit} many {≈ # bits} other {≈ # bits}}",
       "_comment_notYet": "Replaces the strength word — 'Weak', 'Fair', 'Strong' — while the password is below the bar. Those words come from the core.",
       "notYet": "Pas encore assez robuste",
       "tooWeakHelp": "Un coffre-fort demande un peu plus que cela. Ajoutez un mot ou deux — c'est la longueur qui achète la marge, pas les symboles.",
@@ -240,7 +248,7 @@
     "_comment_targetGroupAria": "The accessible name of that highlighted group, read aloud instead of the four characters in it.",
     "targetGroupAria": "Groupe {group, number}, celui que vous devez ressaisir",
     "_comment_remaining": "How many characters are still missing from what has been typed. Counting down, so it is never zero.",
-    "remaining": "{count, plural, one {Encore un caractère} other {Encore # caractères}}",
+    "remaining": "{count, plural, one {Encore un caractère} many {Encore # caractères} other {Encore # caractères}}",
     "matches": "Cela correspond.",
     "mismatch": "Ce n'est pas le groupe surligné. Vérifiez-le sur la clé ci-dessus.",
     "_comment_warningTitle": "SECURITY-CRITICAL. Verbatim from docs/security/vault-format.md. This is the sentence that stops someone clicking past the only copy of their recovery key. It must not be softened, hedged, or turned into a question.",
@@ -281,9 +289,9 @@
     "_comment_failed": "SECURITY-CRITICAL. Shown whichever factor was wrong — password, key file, recovery key. It must NOT say which one, and must not be made more helpful: naming the factor tells an attacker which half they already have (docs/security/key-management.md).",
     "failed": "Cela n'a pas déverrouillé le coffre-fort.",
     "_comment_attempt": "How many attempts have failed. Beside the message above.",
-    "attempt": "{count, plural, other {Tentative #}}",
+    "attempt": "{count, plural, one {Tentative #} many {Tentative #} other {Tentative #}}",
     "_comment_attemptWaiting": "The same count, plus the countdown the interface enforces before the next attempt. {attempt} is a number of attempts, {seconds} a number of seconds. 's' is the symbol for second and is not translated in languages that use it.",
-    "attemptWaiting": "{attempt, plural, other {Tentative #}} · {seconds, plural, other {prochaine tentative dans # s}}",
+    "attemptWaiting": "{attempt, plural, one {Tentative #} many {Tentative #} other {Tentative #}} · {seconds, plural, one {prochaine tentative dans # s} many {prochaine tentative dans # s} other {prochaine tentative dans # s}}",
     "_comment_refused": "The heading over any other failure the core reported. That failure's own sentence is shown beneath it, so this only has to frame it.",
     "refused": "Le coffre-fort a refusé de s'ouvrir.",
     "keyfileMissing": "Cet emplacement exige aussi son fichier-clé pour pouvoir déverrouiller.",
@@ -310,7 +318,7 @@
       "password": "Saisissez le mot de passe maître.",
       "recovery": "Saisissez la clé de récupération.",
       "_comment_backoff": "The countdown after a failed attempt. {seconds} is a number of seconds; 's' is the symbol for second.",
-      "backoff": "{seconds, plural, other {Attente de # s avant la prochaine tentative après un échec.}}"
+      "backoff": "{seconds, plural, one {Attente de # s avant la prochaine tentative après un échec.} many {Attente de # s avant la prochaine tentative après un échec.} other {Attente de # s avant la prochaine tentative après un échec.}}"
     },
     "damaged": {
       "_comment_": "SECURITY-CRITICAL as a set. A slot unwrapped correctly and the body then failed to decrypt, which means the file changed after it was written. The user's credentials were right, and the copy must say so first — anything vaguer sends someone hunting for a typo they never made.",

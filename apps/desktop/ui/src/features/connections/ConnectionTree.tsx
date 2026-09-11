@@ -29,10 +29,20 @@ import clsx from "clsx";
 import { BusyButton, BusyStatus, SkeletonRows } from "@/components/Busy";
 import { Button } from "@/components/Button";
 import { Callout } from "@/components/Callout";
+import { FailureNotice } from "@/components/FailureNotice";
 import { Icon } from "@/components/Icon";
 import { TextInput } from "@/components/TextInput";
-import { documentDirection, inlineStartOffset, isolate, useT } from "@/i18n";
-import { asFailure, ipc, type TreeNode } from "@/lib/ipc";
+import {
+  documentDirection,
+  foldForSearch,
+  foldInvariant,
+  inlineStartOffset,
+  isolate,
+  useFailureText,
+  useLocale,
+  useT,
+} from "@/i18n";
+import { asFailure, ipc, type IpcFailure, type TreeNode } from "@/lib/ipc";
 import { invalidateAfterTreeChange, qk } from "@/lib/queryKeys";
 import { useApp } from "@/stores/app";
 import { useModalRegistration } from "@/hooks/useModalRegistration";
@@ -122,9 +132,26 @@ interface MoveStep {
   sortOrder: number;
 }
 
-/** Case- and diacritic-insensitive, as the search rules require. */
-function fold(value: string): string {
-  return value.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+/**
+ * A failure from a move, read out.
+ *
+ * Its own component because `useFailureText` is a hook and the announcement is
+ * produced inside a live region that otherwise holds a plain string. Without
+ * this the sentence around the failure was Turkish and the failure inside it
+ * was English, which is the one combination worse than either alone.
+ */
+function MoveFailureAnnouncement({
+  failure,
+  t,
+}: {
+  failure: IpcFailure;
+  t: TFunction<"connections">;
+}) {
+  const text = useFailureText(failure);
+  // The core's sentence arrives complete and punctuated, so it is interpolated
+  // rather than glued on with a full stop that a language putting the subject
+  // last would want somewhere else.
+  return <>{t("move.failedAnnounce", { reason: text.message })}</>;
 }
 
 function rowDomId(key: string): string {
@@ -231,6 +258,9 @@ function describeMove(
 export function ConnectionTree() {
   const t = useT("connections");
   const tCommon = useT("common");
+  // The filter folds under this language's casing rules, so it has to know
+  // which language that is. See the `foldForSearch` call below.
+  const { code: locale } = useLocale();
   const selectedNodeId = useApp((st) => st.selectedNodeId);
   const select = useApp((st) => st.select);
   const expanded = useApp((st) => st.expanded);
@@ -293,20 +323,24 @@ export function ConnectionTree() {
     return { byId, children };
   }, [nodes]);
 
+  // `FAVOURITE_TAGS` is a pair of ASCII spellings this application treats as a
+  // flag, not a word in the reader's language — so the tag folds invariantly.
+  // Folding it in the reader's language would be its own bug: under Turkish
+  // rules "FAVOURITE" folds to "favourıte" and matches neither constant.
   const favourites = useMemo(
-    () => nodes.filter((n) => n.tags.some((tag) => FAVOURITE_TAGS.has(fold(tag)))),
+    () => nodes.filter((n) => n.tags.some((tag) => FAVOURITE_TAGS.has(foldInvariant(tag)))),
     [nodes],
   );
 
   /** Nodes the filter keeps, plus the ancestors that lead to them. */
   const filtered = useMemo(() => {
-    const needle = fold(filter.trim());
+    const needle = foldForSearch(filter.trim(), locale);
     if (needle === "") return null;
     const keep = new Set<string>();
     const forceOpen = new Set<string>();
     for (const node of nodes) {
       const haystack = [node.name, node.host ?? "", node.username ?? "", ...node.tags];
-      if (!haystack.some((h) => fold(h).includes(needle))) continue;
+      if (!haystack.some((h) => foldForSearch(h, locale).includes(needle))) continue;
       keep.add(node.id);
       let parent = node.parentId;
       for (let hops = 0; parent !== null && hops < 64; hops += 1) {
@@ -316,7 +350,7 @@ export function ConnectionTree() {
       }
     }
     return { keep, forceOpen };
-  }, [filter, nodes, index]);
+  }, [filter, nodes, index, locale]);
 
   const rows = useMemo(() => {
     const out: VisibleRow[] = [];
@@ -403,12 +437,15 @@ export function ConnectionTree() {
       await refreshTree();
       setAnnouncement(pendingAnnouncement.current);
     },
-    onError: async (error) => {
+    onError: async () => {
       await refreshTree();
-      // The core's own sentence, read out after ours. It arrives complete and
-      // punctuated, so it is interpolated rather than glued on with a full stop
-      // that a language putting the subject last would want somewhere else.
-      setAnnouncement(t("move.failedAnnounce", { reason: asFailure(error).message }));
+      // The failure announcement is rendered from `moveMutation.error` rather
+      // than assembled here, because turning a failure into a sentence is
+      // `useFailureText`'s job and a hook cannot be called from a callback.
+      // Clearing the string leaves the live region to the failure alone, and
+      // stops the last success being re-announced when the failure is
+      // dismissed.
+      setAnnouncement("");
     },
   });
 
@@ -946,9 +983,10 @@ export function ConnectionTree() {
 
       {failure !== null && (
         <div className={s.notice}>
-          <Callout tone="danger" title={t("tree.loadFailed")}>
-            {failure.message}
-          </Callout>
+          {/* Through `FailureNotice`, so the core's English `code` becomes this
+              reader's sentence. Rendering `failure.message` here was one
+              English paragraph in an otherwise translated sidebar. */}
+          <FailureNotice failure={failure} title={t("tree.loadFailed")} />
         </div>
       )}
 
@@ -961,30 +999,21 @@ export function ConnectionTree() {
       )}
 
       {/*
-        A move that fails has to fail where the user is looking. The core's
-        message already names what went wrong and what to do about it, so it is
-        shown verbatim rather than replaced with a house string.
+        A move that fails has to fail where the user is looking. What went
+        wrong and what to do about it are the core's to say, so the notice
+        keeps all of it — but in the reader's language, which is what
+        `FailureNotice` is for. The hand-built callout this replaces rendered
+        the English `message` and `detail`, and joined the English action list
+        into prose with a separator of its own: an ordered list of next steps
+        turned into a run-on sentence, in a language the reader had not chosen.
       */}
       {moveFailure !== null && (
         <div className={s.notice}>
-          <Callout tone="danger" title={t("move.failed")}>
-            <span className={s.noticeBody}>
-              <span>{moveFailure.message}</span>
-              {moveFailure.detail !== null && (
-                <span className={s.noticeDetail}>{moveFailure.detail}</span>
-              )}
-              {moveFailure.actions.length > 0 && (
-                <span className={s.noticeDetail}>
-                  {moveFailure.actions.join(` ${t("punctuation.detail")} `)}
-                </span>
-              )}
-              <span className={s.noticeActions}>
-                <Button variant="ghost" size="sm" onClick={() => resetMove()}>
-                  {tCommon("action.dismiss")}
-                </Button>
-              </span>
-            </span>
-          </Callout>
+          <FailureNotice failure={moveFailure} title={t("move.failed")}>
+            <Button variant="ghost" size="sm" onClick={() => resetMove()}>
+              {tCommon("action.dismiss")}
+            </Button>
+          </FailureNotice>
         </div>
       )}
 
@@ -1094,7 +1123,13 @@ export function ConnectionTree() {
 
       {/* Drag-and-drop is invisible to a screen reader; this is where it speaks. */}
       <div className={s.live} role="status" aria-live="polite">
-        {moveMutation.isPending ? t("move.inProgress") : announcement}
+        {moveMutation.isPending ? (
+          t("move.inProgress")
+        ) : moveFailure !== null ? (
+          <MoveFailureAnnouncement failure={moveFailure} t={t} />
+        ) : (
+          announcement
+        )}
       </div>
 
       <div className={s.footer}>
@@ -1253,9 +1288,7 @@ export function ConnectionTree() {
               {t("delete.irreversible")}
             </Callout>
             {deleteFailure !== null && (
-              <Callout tone="danger" title={t("delete.failed")}>
-                {deleteFailure.message}
-              </Callout>
+              <FailureNotice failure={deleteFailure} title={t("delete.failed")} />
             )}
             <div className={s.confirmActions}>
               <Button

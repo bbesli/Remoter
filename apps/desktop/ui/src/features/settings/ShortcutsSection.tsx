@@ -33,9 +33,16 @@ import { Field } from "@/components/Field";
 import { Icon } from "@/components/Icon";
 import { Spinner } from "@/components/Spinner";
 import { TextInput } from "@/components/TextInput";
-import { formatList, useLocale, useT } from "@/i18n";
+import {
+  foldForSearch,
+  foldInvariant,
+  formatList,
+  useFailureText,
+  useLocale,
+  useT,
+} from "@/i18n";
 import { asFailure, ipc } from "@/lib/ipc";
-import type { AppSettings as AppSettingsDto, AppSettingsPatch } from "@/lib/ipc";
+import type { AppSettings as AppSettingsDto, AppSettingsPatch, IpcFailure } from "@/lib/ipc";
 import { qk } from "@/lib/queryKeys";
 import {
   DEFAULT_TERMINAL_PREFIX,
@@ -87,14 +94,34 @@ interface SaveVariables {
 }
 
 /**
- * Case folding pinned to one locale.
+ * A save the core refused, on the row that asked for it.
  *
- * `toLowerCase` is locale-sensitive in the user's environment — in Turkish "I"
- * folds to "ı", so a search for "Ctrl" would stop matching. The bindings are
- * ASCII, so folding them in a fixed locale is both correct and stable.
+ * Its own component because `useFailureText` is a hook and the rows are a
+ * `map` over the table body — one row at a time cannot call it, and the
+ * component that can is this one. Before it, the row rendered the core's
+ * English `message` beside a translated heading, so a Turkish reader got half
+ * a sentence in each language.
+ *
+ * A `FailureNotice` would be the usual answer and is the wrong shape here: the
+ * cell is one line inside a table row, and a callout with a heading, a
+ * diagnostic and a bulleted action list would push every other row off the
+ * screen. The text is the same text; only the frame differs.
  */
-function fold(value: string): string {
-  return value.toLocaleLowerCase("en-US");
+function RowSaveFailure({
+  failure,
+  t,
+  className,
+}: {
+  failure: IpcFailure;
+  t: TFunction<"settings">;
+  className: string | undefined;
+}) {
+  const text = useFailureText(failure);
+  return (
+    <span className={className} role="alert">
+      {t("shortcuts.saveFailed")} {text.message}
+    </span>
+  );
 }
 
 /**
@@ -163,22 +190,42 @@ function describeRefusal(refusal: BindingRefusal, t: TFunction<"settings">): str
 }
 
 /**
- * What the filter searches.
+ * What the filter searches, folded two different ways.
  *
  * It searches the translated text, not the English source: a German user
  * filtering on "Sitzung" has to find the rows whose scope cell says it.
+ *
+ * The two folds are not a nicety. A row carries prose a translator wrote and a
+ * key cap nobody translated, and folding both the same way breaks one of them:
+ *
+ *   - the **key cap** names the physical key — `Ctrl`, `Alt`, `F4`, the letter
+ *     printed on it — and docs/features/i18n.md is explicit that those are
+ *     never translated. Folded under Turkish rules, `Ctrl I` becomes
+ *     `ctrl ı` and stops matching the `i` the reader typed;
+ *   - the **prose** is written in the reader's language, and folding it under
+ *     English rules is what kept a Turkish reader from finding a row by typing
+ *     its title in capitals.
+ *
+ * So the cap folds invariantly, the prose folds in the reader's language, and
+ * a row matches when either fold contains the query folded the same way.
  */
-function haystack(entry: ResolvedShortcut, t: TFunction<"settings">, locale: string): string {
-  return fold(
-    [
-      entry.action.title,
-      acceleratorLabel(entry.accelerator, entry.action.seriesLen),
-      scopeLabel(entry, t),
-      ...rowNotes(entry, t, locale),
-    ]
-      .join(" ")
-      .replace(/\+/g, " "),
-  );
+interface RowHaystack {
+  /** Key caps, invariant fold. `+` becomes a space so "Ctrl K" matches too. */
+  keys: string;
+  /** Everything a translator wrote, folded in the reader's language. */
+  prose: string;
+}
+
+function haystack(entry: ResolvedShortcut, t: TFunction<"settings">, locale: string): RowHaystack {
+  return {
+    keys: foldInvariant(
+      acceleratorLabel(entry.accelerator, entry.action.seriesLen).replace(/\+/g, " "),
+    ),
+    prose: foldForSearch(
+      [entry.action.title, scopeLabel(entry, t), ...rowNotes(entry, t, locale)].join(" "),
+      locale,
+    ),
+  };
 }
 
 export function ShortcutsSection() {
@@ -209,9 +256,15 @@ export function ShortcutsSection() {
   const resolved = useMemo(() => resolveShortcuts(overrides), [overrides]);
 
   const matches = useMemo(() => {
-    const needle = fold(query.trim());
-    if (needle === "") return resolved;
-    return resolved.filter((entry) => haystack(entry, t, locale).includes(needle));
+    const typed = query.trim();
+    if (typed === "") return resolved;
+    // Folded once, each way, rather than per row.
+    const keyNeedle = foldInvariant(typed);
+    const proseNeedle = foldForSearch(typed, locale);
+    return resolved.filter((entry) => {
+      const row = haystack(entry, t, locale);
+      return row.keys.includes(keyNeedle) || row.prose.includes(proseNeedle);
+    });
   }, [query, resolved, t, locale]);
 
   const customisedCount = resolved.filter((entry) => entry.customised).length;
@@ -450,9 +503,7 @@ export function ShortcutsSection() {
                       </span>
                     )}
                     {rowFailure !== null && (
-                      <span className={s.refusal} role="alert">
-                        {t("shortcuts.saveFailed")} {rowFailure.message}
-                      </span>
+                      <RowSaveFailure failure={rowFailure} t={t} className={s.refusal} />
                     )}
                   </th>
 

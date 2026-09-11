@@ -1,73 +1,108 @@
 {
-  "_comment_file": "Every failure the core can hand the interface, keyed by the stable `code` on `IpcError` (crates/remoter-ipc/src/error.rs). The code is the join: the core sends a code, a sentence, an optional diagnostic and an ordered list of next actions, and this file supplies the sentence and the actions in the reader's language. A code with no entry here is not broken — the core's own English is rendered instead, which is what a failure newly added in Rust should look like until it is translated. Four rules for anyone editing this file. (1) `actions` is positional: the order is the order the core offered, and a label is used only when the entry has one at that position. (2) No sentence here may quote a password, a passphrase, a key or any other secret — a failure is the one moment an implementation is tempted to say what it was given. (3) The sentences carry no placeholders. The core fills its own sentence with the specifics (a path, a slot number, a byte offset) and those cannot be recovered from the finished string, so each sentence here is written to stay true without them; an English reader is shown the core's own sentence, specifics and all, and every other language is shown this one. (4) A message says what failed and what the reader can do about it. 'An error occurred' is never an acceptable translation of anything below.",
-
+  "_comment_file": "Every failure the core can hand the interface, keyed by the stable `code` on `IpcError`. The codes are raised all over `crates/remoter-ipc` — error.rs, session.rs, sftp.rs, tunnel.rs, commands.rs, state.rs, bridge.rs, vault_admin.rs, import.rs, recents.rs, audit.rs — and `src/i18n/failures.catalogue.test.ts` reads every one of those files, so a code with no entry here is a failing build rather than a sentence that turns up in English months later. The code is the join: the core sends a code, a sentence, an optional diagnostic and an ordered list of next actions, and this file supplies the sentence and the actions in the reader's language. Six rules for anyone editing this file. (1) `actions` is positional: the order is the order the core offered, and a label is used only when the entry has one at that position. (2) The `action` object at the end of this file is the shared lexicon, keyed by what the action means rather than by the failure it belongs to. Two kinds of entry rely on it and carry no `actions` of their own: every `session.*` failure, whose actions the core composes from a fixed set (`action_text` in session.rs) in an order that depends on what actually failed; and a code the core raises from several places with a different button each time, where one positional label would be the wrong sentence for every other arm. The lexicon labels those by the sentence the core sent. Positional labels still win where an entry has them. (3) No sentence here may quote a password, a passphrase, a key or any other secret — a failure is the one moment an implementation is tempted to say what it was given. (4) The sentences carry no placeholders. The core fills its own sentence with the specifics (a path, a slot number, a byte offset) and those cannot be recovered from the finished string, so each sentence here is written to stay true without them; an English reader is shown the core's own sentence, specifics and all, and every other language is shown this one. (5) A message says what failed and what the reader can do about it. 'An error occurred' is never an acceptable translation of anything below. (6) A few entries deliberately carry no `message` at all, and say so in a `_comment_`: for those the core composes the only description of what happened, so the reader is shown that sentence rather than a generalisation of it.",
   "unknown": {
     "_comment_": "Not a code the core sends: `asFailure` in apps/desktop/ui/src/lib/ipc.ts uses it when a rejection arrives with no shape at all — a panic inside a command, or a transport failure below Tauri. It is the last sentence in the application and should never be reached.",
     "message": "Something went wrong."
   },
-
   "vault": {
     "locked": {
       "message": "No vault is open. Unlock one to see your connections.",
-      "actions": ["Unlock a vault"]
+      "actions": [
+        "Unlock a vault"
+      ]
     },
     "auto-locked": {
       "message": "The vault locked itself after the idle period you set. Unlock it to carry on.",
-      "actions": ["Unlock the vault", "Change the timeout in settings"]
+      "actions": [
+        "Unlock the vault",
+        "Change the timeout in settings"
+      ]
     },
     "locked-by-trigger": {
       "message": "The vault locked itself because an event you chose to lock on happened. Unlock it to carry on.",
-      "actions": ["Unlock the vault", "Change what locks it in vault settings"]
+      "actions": [
+        "Unlock the vault",
+        "Change what locks it in vault settings"
+      ]
     },
     "_comment_unlock-failed": "SECURITY-CRITICAL. This sentence must not say which factor was wrong, and a translation must not add that either: before a key slot has unwrapped the master key, naming the password or the key file as the wrong one tells an attacker which half they have already guessed. See the module docs in crates/remoter-ipc/src/error.rs.",
     "unlock-failed": {
       "message": "That did not unlock the vault.",
-      "actions": ["Try again", "Check the key file, if this vault uses one", "Use your recovery key"]
+      "actions": [
+        "Try again",
+        "Check the key file, if this vault uses one",
+        "Use your recovery key"
+      ]
     },
     "header-tampered": {
       "message": "The header of this vault has been modified since it was written, so its contents cannot be trusted.",
-      "actions": ["Open a backup beside the vault", "Check whether a sync client rewrote the file"]
+      "actions": [
+        "Open a backup beside the vault",
+        "Check whether a sync client rewrote the file"
+      ]
     },
     "body-corrupt": {
       "message": "The contents of this vault could not be decrypted. The file is damaged.",
-      "actions": ["Open a backup beside the vault", "Check the drive the vault is stored on"]
+      "actions": [
+        "Open a backup beside the vault",
+        "Check the drive the vault is stored on"
+      ]
     },
     "no-such-method": {
       "message": "This vault does not offer that unlock method.",
-      "actions": ["Choose one of the methods this vault offers"]
+      "actions": [
+        "Choose one of the methods this vault offers"
+      ]
     },
-    "_comment_fido2-unsupported": "The core sends this code both when a hardware key is offered as a way in and when one is added as a key slot, so the sentence has to stay true of both.",
+    "_comment_fido2-unsupported": "The core sends this code both when a hardware key is offered as a way in and when one is added as a key slot, so the sentence has to stay true of both. It has no `actions` of its own for the same reason: the two arms offer differently worded buttons, and the shared `action` lexicon at the end of this file labels whichever one the core sent.",
     "fido2-unsupported": {
-      "message": "Hardware key unlock is not implemented in this version of Remoter.",
-      "actions": ["Use a password or your recovery key"]
+      "message": "Hardware key unlock is not implemented in this version of Remoter."
     },
     "not-a-vault": {
       "message": "That file is not a Remoter vault.",
-      "actions": ["Choose a .rvault file", "Create a new vault"]
+      "actions": [
+        "Choose a .rvault file",
+        "Create a new vault"
+      ]
     },
     "unsupported-format": {
       "message": "That vault uses a vault format version this build of Remoter does not read.",
-      "actions": ["Update Remoter", "Open the vault on the machine that wrote it"]
+      "actions": [
+        "Update Remoter",
+        "Open the vault on the machine that wrote it"
+      ]
     },
     "corrupt": {
       "message": "This vault is damaged: its structure could not be read.",
-      "actions": ["Open a backup beside the vault"]
+      "actions": [
+        "Open a backup beside the vault"
+      ]
     },
     "corrupt-row": {
       "message": "This vault holds a record this build of Remoter cannot read.",
-      "actions": ["Open a backup beside the vault", "Update Remoter"]
+      "actions": [
+        "Open a backup beside the vault",
+        "Update Remoter"
+      ]
     },
     "header-encode": {
       "message": "The header for this vault could not be encoded, so it was not written.",
-      "actions": ["Report this — the vault on disk is unchanged"]
+      "actions": [
+        "Report this — the vault on disk is unchanged"
+      ]
     },
     "crypto": {
       "message": "A cryptographic step on this vault failed, so the operation was abandoned.",
-      "actions": ["Try again", "Report this if it persists"]
+      "actions": [
+        "Try again",
+        "Report this if it persists"
+      ]
     },
     "kdf-too-weak": {
       "message": "Those Argon2id parameters are below the floor Remoter accepts, and a weaker vault is not an acceptable trade for a faster unlock.",
-      "actions": ["Use the calibrated parameters"]
+      "actions": [
+        "Use the calibrated parameters"
+      ]
     },
     "kdf-params-refused": {
       "message": "This vault declares Argon2id parameters above anything this build will attempt. Nothing was derived.",
@@ -79,23 +114,34 @@
     },
     "no-such-slot": {
       "message": "This vault has no such key slot.",
-      "actions": ["Reload the slot list"]
+      "actions": [
+        "Reload the slot list"
+      ]
     },
     "no-slot-of-kind": {
       "message": "This vault has no slot of that kind.",
-      "actions": ["Add that unlock method first"]
+      "actions": [
+        "Add that unlock method first"
+      ]
     },
     "slot-table-full": {
       "message": "This vault already holds the maximum number of key slots.",
-      "actions": ["Remove an unlock method you no longer use"]
+      "actions": [
+        "Remove an unlock method you no longer use"
+      ]
     },
     "last-slot": {
       "message": "That is the only way into this vault; removing it would lock you out permanently.",
-      "actions": ["Add another unlock method first"]
+      "actions": [
+        "Add another unlock method first"
+      ]
     },
     "wrong-slot-kind": {
       "message": "That key slot is of another kind, so the operation does not apply to it.",
-      "actions": ["Reload the slot list", "Choose a slot of the right kind"]
+      "actions": [
+        "Reload the slot list",
+        "Choose a slot of the right kind"
+      ]
     },
     "slot-credential-missing": {
       "message": "That key slot cannot be re-wrapped without its password, and dropping it silently would take away someone's way in. Nothing was changed.",
@@ -106,19 +152,31 @@
     },
     "slot-credential-rejected": {
       "message": "That does not open the key slot, so the slot was left exactly as it was.",
-      "actions": ["Try again", "Check the key file, if that slot uses one", "Use your recovery key"]
+      "actions": [
+        "Try again",
+        "Check the key file, if that slot uses one",
+        "Use your recovery key"
+      ]
     },
     "keychain": {
       "message": "This machine's credential store is unavailable, or holds no token for this vault.",
-      "actions": ["Unlock with your password", "Re-enrol this device afterwards"]
+      "actions": [
+        "Unlock with your password",
+        "Re-enrol this device afterwards"
+      ]
     },
     "recovery-key-malformed": {
       "message": "That is not a recovery key: a recovery key is fourteen groups of four characters.",
-      "actions": ["Check you pasted the whole key"]
+      "actions": [
+        "Check you pasted the whole key"
+      ]
     },
     "recovery-key-checksum": {
       "message": "That recovery key looks mistyped — its check group does not match the rest.",
-      "actions": ["Compare it against the copy you saved", "Try again"]
+      "actions": [
+        "Compare it against the copy you saved",
+        "Try again"
+      ]
     },
     "keyfile": {
       "message": "The key file could not be read.",
@@ -129,47 +187,106 @@
     },
     "database": {
       "message": "The database inside this vault rejected the operation.",
-      "actions": ["Try again", "Open a backup beside the vault"]
+      "actions": [
+        "Try again",
+        "Open a backup beside the vault"
+      ]
     },
     "schema-too-new": {
       "message": "This vault was written by a newer version of Remoter: its schema version is one this build does not understand.",
-      "actions": ["Update Remoter"]
+      "actions": [
+        "Update Remoter"
+      ]
     },
     "migration-failed": {
       "message": "This vault could not be migrated to the newer schema; the file was left as it was.",
-      "actions": ["Open a backup beside the vault", "Report this"]
+      "actions": [
+        "Open a backup beside the vault",
+        "Report this"
+      ]
+    },
+    "label-empty": {
+      "message": "A vault needs a name.",
+      "actions": [
+        "Type a name for this vault"
+      ]
+    },
+    "_comment_password-empty": "The core raises this both for a vault's master password and for a key slot's password, so the sentence has to stay true of both.",
+    "password-empty": {
+      "message": "That password is empty, and nothing can be derived from an empty one.",
+      "actions": [
+        "Type a password",
+        "Generate a passphrase"
+      ]
+    },
+    "_comment_password-too-weak": "SECURITY-CRITICAL. The refusal must keep its reason: a weak password is not rescued by the key derivation function, and a vault is only as strong as its weakest slot. A translation that softens this into 'consider a stronger password' invites the user to keep the one they typed.",
+    "password-too-weak": {
+      "message": "That password is too easy to guess, and a vault is only as strong as its weakest slot. Argon2id raises the cost of every guess, but it cannot rescue a password an attacker tries early.",
+      "actions": [
+        "Generate a passphrase",
+        "Use a longer, less predictable password"
+      ]
+    },
+    "kdf-upgrade-refused": {
+      "message": "That does not open the slot that needs strengthening, so the slot was left exactly as it was.",
+      "actions": [
+        "Enter the password this vault was created with",
+        "Leave it for now — the vault still opens"
+      ]
+    },
+    "_comment_locked-unsaved": "SECURITY-CRITICAL in the data-loss sense: the vault is safe, the keys are gone from memory, and unsaved changes are gone with them. A translation must keep both facts. Do not imply the changes can be recovered.",
+    "locked-unsaved": {
+      "message": "The vault is locked and its keys are wiped, but the file could not be written, so anything changed since the last successful save is gone.",
+      "actions": [
+        "Check the drive or share the vault is stored on",
+        "Unlock it again and check what is missing"
+      ]
+    },
+    "_comment_unlock-throttled": "SECURITY-CRITICAL. Like vault.unlock-failed, this sentence must not say which factor was wrong. It must also keep its reassurance: the wait is a delay, not a lockout, and a translation that reads like the vault has been sealed will send people looking for their recovery key when they do not need it.",
+    "unlock-throttled": {
+      "message": "Too many unlock attempts in a row did not work, so the next one waits. Nothing has been locked out: the vault opens as soon as the wait is over.",
+      "actions": [
+        "Wait for the countdown",
+        "Use your recovery key",
+        "Check the key file, if this vault uses one"
+      ]
     }
   },
-
   "request": {
     "invalid": {
       "_comment_": "A bug in the interface, not something the reader did: the frontend sent the core a field it cannot read. Keep the sentence blameless and keep the action pointing at a bug report.",
       "message": "A value in that request is not usable.",
-      "actions": ["Report this — the interface sent something the core cannot read"]
+      "actions": [
+        "Report this — the interface sent something the core cannot read"
+      ]
     }
   },
-
   "path": {
     "unusable": {
       "message": "That location cannot be used.",
-      "actions": ["Choose another location"]
+      "actions": [
+        "Choose another location"
+      ]
     }
   },
-
   "io": {
     "failed": {
       "message": "That file could not be read or written.",
-      "actions": ["Check the path exists and is writable", "Choose another location"]
+      "actions": [
+        "Check the path exists and is writable",
+        "Choose another location"
+      ]
     }
   },
-
   "system": {
     "csprng": {
       "message": "The operating system's random number generator is unavailable, so nothing random can be generated safely.",
-      "actions": ["Restart Remoter", "Report this if it persists"]
+      "actions": [
+        "Restart Remoter",
+        "Report this if it persists"
+      ]
     }
   },
-
   "key": {
     "not-a-private-key": {
       "message": "That file is not a private key. A public key, a certificate or an unrelated file cannot authenticate a connection.",
@@ -185,82 +302,128 @@
         "Convert it with `ssh-keygen -p -m PKCS8 -f <file>`",
         "Use the platform SSH agent instead"
       ]
+    },
+    "passphrase-required": {
+      "message": "That key is passphrase-protected, and without the passphrase Remoter cannot use it to authenticate.",
+      "actions": [
+        "Enter the key's passphrase",
+        "Choose a key that is not passphrase-protected"
+      ]
     }
   },
-
   "credential": {
     "not-a-private-key": {
       "message": "That item is not a credential holding a private key, so there is no key to read or replace on it.",
-      "actions": ["Select a credential", "Choose a key file for it first"]
+      "actions": [
+        "Select a credential",
+        "Choose a key file for it first"
+      ]
     },
     "purpose-refused": {
       "message": "This credential is restricted and may not be used this way.",
-      "actions": ["Choose another credential", "Widen the credential's restriction"]
+      "actions": [
+        "Choose another credential",
+        "Widen the credential's restriction"
+      ]
     }
   },
-
   "node": {
     "_comment_not-found": "Sent both for an item missing from the vault and for one missing from the tree on screen. Either way the item is gone and the tree on screen is stale, which is what the sentence says.",
     "not-found": {
       "message": "That item is no longer in the tree; it was probably deleted in another window.",
-      "actions": ["Reload the tree"]
+      "actions": [
+        "Reload the tree"
+      ]
     },
     "parent-not-found": {
       "message": "The folder you dropped that into no longer exists.",
-      "actions": ["Reload the tree", "Choose another folder"]
+      "actions": [
+        "Reload the tree",
+        "Choose another folder"
+      ]
     },
     "duplicate": {
       "message": "An item with that identifier is already in the tree.",
-      "actions": ["Reload the tree"]
+      "actions": [
+        "Reload the tree"
+      ]
     },
     "not-a-container": {
       "message": "Only folders can hold other items.",
-      "actions": ["Drop it into a folder", "Drop it at the top level"]
+      "actions": [
+        "Drop it into a folder",
+        "Drop it at the top level"
+      ]
     },
     "cycle": {
       "message": "A folder cannot be moved inside itself.",
-      "actions": ["Choose a destination outside that folder"]
+      "actions": [
+        "Choose a destination outside that folder"
+      ]
     },
     "too-deep": {
       "message": "That move would nest the tree deeper than the limit allows.",
-      "actions": ["Move it nearer the top level", "Flatten the folders above it"]
+      "actions": [
+        "Move it nearer the top level",
+        "Flatten the folders above it"
+      ]
     },
     "parent-changed": {
       "message": "An edit cannot re-parent an item; move it instead.",
-      "actions": ["Drag it to the new folder"]
+      "actions": [
+        "Drag it to the new folder"
+      ]
     },
     "not-a-connection": {
       "message": "Only connections have resolved settings to show.",
-      "actions": ["Select a connection"]
+      "actions": [
+        "Select a connection"
+      ]
+    },
+    "_comment_field-not-applicable": "No `actions` of its own: the core raises this from seven places with a different instruction each time — select a credential, create one, edit the connection, edit a folder — so a label at position 0 would be the wrong sentence six times out of seven. The shared `action` lexicon at the end of this file translates each of them by what the core actually sent.",
+    "field-not-applicable": {
+      "message": "That field does not apply to this kind of item."
     }
   },
-
   "tree": {
     "corrupt": {
       "message": "The item tree in this vault does not terminate: a parent chain loops.",
-      "actions": ["Open a backup beside the vault", "Report this"]
+      "actions": [
+        "Open a backup beside the vault",
+        "Report this"
+      ]
     }
   },
-
   "secret": {
     "not-found": {
       "message": "That credential has no such secret stored.",
-      "actions": ["Enter it now", "Choose another credential"]
+      "actions": [
+        "Enter it now",
+        "Choose another credential"
+      ]
     },
     "stale": {
       "message": "The stored secret does not match the current version of its record, so it was refused rather than used.",
-      "actions": ["Re-enter the secret", "Open a backup beside the vault"]
+      "actions": [
+        "Re-enter the secret",
+        "Open a backup beside the vault"
+      ]
     }
   },
-
   "import": {
     "too-large": {
       "message": "That file is larger than this build reads. Nothing was parsed.",
-      "actions": ["Split the file", "Import the parts separately"]
+      "actions": [
+        "Split the file",
+        "Import the parts separately"
+      ]
     },
     "not-utf8": {
       "message": "That file is not UTF-8 text.",
-      "actions": ["Re-save the file as UTF-8", "Check this is the file you meant to choose"]
+      "actions": [
+        "Re-save the file as UTF-8",
+        "Check this is the file you meant to choose"
+      ]
     },
     "malformed-xml": {
       "message": "That file is not well-formed XML.",
@@ -278,19 +441,28 @@
     },
     "entity-refused": {
       "message": "That file defines its own XML entities, which Remoter refuses to expand: that is the shape of a file written to exhaust memory.",
-      "actions": ["Export the file again from the application that wrote it"]
+      "actions": [
+        "Export the file again from the application that wrote it"
+      ]
     },
     "too-deep": {
       "message": "That file nests folders deeper than this build reads.",
-      "actions": ["Flatten the deepest folders in the source application"]
+      "actions": [
+        "Flatten the deepest folders in the source application"
+      ]
     },
     "too-many-items": {
       "message": "That file holds more items than this build reads.",
-      "actions": ["Split the file", "Import the parts separately"]
+      "actions": [
+        "Split the file",
+        "Import the parts separately"
+      ]
     },
     "value-too-long": {
       "message": "That file holds a value longer than this build reads.",
-      "actions": ["Shorten it in the source application, then export again"]
+      "actions": [
+        "Shorten it in the source application, then export again"
+      ]
     },
     "truncated": {
       "message": "That file ends in the middle of a record: the file is incomplete.",
@@ -301,11 +473,17 @@
     },
     "wrong-format": {
       "message": "That file is not what that importer reads.",
-      "actions": ["Choose the source format yourself", "Choose another file"]
+      "actions": [
+        "Choose the source format yourself",
+        "Choose another file"
+      ]
     },
     "password-required": {
       "message": "That file is encrypted and needs its document password to be read.",
-      "actions": ["Enter the document password", "Choose another file"]
+      "actions": [
+        "Enter the document password",
+        "Choose another file"
+      ]
     },
     "wrong-password": {
       "message": "That is not the password the file was encrypted with.",
@@ -330,152 +508,652 @@
     },
     "too-many-nodes": {
       "message": "That file would create more items than the limit allows.",
-      "actions": ["Split the file", "Import the parts separately"]
+      "actions": [
+        "Split the file",
+        "Import the parts separately"
+      ]
     },
     "missing-column": {
       "message": "That file is missing a column the importer needs.",
-      "actions": ["Add the column header and try again", "Check the first row is the header row"]
+      "actions": [
+        "Add the column header and try again",
+        "Check the first row is the header row"
+      ]
     },
     "duplicate-column": {
       "message": "That file names a column twice, so which one holds the value is undecidable.",
-      "actions": ["Remove or rename the repeated column"]
+      "actions": [
+        "Remove or rename the repeated column"
+      ]
     },
     "read-failed": {
       "message": "A file could not be read while following an include.",
-      "actions": ["Check the file exists and is readable", "Remove the Include line and import again"]
+      "actions": [
+        "Check the file exists and is readable",
+        "Remove the Include line and import again"
+      ]
     },
     "include-too-deep": {
       "message": "That file includes files more deeply than this build follows.",
-      "actions": ["Flatten the Include chain and import again"]
+      "actions": [
+        "Flatten the Include chain and import again"
+      ]
     },
     "failed": {
       "message": "That file could not be imported.",
-      "actions": ["Choose another file", "Report this"]
+      "actions": [
+        "Choose another file",
+        "Report this"
+      ]
+    },
+    "unknown-format": {
+      "message": "That file is not in a format Remoter imports: it is not an mRemoteNG document, an OpenSSH config or a CSV export.",
+      "actions": [
+        "Choose the source format yourself",
+        "Export the connections again as CSV"
+      ]
+    },
+    "orphaned-nodes": {
+      "message": "That file produced items whose folder is not in the import, so the tree could not be built. Nothing was written.",
+      "actions": [
+        "Import the whole file",
+        "Report this"
+      ]
+    },
+    "no-such-preview": {
+      "message": "That import preview is no longer held: it was committed, cancelled, or dropped when the vault locked. Nothing was written.",
+      "actions": [
+        "Choose the file again"
+      ]
     }
   },
-
   "validation": {
     "_comment_file": "The reader's own input being wrong. Each sentence names the rule rather than the value, because the core has already put the value in the sentence it sends and this one has to read correctly without it.",
     "name-empty": {
       "message": "That item needs a name.",
-      "actions": ["Type a name"]
+      "actions": [
+        "Type a name"
+      ]
     },
     "name-too-long": {
       "message": "That name is longer than the limit.",
-      "actions": ["Shorten the name"]
+      "actions": [
+        "Shorten the name"
+      ]
     },
     "control-char": {
       "message": "That value contains control characters, which cannot be stored.",
-      "actions": ["Retype it", "Paste it as plain text"]
+      "actions": [
+        "Retype it",
+        "Paste it as plain text"
+      ]
     },
     "description-too-long": {
       "message": "That description is longer than the limit.",
-      "actions": ["Shorten the description"]
+      "actions": [
+        "Shorten the description"
+      ]
     },
     "host-empty": {
       "message": "This connection has no address. Add a hostname or an IP address.",
-      "actions": ["Enter a hostname or IP address"]
+      "actions": [
+        "Enter a hostname or IP address"
+      ]
     },
     "host-invalid": {
       "message": "That is not a hostname, an IPv4 address or a bracketed IPv6 address.",
-      "actions": ["Check the spelling", "Wrap an IPv6 address in [brackets]"]
+      "actions": [
+        "Check the spelling",
+        "Wrap an IPv6 address in [brackets]"
+      ]
     },
     "port": {
       "message": "A port has to be between 1 and 65535.",
-      "actions": ["Enter a port in range", "Leave it empty to use the protocol default"]
+      "actions": [
+        "Enter a port in range",
+        "Leave it empty to use the protocol default"
+      ]
     },
     "tag": {
       "message": "That is not a usable tag.",
-      "actions": ["Use letters, digits, dashes and dots"]
+      "actions": [
+        "Use letters, digits, dashes and dots"
+      ]
     },
     "protocol": {
       "message": "That is not a protocol Remoter recognises.",
-      "actions": ["Choose a protocol from the list"]
+      "actions": [
+        "Choose a protocol from the list"
+      ]
     },
     "setting-key": {
       "message": "That is not a usable protocol setting name.",
-      "actions": ["Use letters, digits, dashes and dots"]
+      "actions": [
+        "Use letters, digits, dashes and dots"
+      ]
     },
     "custom-field-key": {
       "message": "That is not a usable custom field name.",
-      "actions": ["Use letters, digits, dashes and dots"]
+      "actions": [
+        "Use letters, digits, dashes and dots"
+      ]
     },
     "_comment_colour": "The two patterns are syntax, not words: leave #rrggbb and #rrggbbaa exactly as they are in every language.",
     "colour": {
       "message": "That is not a colour; expected #rrggbb or #rrggbbaa.",
-      "actions": ["Pick a colour from the swatches"]
+      "actions": [
+        "Pick a colour from the swatches"
+      ]
     },
     "icon": {
       "message": "That icon reference is empty or contains control characters.",
-      "actions": ["Pick an icon from the list"]
+      "actions": [
+        "Pick an icon from the list"
+      ]
     },
     "gateway-too-long": {
       "message": "That gateway chain has more hops than the limit allows.",
-      "actions": ["Remove a hop"]
+      "actions": [
+        "Remove a hop"
+      ]
     },
     "gateway-cycle": {
       "message": "The gateway chain loops back on itself: one host appears twice.",
-      "actions": ["Remove the repeated hop"]
+      "actions": [
+        "Remove the repeated hop"
+      ]
     },
     "gateway-hop-unknown": {
       "message": "One of the gateway hops points at an item that is no longer in this vault.",
-      "actions": ["Choose another gateway", "Connect directly"]
+      "actions": [
+        "Choose another gateway",
+        "Connect directly"
+      ]
     },
     "gateway-hop-kind": {
       "message": "A gateway hop has to be a connection; a folder cannot forward traffic.",
-      "actions": ["Choose a connection as the gateway"]
+      "actions": [
+        "Choose a connection as the gateway"
+      ]
     },
     "credential-unknown": {
       "message": "The credential this uses was deleted. Choose another, or enter one now.",
-      "actions": ["Choose another credential", "Enter one now"]
+      "actions": [
+        "Choose another credential",
+        "Enter one now"
+      ]
     },
     "credential-kind": {
       "message": "That item is not a credential.",
-      "actions": ["Choose a credential"]
+      "actions": [
+        "Choose a credential"
+      ]
     },
     "credential-attached": {
       "message": "That credential belongs to another connection. Sharing it would mean editing it in one place changed the other.",
-      "actions": ["Choose a shared credential", "Type a username and password here instead"]
+      "actions": [
+        "Choose a shared credential",
+        "Type a username and password here instead"
+      ]
     },
     "credential-attachment": {
       "message": "A credential in this vault belongs to a connection that is not there. Nothing was changed.",
-      "actions": ["Reload the vault", "Restore from a backup"]
+      "actions": [
+        "Reload the vault",
+        "Restore from a backup"
+      ]
     },
     "credential-purpose": {
       "message": "This credential is restricted and cannot be used for that protocol.",
-      "actions": ["Choose another credential", "Widen the credential's restriction"]
+      "actions": [
+        "Choose another credential",
+        "Widen the credential's restriction"
+      ]
     },
     "username-too-long": {
       "message": "That username is longer than the limit.",
-      "actions": ["Shorten the username"]
+      "actions": [
+        "Shorten the username"
+      ]
     },
     "external-credential": {
       "message": "An external credential needs both a provider and a reference.",
-      "actions": ["Fill in both fields"]
+      "actions": [
+        "Fill in both fields"
+      ]
     },
     "secret-empty": {
       "message": "A credential needs a secret; an empty envelope is not a credential.",
-      "actions": ["Enter a password", "Choose a key file"]
+      "actions": [
+        "Enter a password",
+        "Choose a key file"
+      ]
     },
     "layout": {
       "message": "A grid layout needs at least one row and one column.",
-      "actions": ["Set rows and columns to 1 or more"]
+      "actions": [
+        "Set rows and columns to 1 or more"
+      ]
     },
     "group-member": {
       "message": "One of this group's members is no longer in the vault.",
-      "actions": ["Remove the missing member"]
+      "actions": [
+        "Remove the missing member"
+      ]
     },
     "empty-action": {
       "message": "A connect or disconnect action cannot be an empty line.",
-      "actions": ["Remove the blank line"]
+      "actions": [
+        "Remove the blank line"
+      ]
     },
     "reconnect-policy": {
       "message": "Automatic reconnection needs at least one attempt and a backoff that does not shrink.",
-      "actions": ["Set the maximum backoff at or above the first"]
+      "actions": [
+        "Set the maximum backoff at or above the first"
+      ]
     },
     "interval": {
       "message": "Timeouts and keep-alive intervals have to be greater than zero.",
-      "actions": ["Enter a positive number", "Clear the field to inherit it"]
+      "actions": [
+        "Enter a positive number",
+        "Clear the field to inherit it"
+      ]
+    },
+    "protocol-missing": {
+      "message": "A connection needs a protocol: SSH, RDP, VNC or SFTP.",
+      "actions": [
+        "Choose a protocol"
+      ]
     }
+  },
+  "session": {
+    "no-address": {
+      "message": "This connection has no address. Open its settings to add one."
+    },
+    "invalid-host": {
+      "message": "That is not an address Remoter can use. Check it in the connection's settings."
+    },
+    "invalid-port": {
+      "message": "This connection has no usable port. Open its settings and set one between 1 and 65535."
+    },
+    "gateway-cycle": {
+      "message": "The gateway chain loops back on itself: one of its hops appears in the chain twice."
+    },
+    "gateway-too-long": {
+      "message": "This gateway chain has more hops than Remoter will walk."
+    },
+    "gateway-deleted": {
+      "message": "A hop in this gateway chain refers to a connection that has been deleted."
+    },
+    "gateway-credential-required": {
+      "message": "A hop in this gateway chain has no credential to authenticate with."
+    },
+    "gateway-not-a-connection": {
+      "message": "A hop in this gateway chain points at something that is not a connection."
+    },
+    "limit": {
+      "message": "You have as many sessions open as the limit allows. Close one, or raise the limit in settings."
+    },
+    "credential-deleted": {
+      "message": "The credential this connection used was deleted. Choose another, or enter one now."
+    },
+    "credential-purpose": {
+      "message": "This credential is restricted to other uses and cannot be used here."
+    },
+    "credential-required": {
+      "message": "No credential is available for this connection, and SSH has no anonymous login."
+    },
+    "credential-no-username": {
+      "message": "That credential has no account name, and SSH has no anonymous login."
+    },
+    "credential-not-a-credential": {
+      "message": "What this connection points at is not a credential, so it cannot be used to sign in."
+    },
+    "credential-external": {
+      "message": "That credential is held by another provider, and this build has no plugin that can fetch it."
+    },
+    "credential-unsupported": {
+      "message": "That credential is a certificate, which sessions of this protocol do not use."
+    },
+    "dns": {
+      "message": "That address could not be resolved. Check the name, or your DNS."
+    },
+    "refused": {
+      "message": "The server refused the connection. Is the service running?"
+    },
+    "timeout": {
+      "message": "The server did not respond in time. Check the firewall, or the gateway."
+    },
+    "unreachable": {
+      "message": "That address is unreachable from this machine. Check the network."
+    },
+    "hop-failed": {
+      "message": "The target could not be reached through the gateway chain: one of its hops failed. The details say which, and why."
+    },
+    "io": {
+      "message": "The connection failed on a read or a write. The details say which."
+    },
+    "host-key-unknown": {
+      "message": "The server offered a host key Remoter has never seen, and the session could not ask about it."
+    },
+    "_comment_host-key-changed": "SECURITY-CRITICAL. The reader decides from this sentence whether to trust the server in front of them, and a changed host key is what an interception looks like (docs/security/threat-model.md, T3). A translation must keep all three parts: the key is not the one that was trusted, this can mean someone is intercepting, and the two keys are in the details. Do not soften it into a routine warning, and do not suggest accepting the key.",
+    "host-key-changed": {
+      "message": "The key this server offered is not the one Remoter trusts for it. This can mean someone is intercepting the connection. The details show the trusted key and the one that was offered."
+    },
+    "host-key-rejected": {
+      "message": "The key the server offered was not accepted, so the session did not continue."
+    },
+    "host-key-nothing-to-replace": {
+      "message": "Nothing is stored for this host yet, so there is no key to replace. Review the fingerprint and accept it, or decline."
+    },
+    "fingerprint-malformed": {
+      "message": "That is not a SHA-256 fingerprint, so it could not be compared with the one the server offered."
+    },
+    "confirmation-mismatch": {
+      "message": "That is not the confirmation shown on screen, so the stored host key was left alone."
+    },
+    "no-shared-algorithm": {
+      "message": "The server only offers algorithms Remoter no longer accepts. The details list them."
+    },
+    "_comment_certificate-untrusted": "SECURITY-CRITICAL. This is the sentence a reader decides from when a server's certificate cannot be validated. A translation must keep the last clause: until the reason is resolved, there is no proof this is the intended server. Do not soften it, and do not imply the session may be continued safely.",
+    "certificate-untrusted": {
+      "message": "The certificate this server offered is not trusted. The details say why. Until that is resolved, there is no proof this is the server you meant to reach."
+    },
+    "handshake-failed": {
+      "message": "The handshake did not complete, so the session did not open. The details say how far it got."
+    },
+    "trust-store": {
+      "message": "The vault could not record the host key decision, so it was not saved."
+    },
+    "auth-rejected": {
+      "message": "The server rejected these credentials."
+    },
+    "auth-method-unavailable": {
+      "message": "The server does not accept that authentication method. The details list the ones it offers."
+    },
+    "auth-cancelled": {
+      "message": "The sign-in was cancelled, so the session did not open."
+    },
+    "agent-unavailable": {
+      "message": "The SSH agent is not running, or this process cannot reach its socket."
+    },
+    "setting-invalid": {
+      "message": "One of this connection's settings is not usable. The details say which, and what it has to be."
+    },
+    "setting-required": {
+      "message": "One of this connection's settings has no value, and the connection cannot open without it."
+    },
+    "protocol-unsupported": {
+      "message": "This build opens SSH and SFTP sessions only."
+    },
+    "unsupported": {
+      "message": "Sessions of this protocol do not support that."
+    },
+    "disconnected": {
+      "message": "The server closed the connection."
+    },
+    "network-lost": {
+      "message": "The network connection was lost."
+    },
+    "protocol-violation": {
+      "message": "The server sent something the protocol does not allow."
+    },
+    "cancelled": {
+      "message": "The session was cancelled before it opened."
+    },
+    "closed": {
+      "message": "That session is no longer running."
+    },
+    "no-such-session": {
+      "message": "That session is not open any more. Its tab can be closed."
+    },
+    "no-such-node": {
+      "message": "That connection is not in this vault any more. It may have been deleted in another window."
+    },
+    "no-such-prompt": {
+      "message": "That host key question is no longer open. The session may have given up waiting."
+    },
+    "frozen": {
+      "message": "The vault is locked, and this vault's policy is to freeze session input until it is unlocked. The session is still connected."
+    },
+    "event-stream-closed": {
+      "message": "The session's output stream was closed before the session was, so it has been ended."
+    },
+    "task-failed": {
+      "message": "The session failed with an internal error and has been closed. Nothing else was affected."
+    },
+    "shutdown-timeout": {
+      "message": "The session did not shut down in time and was stopped by force. This is a defect worth reporting."
+    },
+    "internal": {
+      "message": "Remoter hit an internal error. This is a defect worth reporting."
+    },
+    "failed": {
+      "_comment_": "Deliberately has no `message`. The core composes this one at the moment of failure — it is a diagnostic sentence naming what went wrong, with no `detail` beside it — so a generalised translation here would replace the only account of what happened. The reader sees the core's English sentence and translated action buttons. If SessionFailureDto ever carries the taxonomy code instead of this wrapper, give this entry a message and remove the note."
+    }
+  },
+  "sftp": {
+    "session-not-ready": {
+      "message": "That session is not connected, so there is nothing to browse on it yet. A file pane opens on a connection that has already authenticated.",
+      "actions": [
+        "Wait for it to connect",
+        "Open the connection again"
+      ]
+    },
+    "directory-not-empty": {
+      "message": "That directory was not removed. A directory has to be empty before it can be removed, and this one may not be.",
+      "actions": [
+        "Delete its contents too",
+        "Open it and look"
+      ]
+    },
+    "transfer-running": {
+      "message": "That transfer has not finished, so there is nothing to retry about it yet.",
+      "actions": [
+        "Stop it first",
+        "Wait for it to finish"
+      ]
+    },
+    "_comment_unsafe-name": "The name in question came from the remote server. The point of the sentence is that Remoter refused to take the server's word for where a file should land; a translation must not turn it into a complaint about the user's choice of folder.",
+    "unsafe-name": {
+      "message": "That file cannot be saved into that folder: the name the server gave it is not a plain file name.",
+      "actions": [
+        "Choose a name for it yourself",
+        "Save it somewhere else"
+      ]
+    },
+    "no-such-pane": {
+      "message": "That file pane is not open any more. Its session may have ended.",
+      "actions": [
+        "Close the pane",
+        "Open a file pane again"
+      ]
+    },
+    "no-such-transfer": {
+      "message": "That transfer is not in this pane's queue.",
+      "actions": [
+        "Refresh the transfer list"
+      ]
+    },
+    "subsystem-unavailable": {
+      "message": "This server did not open an SFTP subsystem. Some servers have it switched off, and some restrict it to particular accounts.",
+      "actions": [
+        "Ask the server's administrator to enable the SFTP subsystem",
+        "Use the terminal instead"
+      ]
+    },
+    "listing-too-large": {
+      "message": "That directory holds more than Remoter will read in one listing.",
+      "actions": [
+        "Open a subdirectory instead",
+        "Use the terminal for this directory"
+      ]
+    },
+    "rename-failed": {
+      "message": "That file could not be renamed. A rename cannot cross a filesystem on most servers, and one that tries is refused exactly like this.",
+      "actions": [
+        "Copy it across and delete the original",
+        "Rename it within the same filesystem"
+      ]
+    },
+    "transfer-failed": {
+      "_comment_": "Deliberately has no `message`, for the same reason as session.failed: the sentence is the transfer's own diagnostic, composed when it failed, and there is no detail beside it to fall back on."
+    }
+  },
+  "tunnel": {
+    "no-such-tunnel": {
+      "message": "That tunnel is not open any more.",
+      "actions": [
+        "Refresh the tunnel list"
+      ]
+    },
+    "_comment_bind-exposed": "SECURITY-CRITICAL. This is the sentence that stands between a forward bound to localhost and one the whole local network can use. A translation must keep both halves: the address is not loopback, and the forward would therefore be reachable from the local network. Do not soften it into a note about a preference.",
+    "bind-exposed": {
+      "message": "That is not a loopback address, so this forward would be reachable from the local network. Tick the option that says so, or bind it to localhost.",
+      "actions": [
+        "Bind to localhost",
+        "Expose it deliberately"
+      ]
+    },
+    "_comment_host-key-unknown": "SECURITY-CRITICAL. A tunnel has no window in which to ask about an unknown host key, so the sentence sends the reader to a session where the fingerprint can be reviewed. A translation must not suggest the key can be accepted from here, and must keep the instruction to review the fingerprint.",
+    "host-key-unknown": {
+      "message": "That server offered a host key Remoter has not been told to trust, and a tunnel has no window to ask in. Open a session to it first, review the fingerprint, and accept it there.",
+      "actions": [
+        "Open a session to this connection",
+        "Review the host key there"
+      ]
+    }
+  },
+  "update": {
+    "failed": {
+      "message": "The update check did not finish.",
+      "actions": [
+        "Try again",
+        "Or open the releases page in a browser"
+      ]
+    },
+    "unreachable": {
+      "message": "Remoter could not reach github.com to look for a newer release.",
+      "actions": [
+        "Check this machine's network connection",
+        "Try again",
+        "Or open the releases page in a browser"
+      ]
+    },
+    "unreadable": {
+      "message": "GitHub answered, but not with a release list Remoter could read.",
+      "actions": [
+        "Try again",
+        "Or open the releases page in a browser"
+      ]
+    },
+    "rate-limited": {
+      "message": "GitHub is not answering any more update checks from this network for now.",
+      "actions": [
+        "Try again later",
+        "Or open the releases page in a browser"
+      ]
+    },
+    "no-releases": {
+      "message": "GitHub has no published release list for Remoter.",
+      "actions": [
+        "Open the repository in a browser"
+      ]
+    },
+    "refused": {
+      "message": "GitHub refused the update check.",
+      "actions": [
+        "Try again later",
+        "Or open the releases page in a browser"
+      ]
+    }
+  },
+  "keyfile": {
+    "_comment_unprotected": "SECURITY-CRITICAL. The refusal exists because a key file that every account on the machine can read is not a second factor at all. A translation must keep the reason and the consequence — it was not written — and must not present this as a permissions warning the user may wave away.",
+    "unprotected": {
+      "message": "That key file cannot be restricted to your account: the file system it is on does not carry permissions, so every account on this machine could read it. A key file anyone can read is not a second factor, so it was not written.",
+      "actions": [
+        "Choose a location on a disk that keeps file permissions",
+        "Encrypt the removable drive, then write the key file to it"
+      ]
+    }
+  },
+  "slot": {
+    "label-empty": {
+      "message": "A key slot needs a name, so the list can say which key this is.",
+      "actions": [
+        "Type a name for this slot"
+      ]
+    }
+  },
+  "shortcut": {
+    "terminal-reserved": {
+      "message": "That combination belongs to the remote host: a focused terminal has to receive it, so binding it here would stop it reaching the shell.",
+      "actions": [
+        "Choose another combination",
+        "Bind it as an application shortcut, reached through the terminal prefix"
+      ]
+    }
+  },
+  "audit": {
+    "export-encode": {
+      "message": "The audit entries could not be encoded, so nothing was written.",
+      "actions": []
+    }
+  },
+  "recents": {
+    "encode": {
+      "message": "The recent-vault list could not be encoded, so it was not written.",
+      "actions": []
+    }
+  },
+  "settings": {
+    "encode": {
+      "message": "Your settings could not be encoded, so they were not saved.",
+      "actions": []
+    }
+  },
+  "_comment_action": "The shared action lexicon: one entry per action sentence that cannot be labelled where the failure is, translated once. Two kinds of action end up here: the ones the core composes for a session failure (`action_text` in session.rs), which turn up under dozens of codes in an order that depends on what failed; and the ones belonging to a code the core raises from several places with a different button each time, where a label at a fixed position would be the wrong sentence for every other arm. `src/i18n/failures.ts` holds the English sentence for each key and looks an action up here when the failure's own entry has no label at that position; `failures.catalogue.test.ts` checks that list against the Rust, so a wording change there fails the build here. These are button labels: keep them short, and keep them in the imperative or verbal-noun form the rest of this file uses.",
+  "action": {
+    "open-connection-settings": "Open this connection's settings",
+    "edit-gateway-chain": "Edit the gateway chain",
+    "check-address": "Check the address, or the DNS server that should know it",
+    "check-service": "Check that the service is listening on that port",
+    "check-firewall": "Check the firewall, or the gateway in front of it",
+    "check-network": "Check the network connection",
+    "retry": "Try again",
+    "reconnect": "Reconnect",
+    "choose-different-credential": "Choose a different credential",
+    "enter-credential": "Enter a credential for this attempt",
+    "choose-auth-method": "Choose a different authentication method",
+    "review-host-key": "Review the host key",
+    "verify-fingerprint-out-of-band": "Verify the fingerprint with the server's administrator before doing anything else",
+    "pin-certificate": "Pin the certificate to this connection",
+    "close-another-session-or-raise-limit": "Close another session, or raise the limit",
+    "contact-server-administrator": "Contact the server's administrator",
+    "report-defect": "Report this — it is a defect in Remoter",
+    "choose-credential": "Choose a credential",
+    "open-credential-settings": "Open the credential's settings",
+    "choose-gateway-credential": "Choose a credential for the gateway",
+    "open-its-settings": "Open its settings",
+    "verify-fingerprint": "Verify the fingerprint out of band",
+    "contact-administrator": "Contact the administrator",
+    "close-another-session": "Close another session",
+    "open-settings": "Open settings",
+    "refresh-list": "Refresh the list",
+    "try-connecting-again": "Try connecting again",
+    "close-tab": "Close the tab",
+    "use-ssh-or-sftp": "Use an SSH or SFTP connection",
+    "report-this": "Report this",
+    "unlock-vault": "Unlock the vault",
+    "select-connection-or-credential": "Select a connection or a credential",
+    "create-credential-for-connection": "Create a credential and point this connection at it",
+    "select-connection-or-folder": "Select a connection or a folder",
+    "edit-connection-instead": "Edit the connection instead",
+    "edit-connection-or-folder-instead": "Edit a connection or a folder instead",
+    "unlock-with-password-or-recovery-key": "Unlock with a password or your recovery key",
+    "use-password-or-recovery-slot": "Use a password or recovery slot",
+    "change-lock-policy": "Change the policy in vault settings"
   }
 }

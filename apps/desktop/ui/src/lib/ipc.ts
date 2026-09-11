@@ -106,11 +106,61 @@ export interface RecentVault {
    * loss.
    */
   reachable: boolean;
+  /**
+   * The English sentence for {@link unreachableKind}, from the core.
+   *
+   * **Do not render this** when a kind or a code is set. It is the fallback
+   * for a kind the interface has not learned yet, exactly as an `IpcFailure`'s
+   * `message` is the fallback for a code the `errors` catalogue has no entry
+   * for. The picker composes the sentence its reader needs from
+   * `vault:picker.unreachable.*`; see `unreachableText` in
+   * `@/features/vault/VaultPicker`.
+   */
   unreachableReason: string | null;
-  /** Set when the vault lives in a known cloud-sync folder. */
+  /**
+   * Why the vault cannot be reached, as a stable identifier rather than a
+   * sentence. `null` when the file is there but does not read as a vault —
+   * that case carries {@link unreachableCode} instead.
+   */
+  unreachableKind: UnreachableKind | null;
+  /**
+   * The underlying diagnostic: an operating-system error string. English on
+   * purpose, like an `IpcFailure`'s `detail` — it is what a reader copies into
+   * a bug report, and a translated one is no use to whoever reads it.
+   */
+  unreachableDetail: string | null;
+  /**
+   * The `IpcFailure.code` of the probe failure, when the file exists but is
+   * not a readable vault. Joined to the `errors` catalogue, which already has
+   * a translated sentence for every code the core can raise.
+   */
+  unreachableCode: string | null;
+  /**
+   * The English sentence for {@link syncProvider}.
+   *
+   * **Do not render this** either, and for the same reason —
+   * `vault:detail.syncWarning` is the sentence, composed around the provider.
+   */
   syncWarning: string | null;
+  /**
+   * The cloud-sync provider whose folder this vault sits in: `"Dropbox"`,
+   * `"OneDrive"`, `"iCloud Drive"`. A brand name, so it is never translated
+   * (docs/features/i18n.md, "What is never translated"); it is the *value*
+   * the warning is composed around.
+   */
+  syncProvider: string | null;
   sizeBytes: number | null;
 }
+
+/**
+ * Why a remembered vault cannot be opened.
+ *
+ * Stable identifiers from `UnreachableKind` in
+ * `crates/remoter-ipc/src/recents.rs`, and the keys of
+ * `vault:picker.unreachable.*`. `composed.catalogue.test.ts` reads the Rust
+ * and fails if either side drifts.
+ */
+export type UnreachableKind = "missing" | "unreadable" | "not-a-file";
 
 export interface Slot {
   index: number;
@@ -139,7 +189,17 @@ export interface VaultProbe {
   sizeBytes: number;
   slots: Slot[];
   backups: Backup[];
+  /**
+   * The English sentence for {@link syncProvider}. **Do not render this** — see
+   * {@link RecentVault.syncWarning}.
+   */
   syncWarning: string | null;
+  /**
+   * The cloud-sync provider whose folder this vault sits in. A brand name,
+   * never translated; the sentence in `vault:detail.syncWarning` is composed
+   * around it.
+   */
+  syncProvider: string | null;
   /**
    * The key file this vault was last opened with, if one is remembered on this
    * machine and still on disk. The path is not a secret; the file's contents
@@ -480,9 +540,35 @@ export interface SearchHit {
   path: string;
   /** Character ranges in `node.name` that matched, for highlighting. */
   nameMatches: [number, number][];
+  /**
+   * The hit's second line: an address for a connection, a login for a
+   * credential — values, rendered as they stand.
+   *
+   * For a folder or a group it is a count, and then this is English prose
+   * ("3 items") that **must not be rendered**: pass {@link subtitleKind} and
+   * {@link subtitleCount} through `connections:palette.subtitle.*` instead, so
+   * the phrase inflects and its digits follow the locale. This field stays as
+   * the fallback for a kind the interface does not know.
+   */
   subtitle: string;
+  /**
+   * Set when {@link subtitle} is a counted phrase the interface should compose
+   * itself. From `SubtitleKind` in `crates/remoter-ipc/src/commands.rs`.
+   */
+  subtitleKind: SubtitleKind | null;
+  /** The number {@link subtitleKind} counts. */
+  subtitleCount: number | null;
   score: number;
 }
+
+/**
+ * The two search-hit subtitles that are a sentence rather than a value.
+ *
+ * Stable identifiers from `SubtitleKind` in
+ * `crates/remoter-ipc/src/commands.rs`, and the keys of
+ * `connections:palette.subtitle.*`.
+ */
+export type SubtitleKind = "items" | "members";
 
 // ------------------------------------------------- vault administration ----
 

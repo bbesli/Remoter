@@ -35,10 +35,10 @@
     "_comment_collapse": "Verb, on the chevron of an open folder. The opposite of expand.",
     "collapse": "Recolher",
     "_comment_inheritsCount": "A badge on a folder: how many fields this folder sets that every entry beneath it takes from it. Very short — it sits in a badge a few characters wide.",
-    "inheritsCount": "{count, plural, one {herda #} other {herda #}}",
+    "inheritsCount": "{count, plural, one {herda #} many {herda #} other {herda #}}",
     "inheritsHint": "Campos que esta pasta define e que tudo abaixo dela herda",
     "_comment_usedByCount": "A badge on a shared credential: how many entries log in with it. Same width constraint as inheritsCount.",
-    "usedByCount": "{count, plural, one {usada por #} other {usada por #}}",
+    "usedByCount": "{count, plural, one {usada por #} many {usada por #} other {usada por #}}",
     "usedByHint": "Conexões que tiram a credencial desta entrada"
   },
 
@@ -56,7 +56,7 @@
     "_comment_": "SECURITY-CRITICAL SECTION. Deleting writes the vault at once and nothing can bring the entry back. Do not soften any of it, do not make it more polite, and do not turn a statement of fact into a suggestion.",
     "title": "Excluir esta entrada?",
     "_comment_contains": "Shown after the entry name when the entry is a folder with things inside it. {count} is everything beneath it, at any depth — not just its immediate children. SECURITY-CRITICAL: the point of the sentence is that the contents go too, which is the part a user does not expect.",
-    "contains": "{count, plural, one {Ela contém # entrada, que vai junto.} other {Ela contém # entradas, que vão junto.}}",
+    "contains": "{count, plural, one {Ela contém # entrada, que vai junto.} many {Ela contém # entradas, que vão junto.} other {Ela contém # entradas, que vão junto.}}",
     "_comment_irreversible": "SECURITY-CRITICAL. States two facts: the vault is written immediately, and there is no undo. Both must survive translation. 'in this version' is deliberate — it says the limit is this build, not the design.",
     "irreversible": "Excluir grava o cofre imediatamente. Nesta versão não existe desfazer.",
     "_comment_confirm": "The button that performs the deletion. Imperative. Keep it short and keep it unambiguous — this is the last thing between the user and permanent loss.",
@@ -113,8 +113,13 @@
     "_comment_countPending": "The total has not arrived yet. The ellipsis stands in for the number that is still coming; do not replace it with a zero.",
     "countPending": "{shown, number} de …",
     "_comment_countUnknown": "The total could not be read at all. Says only what is known rather than stating a total that would be wrong.",
-    "countUnknown": "{count, plural, one {# exibida} other {# exibidas}}",
+    "countUnknown": "{count, plural, one {# exibida} many {# exibidas} other {# exibidas}}",
     "countFailed": "Não foi possível ler a contagem de conexões",
+    "_comment_subtitle": "The second line of a search result, for the two shapes whose subtitle is a count rather than an address: a folder's children and a group's members. The core sends the number, so the plural category and the digits are this catalogue's to get right. The # is the number itself.",
+    "subtitle": {
+      "items": "{count, plural, one {# item} many {# itens} other {# itens}}",
+      "members": "{count, plural, one {# membro} many {# membros} other {# membros}}"
+    },
     "_comment_hintSelect": "A footer hint beside the Enter key cap. Two outcomes for one key: on a connection it opens a session, on a folder or a credential it selects. Lower case — it is a fragment beside a key, not a sentence.",
     "hintSelect": "conectar · selecionar",
     "_comment_hintEdit": "Beside the Ctrl+Enter key cap. Verb: open the entry in the editor.",
@@ -262,7 +267,7 @@
     "_comment_keyPassphraseHelp": "SECURITY-CRITICAL. Says where the passphrase goes: into the vault beside the key, once, and never shown again. It is asked for only when the key file says it is encrypted.",
     "keyPassphraseHelp": "Necessária uma vez, para ler a chave. Ela fica armazenada no cofre junto da chave e nunca mais é mostrada.",
     "_comment_keySize": "The size of the chosen key file. Bytes, not kilobytes — a private key is small and the exact figure is a useful sanity check.",
-    "keySize": "{count, plural, one {# byte} other {# bytes}}",
+    "keySize": "{count, plural, one {# byte} many {# bytes} other {# bytes}}",
 
     "_comment_errorKeyRequired": "Validation, shown after the first attempt to save. Every one of these says what to do next rather than what is wrong.",
     "errorKeyRequired": "Escolha o arquivo de chave privada que será armazenado neste cofre.",

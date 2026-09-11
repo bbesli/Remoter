@@ -156,7 +156,7 @@
     "nodeOption": "{name} — {host}",
     "clear": "Limpar filtros",
     "_comment_matching": "How many entries the current filter matches, shown at the end of the bar. Terse on purpose: it sits beside the filters it describes, so it does not repeat the word 'entries'.",
-    "matching": "{count, plural, one {# correspondente} other {# correspondentes}}"
+    "matching": "{count, plural, one {# correspondente} many {# correspondentes} other {# correspondentes}}"
   },
 
   "export": {
@@ -204,6 +204,6 @@
     "_comment_done": "The heading of the callout that replaces the form once the file is written.",
     "done": "Exportado.",
     "_comment_doneDetail": "{count} is how many entries were written, {path} the file that was written (isolated, so a path in another script cannot reorder the sentence), {size} its size already formatted for this locale. The last sentence is deliberate: it tells the reader that the log they were just looking at has changed, so a row they did not expect is not a sign of something wrong.",
-    "doneDetail": "{count, plural, one {# entrada gravada} other {# entradas gravadas}} em {path} ({size}). Uma linha registrando esta exportação está agora no topo do log."
+    "doneDetail": "{count, plural, one {# entrada gravada} many {# entradas gravadas} other {# entradas gravadas}} em {path} ({size}). Uma linha registrando esta exportação está agora no topo do log."
   }
 }

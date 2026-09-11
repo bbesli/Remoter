@@ -9,10 +9,11 @@
  */
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { i18n } from "@/i18n";
 import { useApp } from "@/stores/app";
 
 import { CommandPalette } from "./CommandPalette";
@@ -86,5 +87,80 @@ describe("the palette's actions", () => {
     // The palette closes behind the navigation; leaving it open would put a
     // focus trap over a screen the user just asked for.
     expect(useApp.getState().paletteOpen).toBe(false);
+  });
+});
+
+/**
+ * The same filter, run by a reader whose alphabet English does not cover.
+ *
+ * The palette filters *translated* labels, which is what makes the fold a
+ * localisation question rather than an ASCII one: the words being searched are
+ * in the reader's language, so the casing rules applied to them have to be
+ * that language's too.
+ */
+describe("the palette's actions, in Turkish", () => {
+  afterEach(async () => {
+    await act(async () => {
+      await i18n().changeLanguage("en");
+    });
+  });
+
+  async function switchToTurkish() {
+    await act(async () => {
+      await i18n().changeLanguage("tr");
+      await i18n().loadNamespaces(["connections", "common"]);
+    });
+  }
+
+  it("finds an action typed in Turkish capitals", async () => {
+    // "Kasayı kilitle". Turkish capitalises ı as I, so a reader typing the
+    // label in capitals produces KASAYI — which English rules fold to
+    // "kasayi", a word that appears in no label.
+    const user = userEvent.setup();
+    await switchToTurkish();
+    renderPalette();
+
+    await user.type(await screen.findByRole("textbox"), "KASAYI");
+
+    expect(
+      await screen.findByRole("option", { name: /Kasayı kilitle/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("finds one whose capital I carries a dot", async () => {
+    // "Bağlantıları içe aktar". English rules lowercase İ to an i with a
+    // separate combining dot, which matches nothing.
+    const user = userEvent.setup();
+    await switchToTurkish();
+    renderPalette();
+
+    await user.type(await screen.findByRole("textbox"), "İÇE");
+
+    expect(
+      await screen.findByRole("option", { name: /Bağlantıları içe aktar/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("still narrows rather than matching everything", async () => {
+    const user = userEvent.setup();
+    await switchToTurkish();
+    renderPalette();
+
+    await user.type(await screen.findByRole("textbox"), "KASAYI");
+
+    expect(screen.queryByRole("option", { name: /Denetim günlüğü/ })).not.toBeInTheDocument();
+  });
+
+  it("still reads a prefix filter as a question about connections", async () => {
+    // `tag:` and its siblings are ASCII the core defines, not words in the
+    // reader's language, so they are recognised through the invariant fold and
+    // the action list steps aside whatever the interface is set to.
+    const user = userEvent.setup();
+    await switchToTurkish();
+    renderPalette();
+
+    await user.type(await screen.findByRole("textbox"), "TAG:prod");
+
+    expect(screen.queryByRole("option", { name: /Ayarlar/ })).not.toBeInTheDocument();
   });
 });

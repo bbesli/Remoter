@@ -149,7 +149,7 @@
 
     "costTitle": "Lleva un tiempo real",
     "_comment_costBody": "PLURAL, on the number of password slots being re-wrapped. Argon2id is a key derivation function and is never translated. The one-slot wording is deliberately different rather than showing the numeral 1.",
-    "costBody": "{count, plural, one {Argon2id se ejecuta una vez, para la única ranura de contraseña, y se vuelve a sellar cada secreto guardado.} other {Argon2id se ejecuta una vez por cada ranura de contraseña —aquí hay #— y se vuelve a sellar cada secreto guardado.}}",
+    "costBody": "{count, plural, one {Argon2id se ejecuta una vez, para la única ranura de contraseña, y se vuelve a sellar cada secreto guardado.} many {Argon2id se ejecuta una vez por cada ranura de contraseña —aquí hay #— y se vuelve a sellar cada secreto guardado.} other {Argon2id se ejecuta una vez por cada ranura de contraseña —aquí hay #— y se vuelve a sellar cada secreto guardado.}}",
 
     "_comment_slotsLegend": "The legend over the per-slot form. Every slot must either be opened or explicitly discarded; there is no third option, which is what 'accounted for' means.",
     "slotsLegend": "Hay que resolver todas las ranuras, una por una",
@@ -333,7 +333,7 @@
     "_comment_choiceNever": "The first choice on the idle ladder: the vault never locks on its own.",
     "choiceNever": "Nunca",
     "_comment_choiceMinutes": "PLURAL. An idle timeout in minutes, on a small chip, so 'min' is abbreviated. Use this locale's conventional abbreviation; write the word out if there is none.",
-    "choiceMinutes": "{count, plural, one {# min} other {# min}}",
+    "choiceMinutes": "{count, plural, one {# min} many {# min} other {# min}}",
     "_comment_choiceHours": "PLURAL. The same ladder above an hour.",
     "choiceHours": "{count, plural, one {# hora} many {# de horas} other {# horas}}",
 

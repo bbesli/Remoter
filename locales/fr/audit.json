@@ -148,7 +148,7 @@
     "nodeOption": "{name} — {host}",
     "clear": "Effacer les filtres",
     "_comment_matching": "How many entries the current filter matches, shown at the end of the bar. Terse on purpose: it sits beside the filters it describes, so it does not repeat the word 'entries'.",
-    "matching": "{count, plural, one {# correspondance} other {# correspondances}}"
+    "matching": "{count, plural, one {# correspondance} many {# correspondances} other {# correspondances}}"
   },
   "export": {
     "_comment_": "The export dialog. Two things it says out loud, because both change whether someone should press the button: the export is itself written into the log, and the file it writes is not encrypted.",
@@ -190,6 +190,6 @@
     "_comment_done": "The heading of the callout that replaces the form once the file is written.",
     "done": "Export terminé.",
     "_comment_doneDetail": "{count} is how many entries were written, {path} the file that was written (isolated, so a path in another script cannot reorder the sentence), {size} its size already formatted for this locale. The last sentence is deliberate: it tells the reader that the log they were just looking at has changed, so a row they did not expect is not a sign of something wrong.",
-    "doneDetail": "{count, plural, one {# entrée écrite} other {# entrées écrites}} dans {path} ({size}). Une ligne consignant cet export figure désormais en tête du journal."
+    "doneDetail": "{count, plural, one {# entrée écrite} many {# entrées écrites} other {# entrées écrites}} dans {path} ({size}). Une ligne consignant cet export figure désormais en tête du journal."
   }
 }

@@ -149,7 +149,7 @@
 
     "costTitle": "Leva tempo de verdade",
     "_comment_costBody": "PLURAL, on the number of password slots being re-wrapped. Argon2id is a key derivation function and is never translated. The one-slot wording is deliberately different rather than showing the numeral 1.",
-    "costBody": "{count, plural, one {O Argon2id roda uma vez, para o único slot de senha, e todo segredo armazenado é selado de novo.} other {O Argon2id roda uma vez por slot de senha — # aqui — e todo segredo armazenado é selado de novo.}}",
+    "costBody": "{count, plural, one {O Argon2id roda uma vez, para o único slot de senha, e todo segredo armazenado é selado de novo.} many {O Argon2id roda uma vez por slot de senha — # aqui — e todo segredo armazenado é selado de novo.} other {O Argon2id roda uma vez por slot de senha — # aqui — e todo segredo armazenado é selado de novo.}}",
 
     "_comment_slotsLegend": "The legend over the per-slot form. Every slot must either be opened or explicitly discarded; there is no third option, which is what 'accounted for' means.",
     "slotsLegend": "Cada slot precisa ter um destino definido",
@@ -191,11 +191,11 @@
     "title": "O cofre foi rechaveado",
     "lead": "Tudo o que está abaixo já foi gravado no arquivo.",
     "_comment_rewrapped": "PLURAL. A slot that was re-wrapped still opens the vault, now under the new master key.",
-    "rewrapped": "{count, plural, one {# slot reencapsulado} other {# slots reencapsulados}}",
+    "rewrapped": "{count, plural, one {# slot reencapsulado} many {# slots reencapsulados} other {# slots reencapsulados}}",
     "_comment_dropped": "PLURAL. A discarded slot no longer exists and no longer opens the vault.",
-    "dropped": "{count, plural, one {# slot descartado} other {# slots descartados}}",
+    "dropped": "{count, plural, one {# slot descartado} many {# slots descartados} other {# slots descartados}}",
     "_comment_resealed": "PLURAL. Every password, key and passphrase stored in the vault, re-encrypted under the new master key.",
-    "resealed": "{count, plural, one {# segredo selado de novo} other {# segredos selados de novo}}"
+    "resealed": "{count, plural, one {# segredo selado de novo} many {# segredos selados de novo} other {# segredos selados de novo}}"
   },
 
   "addSlot": {
@@ -333,9 +333,9 @@
     "_comment_choiceNever": "The first choice on the idle ladder: the vault never locks on its own.",
     "choiceNever": "Nunca",
     "_comment_choiceMinutes": "PLURAL. An idle timeout in minutes, on a small chip, so 'min' is abbreviated. Use this locale's conventional abbreviation; write the word out if there is none.",
-    "choiceMinutes": "{count, plural, one {# min} other {# min}}",
+    "choiceMinutes": "{count, plural, one {# min} many {# min} other {# min}}",
     "_comment_choiceHours": "PLURAL. The same ladder above an hour.",
-    "choiceHours": "{count, plural, one {# hora} other {# horas}}",
+    "choiceHours": "{count, plural, one {# hora} many {# horas} other {# horas}}",
 
     "_comment_idleHelp": "What 'idle' actually measures. This sentence was wrong once and cost people work: it claimed the desktop's input idle time was being read, so users believed typing in a terminal kept the vault open when it did not. Translate what is measured, not what would be nicer to measure.",
     "idleHelp": "Ocioso quer dizer que nada tocou o cofre e nenhuma sessão transportou tráfego. Tanto as teclas que você envia quanto a saída que um host envia contam, então uma sessão que você está só acompanhando, sem digitar, não fica ociosa enquanto a saída continua chegando.",
@@ -418,7 +418,7 @@
     "zeroBody": "Se este cofre fica em uma pasta sincronizada, o provedor já guarda cópias históricas do texto cifrado, e pode ser que você não queira cópias extras dele espalhadas pelo disco também.",
 
     "_comment_present": "PLURAL, on how many backup files are beside the vault at this moment. The zero and one wordings are deliberately different from the general case rather than showing a numeral.",
-    "present": "{count, plural, =0 {Não há nenhum backup ao lado deste cofre neste momento.} one {Há um backup ao lado deste cofre neste momento.} other {Há # backups ao lado deste cofre neste momento.}}",
+    "present": "{count, plural, =0 {Não há nenhum backup ao lado deste cofre neste momento.} one {Há um backup ao lado deste cofre neste momento.} many {Há # backups ao lado deste cofre neste momento.} other {Há # backups ao lado deste cofre neste momento.}}",
     "_comment_presentPrune": "Follows the sentence above. Lowering the setting does not delete files that already exist.",
     "presentPrune": "Diminuir o número não apaga os arquivos já gravados; a próxima rotação para no novo limite.",
 

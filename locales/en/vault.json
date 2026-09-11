@@ -45,6 +45,12 @@
     "lede": "Nothing is decrypted until you unlock one.",
     "loading": "Reading the list of recent vaults…",
     "listFailed": "The list of recent vaults could not be read.",
+    "_comment_unreachable": "Why a remembered vault cannot be opened. The core sends a stable kind (\"missing\", \"unreadable\", \"not-a-file\") and the values; these are the sentences it sends them for. {path} is the vault's file path and {detail} is the operating system's own error text: neither is translated, and both are inserted as data, so a brace or a bracket in a file name cannot become message syntax.",
+    "unreachable": {
+      "missing": "{path} is not there. If it is on a removable drive or a network share, connect it and try again.",
+      "unreadable": "{path} could not be read: {detail}",
+      "not-a-file": "{path} is not a file any more."
+    },
     "_comment_openFromFile": "A button. The ellipsis means a file dialog opens, which is a convention worth keeping in every language that has it.",
     "openFromFile": "Open from file…",
     "createNew": "Create a new vault",
@@ -85,8 +91,10 @@
     "_comment_backups": "Copies of the vault file that Remoter writes beside it as it saves, oldest rotated out. Not the user's own backups.",
     "backups": "Rolling backups",
     "noBackups": "No backups have been written beside this file yet.",
-    "_comment_syncTitle": "The vault sits in a folder that a cloud service synchronises. The body text under it comes from the core.",
+    "_comment_syncTitle": "The vault sits in a folder that a cloud service synchronises. The body text under it is detail.syncWarning.",
     "syncTitle": "In a synced folder",
+    "_comment_syncWarning": "The body of the \"In a synced folder\" callout. {provider} is the cloud service's brand name (Dropbox, OneDrive, iCloud Drive) and is never translated; it appears twice. SECURITY-RELEVANT: the second half says the provider keeps earlier copies of the encrypted file, so changing a password today does not retract yesterday's copies. Do not drop it.",
+    "syncWarning": "This vault is inside a {provider} folder. It works, but editing it from two machines at once will leave a conflict copy, and {provider} keeps earlier versions of the encrypted file.",
     "unreachableTitle": "This vault cannot be reached",
     "slotBadge": {
       "_comment_": "Tooltips on the small icons in a row of the list, saying which unlock methods that vault has. Read aloud by a screen reader, so each one is a full noun phrase rather than a word.",
@@ -292,9 +300,9 @@
     "_comment_failed": "SECURITY-CRITICAL. Shown whichever factor was wrong — password, key file, recovery key. It must NOT say which one, and must not be made more helpful: naming the factor tells an attacker which half they already have (docs/security/key-management.md).",
     "failed": "That did not unlock the vault.",
     "_comment_attempt": "How many attempts have failed. Beside the message above.",
-    "attempt": "{count, plural, other {Attempt #}}",
+    "attempt": "{count, plural, one {Attempt #} other {Attempt #}}",
     "_comment_attemptWaiting": "The same count, plus the countdown the interface enforces before the next attempt. {attempt} is a number of attempts, {seconds} a number of seconds. 's' is the symbol for second and is not translated in languages that use it.",
-    "attemptWaiting": "{attempt, plural, other {Attempt #}} · {seconds, plural, other {next attempt in # s}}",
+    "attemptWaiting": "{attempt, plural, one {Attempt #} other {Attempt #}} · {seconds, plural, one {next attempt in # s} other {next attempt in # s}}",
     "_comment_refused": "The heading over any other failure the core reported. That failure's own sentence is shown beneath it, so this only has to frame it.",
     "refused": "The vault refused to open.",
     "keyfileMissing": "This slot also needs its key file before it can unlock.",
@@ -321,7 +329,7 @@
       "password": "Type the master password.",
       "recovery": "Type the recovery key.",
       "_comment_backoff": "The countdown after a failed attempt. {seconds} is a number of seconds; 's' is the symbol for second.",
-      "backoff": "{seconds, plural, other {Waiting # s before the next attempt after a failed one.}}"
+      "backoff": "{seconds, plural, one {Waiting # s before the next attempt after a failed one.} other {Waiting # s before the next attempt after a failed one.}}"
     },
     "damaged": {
       "_comment_": "SECURITY-CRITICAL as a set. A slot unwrapped correctly and the body then failed to decrypt, which means the file changed after it was written. The user's credentials were right, and the copy must say so first — anything vaguer sends someone hunting for a typo they never made.",

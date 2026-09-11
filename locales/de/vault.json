@@ -45,6 +45,12 @@
     "lede": "Es wird nichts entschlüsselt, bis Sie einen entsperren.",
     "loading": "Die Liste der zuletzt genutzten Tresore wird gelesen…",
     "listFailed": "Die Liste der zuletzt genutzten Tresore konnte nicht gelesen werden.",
+    "_comment_unreachable": "Why a remembered vault cannot be opened. The core sends a stable kind (\"missing\", \"unreadable\", \"not-a-file\") and the values; these are the sentences it sends them for. {path} is the vault's file path and {detail} is the operating system's own error text: neither is translated, and both are inserted as data, so a brace or a bracket in a file name cannot become message syntax.",
+    "unreachable": {
+      "missing": "{path} ist nicht vorhanden. Wenn die Datei auf einem Wechseldatenträger oder einer Netzwerkfreigabe liegt, verbinden Sie ihn und versuchen Sie es erneut.",
+      "unreadable": "{path} konnte nicht gelesen werden: {detail}",
+      "not-a-file": "{path} ist keine Datei mehr."
+    },
     "_comment_openFromFile": "A button. The ellipsis means a file dialog opens, which is a convention worth keeping in every language that has it.",
     "openFromFile": "Aus Datei öffnen…",
     "createNew": "Neuen Tresor anlegen",
@@ -85,8 +91,10 @@
     "_comment_backups": "Copies of the vault file that Remoter writes beside it as it saves, oldest rotated out. Not the user's own backups.",
     "backups": "Rollierende Backups",
     "noBackups": "Neben dieser Datei wurden noch keine Backups geschrieben.",
-    "_comment_syncTitle": "The vault sits in a folder that a cloud service synchronises. The body text under it comes from the core.",
+    "_comment_syncTitle": "The vault sits in a folder that a cloud service synchronises. The body text under it is detail.syncWarning.",
     "syncTitle": "In einem synchronisierten Ordner",
+    "_comment_syncWarning": "The body of the \"In a synced folder\" callout. {provider} is the cloud service's brand name (Dropbox, OneDrive, iCloud Drive) and is never translated; it appears twice. SECURITY-RELEVANT: the second half says the provider keeps earlier copies of the encrypted file, so changing a password today does not retract yesterday's copies. Do not drop it.",
+    "syncWarning": "Dieser Tresor liegt in einem {provider}-Ordner. Das funktioniert, aber wenn er von zwei Rechnern gleichzeitig bearbeitet wird, entsteht eine Konfliktkopie, und {provider} behält frühere Versionen der verschlüsselten Datei.",
     "unreachableTitle": "Dieser Tresor ist nicht erreichbar",
     "slotBadge": {
       "_comment_": "Tooltips on the small icons in a row of the list, saying which unlock methods that vault has. Read aloud by a screen reader, so each one is a full noun phrase rather than a word.",
@@ -292,9 +300,9 @@
     "_comment_failed": "SECURITY-CRITICAL. Shown whichever factor was wrong — password, key file, recovery key. It must NOT say which one, and must not be made more helpful: naming the factor tells an attacker which half they already have (docs/security/key-management.md).",
     "failed": "Damit ließ sich der Tresor nicht entsperren.",
     "_comment_attempt": "How many attempts have failed. Beside the message above.",
-    "attempt": "{count, plural, other {Versuch #}}",
+    "attempt": "{count, plural, one {Versuch #} other {Versuch #}}",
     "_comment_attemptWaiting": "The same count, plus the countdown the interface enforces before the next attempt. {attempt} is a number of attempts, {seconds} a number of seconds. 's' is the symbol for second and is not translated in languages that use it.",
-    "attemptWaiting": "{attempt, plural, other {Versuch #}} · {seconds, plural, other {nächster Versuch in # s}}",
+    "attemptWaiting": "{attempt, plural, one {Versuch #} other {Versuch #}} · {seconds, plural, one {nächster Versuch in # s} other {nächster Versuch in # s}}",
     "_comment_refused": "The heading over any other failure the core reported. That failure's own sentence is shown beneath it, so this only has to frame it.",
     "refused": "Der Tresor hat das Öffnen verweigert.",
     "keyfileMissing": "Dieser Slot benötigt zusätzlich seine Schlüsseldatei, bevor er entsperren kann.",
@@ -321,7 +329,7 @@
       "password": "Geben Sie das Master-Passwort ein.",
       "recovery": "Geben Sie den Wiederherstellungsschlüssel ein.",
       "_comment_backoff": "The countdown after a failed attempt. {seconds} is a number of seconds; 's' is the symbol for second.",
-      "backoff": "{seconds, plural, other {Nach einem Fehlversuch: # s Wartezeit bis zum nächsten.}}"
+      "backoff": "{seconds, plural, one {Nach einem Fehlversuch: # s Wartezeit bis zum nächsten.} other {Nach einem Fehlversuch: # s Wartezeit bis zum nächsten.}}"
     },
     "damaged": {
       "_comment_": "SECURITY-CRITICAL as a set. A slot unwrapped correctly and the body then failed to decrypt, which means the file changed after it was written. The user's credentials were right, and the copy must say so first — anything vaguer sends someone hunting for a typo they never made.",

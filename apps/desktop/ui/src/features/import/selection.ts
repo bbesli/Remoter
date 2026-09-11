@@ -16,6 +16,7 @@
  *     dropped and the child goes with it, whatever the tick said.
  */
 
+import { foldForSearch } from "@/i18n";
 import type { ImportNode } from "@/lib/ipc";
 
 export interface ImportTreeIndex {
@@ -218,18 +219,34 @@ export function excludedRoots(index: ImportTreeIndex, excluded: ReadonlySet<stri
  *
  * Returns `null` for an empty query, which the tree reads as "no filter" and
  * draws everything.
+ *
+ * `locale` is the language the interface is in, and it is here because casing
+ * is not universal. Both sides of the comparison used to be folded with
+ * `toLowerCase()`, which applies English rules: a Turkish user importing a
+ * file full of machines called "ISIK-*" could not find them by typing what is
+ * written on them, because English folds capital I to a dotted i and Turkish
+ * does not. The file being imported is very often a colleague's export, in the
+ * colleague's own language, so this is the screen where it bites first.
  */
-export function matchingIds(index: ImportTreeIndex, query: string): ReadonlySet<string> | null {
-  const needle = query.trim().toLowerCase();
+export function matchingIds(
+  index: ImportTreeIndex,
+  query: string,
+  locale: string,
+): ReadonlySet<string> | null {
+  const needle = foldForSearch(query.trim(), locale);
   if (needle === "") return null;
 
   const visible = new Set<string>();
   for (const id of index.order) {
     const node = index.byId.get(id);
     if (node === undefined) continue;
-    const haystack = [node.name, node.host ?? "", node.username ?? "", node.protocol ?? ""]
-      .join(" ")
-      .toLowerCase();
+    // The protocol is never translated (docs/features/i18n.md), but it folds
+    // with the rest: it is ASCII, and one fold over the joined line is what
+    // lets a query span a name and a host.
+    const haystack = foldForSearch(
+      [node.name, node.host ?? "", node.username ?? "", node.protocol ?? ""].join(" "),
+      locale,
+    );
     if (!haystack.includes(needle)) continue;
     visible.add(id);
     for (const ancestor of index.ancestors.get(id) ?? []) visible.add(ancestor);

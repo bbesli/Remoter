@@ -45,6 +45,12 @@
     "lede": "在您解锁之前，不会解密任何内容。",
     "loading": "正在读取最近使用的保险库列表…",
     "listFailed": "无法读取最近使用的保险库列表。",
+    "_comment_unreachable": "Why a remembered vault cannot be opened. The core sends a stable kind (\"missing\", \"unreadable\", \"not-a-file\") and the values; these are the sentences it sends them for. {path} is the vault's file path and {detail} is the operating system's own error text: neither is translated, and both are inserted as data, so a brace or a bracket in a file name cannot become message syntax.",
+    "unreachable": {
+      "missing": "{path} 不存在。如果它位于可移动驱动器或网络共享上，请连接后重试。",
+      "unreadable": "无法读取 {path}：{detail}",
+      "not-a-file": "{path} 已不再是文件。"
+    },
     "_comment_openFromFile": "A button. The ellipsis means a file dialog opens, which is a convention worth keeping in every language that has it.",
     "openFromFile": "从文件打开…",
     "createNew": "创建新的保险库",
@@ -85,8 +91,10 @@
     "_comment_backups": "Copies of the vault file that Remoter writes beside it as it saves, oldest rotated out. Not the user's own backups.",
     "backups": "滚动备份",
     "noBackups": "此文件旁边还没有写入过备份。",
-    "_comment_syncTitle": "The vault sits in a folder that a cloud service synchronises. The body text under it comes from the core.",
+    "_comment_syncTitle": "The vault sits in a folder that a cloud service synchronises. The body text under it is detail.syncWarning.",
     "syncTitle": "位于同步文件夹中",
+    "_comment_syncWarning": "The body of the \"In a synced folder\" callout. {provider} is the cloud service's brand name (Dropbox, OneDrive, iCloud Drive) and is never translated; it appears twice. SECURITY-RELEVANT: the second half says the provider keeps earlier copies of the encrypted file, so changing a password today does not retract yesterday's copies. Do not drop it.",
+    "syncWarning": "此保险库位于 {provider} 文件夹内。它可以正常使用，但同时在两台机器上编辑会留下冲突副本，而且 {provider} 会保留加密文件的早期版本。",
     "unreachableTitle": "无法访问此保险库",
     "slotBadge": {
       "_comment_": "Tooltips on the small icons in a row of the list, saying which unlock methods that vault has. Read aloud by a screen reader, so each one is a full noun phrase rather than a word.",

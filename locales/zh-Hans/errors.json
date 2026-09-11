@@ -1,5 +1,5 @@
 {
-  "_comment_file": "Every failure the core can hand the interface, keyed by the stable `code` on `IpcError` (crates/remoter-ipc/src/error.rs). The code is the join: the core sends a code, a sentence, an optional diagnostic and an ordered list of next actions, and this file supplies the sentence and the actions in the reader's language. A code with no entry here is not broken — the core's own English is rendered instead, which is what a failure newly added in Rust should look like until it is translated. Four rules for anyone editing this file. (1) `actions` is positional: the order is the order the core offered, and a label is used only when the entry has one at that position. (2) No sentence here may quote a password, a passphrase, a key or any other secret — a failure is the one moment an implementation is tempted to say what it was given. (3) The sentences carry no placeholders. The core fills its own sentence with the specifics (a path, a slot number, a byte offset) and those cannot be recovered from the finished string, so each sentence here is written to stay true without them; an English reader is shown the core's own sentence, specifics and all, and every other language is shown this one. (4) A message says what failed and what the reader can do about it. 'An error occurred' is never an acceptable translation of anything below.",
+  "_comment_file": "Every failure the core can hand the interface, keyed by the stable `code` on `IpcError`. The codes are raised all over `crates/remoter-ipc` — error.rs, session.rs, sftp.rs, tunnel.rs, commands.rs, state.rs, bridge.rs, vault_admin.rs, import.rs, recents.rs, audit.rs — and `src/i18n/failures.catalogue.test.ts` reads every one of those files, so a code with no entry here is a failing build rather than a sentence that turns up in English months later. The code is the join: the core sends a code, a sentence, an optional diagnostic and an ordered list of next actions, and this file supplies the sentence and the actions in the reader's language. Six rules for anyone editing this file. (1) `actions` is positional: the order is the order the core offered, and a label is used only when the entry has one at that position. (2) The `action` object at the end of this file is the shared lexicon, keyed by what the action means rather than by the failure it belongs to. Two kinds of entry rely on it and carry no `actions` of their own: every `session.*` failure, whose actions the core composes from a fixed set (`action_text` in session.rs) in an order that depends on what actually failed; and a code the core raises from several places with a different button each time, where one positional label would be the wrong sentence for every other arm. The lexicon labels those by the sentence the core sent. Positional labels still win where an entry has them. (3) No sentence here may quote a password, a passphrase, a key or any other secret — a failure is the one moment an implementation is tempted to say what it was given. (4) The sentences carry no placeholders. The core fills its own sentence with the specifics (a path, a slot number, a byte offset) and those cannot be recovered from the finished string, so each sentence here is written to stay true without them; an English reader is shown the core's own sentence, specifics and all, and every other language is shown this one. (5) A message says what failed and what the reader can do about it. 'An error occurred' is never an acceptable translation of anything below. (6) A few entries deliberately carry no `message` at all, and say so in a `_comment_`: for those the core composes the only description of what happened, so the reader is shown that sentence rather than a generalisation of it.",
   "unknown": {
     "_comment_": "Not a code the core sends: `asFailure` in apps/desktop/ui/src/lib/ipc.ts uses it when a rejection arrives with no shape at all — a panic inside a command, or a transport failure below Tauri. It is the last sentence in the application and should never be reached.",
     "message": "出了点问题。"
@@ -54,12 +54,9 @@
         "从此保险库提供的方式中选择一种"
       ]
     },
-    "_comment_fido2-unsupported": "The core sends this code both when a hardware key is offered as a way in and when one is added as a key slot, so the sentence has to stay true of both.",
+    "_comment_fido2-unsupported": "The core sends this code both when a hardware key is offered as a way in and when one is added as a key slot, so the sentence has to stay true of both. It has no `actions` of its own for the same reason: the two arms offer differently worded buttons, and the shared `action` lexicon at the end of this file labels whichever one the core sent.",
     "fido2-unsupported": {
-      "message": "此版本的 Remoter 尚未实现硬件密钥解锁。",
-      "actions": [
-        "使用密码或你的恢复密钥"
-      ]
+      "message": "此版本的 Remoter 尚未实现硬件密钥解锁。"
     },
     "not-a-vault": {
       "message": "该文件不是 Remoter 保险库。",
@@ -207,6 +204,52 @@
         "打开保险库旁边的备份",
         "报告此问题"
       ]
+    },
+    "label-empty": {
+      "message": "保险库需要一个名称。",
+      "actions": [
+        "为此保险库输入名称"
+      ]
+    },
+    "_comment_password-empty": "The core raises this both for a vault's master password and for a key slot's password, so the sentence has to stay true of both.",
+    "password-empty": {
+      "message": "该密码为空，而从空密码无法派生出任何内容。",
+      "actions": [
+        "输入密码",
+        "生成口令短语"
+      ]
+    },
+    "_comment_password-too-weak": "SECURITY-CRITICAL. The refusal must keep its reason: a weak password is not rescued by the key derivation function, and a vault is only as strong as its weakest slot. A translation that softens this into 'consider a stronger password' invites the user to keep the one they typed.",
+    "password-too-weak": {
+      "message": "该密码太容易被猜到，而保险库的强度只等于它最弱的槽位。Argon2id 会提高每次猜测的代价，但救不了攻击者很早就会尝试的密码。",
+      "actions": [
+        "生成口令短语",
+        "使用更长、更难预测的密码"
+      ]
+    },
+    "kdf-upgrade-refused": {
+      "message": "这打不开需要加强的那个槽位，因此该槽位保持原样。",
+      "actions": [
+        "输入创建此保险库时使用的密码",
+        "暂时保持现状 — 保险库仍可打开"
+      ]
+    },
+    "_comment_locked-unsaved": "SECURITY-CRITICAL in the data-loss sense: the vault is safe, the keys are gone from memory, and unsaved changes are gone with them. A translation must keep both facts. Do not imply the changes can be recovered.",
+    "locked-unsaved": {
+      "message": "保险库已锁定且密钥已清除，但文件未能写入，因此上次成功保存之后的所有更改都已丢失。",
+      "actions": [
+        "检查存放保险库的驱动器或共享位置",
+        "再次解锁并检查缺少了什么"
+      ]
+    },
+    "_comment_unlock-throttled": "SECURITY-CRITICAL. Like vault.unlock-failed, this sentence must not say which factor was wrong. It must also keep its reassurance: the wait is a delay, not a lockout, and a translation that reads like the vault has been sealed will send people looking for their recovery key when they do not need it.",
+    "unlock-throttled": {
+      "message": "连续多次解锁尝试都未成功，因此下一次需要等待。没有任何东西被永久锁定：等待结束后保险库即可打开。",
+      "actions": [
+        "等待倒计时结束",
+        "使用你的恢复密钥",
+        "如果此保险库使用密钥文件，请检查该文件"
+      ]
     }
   },
   "request": {
@@ -258,6 +301,13 @@
       "actions": [
         "用 `ssh-keygen -p -m PKCS8 -f <file>` 转换",
         "改用平台的 SSH 代理"
+      ]
+    },
+    "passphrase-required": {
+      "message": "该密钥受口令保护，没有口令 Remoter 无法用它进行身份验证。",
+      "actions": [
+        "输入该密钥的口令",
+        "选择未受口令保护的密钥"
       ]
     }
   },
@@ -329,6 +379,10 @@
       "actions": [
         "选择一个连接"
       ]
+    },
+    "_comment_field-not-applicable": "No `actions` of its own: the core raises this from seven places with a different instruction each time — select a credential, create one, edit the connection, edit a folder — so a label at position 0 would be the wrong sentence six times out of seven. The shared `action` lexicon at the end of this file translates each of them by what the core actually sent.",
+    "field-not-applicable": {
+      "message": "该字段不适用于此类项目。"
     }
   },
   "tree": {
@@ -490,6 +544,26 @@
       "actions": [
         "选择其他文件",
         "报告此问题"
+      ]
+    },
+    "unknown-format": {
+      "message": "该文件不是 Remoter 可导入的格式：它既不是 mRemoteNG 文档，也不是 OpenSSH 配置或 CSV 导出文件。",
+      "actions": [
+        "自行选择来源格式",
+        "将连接重新导出为 CSV"
+      ]
+    },
+    "orphaned-nodes": {
+      "message": "该文件产生了一些项目，其所属文件夹不在本次导入中，因此无法构建树。未写入任何内容。",
+      "actions": [
+        "导入整个文件",
+        "报告此问题"
+      ]
+    },
+    "no-such-preview": {
+      "message": "该导入预览已不再保留：它可能已提交、已取消，或在保险库锁定时被丢弃。未写入任何内容。",
+      "actions": [
+        "重新选择该文件"
       ]
     }
   },
@@ -685,6 +759,401 @@
         "输入正数",
         "清空该字段以继承取值"
       ]
+    },
+    "protocol-missing": {
+      "message": "连接需要一个协议：SSH、RDP、VNC 或 SFTP。",
+      "actions": [
+        "选择协议"
+      ]
     }
+  },
+  "session": {
+    "no-address": {
+      "message": "此连接没有地址。打开它的设置以添加一个。"
+    },
+    "invalid-host": {
+      "message": "这不是 Remoter 能使用的地址。请在连接设置中检查它。"
+    },
+    "invalid-port": {
+      "message": "此连接没有可用的端口。打开它的设置并设置 1 到 65535 之间的端口。"
+    },
+    "gateway-cycle": {
+      "message": "网关链形成了回环：其中一跳在链中出现了两次。"
+    },
+    "gateway-too-long": {
+      "message": "此网关链的跳数超过 Remoter 会走的上限。"
+    },
+    "gateway-deleted": {
+      "message": "此网关链中的一跳指向了一个已被删除的连接。"
+    },
+    "gateway-credential-required": {
+      "message": "此网关链中的一跳没有可用于身份验证的凭据。"
+    },
+    "gateway-not-a-connection": {
+      "message": "此网关链中的一跳指向的对象不是连接。"
+    },
+    "limit": {
+      "message": "你打开的会话数已达上限。请关闭一个，或在设置中提高上限。"
+    },
+    "credential-deleted": {
+      "message": "此连接使用的凭据已被删除。请选择其他凭据，或现在输入一个。"
+    },
+    "credential-purpose": {
+      "message": "此凭据被限制用于其他用途，不能在这里使用。"
+    },
+    "credential-required": {
+      "message": "此连接没有可用的凭据，而 SSH 没有匿名登录。"
+    },
+    "credential-no-username": {
+      "message": "该凭据没有账户名，而 SSH 没有匿名登录。"
+    },
+    "credential-not-a-credential": {
+      "message": "此连接指向的对象不是凭据，因此不能用于登录。"
+    },
+    "credential-external": {
+      "message": "该凭据由其他提供方保管，而此版本没有可以取得它的插件。"
+    },
+    "credential-unsupported": {
+      "message": "该凭据是证书，而此协议的会话不使用证书。"
+    },
+    "dns": {
+      "message": "无法解析该地址。请检查名称，或你的 DNS。"
+    },
+    "refused": {
+      "message": "服务器拒绝了连接。该服务在运行吗？"
+    },
+    "timeout": {
+      "message": "服务器未在规定时间内响应。请检查防火墙，或网关。"
+    },
+    "unreachable": {
+      "message": "从这台机器无法到达该地址。请检查网络。"
+    },
+    "hop-failed": {
+      "message": "无法经由网关链到达目标：其中一跳失败了。详情说明是哪一跳以及原因。"
+    },
+    "io": {
+      "message": "连接在一次读取或写入时失败。详情说明是哪一次。"
+    },
+    "host-key-unknown": {
+      "message": "服务器提供了一个 Remoter 从未见过的主机密钥，而该会话无法就此发问。"
+    },
+    "_comment_host-key-changed": "SECURITY-CRITICAL. The reader decides from this sentence whether to trust the server in front of them, and a changed host key is what an interception looks like (docs/security/threat-model.md, T3). A translation must keep all three parts: the key is not the one that was trusted, this can mean someone is intercepting, and the two keys are in the details. Do not soften it into a routine warning, and do not suggest accepting the key.",
+    "host-key-changed": {
+      "message": "此服务器提供的密钥不是 Remoter 为它信任的那一个。这可能意味着有人正在拦截该连接。详情列出了受信任的密钥和实际提供的密钥。"
+    },
+    "host-key-rejected": {
+      "message": "服务器提供的密钥未被接受，因此会话没有继续。"
+    },
+    "host-key-nothing-to-replace": {
+      "message": "此主机尚未存储任何内容，因此没有可替换的密钥。请核对指纹后接受，或拒绝。"
+    },
+    "fingerprint-malformed": {
+      "message": "这不是 SHA-256 指纹，因此无法与服务器提供的指纹比对。"
+    },
+    "confirmation-mismatch": {
+      "message": "这不是屏幕上显示的确认内容，因此已存储的主机密钥未被改动。"
+    },
+    "no-shared-algorithm": {
+      "message": "服务器只提供 Remoter 已不再接受的算法。详情中列出了这些算法。"
+    },
+    "_comment_certificate-untrusted": "SECURITY-CRITICAL. This is the sentence a reader decides from when a server's certificate cannot be validated. A translation must keep the last clause: until the reason is resolved, there is no proof this is the intended server. Do not soften it, and do not imply the session may be continued safely.",
+    "certificate-untrusted": {
+      "message": "此服务器提供的证书不受信任。详情说明了原因。在此问题解决之前，无法证明这就是你要连接的服务器。"
+    },
+    "handshake-failed": {
+      "message": "握手未能完成，因此会话没有打开。详情说明了进行到哪一步。"
+    },
+    "trust-store": {
+      "message": "保险库无法记录该主机密钥决定，因此没有保存。"
+    },
+    "auth-rejected": {
+      "message": "服务器拒绝了这些凭据。"
+    },
+    "auth-method-unavailable": {
+      "message": "服务器不接受该身份验证方式。详情列出了它提供的方式。"
+    },
+    "auth-cancelled": {
+      "message": "登录已取消，因此会话没有打开。"
+    },
+    "agent-unavailable": {
+      "message": "SSH 代理未在运行，或此进程无法访问它的套接字。"
+    },
+    "setting-invalid": {
+      "message": "此连接的某项设置不可用。详情说明是哪一项，以及它应当是什么。"
+    },
+    "setting-required": {
+      "message": "此连接的某项设置没有值，没有它就无法打开连接。"
+    },
+    "protocol-unsupported": {
+      "message": "此版本只能打开 SSH 和 SFTP 会话。"
+    },
+    "unsupported": {
+      "message": "此协议的会话不支持该操作。"
+    },
+    "disconnected": {
+      "message": "服务器关闭了连接。"
+    },
+    "network-lost": {
+      "message": "网络连接已中断。"
+    },
+    "protocol-violation": {
+      "message": "服务器发送了协议不允许的内容。"
+    },
+    "cancelled": {
+      "message": "会话在打开前已被取消。"
+    },
+    "closed": {
+      "message": "该会话已不再运行。"
+    },
+    "no-such-session": {
+      "message": "该会话已不再打开。可以关闭它的标签页。"
+    },
+    "no-such-node": {
+      "message": "该连接已不在此保险库中。它可能在另一个窗口中被删除了。"
+    },
+    "no-such-prompt": {
+      "message": "那个主机密钥询问已不再打开。该会话可能已放弃等待。"
+    },
+    "frozen": {
+      "message": "保险库已锁定，而此保险库的策略是在解锁之前冻结会话输入。会话仍保持连接。"
+    },
+    "event-stream-closed": {
+      "message": "该会话的输出流在会话之前被关闭，因此会话已结束。"
+    },
+    "task-failed": {
+      "message": "该会话因内部错误失败并已关闭。其他部分未受影响。"
+    },
+    "shutdown-timeout": {
+      "message": "该会话未能及时关闭，已被强制停止。这是值得报告的缺陷。"
+    },
+    "internal": {
+      "message": "Remoter 遇到了内部错误。这是值得报告的缺陷。"
+    },
+    "failed": {
+      "_comment_": "Deliberately has no `message`. The core composes this one at the moment of failure — it is a diagnostic sentence naming what went wrong, with no `detail` beside it — so a generalised translation here would replace the only account of what happened. The reader sees the core's English sentence and translated action buttons. If SessionFailureDto ever carries the taxonomy code instead of this wrapper, give this entry a message and remove the note."
+    }
+  },
+  "sftp": {
+    "session-not-ready": {
+      "message": "该会话尚未连接，因此还没有可浏览的内容。文件窗格只能在已完成身份验证的连接上打开。",
+      "actions": [
+        "等待它连接",
+        "重新打开该连接"
+      ]
+    },
+    "directory-not-empty": {
+      "message": "该目录未被删除。目录必须为空才能删除，而这个目录可能不是空的。",
+      "actions": [
+        "一并删除其中的内容",
+        "打开查看"
+      ]
+    },
+    "transfer-running": {
+      "message": "该传输尚未结束，因此还没有可重试的内容。",
+      "actions": [
+        "先停止它",
+        "等待它完成"
+      ]
+    },
+    "_comment_unsafe-name": "The name in question came from the remote server. The point of the sentence is that Remoter refused to take the server's word for where a file should land; a translation must not turn it into a complaint about the user's choice of folder.",
+    "unsafe-name": {
+      "message": "该文件无法保存到那个文件夹：服务器给它的名称不是普通的文件名。",
+      "actions": [
+        "自行为它选择名称",
+        "保存到其他位置"
+      ]
+    },
+    "no-such-pane": {
+      "message": "该文件窗格已不再打开。它的会话可能已结束。",
+      "actions": [
+        "关闭该窗格",
+        "重新打开文件窗格"
+      ]
+    },
+    "no-such-transfer": {
+      "message": "该传输不在此窗格的队列中。",
+      "actions": [
+        "刷新传输列表"
+      ]
+    },
+    "subsystem-unavailable": {
+      "message": "此服务器没有打开 SFTP 子系统。有些服务器关闭了它，有些则只允许特定账户使用。",
+      "actions": [
+        "请服务器管理员启用 SFTP 子系统",
+        "改用终端"
+      ]
+    },
+    "listing-too-large": {
+      "message": "该目录的内容超过 Remoter 一次列出的上限。",
+      "actions": [
+        "改为打开子目录",
+        "对该目录使用终端"
+      ]
+    },
+    "rename-failed": {
+      "message": "该文件无法重命名。在大多数服务器上，重命名不能跨文件系统，尝试跨越时得到的正是这样的拒绝。",
+      "actions": [
+        "复制过去后删除原文件",
+        "在同一文件系统内重命名"
+      ]
+    },
+    "transfer-failed": {
+      "_comment_": "Deliberately has no `message`, for the same reason as session.failed: the sentence is the transfer's own diagnostic, composed when it failed, and there is no detail beside it to fall back on."
+    }
+  },
+  "tunnel": {
+    "no-such-tunnel": {
+      "message": "该隧道已不再打开。",
+      "actions": [
+        "刷新隧道列表"
+      ]
+    },
+    "_comment_bind-exposed": "SECURITY-CRITICAL. This is the sentence that stands between a forward bound to localhost and one the whole local network can use. A translation must keep both halves: the address is not loopback, and the forward would therefore be reachable from the local network. Do not soften it into a note about a preference.",
+    "bind-exposed": {
+      "message": "这不是回环地址，因此此转发将可从本地网络访问。请勾选表示你确实要这样做的选项，或将其绑定到 localhost。",
+      "actions": [
+        "绑定到 localhost",
+        "有意对外暴露"
+      ]
+    },
+    "_comment_host-key-unknown": "SECURITY-CRITICAL. A tunnel has no window in which to ask about an unknown host key, so the sentence sends the reader to a session where the fingerprint can be reviewed. A translation must not suggest the key can be accepted from here, and must keep the instruction to review the fingerprint.",
+    "host-key-unknown": {
+      "message": "该服务器提供的主机密钥尚未被告知可以信任，而隧道没有可供询问的窗口。请先打开到它的会话，核对指纹并在那里接受。",
+      "actions": [
+        "打开到此连接的会话",
+        "在那里查看主机密钥"
+      ]
+    }
+  },
+  "update": {
+    "failed": {
+      "message": "更新检查没有完成。",
+      "actions": [
+        "重试",
+        "或在浏览器中打开发布页面"
+      ]
+    },
+    "unreachable": {
+      "message": "Remoter 无法访问 github.com 以查找更新的版本。",
+      "actions": [
+        "检查这台机器的网络连接",
+        "重试",
+        "或在浏览器中打开发布页面"
+      ]
+    },
+    "unreadable": {
+      "message": "GitHub 有响应，但返回的不是 Remoter 能读取的发布列表。",
+      "actions": [
+        "重试",
+        "或在浏览器中打开发布页面"
+      ]
+    },
+    "rate-limited": {
+      "message": "GitHub 暂时不再回应来自此网络的更新检查。",
+      "actions": [
+        "稍后重试",
+        "或在浏览器中打开发布页面"
+      ]
+    },
+    "no-releases": {
+      "message": "GitHub 上没有 Remoter 的已发布版本列表。",
+      "actions": [
+        "在浏览器中打开仓库"
+      ]
+    },
+    "refused": {
+      "message": "GitHub 拒绝了此次更新检查。",
+      "actions": [
+        "稍后重试",
+        "或在浏览器中打开发布页面"
+      ]
+    }
+  },
+  "keyfile": {
+    "_comment_unprotected": "SECURITY-CRITICAL. The refusal exists because a key file that every account on the machine can read is not a second factor at all. A translation must keep the reason and the consequence — it was not written — and must not present this as a permissions warning the user may wave away.",
+    "unprotected": {
+      "message": "该密钥文件无法限定为只有你的账户可读：它所在的文件系统不保存权限，因此这台机器上的每个账户都能读取它。任何人都能读取的密钥文件不是第二因素，因此没有写入。",
+      "actions": [
+        "选择保留文件权限的磁盘上的位置",
+        "先加密该可移动驱动器，再将密钥文件写入"
+      ]
+    }
+  },
+  "slot": {
+    "label-empty": {
+      "message": "密钥槽位需要一个名称，这样列表才能说明这是哪一个密钥。",
+      "actions": [
+        "为此槽位输入名称"
+      ]
+    }
+  },
+  "shortcut": {
+    "terminal-reserved": {
+      "message": "该组合键属于远程主机：处于焦点的终端必须接收它，因此在这里绑定会让它无法到达 shell。",
+      "actions": [
+        "选择其他组合键",
+        "将其绑定为应用程序快捷键，通过终端前缀触发"
+      ]
+    }
+  },
+  "audit": {
+    "export-encode": {
+      "message": "审计条目无法编码，因此未写入任何内容。",
+      "actions": []
+    }
+  },
+  "recents": {
+    "encode": {
+      "message": "最近使用的保险库列表无法编码，因此未写入。",
+      "actions": []
+    }
+  },
+  "settings": {
+    "encode": {
+      "message": "你的设置无法编码，因此没有保存。",
+      "actions": []
+    }
+  },
+  "_comment_action": "The shared action lexicon: one entry per action sentence that cannot be labelled where the failure is, translated once. Two kinds of action end up here: the ones the core composes for a session failure (`action_text` in session.rs), which turn up under dozens of codes in an order that depends on what failed; and the ones belonging to a code the core raises from several places with a different button each time, where a label at a fixed position would be the wrong sentence for every other arm. `src/i18n/failures.ts` holds the English sentence for each key and looks an action up here when the failure's own entry has no label at that position; `failures.catalogue.test.ts` checks that list against the Rust, so a wording change there fails the build here. These are button labels: keep them short, and keep them in the imperative or verbal-noun form the rest of this file uses.",
+  "action": {
+    "open-connection-settings": "打开此连接的设置",
+    "edit-gateway-chain": "编辑网关链",
+    "check-address": "检查地址，或本应解析它的 DNS 服务器",
+    "check-service": "检查该服务是否在此端口上监听",
+    "check-firewall": "检查防火墙，或它前面的网关",
+    "check-network": "检查网络连接",
+    "retry": "重试",
+    "reconnect": "重新连接",
+    "choose-different-credential": "选择其他凭据",
+    "enter-credential": "为本次尝试输入凭据",
+    "choose-auth-method": "选择其他身份验证方式",
+    "review-host-key": "查看主机密钥",
+    "verify-fingerprint-out-of-band": "先与服务器管理员核对指纹，再做其他任何事",
+    "pin-certificate": "将证书固定到此连接",
+    "close-another-session-or-raise-limit": "关闭其他会话，或提高上限",
+    "contact-server-administrator": "联系服务器管理员",
+    "report-defect": "报告此问题 — 这是 Remoter 的缺陷",
+    "choose-credential": "选择凭据",
+    "open-credential-settings": "打开该凭据的设置",
+    "choose-gateway-credential": "为该网关选择凭据",
+    "open-its-settings": "打开它的设置",
+    "verify-fingerprint": "通过其他渠道核对指纹",
+    "contact-administrator": "联系管理员",
+    "close-another-session": "关闭另一个会话",
+    "open-settings": "打开设置",
+    "refresh-list": "刷新列表",
+    "try-connecting-again": "重新尝试连接",
+    "close-tab": "关闭标签页",
+    "use-ssh-or-sftp": "使用 SSH 或 SFTP 连接",
+    "report-this": "报告此问题",
+    "unlock-vault": "解锁保险库",
+    "select-connection-or-credential": "选择一个连接或凭据",
+    "create-credential-for-connection": "创建一个凭据，并让此连接指向它",
+    "select-connection-or-folder": "选择一个连接或文件夹",
+    "edit-connection-instead": "改为编辑该连接",
+    "edit-connection-or-folder-instead": "改为编辑一个连接或文件夹",
+    "unlock-with-password-or-recovery-key": "使用密码或你的恢复密钥",
+    "use-password-or-recovery-slot": "使用密码或恢复槽位",
+    "change-lock-policy": "在保险库设置中更改该策略"
   }
 }

@@ -29,6 +29,7 @@ import {
   formatRelativeTime,
   isolate,
   isolateLtr,
+  useFailureText,
   useLocale,
   useT,
 } from "@/i18n";
@@ -362,6 +363,83 @@ export function VaultPicker() {
   );
 }
 
+// ------------------------------------------------------------- composition ---
+
+/**
+ * Why this vault cannot be opened, in the reader's language.
+ *
+ * This is the first screen of the application, and it is read before anything
+ * has been unlocked — so it is the worst possible place for English prose to
+ * leak through, and it was doing exactly that: the core composed the sentence
+ * and the picker printed it, which put "…is not there. If it is on a removable
+ * drive…" in front of a reader whose interface was otherwise entirely Turkish.
+ *
+ * The core now sends a stable kind and the values (`UnreachableKind` in
+ * `crates/remoter-ipc/src/recents.rs`) and the sentence is composed here, the
+ * same shape the failure catalogue uses. Two fallbacks, in order:
+ *
+ * - a file that is there but does not read as a vault arrives as an
+ *   `IpcError` code instead of a kind, because `errors.json` already holds a
+ *   translated sentence for every code the core can raise — better than any
+ *   generalisation this screen could write;
+ * - a kind this build has never heard of falls back to the core's English,
+ *   which is what an unknown failure code gets and for the same reason.
+ */
+export function useUnreachableText(vault: RecentVault): string {
+  const t = useT("vault");
+  // Unconditional, as a hook must be. A vault with no code resolves nothing:
+  // `useFailureText` refuses anything that is not a dotted ASCII code and
+  // hands back what it was given, which is discarded below.
+  // Named for what it is — the *text*, already through the catalogue — and not
+  // for what it came from. A localised sentence held under a name ending in
+  // "failure" reads at a glance like the core's English, and
+  // `failures.rendering.test.ts` reads it that way too.
+  const text = useFailureText({
+    code: vault.unreachableCode ?? "",
+    message: vault.unreachableReason ?? "",
+    detail: null,
+    actions: [],
+  });
+  const english = vault.unreachableReason ?? t("detail.unreachableTitle");
+
+  if (vault.unreachableCode !== null) return text.message;
+
+  // A file path inside a sentence: isolated so it cannot reorder the text
+  // around it in Arabic. See src/i18n/bidi.ts.
+  const path = isolateLtr(vault.path);
+  switch (vault.unreachableKind) {
+    case "missing":
+      return t("picker.unreachable.missing", { path });
+    case "unreadable":
+      // The diagnostic is the operating system's own words and stays English
+      // (docs/features/i18n.md). Without one there is no sentence to build.
+      return vault.unreachableDetail === null
+        ? english
+        : t("picker.unreachable.unreadable", { path, detail: vault.unreachableDetail });
+    case "not-a-file":
+      return t("picker.unreachable.not-a-file", { path });
+    default:
+      return english;
+  }
+}
+
+/**
+ * The cloud-sync warning, in the reader's language.
+ *
+ * The provider is a brand name and never translated; it is the one value the
+ * sentence is composed around. `syncWarning` is the core's English and is kept
+ * only as the fallback for a build that has no entry for this — see
+ * `RecentVault.syncWarning` in `@/lib/ipc`.
+ */
+export function syncWarningText(
+  t: TFunction<"vault">,
+  provider: string | null,
+  english: string | null,
+): string | null {
+  if (provider === null) return english;
+  return t("detail.syncWarning", { provider });
+}
+
 // -------------------------------------------------------------------- row ---
 
 function VaultRow({
@@ -377,6 +455,7 @@ function VaultRow({
 }) {
   const t = useT("vault");
   const { code: locale } = useLocale();
+  const unreachable = useUnreachableText(vault);
   const classes = [s.row, selected ? s.rowSelected : "", vault.reachable ? "" : s.rowDisabled]
     .filter(Boolean)
     .join(" ");
@@ -426,7 +505,7 @@ function VaultRow({
       ) : (
         <span className={s.rowUnreachable}>
           <Icon name="alert" size={12} />
-          {vault.unreachableReason ?? t("detail.unreachableTitle")}
+          {unreachable}
         </span>
       )}
     </button>
@@ -497,6 +576,14 @@ function VaultDetail({
     queryKey: qk.vaultProbe(vault.path),
     queryFn: () => ipc.probeVault(vault.path),
   });
+  // The probe is authoritative once it lands; the recents entry is what the
+  // list already knew. Either can name the provider, and neither may be here
+  // yet.
+  const probeSync = syncWarningText(
+    t,
+    probe.data?.syncProvider ?? null,
+    probe.data?.syncWarning ?? null,
+  );
 
   return (
     <>
@@ -559,12 +646,13 @@ function VaultDetail({
             </ul>
           )}
 
-          {/* The warning itself is the core's sentence; only its heading is ours. */}
-          {probe.data.syncWarning !== null ? (
+          {/* Both the heading and the body are ours: the core sends the
+              provider's name, and the sentence is composed around it. */}
+          {probeSync !== null ? (
             <>
               <hr className={s.rule} />
               <Callout tone="warning" title={t("detail.syncTitle")}>
-                <p className={s.calloutBody}>{probe.data.syncWarning}</p>
+                <p className={s.calloutBody}>{probeSync}</p>
               </Callout>
             </>
           ) : null}
@@ -592,12 +680,14 @@ function UnreachableDetail({
   forgetFailure: IpcFailure | null;
 }) {
   const t = useT("vault");
+  const unreachable = useUnreachableText(vault);
+  const sync = syncWarningText(t, vault.syncProvider, vault.syncWarning);
 
   return (
     <>
       <div className={s.asideHead}>{isolate(vault.label)}</div>
       <Callout tone="warning" title={t("detail.unreachableTitle")}>
-        <p className={s.calloutBody}>{vault.unreachableReason ?? isolateLtr(vault.path)}</p>
+        <p className={s.calloutBody}>{unreachable}</p>
       </Callout>
       <dl className={s.stats}>
         <div className={s.stat}>
@@ -609,9 +699,9 @@ function UnreachableDetail({
           </dd>
         </div>
       </dl>
-      {vault.syncWarning !== null ? (
+      {sync !== null ? (
         <Callout tone="warning" title={t("detail.syncTitle")}>
-          <p className={s.calloutBody}>{vault.syncWarning}</p>
+          <p className={s.calloutBody}>{sync}</p>
         </Callout>
       ) : null}
       <div className={s.spacer} />

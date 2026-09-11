@@ -25,6 +25,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
+import type { TFunction } from "i18next";
 
 import { Badge } from "@/components/Badge";
 import { BusyStatus, SkeletonRows } from "@/components/Busy";
@@ -32,7 +33,7 @@ import { FailureNotice } from "@/components/FailureNotice";
 import { Icon, type IconName } from "@/components/Icon";
 import { Spinner } from "@/components/Spinner";
 import { TextInput } from "@/components/TextInput";
-import { isolate, useT } from "@/i18n";
+import { foldForSearch, foldInvariant, isolate, useLocale, useT } from "@/i18n";
 import { asFailure, ipc, type SearchHit } from "@/lib/ipc";
 import { qk } from "@/lib/queryKeys";
 import { useApp } from "@/stores/app";
@@ -135,9 +136,44 @@ export function CommandPalette() {
   );
 }
 
+/**
+ * The second line of a search hit.
+ *
+ * Three of the five node shapes answer with a value — an address, a login,
+ * nothing — and those render as they stand: they are not language. The other
+ * two answer with a count, and the core used to send that as a finished
+ * English phrase ("1 item", "12 members"), hand-pluralised with English rules
+ * and written in ASCII digits. The palette printed it verbatim, so a reader
+ * who had chosen Russian got English prose with the wrong plural category, and
+ * a reader who had chosen Arabic or Hindi got the wrong digits as well.
+ *
+ * Now the core sends `subtitleKind` and `subtitleCount`, and the phrase is an
+ * ICU plural from this catalogue — which is the only place that can know that
+ * Russian has four categories and Arabic six. `hit.subtitle` stays as the
+ * fallback for a kind this build has not learned yet, exactly as an
+ * `IpcFailure`'s `message` is the fallback for an unknown code.
+ */
+export function subtitleText(t: TFunction<"connections">, hit: SearchHit): string {
+  if (hit.subtitleKind === null) return hit.subtitle;
+  // Absent rather than zero would be a core that sent a kind and forgot the
+  // number; "0 items" is the honest reading of that and beats an empty line.
+  const count = hit.subtitleCount ?? 0;
+  switch (hit.subtitleKind) {
+    case "items":
+      return t("palette.subtitle.items", { count });
+    case "members":
+      return t("palette.subtitle.members", { count });
+    default:
+      return hit.subtitle;
+  }
+}
+
 function PaletteSheet({ onClose }: { onClose: () => void }) {
   const t = useT("connections");
   const tCommon = useT("common");
+  // The action filter folds translated labels, so it needs the language they
+  // were translated into. See the `foldForSearch` call below.
+  const { code: locale } = useLocale();
   const select = useApp((st) => st.select);
   const go = useApp((st) => st.go);
   const openEditor = useConnectionEditor((st) => st.open);
@@ -259,12 +295,19 @@ function PaletteSheet({ onClose }: { onClose: () => void }) {
         },
       },
     ];
-    const needle = query.trim().toLowerCase();
+    const typed = query.trim();
     // A prefix filter is a question about connections; it is not about actions.
-    if (PREFIXES.some((p) => needle.startsWith(p))) return [];
-    if (needle === "") return all;
-    return all.filter((a) => a.label.toLowerCase().includes(needle));
-  }, [query, lock, locking, lockShortcut, onClose, openEditor, go, t]);
+    // The prefixes are ASCII the core defines, not words in anyone's language,
+    // so they are recognised through the invariant fold.
+    if (PREFIXES.some((p) => foldInvariant(typed).startsWith(p))) return [];
+    if (typed === "") return all;
+    // The labels are translated, so they fold under the reader's own casing
+    // rules — `toLowerCase()` applied English ones to every language, and a
+    // Turkish reader filtering on a label containing a capital I was told
+    // there was no such action.
+    const needle = foldForSearch(typed, locale);
+    return all.filter((a) => foldForSearch(a.label, locale).includes(needle));
+  }, [query, locale, lock, locking, lockShortcut, onClose, openEditor, go, t]);
 
   const items = useMemo<Item[]>(
     () => [
@@ -462,7 +505,7 @@ function PaletteSheet({ onClose }: { onClose: () => void }) {
                   <Icon name={nodeGlyph(hit.node)} size={14} />
                 </span>
                 <span className={s.itemName}>{highlight(hit.node.name, hit.nameMatches)}</span>
-                <span className={s.subtitle}>{hit.subtitle}</span>
+                <span className={s.subtitle}>{subtitleText(t, hit)}</span>
                 {hit.node.tags.length > 0 && (
                   <Badge tone="neutral" mono>
                     {hit.node.tags[0]}

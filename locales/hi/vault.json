@@ -45,6 +45,12 @@
     "lede": "जब तक आप अनलॉक नहीं करते, कुछ भी डिक्रिप्ट नहीं होता।",
     "loading": "हाल के वॉल्ट की सूची पढ़ी जा रही है…",
     "listFailed": "हाल के वॉल्ट की सूची पढ़ी नहीं जा सकी।",
+    "_comment_unreachable": "Why a remembered vault cannot be opened. The core sends a stable kind (\"missing\", \"unreadable\", \"not-a-file\") and the values; these are the sentences it sends them for. {path} is the vault's file path and {detail} is the operating system's own error text: neither is translated, and both are inserted as data, so a brace or a bracket in a file name cannot become message syntax.",
+    "unreachable": {
+      "missing": "{path} वहाँ नहीं है। यदि यह किसी हटाने योग्य ड्राइव या नेटवर्क शेयर पर है, तो उसे जोड़कर फिर से कोशिश करें।",
+      "unreadable": "{path} पढ़ी नहीं जा सकी: {detail}",
+      "not-a-file": "{path} अब कोई फ़ाइल नहीं रही।"
+    },
     "_comment_openFromFile": "A button. The ellipsis means a file dialog opens, which is a convention worth keeping in every language that has it.",
     "openFromFile": "फ़ाइल से खोलें…",
     "createNew": "नया वॉल्ट बनाएँ",
@@ -85,8 +91,10 @@
     "_comment_backups": "Copies of the vault file that Remoter writes beside it as it saves, oldest rotated out. Not the user's own backups.",
     "backups": "रोलिंग बैकअप",
     "noBackups": "इस फ़ाइल के बगल में अभी तक कोई बैकअप नहीं लिखा गया है।",
-    "_comment_syncTitle": "The vault sits in a folder that a cloud service synchronises. The body text under it comes from the core.",
+    "_comment_syncTitle": "The vault sits in a folder that a cloud service synchronises. The body text under it is detail.syncWarning.",
     "syncTitle": "सिंक होने वाले फ़ोल्डर में है",
+    "_comment_syncWarning": "The body of the \"In a synced folder\" callout. {provider} is the cloud service's brand name (Dropbox, OneDrive, iCloud Drive) and is never translated; it appears twice. SECURITY-RELEVANT: the second half says the provider keeps earlier copies of the encrypted file, so changing a password today does not retract yesterday's copies. Do not drop it.",
+    "syncWarning": "यह वॉल्ट एक {provider} फ़ोल्डर के भीतर है। यह काम करता है, लेकिन दो मशीनों से एक साथ संपादित करने पर एक कॉन्फ़्लिक्ट प्रति बन जाएगी, और {provider} एन्क्रिप्टेड फ़ाइल के पुराने संस्करण रखता है।",
     "unreachableTitle": "यह वॉल्ट तक पहुँच में नहीं है",
     "slotBadge": {
       "_comment_": "Tooltips on the small icons in a row of the list, saying which unlock methods that vault has. Read aloud by a screen reader, so each one is a full noun phrase rather than a word.",
@@ -292,9 +300,9 @@
     "_comment_failed": "SECURITY-CRITICAL. Shown whichever factor was wrong — password, key file, recovery key. It must NOT say which one, and must not be made more helpful: naming the factor tells an attacker which half they already have (docs/security/key-management.md).",
     "failed": "इससे वॉल्ट अनलॉक नहीं हुआ।",
     "_comment_attempt": "How many attempts have failed. Beside the message above.",
-    "attempt": "{count, plural, other {प्रयास #}}",
+    "attempt": "{count, plural, one {प्रयास #} other {प्रयास #}}",
     "_comment_attemptWaiting": "The same count, plus the countdown the interface enforces before the next attempt. {attempt} is a number of attempts, {seconds} a number of seconds. 's' is the symbol for second and is not translated in languages that use it.",
-    "attemptWaiting": "{attempt, plural, other {प्रयास #}} · {seconds, plural, other {अगला प्रयास # s में}}",
+    "attemptWaiting": "{attempt, plural, one {प्रयास #} other {प्रयास #}} · {seconds, plural, one {अगला प्रयास # s में} other {अगला प्रयास # s में}}",
     "_comment_refused": "The heading over any other failure the core reported. That failure's own sentence is shown beneath it, so this only has to frame it.",
     "refused": "वॉल्ट खुलने से इनकार कर दिया गया।",
     "keyfileMissing": "यह स्लॉट अनलॉक होने से पहले अपनी कुंजी फ़ाइल भी माँगता है।",
@@ -321,7 +329,7 @@
       "password": "मास्टर पासवर्ड टाइप करें।",
       "recovery": "रिकवरी कुंजी टाइप करें।",
       "_comment_backoff": "The countdown after a failed attempt. {seconds} is a number of seconds; 's' is the symbol for second.",
-      "backoff": "{seconds, plural, other {असफल प्रयास के बाद अगले प्रयास से पहले # s का इंतज़ार।}}"
+      "backoff": "{seconds, plural, one {असफल प्रयास के बाद अगले प्रयास से पहले # s का इंतज़ार।} other {असफल प्रयास के बाद अगले प्रयास से पहले # s का इंतज़ार।}}"
     },
     "damaged": {
       "_comment_": "SECURITY-CRITICAL as a set. A slot unwrapped correctly and the body then failed to decrypt, which means the file changed after it was written. The user's credentials were right, and the copy must say so first — anything vaguer sends someone hunting for a typo they never made.",

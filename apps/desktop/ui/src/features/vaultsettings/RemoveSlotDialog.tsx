@@ -64,7 +64,10 @@ export function RemoveSlotDialog({
   // Compared against the sentence in the language it was shown in, which is
   // why the phrase is read here rather than baked into the comparison.
   const required = lastResortPhrase(t);
-  const phraseOk = lastResortSatisfied(slot.kind, phrase, required);
+  // The locale travels with the phrase: case is forgiven by this language's
+  // rules, which is the only way a Turkish reader can type the sentence they
+  // were shown in capitals and be believed. See `lastResortSatisfied`.
+  const phraseOk = lastResortSatisfied(slot.kind, phrase, required, locale);
   const blocked = refusal !== null || !phraseOk;
 
   return (

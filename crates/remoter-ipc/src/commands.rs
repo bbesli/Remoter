@@ -40,7 +40,7 @@ use crate::dto::{
     UpdateCheckDto, UpdateNodeDto, UpdateReleaseDto, VaultProbeDto, VaultStateDto,
 };
 use crate::error::IpcError;
-use crate::recents::{Recents, sync_warning};
+use crate::recents::{Recents, sync_provider, sync_warning};
 use crate::state::{AppSettingsPatch, AppState, now_millis, now_seconds};
 
 /// How many search hits a single query returns. The palette shows far fewer;
@@ -658,11 +658,14 @@ fn tree_search_impl(state: &AppState, query: String) -> Result<Vec<SearchHitDto>
         if is_attached_credential(node) {
             continue;
         }
+        let subtitle = subtitle(&tree, node);
         out.push(SearchHitDto {
             node: node_dto(&tree, node, &counts),
             path: breadcrumb(&tree, id),
             name_matches: match_ranges(&node.name, &query),
-            subtitle: subtitle(&tree, node),
+            subtitle: subtitle.text,
+            subtitle_kind: subtitle.kind.map(|kind| kind.as_str().to_owned()),
+            subtitle_count: subtitle.count,
             score: total - i64::try_from(rank).unwrap_or(0),
         });
     }
@@ -1448,6 +1451,9 @@ fn probe_dto(path: &Path, info: VaultInfo, remembered_keyfile: Option<String>) -
         slots: info.slots.iter().map(slot_dto).collect(),
         backups,
         sync_warning: sync_warning(path),
+        // The provider name is the value the interface's sentence is composed
+        // around; `sync_warning` above is only the English fallback for it.
+        sync_provider: sync_provider(path).map(str::to_owned),
         remembered_keyfile,
     }
 }
@@ -2687,8 +2693,76 @@ fn breadcrumb(tree: &Tree, id: NodeId) -> String {
         .join(" / ")
 }
 
+/// What the second line of a search hit counts, when it counts something.
+///
+/// Two of the five node shapes have a subtitle that is a *sentence* — "1
+/// item", "12 members" — and the palette used to print it as it came. That
+/// hand-pluralises with English rules, which are wrong in Russian and Arabic
+/// and meaningless in Chinese, and it writes the digits in ASCII whatever
+/// numbering system the reader uses. So the count and this kind cross the
+/// boundary and the interface composes the phrase from
+/// `connections:palette.subtitle.*` as an ICU plural.
+///
+/// The strings are stable: the catalogue is keyed by them, and
+/// `apps/desktop/ui/src/i18n/composed.catalogue.test.ts` reads the literals in
+/// `as_str` out of this file and fails if one has no entry in any shipped
+/// language.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SubtitleKind {
+    /// A folder, counting its immediate children.
+    Items,
+    /// A group, counting its members.
+    Members,
+}
+
+impl SubtitleKind {
+    /// The identifier the interface joins on. See the type's own note.
+    pub(crate) const fn as_str(self) -> &'static str {
+        match self {
+            Self::Items => "items",
+            Self::Members => "members",
+        }
+    }
+}
+
 /// The second line of a search hit.
-fn subtitle(tree: &Tree, node: &Node) -> String {
+///
+/// `text` is an address or a login for the three shapes whose subtitle is a
+/// value rather than a sentence, and those render as they stand. For the other
+/// two it is English prose kept only as the fallback for a `kind` the
+/// interface does not know — the same arrangement `IpcError` uses for its code
+/// and its message.
+struct Subtitle {
+    text: String,
+    kind: Option<SubtitleKind>,
+    count: Option<u64>,
+}
+
+impl Subtitle {
+    /// A value: an address, a login, nothing. Nothing to translate.
+    fn value(text: String) -> Self {
+        Self {
+            text,
+            kind: None,
+            count: None,
+        }
+    }
+
+    /// A counted phrase: the kind, the number, and the English as a fallback.
+    fn counted(kind: SubtitleKind, count: usize, singular: &str, plural: &str) -> Self {
+        Self {
+            text: if count == 1 {
+                format!("1 {singular}")
+            } else {
+                format!("{count} {plural}")
+            },
+            kind: Some(kind),
+            count: Some(u64::try_from(count).unwrap_or(u64::MAX)),
+        }
+    }
+}
+
+fn subtitle(tree: &Tree, node: &Node) -> Subtitle {
     match &node.kind {
         NodeKind::Connection(props) => {
             let port = props
@@ -2696,32 +2770,28 @@ fn subtitle(tree: &Tree, node: &Node) -> String {
                 .explicit()
                 .copied()
                 .or_else(|| props.protocol.default_port());
-            match port {
+            Subtitle::value(match port {
                 Some(port) => format!("{}://{}:{port}", props.protocol.as_str(), props.host),
                 None => format!("{}://{}", props.protocol.as_str(), props.host),
-            }
+            })
         }
-        NodeKind::Credential(props) => match &props.domain {
+        NodeKind::Credential(props) => Subtitle::value(match &props.domain {
             Some(domain) if !domain.is_empty() => format!("{domain}\\{}", props.username),
             _ => props.username.clone(),
-        },
-        NodeKind::Folder(_) => {
-            let count = tree.children(Some(node.id)).len();
-            if count == 1 {
-                String::from("1 item")
-            } else {
-                format!("{count} items")
-            }
-        }
-        NodeKind::Group(props) => {
-            let count = props.members.len();
-            if count == 1 {
-                String::from("1 member")
-            } else {
-                format!("{count} members")
-            }
-        }
-        NodeKind::Separator => String::new(),
+        }),
+        NodeKind::Folder(_) => Subtitle::counted(
+            SubtitleKind::Items,
+            tree.children(Some(node.id)).len(),
+            "item",
+            "items",
+        ),
+        NodeKind::Group(props) => Subtitle::counted(
+            SubtitleKind::Members,
+            props.members.len(),
+            "member",
+            "members",
+        ),
+        NodeKind::Separator => Subtitle::value(String::new()),
     }
 }
 
@@ -4036,6 +4106,28 @@ mod tests {
         if let Some(hit) = hits.iter().find(|hit| hit.node.id == node.id) {
             assert_eq!(hit.path, "Datacentre");
             assert!(hit.subtitle.contains("web1.example.com"));
+            // An address is a value, not a sentence: nothing for the
+            // catalogue to compose, so no kind and no count.
+            assert_eq!(hit.subtitle_kind, None);
+            assert_eq!(hit.subtitle_count, None);
+        }
+
+        // A folder's subtitle *is* a sentence — "1 item" — and English plural
+        // rules are wrong in most of the languages this ships in. So it
+        // crosses as a kind and a number, with the English kept only as the
+        // fallback for an interface that has no entry for the kind.
+        let folder_hits = tree_search_impl(&state, String::from("Datacentre")).unwrap_or_default();
+        let folder_hit = folder_hits.iter().find(|hit| hit.node.id == group.id);
+        assert!(folder_hit.is_some(), "the folder should be findable");
+        if let Some(hit) = folder_hit {
+            assert_eq!(hit.subtitle_kind.as_deref(), Some("items"));
+            let count = hit.subtitle_count.unwrap_or_default();
+            assert!(count >= 1, "the folder holds the connection");
+            assert!(
+                hit.subtitle.contains(&count.to_string()),
+                "the English fallback should quote the same number: {}",
+                hit.subtitle
+            );
         }
 
         // --- move and delete --------------------------------------------
@@ -5785,5 +5877,25 @@ mod identity_tests {
             },
         );
         assert!(conflicting.is_err_and(|err| err.code == "request.invalid"));
+    }
+}
+
+#[cfg(test)]
+mod subtitle_kind_tests {
+    use super::SubtitleKind;
+
+    #[test]
+    fn every_kind_has_a_stable_identifier() {
+        // `connections:palette.subtitle.*` is keyed by these, and
+        // `apps/desktop/ui/src/i18n/composed.catalogue.test.ts` reads them out
+        // of this file. The match in `as_str` is exhaustive, so a variant
+        // added without an identifier does not compile; this pins the
+        // identifiers themselves, which the catalogue cannot follow on its own.
+        for (kind, expected) in [
+            (SubtitleKind::Items, "items"),
+            (SubtitleKind::Members, "members"),
+        ] {
+            assert_eq!(kind.as_str(), expected);
+        }
     }
 }

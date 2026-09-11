@@ -56,8 +56,47 @@
     "paletteDescription": "本窗口中每个会话所用的颜色。它与界面主题是分开的，所以浅色界面也可以配深色终端。改动会立即作用于已经打开的会话——不需要重新连接。",
     "auto": "跟随界面主题",
     "autoCredit": "界面为深色时用 Remoter Dark，浅色时用 Remoter Light，高对比度界面时用高对比度配色",
-    "_comment_autoResolved": "{name} is a palette name such as 'Remoter Dark'. Palette names are product names and are not translated.",
+    "_comment_autoResolved": "{name} is a palette's name, taken from the palettes block below — so whatever you call 'Remoter Dark' there is what appears here.",
     "autoResolved": "现在用的是 {name}。",
+
+    "_comment_palettes": "One entry per palette this build ships, keyed by the palette's id. The name heads its card in the picker; the credit says whose design it is, because a palette is somebody's published work. Solarized, Gruvbox, Nord and Tomorrow Night are published works with names of their own, and the person names and licence abbreviations in their credits are not translated — translate only the words around them, and transliterate a name only if your script gives a reader no way to read the Latin one. The two Remoter entries and 'High contrast' are this application's own copy and should read naturally in your language.",
+    "palettes": {
+      "remoter-dark": {
+        "name": "Remoter Dark",
+        "credit": "Remoter——本应用随附的配色"
+      },
+      "remoter-light": {
+        "name": "Remoter Light",
+        "credit": "Remoter——浅色版本，已调校为在自身背景上达到 AA"
+      },
+      "solarized-dark": {
+        "name": "Solarized Dark",
+        "credit": "Ethan Schoonover, MIT"
+      },
+      "solarized-light": {
+        "name": "Solarized Light",
+        "credit": "Ethan Schoonover, MIT"
+      },
+      "gruvbox-dark": {
+        "name": "Gruvbox Dark",
+        "credit": "Pavel Pertsev, MIT"
+      },
+      "nord": {
+        "name": "Nord",
+        "credit": "Arctic Ice Studio 和 Sven Greb，MIT"
+      },
+      "tomorrow-night": {
+        "name": "Tomorrow Night",
+        "credit": "Chris Kempson, MIT"
+      },
+      "high-contrast": {
+        "name": "高对比度",
+        "credit": "Remoter——高对比度界面主题所用的配色"
+      }
+    },
+
+    "_comment_paletteLabel": "The accessible name of one palette's radio button: the palette's name, then who made it. Both values come from the palettes block above. The dash is a separator, not a word — use whatever separates a title from its attribution in your language.",
+    "paletteLabel": "{name}——{credit}",
 
     "previewLabel": "预览",
     "previewNote": "真实输出，用的是即将应用的配色和字体。",

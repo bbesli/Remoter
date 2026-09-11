@@ -16,7 +16,6 @@ import "i18next";
 import type audit from "../../../../../locales/en/audit.json";
 import type common from "../../../../../locales/en/common.json";
 import type connections from "../../../../../locales/en/connections.json";
-import type errors from "../../../../../locales/en/errors.json";
 // `import` is a reserved word, so the local binding is `importer`; the
 // namespace itself is "import", matching the feature directory.
 import type importer from "../../../../../locales/en/import.json";
@@ -39,7 +38,17 @@ declare module "i18next" {
       vault: typeof vault;
       vaultsettings: typeof vaultsettings;
       audit: typeof audit;
-      errors: typeof errors;
+      // Not `typeof errors`. That catalogue holds an entry for every failure
+      // code the core can send — a hundred and ninety of them, each with a
+      // sentence and a list of action labels — and asking i18next to build the
+      // union of its keys tips the compiler into "type instantiation is
+      // excessively deep", taking every other namespace's key checking down
+      // with it. Nothing is lost by loosening it: its keys are error codes,
+      // runtime data from Rust rather than literals written in this codebase,
+      // so `useFailureText` looks them up through a `string` cast either way.
+      // What checks them instead is `failures.catalogue.test.ts`, which reads
+      // the Rust and fails if any code lacks an entry, in any language.
+      errors: Record<string, unknown>;
     };
     returnNull: false;
   }

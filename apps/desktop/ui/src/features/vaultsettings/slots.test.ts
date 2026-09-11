@@ -35,6 +35,29 @@ const tCommon = i18n().getFixedT(null, "common");
 const copy = { t, tCommon, locale: "en" };
 const LAST_RESORT_PHRASE = lastResortPhrase(t);
 
+/**
+ * One catalogue's `removeSlot.phrase`, read from the file the application
+ * ships rather than from the instance.
+ *
+ * Five levels up is `locales/`, the same climb `failures.catalogue.test.ts`
+ * makes, and through the same mechanism: the bundler resolves the path, so
+ * moving the directory is a build failure here rather than a test that quietly
+ * stops reading anything.
+ */
+const VAULT_CATALOGUES = import.meta.glob("../../../../../../locales/*/vaultsettings.json", {
+  eager: true,
+  import: "default",
+}) as Record<string, { removeSlot?: { phrase?: string } }>;
+
+function shippedPhrase(locale: string): string {
+  for (const [path, catalogue] of Object.entries(VAULT_CATALOGUES)) {
+    if (!path.endsWith(`/locales/${locale}/vaultsettings.json`)) continue;
+    const phrase = catalogue.removeSlot?.phrase;
+    if (typeof phrase === "string") return phrase;
+  }
+  throw new Error(`no removeSlot.phrase in locales/${locale}/vaultsettings.json`);
+}
+
 function slot(index: number, kind: SlotKind, over: Partial<Slot> = {}): Slot {
   return {
     index,
@@ -92,31 +115,86 @@ describe("the last-resort confirmation", () => {
   });
 
   it("passes any other slot without a phrase", () => {
-    expect(lastResortSatisfied("password", "", LAST_RESORT_PHRASE)).toBe(true);
+    expect(lastResortSatisfied("password", "", LAST_RESORT_PHRASE, "en")).toBe(true);
   });
 
   it("accepts the sentence whatever the case and spacing", () => {
-    expect(lastResortSatisfied("recovery", LAST_RESORT_PHRASE, LAST_RESORT_PHRASE)).toBe(true);
+    expect(lastResortSatisfied("recovery", LAST_RESORT_PHRASE, LAST_RESORT_PHRASE, "en")).toBe(
+      true,
+    );
     expect(
       lastResortSatisfied(
         "recovery",
         "  i understand this REMOVES my  last resort ",
         LAST_RESORT_PHRASE,
+        "en",
       ),
     ).toBe(true);
   });
 
   it("rejects an acknowledgement that is not the sentence", () => {
-    expect(lastResortSatisfied("recovery", "", LAST_RESORT_PHRASE)).toBe(false);
-    expect(lastResortSatisfied("recovery", "yes", LAST_RESORT_PHRASE)).toBe(false);
-    expect(lastResortSatisfied("recovery", "I understand", LAST_RESORT_PHRASE)).toBe(false);
+    expect(lastResortSatisfied("recovery", "", LAST_RESORT_PHRASE, "en")).toBe(false);
+    expect(lastResortSatisfied("recovery", "yes", LAST_RESORT_PHRASE, "en")).toBe(false);
+    expect(lastResortSatisfied("recovery", "I understand", LAST_RESORT_PHRASE, "en")).toBe(false);
     expect(
       lastResortSatisfied(
         "recovery",
         "I understand this removes my last resort now",
         LAST_RESORT_PHRASE,
+        "en",
       ),
     ).toBe(false);
+  });
+});
+
+/*
+ * The same gate, in the language the repository owner reads.
+ *
+ * This is the case that was refused in the shipped build: the Turkish
+ * sentence, typed in Turkish capitals, folded through English casing rules
+ * into a different sentence — a combining dot that was never typed and three
+ * dotted i's where Turkish writes dotless ones. The user is told capitals do
+ * not matter (`removeSlot.phraseHint`, in every language), so a refusal reads
+ * as "you mistyped" and is retried, forever, on an irreversible operation.
+ *
+ * The phrase is read from the Turkish catalogue rather than written here, so
+ * that a translator rewording it cannot make this test pass against a sentence
+ * the screen no longer shows.
+ */
+describe("the last-resort confirmation, in Turkish", () => {
+  // Straight off disk rather than through the instance: only English is
+  // compiled into a test run, and a phrase that had quietly fallen back to
+  // English would make every assertion below vacuous.
+  const PHRASE_TR = shippedPhrase("tr");
+
+  it("reads the sentence the Turkish catalogue actually ships", () => {
+    expect(PHRASE_TR).not.toBe(LAST_RESORT_PHRASE);
+    // The dotless i is the whole hazard. If a translator rewords the sentence
+    // out of it, this test stops standing for anything and should be told so.
+    expect(PHRASE_TR).toContain("ı");
+  });
+
+  it("accepts the sentence typed in Turkish capitals", () => {
+    // What a Turkish keyboard produces from the phrase on screen: I -> İ and
+    // ı -> I, crosswise to English.
+    const typed = PHRASE_TR.toLocaleUpperCase("tr");
+    expect(lastResortSatisfied("recovery", typed, PHRASE_TR, "tr")).toBe(true);
+  });
+
+  it("accepts it typed exactly as shown", () => {
+    expect(lastResortSatisfied("recovery", PHRASE_TR, PHRASE_TR, "tr")).toBe(true);
+  });
+
+  it("still refuses a bare acknowledgement", () => {
+    expect(lastResortSatisfied("recovery", "evet", PHRASE_TR, "tr")).toBe(false);
+    expect(lastResortSatisfied("recovery", "", PHRASE_TR, "tr")).toBe(false);
+  });
+
+  it("still refuses the sentence with a letter changed", () => {
+    // Case is forgiven; spelling is not. "caremi" is not the word shown.
+    expect(lastResortSatisfied("recovery", PHRASE_TR.replace("ç", "c"), PHRASE_TR, "tr")).toBe(
+      false,
+    );
   });
 });
 

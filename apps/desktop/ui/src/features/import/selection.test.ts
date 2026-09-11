@@ -170,22 +170,72 @@ describe("excludedRoots", () => {
 
 describe("matchingIds", () => {
   it("is null for an empty query, meaning no filter", () => {
-    expect(matchingIds(index, "   ")).toBeNull();
+    expect(matchingIds(index, "   ", "en")).toBeNull();
   });
 
   it("keeps a match, its ancestors and its subtree", () => {
-    const visible = matchingIds(index, "web-01");
+    const visible = matchingIds(index, "web-01", "en");
     expect(visible).not.toBeNull();
     expect([...(visible ?? [])].sort()).toEqual(["eu", "prod", "web1"]);
   });
 
   it("matches on host and user, not only on name", () => {
-    expect(matchingIds(index, "old.acme")?.has("old1")).toBe(true);
-    expect(matchingIds(index, "svc-deploy")?.has("web1")).toBe(true);
+    expect(matchingIds(index, "old.acme", "en")?.has("old1")).toBe(true);
+    expect(matchingIds(index, "svc-deploy", "en")?.has("web1")).toBe(true);
   });
 
   it("shows everything under a matching folder", () => {
-    const visible = matchingIds(index, "archive");
+    const visible = matchingIds(index, "archive", "en");
     expect([...(visible ?? [])].sort()).toEqual(["archive", "old1"]);
+  });
+});
+
+/**
+ * The filter, in the languages whose alphabet English does not cover.
+ *
+ * An import file is very often a colleague's export, in the colleague's own
+ * language, so this screen is where a wrong fold is met first and by the most
+ * people. The preview can run to hundreds of rows, and a filter that cannot
+ * find a machine by the name printed on it is how a row gets imported that the
+ * user meant to untick.
+ */
+describe("matchingIds, outside English", () => {
+  const FOREIGN: ImportNode[] = [
+    // The host is deliberately not a transliteration of the name: the name has
+    // to be reachable on its own, or the test passes on the host by accident.
+    node({ id: "tr", name: "IŞIK-01", kind: "connection", host: "ws-901.kurum.tr" }),
+    node({ id: "de", name: "Straße-Gateway", kind: "connection", host: "strasse.example.de" }),
+    node({ id: "el", name: "ΟΔΟΣ-7", kind: "connection", host: "odos-7.example.gr" }),
+    node({ id: "ar", name: "مُحَمَّد-01", kind: "connection", host: "m01.example.sa" }),
+  ];
+  const foreign = indexNodes(FOREIGN);
+
+  it("finds a Turkish machine by the name written on it", () => {
+    // The defect this replaces: "IŞIK-01" folded to "isik-01" under English
+    // casing while the query "ışık" folded to "ısık", so the row was
+    // unreachable by its own name.
+    expect(matchingIds(foreign, "ışık", "tr")?.has("tr")).toBe(true);
+  });
+
+  it("finds it typed in capitals too", () => {
+    expect(matchingIds(foreign, "IŞIK", "tr")?.has("tr")).toBe(true);
+  });
+
+  it("finds a German host by the two-letter spelling of its sharp s", () => {
+    expect(matchingIds(foreign, "strasse", "de")?.has("de")).toBe(true);
+    expect(matchingIds(foreign, "Straße", "de")?.has("de")).toBe(true);
+  });
+
+  it("finds a Greek name whichever sigma the reader typed", () => {
+    expect(matchingIds(foreign, "οδός", "el")?.has("el")).toBe(true);
+    expect(matchingIds(foreign, "ΟΔΟΣ", "el")?.has("el")).toBe(true);
+  });
+
+  it("finds an Arabic name without its vowel marks", () => {
+    expect(matchingIds(foreign, "محمد", "ar")?.has("ar")).toBe(true);
+  });
+
+  it("still refuses a query that matches nothing", () => {
+    expect([...(matchingIds(foreign, "zzz", "tr") ?? [])]).toEqual([]);
   });
 });

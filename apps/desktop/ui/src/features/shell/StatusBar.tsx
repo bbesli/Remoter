@@ -8,12 +8,51 @@
  * would connect to.
  */
 
+import type { TFunction } from "i18next";
+
 import { Icon } from "@/components/Icon";
 import { SessionStatus } from "@/features/sessions";
 import type { SessionRecord } from "@/features/sessions";
-import { isolate, isolateChain, isolateLtr, useT } from "@/i18n";
+import { isolate, isolateChain, isolateLtr, useFailureText, useT } from "@/i18n";
 import type { EffectiveConnection, IpcFailure, TreeNode } from "@/lib/ipc";
 import s from "./StatusBar.module.css";
+
+/**
+ * Why resolution was refused, in the bar.
+ *
+ * Its own component so `useFailureText` can be called at all: the bar renders
+ * a failure only sometimes, and a hook cannot be called only sometimes. It
+ * used to render `error.message`, which is the core's English — so the one
+ * line on this screen that tells a user why nothing is connecting was the one
+ * line they could not read.
+ *
+ * The full failure, with its diagnostic and the actions the core suggested,
+ * belongs to the inspector; the bar carries the sentence and a way to get
+ * there. Both halves now come from the same lookup, so they cannot disagree.
+ */
+function ResolutionFailure({
+  failure,
+  onShowDetail,
+  t,
+}: {
+  failure: IpcFailure;
+  onShowDetail: (() => void) | null;
+  t: TFunction<"shell">;
+}) {
+  const text = useFailureText(failure);
+  return (
+    // The bar is already a live region; a nested alert would announce twice.
+    <span className={s.failure} title={text.message}>
+      <Icon name="alert" size={12} />
+      <span className={s.failureText}>{text.message}</span>
+      {onShowDetail !== null && (
+        <button type="button" className={s.failureLink} onClick={onShowDetail}>
+          {t("statusBar.showDetail")}
+        </button>
+      )}
+    </span>
+  );
+}
 
 interface StatusBarProps {
   /**
@@ -123,16 +162,7 @@ export function StatusBar({
       <div className={s.spacer} />
 
       {error !== null ? (
-        // The bar is already a live region; a nested alert would announce twice.
-        <span className={s.failure} title={error.message}>
-          <Icon name="alert" size={12} />
-          <span className={s.failureText}>{error.message}</span>
-          {onShowDetail !== null && (
-            <button type="button" className={s.failureLink} onClick={onShowDetail}>
-              {t("statusBar.showDetail")}
-            </button>
-          )}
-        </span>
+        <ResolutionFailure failure={error} onShowDetail={onShowDetail} t={t} />
       ) : resolving ? (
         <span className={s.note}>{t("statusBar.resolving")}</span>
       ) : effective === undefined ? (

@@ -94,7 +94,7 @@
     "_comment_compare": "On both dialogs. The randomart is the picture form of the fingerprint; comparing it is easier than comparing 43 characters. The second sentence is the instruction that matters.",
     "compare": "Compare el randomart con el que imprime el servidor en local. Si no puede comprobarlo por otra vía, no continúe.",
     "_comment_confirmLabel": "SECURITY-CRITICAL. The friction is the point: the user must copy characters off the screen, which is what makes them look at the fingerprint. {count} is how many characters the core is asking for — it sends the length and never the text, so this dialog cannot fill the answer in.",
-    "confirmLabel": "Para continuar, escriba {count, plural, one {el último carácter} other {los últimos # caracteres}} de la clave que se ofrece ahora",
+    "confirmLabel": "Para continuar, escriba {count, plural, one {el último carácter} many {los últimos # caracteres} other {los últimos # caracteres}} de la clave que se ofrece ahora",
     "confirmHint": "Cópielos de la pantalla, a mano. Remoter no los rellena por usted.",
     "_comment_audited": "In the footer of both dialogs, before the buttons. Applies to the refusal as much as to the acceptance.",
     "audited": "Sea cual sea su decisión, queda escrita en el registro de auditoría.",
@@ -305,7 +305,7 @@
     "tunnelsFailed": "No se pudieron leer los reenvíos",
     "closeFailed": "El reenvío no se cerró",
     "_comment_openCount": "Footer of the sessions pane. English says '1 open' and '2 open' alike; other languages do not.",
-    "openCount": "{count, plural, =0 {nada abierto} one {# abierta} other {# abiertas}}"
+    "openCount": "{count, plural, =0 {nada abierto} one {# abierta} many {# abiertas} other {# abiertas}}"
   },
 
   "forward": {

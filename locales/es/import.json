@@ -168,7 +168,7 @@
     "attentionHead": "Requiere atención",
     "attentionNone": "El análisis no encontró nada que exija una decisión suya.",
     "_comment_attentionMore": "Sits under a short list of findings, when more of them are on the report step. English's two branches are identical; the plural is here because most other languages inflect 'more' or need a different form after certain numbers.",
-    "attentionMore": "{count, plural, one {# más en el paso siguiente.} other {# más en el paso siguiente.}}",
+    "attentionMore": "{count, plural, one {# más en el paso siguiente.} many {# más en el paso siguiente.} other {# más en el paso siguiente.}}",
     "_comment_cleanHead": "The opposite list: what the importer mapped without any loss.",
     "cleanHead": "Convertido sin pérdidas",
     "cleanFolders": "{count, plural, one {# carpeta con su herencia} many {# de carpetas con su herencia} other {# carpetas con su herencia}}",

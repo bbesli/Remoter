@@ -44,7 +44,7 @@ import { Button } from "@/components/Button";
 import { Icon } from "@/components/Icon";
 import { useAnyModalOpen } from "@/hooks/useModalRegistration";
 import { useStagedSecret } from "@/hooks/useStagedSecret";
-import { useT } from "@/i18n";
+import { useLocale, useT } from "@/i18n";
 import { asFailure, ipc } from "@/lib/ipc";
 import type {
   ImportDetection,
@@ -108,6 +108,7 @@ function footerNote(step: StepNumber): {
 
 export function ImportWizard() {
   const t = useT("import");
+  const { code: locale } = useLocale();
   const goBack = useApp((state) => state.goBack);
   const queryClient = useQueryClient();
   const modalOpen = useAnyModalOpen();
@@ -231,7 +232,9 @@ export function ImportWizard() {
 
   const index: ImportTreeIndex = useMemo(() => indexNodes(preview?.nodes ?? []), [preview]);
   const counts = useMemo(() => includedCounts(index, excluded), [index, excluded]);
-  const visible = useMemo(() => matchingIds(index, filter), [index, filter]);
+  // The filter folds under the reader's casing rules, so the language has to
+  // reach it. See `matchingIds`.
+  const visible = useMemo(() => matchingIds(index, filter, locale), [index, filter, locale]);
 
   const source: ImportSource | null = sourceOverride ?? detection?.format ?? null;
   /**

@@ -41,6 +41,7 @@ export {
   type StrengthText,
 } from "./strength";
 export { documentDirection, inlineStartOffset, isolate, isolateChain, isolateLtr } from "./bidi";
+export { equalsIgnoringCase, foldForSearch, foldInvariant } from "./fold";
 export {
   formatBytes,
   formatClock,

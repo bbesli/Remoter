@@ -36,7 +36,7 @@
     "title": "Langue",
     "description": "Dix langues sont prévues pour la version 1.0. Les langues qui s'écrivent de droite à gauche font basculer toute la mise en page, et pas seulement le texte.",
     "_comment_progress": "PLURAL, on the number of languages that actually have catalogues. The count is measured from the locales/ directory rather than hardcoded, so the sentence follows the directory instead of a hand-maintained flag. The second sentence is deliberately conditional — 'any language still being translated' — because every language listed is selectable today, and the wording has to stay true both now and if an eleventh language is listed before its catalogue exists. Do not turn it back into a claim that some of the languages shown cannot be chosen: that claim was true once, was translated faithfully into nine languages, and was wrong in all ten by the time anyone read it.",
-    "progress": "{available, plural, one {Seul l'anglais est traduit pour l'instant.} other {# langues sont traduites, et chacune d'elles peut être choisie dès maintenant.}} Toute langue encore en cours de traduction figure elle aussi dans la liste et devient sélectionnable dès que son catalogue est complet.",
+    "progress": "{available, plural, one {Seul l'anglais est traduit pour l'instant.} many {# langues sont traduites, et chacune d'elles peut être choisie dès maintenant.} other {# langues sont traduites, et chacune d'elles peut être choisie dès maintenant.}} Toute langue encore en cours de traduction figure elle aussi dans la liste et devient sélectionnable dès que son catalogue est complet.",
     "notReady": "Pas encore disponible",
     "_comment_unavailableLabel": "The accessible name of a row that cannot be chosen. {name} is the language's own name, in its own script, and is never translated.",
     "unavailableLabel": "{name} — pas encore disponible",
@@ -52,8 +52,47 @@
     "paletteDescription": "Les couleurs dans lesquelles toutes les sessions de cette fenêtre sont dessinées. Indépendantes du thème de l'interface : une interface claire peut donc avoir un terminal sombre. Les changements atteignent les sessions déjà ouvertes — rien n'a besoin d'être reconnecté.",
     "auto": "Suivre le thème de l'interface",
     "autoCredit": "Remoter Dark avec une interface sombre, Remoter Light avec une interface claire, et la palette à contraste élevé lorsque l'interface est à contraste élevé",
-    "_comment_autoResolved": "{name} is a palette name such as 'Remoter Dark'. Palette names are product names and are not translated.",
+    "_comment_autoResolved": "{name} is a palette's name, taken from the palettes block below — so whatever you call 'Remoter Dark' there is what appears here.",
     "autoResolved": "Actuellement, il s'agit de {name}.",
+
+    "_comment_palettes": "One entry per palette this build ships, keyed by the palette's id. The name heads its card in the picker; the credit says whose design it is, because a palette is somebody's published work. Solarized, Gruvbox, Nord and Tomorrow Night are published works with names of their own, and the person names and licence abbreviations in their credits are not translated — translate only the words around them, and transliterate a name only if your script gives a reader no way to read the Latin one. The two Remoter entries and 'High contrast' are this application's own copy and should read naturally in your language.",
+    "palettes": {
+      "remoter-dark": {
+        "name": "Remoter Dark",
+        "credit": "Remoter — la palette livrée avec cette application"
+      },
+      "remoter-light": {
+        "name": "Remoter Light",
+        "credit": "Remoter — la contrepartie claire, réglée pour atteindre AA sur son fond"
+      },
+      "solarized-dark": {
+        "name": "Solarized Dark",
+        "credit": "Ethan Schoonover, MIT"
+      },
+      "solarized-light": {
+        "name": "Solarized Light",
+        "credit": "Ethan Schoonover, MIT"
+      },
+      "gruvbox-dark": {
+        "name": "Gruvbox Dark",
+        "credit": "Pavel Pertsev, MIT"
+      },
+      "nord": {
+        "name": "Nord",
+        "credit": "Arctic Ice Studio et Sven Greb, MIT"
+      },
+      "tomorrow-night": {
+        "name": "Tomorrow Night",
+        "credit": "Chris Kempson, MIT"
+      },
+      "high-contrast": {
+        "name": "Contraste élevé",
+        "credit": "Remoter — la palette qu'utilisent les thèmes d'interface à contraste élevé"
+      }
+    },
+
+    "_comment_paletteLabel": "The accessible name of one palette's radio button: the palette's name, then who made it. Both values come from the palettes block above. The dash is a separator, not a word — use whatever separates a title from its attribution in your language.",
+    "paletteLabel": "{name} — {credit}",
     "previewLabel": "Aperçu",
     "previewNote": "Sortie réelle, dans la palette et la police sur le point d'être appliquées.",
     "contrastTitle": "Contraste",
@@ -67,7 +106,7 @@
     "contrastRatio": "{ratio}:1",
     "contrastAgainstBackground": "{ratio} par rapport à l'arrière-plan",
     "_comment_contrastCount": "PLURAL. 4.5:1 is a WCAG threshold and stays a numeral in every language.",
-    "contrastCount": "{count, plural, one {# couleur passe sous 4.5:1} other {# couleurs passent sous 4.5:1}}",
+    "contrastCount": "{count, plural, one {# couleur passe sous 4.5:1} many {# couleurs passent sous 4.5:1} other {# couleurs passent sous 4.5:1}}",
     "contrastWarning": "Changez la couleur, changez l'arrière-plan, ou laissez tel quel — c'est une mesure, pas un refus.",
     "contrastBlacks": "La couleur 0 et la couleur 8 sont les deux que le shell utilise normalement comme arrière-plan ou comme décor atténué plutôt que comme texte, ce qui explique qu'elles restent en dessous du seuil dans presque toutes les palettes jamais publiées, celle-ci comprise.",
     "_comment_colours": "What each editable colour is called, in the order the editor lists them. The leading number is the ANSI colour index and stays a numeral; the word after it is translated. 'Bright black' is the conventional name for ANSI 8 even though it is usually dark grey — keep the convention rather than describing the colour.",
@@ -104,7 +143,7 @@
     "resetAllNone": "Aucune couleur n'est redéfinie",
     "overridden": "Modifiée",
     "_comment_overriddenCount": "PLURAL.",
-    "overriddenCount": "{count, plural, one {# couleur diffère de la palette} other {# couleurs diffèrent de la palette}}",
+    "overriddenCount": "{count, plural, one {# couleur diffère de la palette} many {# couleurs diffèrent de la palette} other {# couleurs diffèrent de la palette}}",
     "invalidHex": "Ce n'est pas une couleur. Écrivez-la sous la forme #1a1c20.",
     "fontTitle": "Police du terminal",
     "fontDescription": "Indépendante de la police de l'interface. L'interface conserve sa propre taille lorsque vous modifiez celle-ci.",
@@ -155,7 +194,7 @@
     "resetAllNone": "Tous les raccourcis modifiables sont déjà à leur valeur d'origine.",
     "saveFailed": "Le raccourci n'a pas été enregistré.",
     "_comment_count": "PLURAL on {shown}, with {total} inside it. Filtering a table down to one row is common enough that the singular is worth having.",
-    "count": "{shown, plural, one {# raccourci affiché sur {total}.} other {# raccourcis affichés sur {total}.}}",
+    "count": "{shown, plural, one {# raccourci affiché sur {total}.} many {# raccourcis affichés sur {total}.} other {# raccourcis affichés sur {total}.}}",
     "empty": "Aucun raccourci ne correspond.",
     "_comment_conflictDuplicate": "{holders} is a locale-joined list of action names, built with Intl.ListFormat.",
     "conflictDuplicate": "Déjà attribué à {holders}. Un seul peut se déclencher : modifiez donc l'un des deux.",

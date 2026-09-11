@@ -30,7 +30,7 @@
 import type { TFunction } from "i18next";
 
 import type { IconName } from "@/components/Icon";
-import { formatDate, isolate } from "@/i18n";
+import { equalsIgnoringCase, formatDate, isolate } from "@/i18n";
 import type { Slot, SlotKind } from "@/lib/ipc";
 
 /** This screen's catalogue accessor, as a value a pure function can take. */
@@ -174,13 +174,38 @@ export function needsLastResort(kind: SlotKind): boolean {
  * Case and run-together spaces are forgiven; the words are not. Someone
  * transcribing a sentence from the line above it should not be defeated by a
  * capital letter, but nor should "yes" get through. The phrase is passed in so
- * that what is compared is exactly what was displayed, in whatever language it
- * was displayed in.
+ * that what is compared is exactly what was displayed, and the locale with it,
+ * so that case is forgiven in the language it was displayed in.
+ *
+ * **That last clause used to be a lie, and it locked Turkish readers out.**
+ * The comparison folded both sides with `toLowerCase()`, which applies English
+ * rules whatever the interface says. Turkish has a dotted and a dotless i, and
+ * the shift key maps them crosswise: the displayed "Son çaremi kaldırdığımı
+ * anlıyorum" typed in capitals comes back as "SON ÇAREMİ KALDIRDIĞIMI
+ * ANLIYORUM", which English rules fold to "son çaremi̇ kaldirdiğimi anliyorum"
+ * — a combining dot that was never typed, and three dotted i's where the
+ * sentence has dotless ones. Refused. The same sentence in English capitals
+ * was accepted, so the failure was invisible to everyone who could not read
+ * the phrase, and a user who is refused a confirmation they transcribed
+ * correctly concludes they mistyped and tries again.
+ *
+ * `equalsIgnoringCase` compares through a collator for this language, which
+ * treats a case difference as no difference and everything else as a
+ * difference — so `ç` still does not pass for `c`, and "yes" still does not
+ * pass for the sentence. This is the deletion with no way back; the gate may
+ * forgive the shift key and nothing else.
  */
-export function lastResortSatisfied(kind: SlotKind, typed: string, phrase: string): boolean {
+export function lastResortSatisfied(
+  kind: SlotKind,
+  typed: string,
+  phrase: string,
+  locale: string,
+): boolean {
   if (!needsLastResort(kind)) return true;
-  const normalise = (value: string) => value.trim().replace(/\s+/g, " ").toLowerCase();
-  return normalise(typed) === normalise(phrase);
+  // Whitespace first, so a sentence transcribed with a double space between
+  // two words still reads as the same sentence to the collator.
+  const tidy = (value: string) => value.trim().replace(/\s+/g, " ");
+  return equalsIgnoringCase(tidy(typed), tidy(phrase), locale);
 }
 
 /** One slot's place in a proposed master key rotation, with no secret in it. */

@@ -35,10 +35,10 @@
     "_comment_collapse": "Verb, on the chevron of an open folder. The opposite of expand.",
     "collapse": "طي",
     "_comment_inheritsCount": "A badge on a folder: how many fields this folder sets that every entry beneath it takes from it. Very short — it sits in a badge a few characters wide.",
-    "inheritsCount": "{count, plural, other {يورّث #}}",
+    "inheritsCount": "{count, plural, zero {يورّث #} one {يورّث #} two {يورّث #} few {يورّث #} many {يورّث #} other {يورّث #}}",
     "inheritsHint": "الحقول التي يضبطها هذا المجلد ويرثها كل ما تحته",
     "_comment_usedByCount": "A badge on a shared credential: how many entries log in with it. Same width constraint as inheritsCount.",
-    "usedByCount": "{count, plural, other {يستخدمه #}}",
+    "usedByCount": "{count, plural, zero {يستخدمه #} one {يستخدمه #} two {يستخدمه #} few {يستخدمه #} many {يستخدمه #} other {يستخدمه #}}",
     "usedByHint": "الاتصالات التي تأخذ بيانات اعتمادها من هذا العنصر"
   },
 
@@ -115,6 +115,11 @@
     "_comment_countUnknown": "The total could not be read at all. Says only what is known rather than stating a total that would be wrong.",
     "countUnknown": "{count, plural, zero {لا نتائج} one {نتيجة واحدة} two {نتيجتان} few {# نتائج} many {# نتيجة} other {# نتيجة}}",
     "countFailed": "تعذّرت قراءة عدد الاتصالات",
+    "_comment_subtitle": "The second line of a search result, for the two shapes whose subtitle is a count rather than an address: a folder's children and a group's members. The core sends the number, so the plural category and the digits are this catalogue's to get right. The # is the number itself.",
+    "subtitle": {
+      "items": "{count, plural, zero {لا عناصر} one {عنصر واحد} two {عنصران} few {# عناصر} many {# عنصرًا} other {# عنصر}}",
+      "members": "{count, plural, zero {لا أعضاء} one {عضو واحد} two {عضوان} few {# أعضاء} many {# عضوًا} other {# عضو}}"
+    },
     "_comment_hintSelect": "A footer hint beside the Enter key cap. Two outcomes for one key: on a connection it opens a session, on a folder or a credential it selects. Lower case — it is a fragment beside a key, not a sentence.",
     "hintSelect": "اتصال · تحديد",
     "_comment_hintEdit": "Beside the Ctrl+Enter key cap. Verb: open the entry in the editor.",

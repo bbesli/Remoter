@@ -191,79 +191,167 @@ impl Recents {
     }
 }
 
+/// Why a remembered vault cannot be opened, as an identifier rather than a
+/// sentence.
+///
+/// The picker used to print the core's English here, on the first screen of
+/// the application, before anything has been unlocked — so a Turkish reader
+/// met a Turkish window containing one English paragraph about their own
+/// vault. Prose belongs to the frontend (CLAUDE.md §6,
+/// `docs/features/i18n.md`), so what crosses the boundary is this kind plus
+/// the values the sentence needs, and the interface composes it from
+/// `vault:picker.unreachable.*`.
+///
+/// The strings are stable: the catalogue is keyed by them, and
+/// `apps/desktop/ui/src/i18n/composed.catalogue.test.ts` reads the literals in
+/// `as_str` out of this file and fails if any of them has no entry, in any
+/// shipped language. Renaming one without renaming the catalogue key is a red
+/// build rather than an English sentence in a Russian window.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum UnreachableKind {
+    /// No such file. An unmounted drive, a disconnected share, a deletion.
+    Missing,
+    /// The file system refused to describe it: permissions, a stale mount, an
+    /// I/O error. The operating system's own text travels as the detail.
+    NotReadable,
+    /// The path is there but is a directory, a socket, something else.
+    NotAFile,
+}
+
+impl UnreachableKind {
+    /// The identifier the interface joins on. See the type's own note.
+    pub(crate) const fn as_str(self) -> &'static str {
+        match self {
+            Self::Missing => "missing",
+            Self::NotReadable => "unreadable",
+            Self::NotAFile => "not-a-file",
+        }
+    }
+}
+
+/// Everything the picker needs to say why one entry is unreachable: the kind,
+/// the diagnostic the sentence may quote, and the English sentence itself as
+/// the fallback for a kind the interface does not know — the arrangement
+/// `IpcError` uses for its code and message, for the same reason.
+struct Unreachable {
+    kind: Option<UnreachableKind>,
+    /// Set only when the file exists but is not a readable vault: the
+    /// `IpcError` code of the probe failure, so the interface can render the
+    /// sentence `errors.json` already has for it in every language.
+    code: Option<String>,
+    detail: Option<String>,
+    reason: String,
+}
+
 /// Fills in what the file system and the vault header say about one entry.
 fn probe_entry(entry: &RecentEntry) -> RecentVaultDto {
     let path = PathBuf::from(&entry.path);
-    let sync_warning = sync_warning(&path);
+    let provider = sync_provider(&path);
+
+    // One place the DTO is built, so a field added to it cannot be filled in
+    // on three paths and forgotten on the fourth.
+    let dto = |label: String,
+               slots: Vec<String>,
+               unreachable: Option<Unreachable>,
+               size_bytes: Option<u64>| {
+        RecentVaultDto {
+            path: entry.path.clone(),
+            label,
+            last_opened: entry.last_opened,
+            slots,
+            reachable: unreachable.is_none(),
+            unreachable_reason: unreachable.as_ref().map(|u| u.reason.clone()),
+            unreachable_kind: unreachable
+                .as_ref()
+                .and_then(|u| u.kind)
+                .map(|kind| kind.as_str().to_owned()),
+            unreachable_detail: unreachable.as_ref().and_then(|u| u.detail.clone()),
+            unreachable_code: unreachable.as_ref().and_then(|u| u.code.clone()),
+            sync_warning: provider.map(sync_warning_text),
+            sync_provider: provider.map(str::to_owned),
+            size_bytes,
+        }
+    };
 
     let metadata = match fs::metadata(&path) {
         Ok(metadata) => metadata,
         Err(err) => {
-            let reason = if err.kind() == std::io::ErrorKind::NotFound {
-                format!(
-                    "{} is not there. If it is on a removable drive or a network share, \
-                     connect it and try again.",
-                    path.display()
-                )
+            let unreachable = if err.kind() == std::io::ErrorKind::NotFound {
+                Unreachable {
+                    kind: Some(UnreachableKind::Missing),
+                    code: None,
+                    detail: None,
+                    reason: format!(
+                        "{} is not there. If it is on a removable drive or a network share, \
+                         connect it and try again.",
+                        path.display()
+                    ),
+                }
             } else {
-                format!("{} could not be read: {err}.", path.display())
+                Unreachable {
+                    kind: Some(UnreachableKind::NotReadable),
+                    code: None,
+                    // The operating system's own words, kept English: this is
+                    // the line a reader copies into a bug report, and a
+                    // translated one is no use to whoever reads that report.
+                    detail: Some(err.to_string()),
+                    reason: format!("{} could not be read: {err}.", path.display()),
+                }
             };
-            return RecentVaultDto {
-                path: entry.path.clone(),
-                label: entry.label.clone(),
-                last_opened: entry.last_opened,
-                slots: entry.slots.clone(),
-                reachable: false,
-                unreachable_reason: Some(reason),
-                sync_warning,
-                size_bytes: None,
-            };
+            return dto(
+                entry.label.clone(),
+                entry.slots.clone(),
+                Some(unreachable),
+                None,
+            );
         }
     };
 
     if !metadata.is_file() {
-        return RecentVaultDto {
-            path: entry.path.clone(),
-            label: entry.label.clone(),
-            last_opened: entry.last_opened,
-            slots: entry.slots.clone(),
-            reachable: false,
-            unreachable_reason: Some(format!("{} is not a file any more.", path.display())),
-            sync_warning,
-            size_bytes: None,
-        };
+        return dto(
+            entry.label.clone(),
+            entry.slots.clone(),
+            Some(Unreachable {
+                kind: Some(UnreachableKind::NotAFile),
+                code: None,
+                detail: None,
+                reason: format!("{} is not a file any more.", path.display()),
+            }),
+            None,
+        );
     }
 
     match Vault::probe(&path) {
-        Ok(info) => RecentVaultDto {
-            path: entry.path.clone(),
-            label: info.label,
-            last_opened: entry.last_opened,
-            slots: info
-                .slots
+        Ok(info) => dto(
+            info.label,
+            info.slots
                 .iter()
                 .map(|slot| slot.kind.as_str().to_owned())
                 .collect(),
-            reachable: true,
-            unreachable_reason: None,
-            sync_warning,
-            size_bytes: Some(info.size_bytes),
-        },
+            None,
+            Some(info.size_bytes),
+        ),
         Err(err) => {
             // The file is there but does not read as a vault: a truncated
             // copy, a sync conflict file, or something else entirely. Kept
             // visible with the reason rather than hidden.
+            //
+            // No `UnreachableKind` for this one: the vault error already has a
+            // stable code and a sentence translated under it in `errors.json`,
+            // so sending the code reaches a better sentence than any kind
+            // invented here could.
             let failure = IpcError::from_vault(&err, &path.display().to_string());
-            RecentVaultDto {
-                path: entry.path.clone(),
-                label: entry.label.clone(),
-                last_opened: entry.last_opened,
-                slots: entry.slots.clone(),
-                reachable: false,
-                unreachable_reason: Some(failure.message),
-                sync_warning,
-                size_bytes: Some(metadata.len()),
-            }
+            dto(
+                entry.label.clone(),
+                entry.slots.clone(),
+                Some(Unreachable {
+                    kind: None,
+                    code: Some(failure.code),
+                    detail: failure.detail,
+                    reason: failure.message,
+                }),
+                Some(metadata.len()),
+            )
         }
     }
 }
@@ -301,17 +389,32 @@ const SYNC_MARKERS: &[(&str, &str)] = &[
 /// not obvious: two machines editing the same vault will produce a conflict
 /// copy, and the provider keeps historical versions of the ciphertext, so a
 /// password changed today does not retract the copies stored yesterday.
+///
+/// **Not the text the user reads.** The interface writes that sentence itself,
+/// from `vault:detail.syncWarning`, around the provider name; this English is
+/// the fallback for an interface that has no entry for it. See
+/// [`sync_provider`], which is the value that actually crosses the boundary.
 pub(crate) fn sync_warning(path: &Path) -> Option<String> {
-    let provider = sync_provider(path)?;
-    Some(format!(
+    sync_provider(path).map(sync_warning_text)
+}
+
+/// The English sentence for one provider. See [`sync_warning`] for why it is a
+/// fallback rather than the copy.
+fn sync_warning_text(provider: &str) -> String {
+    format!(
         "This vault is inside a {provider} folder. It works, but editing it from two \
          machines at once will leave a conflict copy, and {provider} keeps earlier \
          versions of the encrypted file."
-    ))
+    )
 }
 
 /// The provider whose folder this path sits in, if any.
-fn sync_provider(path: &Path) -> Option<&'static str> {
+///
+/// A brand name — "Dropbox", "iCloud Drive" — which is never translated
+/// (`docs/features/i18n.md`, "What is never translated"). It is the one value
+/// the warning is composed around, which is why it crosses the boundary on its
+/// own rather than baked into a sentence.
+pub(crate) fn sync_provider(path: &Path) -> Option<&'static str> {
     for component in path.components() {
         let segment = component.as_os_str().to_string_lossy().to_lowercase();
         for (marker, provider) in SYNC_MARKERS {
@@ -425,6 +528,125 @@ mod tests {
     fn the_warning_names_the_provider() {
         let warning = sync_warning(Path::new("/home/a/Dropbox/x.rvault")).unwrap_or_default();
         assert!(warning.contains("Dropbox"), "warning was: {warning}");
+    }
+
+    #[test]
+    fn the_provider_crosses_the_boundary_as_a_value() {
+        // The picker writes the sentence; it needs the brand name, not the
+        // paragraph. Without this field the only thing on the DTO is English
+        // prose, and the catalogue can never reach it.
+        let dto = probe_entry(&RecentEntry {
+            path: "/home/a/Dropbox/x.rvault".to_owned(),
+            label: "Work".to_owned(),
+            last_opened: None,
+            slots: vec![],
+            keyfile_path: None,
+        });
+        assert_eq!(dto.sync_provider.as_deref(), Some("Dropbox"));
+        assert_eq!(
+            dto.sync_warning,
+            Some(sync_warning_text("Dropbox")),
+            "the English stays as the fallback"
+        );
+    }
+
+    #[test]
+    fn no_provider_means_no_warning_and_no_value() {
+        let dto = probe_entry(&RecentEntry {
+            path: "/srv/vaults/x.rvault".to_owned(),
+            label: "Work".to_owned(),
+            last_opened: None,
+            slots: vec![],
+            keyfile_path: None,
+        });
+        assert_eq!(dto.sync_provider, None);
+        assert_eq!(dto.sync_warning, None);
+    }
+
+    #[test]
+    fn a_missing_vault_is_reported_by_kind_as_well_as_in_english() {
+        let dto = probe_entry(&RecentEntry {
+            // A path under a temporary directory that was never created.
+            path: format!(
+                "{}/remoter-does-not-exist/x.rvault",
+                std::env::temp_dir().display()
+            ),
+            label: "Gone".to_owned(),
+            last_opened: None,
+            slots: vec![],
+            keyfile_path: None,
+        });
+        assert!(!dto.reachable);
+        assert_eq!(dto.unreachable_kind.as_deref(), Some("missing"));
+        assert_eq!(dto.unreachable_code, None);
+        // The English is still there, for an interface that has no entry for
+        // this kind — the same fallback `IpcError::message` is.
+        assert!(
+            dto.unreachable_reason
+                .as_deref()
+                .is_some_and(|reason| reason.contains("is not there")),
+            "reason was: {:?}",
+            dto.unreachable_reason
+        );
+    }
+
+    #[test]
+    fn a_directory_is_reported_as_not_a_file() {
+        let dto = probe_entry(&RecentEntry {
+            path: std::env::temp_dir().display().to_string(),
+            label: "Not a vault".to_owned(),
+            last_opened: None,
+            slots: vec![],
+            keyfile_path: None,
+        });
+        assert!(!dto.reachable);
+        assert_eq!(dto.unreachable_kind.as_deref(), Some("not-a-file"));
+    }
+
+    #[test]
+    fn a_file_that_is_not_a_vault_travels_as_a_failure_code() {
+        let path = std::env::temp_dir().join("remoter-not-a-vault.bin");
+        // A deliberate non-vault: the probe must refuse it, and the refusal
+        // already has a translated sentence keyed by its code.
+        let Ok(()) = fs::write(&path, b"not a vault") else {
+            return;
+        };
+        let dto = probe_entry(&RecentEntry {
+            path: path.display().to_string(),
+            label: "Junk".to_owned(),
+            last_opened: None,
+            slots: vec![],
+            keyfile_path: None,
+        });
+        let _ = fs::remove_file(&path);
+
+        assert!(!dto.reachable);
+        assert_eq!(
+            dto.unreachable_kind, None,
+            "this case is a coded failure, not a kind"
+        );
+        assert!(
+            dto.unreachable_code
+                .as_deref()
+                .is_some_and(|code| code.starts_with("vault.")),
+            "code was: {:?}",
+            dto.unreachable_code
+        );
+    }
+
+    #[test]
+    fn every_kind_has_a_stable_identifier() {
+        // The catalogue is keyed by these, and
+        // `composed.catalogue.test.ts` reads them out of this file. The match
+        // is exhaustive, so a variant added without an identifier does not
+        // compile, and this pins the identifiers themselves.
+        for (kind, expected) in [
+            (UnreachableKind::Missing, "missing"),
+            (UnreachableKind::NotReadable, "unreadable"),
+            (UnreachableKind::NotAFile, "not-a-file"),
+        ] {
+            assert_eq!(kind.as_str(), expected);
+        }
     }
 
     #[test]

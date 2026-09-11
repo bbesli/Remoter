@@ -45,6 +45,12 @@
     "lede": "Пока вы не разблокируете хранилище, ничего не расшифровывается.",
     "loading": "Читается список недавних хранилищ…",
     "listFailed": "Не удалось прочитать список недавних хранилищ.",
+    "_comment_unreachable": "Why a remembered vault cannot be opened. The core sends a stable kind (\"missing\", \"unreadable\", \"not-a-file\") and the values; these are the sentences it sends them for. {path} is the vault's file path and {detail} is the operating system's own error text: neither is translated, and both are inserted as data, so a brace or a bracket in a file name cannot become message syntax.",
+    "unreachable": {
+      "missing": "{path} отсутствует. Если файл на съёмном диске или в сетевой папке, подключите её и повторите попытку.",
+      "unreadable": "Не удалось прочитать {path}: {detail}",
+      "not-a-file": "{path} больше не является файлом."
+    },
     "_comment_openFromFile": "A button. The ellipsis means a file dialog opens, which is a convention worth keeping in every language that has it.",
     "openFromFile": "Открыть из файла…",
     "createNew": "Создать новое хранилище",
@@ -85,8 +91,10 @@
     "_comment_backups": "Copies of the vault file that Remoter writes beside it as it saves, oldest rotated out. Not the user's own backups.",
     "backups": "Ротируемые резервные копии",
     "noBackups": "Рядом с этим файлом ещё не записано ни одной резервной копии.",
-    "_comment_syncTitle": "The vault sits in a folder that a cloud service synchronises. The body text under it comes from the core.",
+    "_comment_syncTitle": "The vault sits in a folder that a cloud service synchronises. The body text under it is detail.syncWarning.",
     "syncTitle": "В синхронизируемой папке",
+    "_comment_syncWarning": "The body of the \"In a synced folder\" callout. {provider} is the cloud service's brand name (Dropbox, OneDrive, iCloud Drive) and is never translated; it appears twice. SECURITY-RELEVANT: the second half says the provider keeps earlier copies of the encrypted file, so changing a password today does not retract yesterday's copies. Do not drop it.",
+    "syncWarning": "Это хранилище находится в папке {provider}. Оно работает, но при редактировании с двух машин одновременно останется конфликтная копия, а {provider} хранит прежние версии зашифрованного файла.",
     "unreachableTitle": "До этого хранилища не добраться",
     "slotBadge": {
       "_comment_": "Tooltips on the small icons in a row of the list, saying which unlock methods that vault has. Read aloud by a screen reader, so each one is a full noun phrase rather than a word.",

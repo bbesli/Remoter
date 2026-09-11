@@ -100,6 +100,65 @@ describe("resolving a failure", () => {
     expect(text.actions).toEqual(["Bir kasanin kilidini ac", "Create a new vault"]);
   });
 
+  it("labels an action from the shared lexicon when the entry has none", () => {
+    // How every `session.*` action is translated: the failure's own entry has
+    // no `actions`, because the core composes them and the order depends on
+    // what actually failed, so the sentence itself is the key.
+    const failed: CoreFailure = {
+      code: "session.failed",
+      message: "the server rejected these credentials (password)",
+      detail: null,
+      actions: ["Enter a credential for this attempt", "Choose a different credential"],
+    };
+    const text = resolveFailureText(
+      failed,
+      stub({
+        "action.enter-credential": "Bu deneme için kimlik bilgisi gir",
+        "action.choose-different-credential": "Başka bir kimlik bilgisi seç",
+      }),
+    );
+    expect(text.actions).toEqual([
+      "Bu deneme için kimlik bilgisi gir",
+      "Başka bir kimlik bilgisi seç",
+    ]);
+    // No entry, so the core's own account of what happened survives.
+    expect(text.message).toBe(failed.message);
+  });
+
+  it("prefers the entry's own label over the lexicon", () => {
+    // A code that writes its own actions keeps its own wording: the lexicon is
+    // the fallback for the ones that cannot, not a general override.
+    const text = resolveFailureText(
+      { ...LOCKED, code: "update.failed", actions: ["Try again"] },
+      stub({ "update.failed.actions.0": "Guncelleme icin yeniden dene", "action.retry": "Yeniden dene" }),
+    );
+    expect(text.actions).toEqual(["Guncelleme icin yeniden dene"]);
+  });
+
+  it("labels an action the core moved, not the position it used to be in", () => {
+    // `session.hop-failed` hands over the inner failure's actions when a hop
+    // failed on the far end's identity, so position 0 is "edit the gateway
+    // chain" on one path and "verify the fingerprint" on another. Labelling by
+    // position would put the first name on the second button.
+    const hop: CoreFailure = {
+      code: "session.hop-failed",
+      message: "Could not reach the target through `bastion-2`.",
+      detail: null,
+      actions: [
+        "Verify the fingerprint with the server's administrator before doing anything else",
+        "Contact the server's administrator",
+      ],
+    };
+    const text = resolveFailureText(
+      hop,
+      stub({
+        "action.verify-fingerprint-out-of-band": "Parmak izini once dogrula",
+        "action.contact-server-administrator": "Sunucu yoneticisine basvur",
+      }),
+    );
+    expect(text.actions).toEqual(["Parmak izini once dogrula", "Sunucu yoneticisine basvur"]);
+  });
+
   it("passes the diagnostic through untouched", () => {
     // `detail` is an OS error string or a node id: what a reader copies into a
     // bug report, and useless to whoever reads that report once translated.
@@ -186,9 +245,14 @@ describe("a failure on screen", () => {
   });
 
   it("falls back to the core's English for a code no catalogue has", async () => {
+    // The code below is deliberately one the core does not send and the
+    // catalogue therefore never holds. This test used to name a real code that
+    // had not been translated yet, which made translating it look like a
+    // regression: the assertion is about the *rule*, not about which failures
+    // happen to be outstanding this week.
     await switchTo("tr");
     const unknown: CoreFailure = {
-      code: "sftp.transfer-running",
+      code: "sftp.not-a-code-the-core-sends",
       message: "A transfer is still running in that pane.",
       detail: null,
       actions: ["Wait for it to finish"],
@@ -196,6 +260,28 @@ describe("a failure on screen", () => {
     render(<Notice failure={unknown} />);
     expect(screen.getByText(unknown.message)).toBeInTheDocument();
     expect(screen.getByText("Wait for it to finish")).toBeInTheDocument();
+  });
+
+  it("translates a connection failure's buttons through the real catalogue", async () => {
+    // The surface this whole file exists for: a rejected password, in Turkish,
+    // with the sentence and both buttons coming out of `errors.json`. The
+    // actions are the ones `action_text` produces, so they resolve through the
+    // shared lexicon rather than through `session.auth-rejected`'s own entry.
+    await switchTo("tr");
+    const rejected: CoreFailure = {
+      code: "session.auth-rejected",
+      message: "The server rejected these credentials (password).",
+      detail: null,
+      actions: ["Enter a credential for this attempt", "Choose a different credential"],
+    };
+    render(<Notice failure={rejected} />);
+    expect(screen.queryByText(rejected.message)).not.toBeInTheDocument();
+    for (const action of rejected.actions) {
+      expect(screen.queryByText(action)).not.toBeInTheDocument();
+    }
+    const buttons = screen.getAllByRole("listitem");
+    expect(buttons).toHaveLength(2);
+    for (const button of buttons) expect(button.textContent ?? "").not.toBe("");
   });
 
   it("shows the core's own sentence in English", async () => {

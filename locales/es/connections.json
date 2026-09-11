@@ -35,10 +35,10 @@
     "_comment_collapse": "Verb, on the chevron of an open folder. The opposite of expand.",
     "collapse": "Contraer",
     "_comment_inheritsCount": "A badge on a folder: how many fields this folder sets that every entry beneath it takes from it. Very short — it sits in a badge a few characters wide.",
-    "inheritsCount": "{count, plural, one {hereda #} other {hereda #}}",
+    "inheritsCount": "{count, plural, one {hereda #} many {hereda #} other {hereda #}}",
     "inheritsHint": "Campos que define esta carpeta y que hereda todo lo que está debajo",
     "_comment_usedByCount": "A badge on a shared credential: how many entries log in with it. Same width constraint as inheritsCount.",
-    "usedByCount": "{count, plural, one {la usan #} other {la usan #}}",
+    "usedByCount": "{count, plural, one {la usan #} many {la usan #} other {la usan #}}",
     "usedByHint": "Conexiones que toman su credencial de esta entrada"
   },
 
@@ -113,8 +113,13 @@
     "_comment_countPending": "The total has not arrived yet. The ellipsis stands in for the number that is still coming; do not replace it with a zero.",
     "countPending": "{shown, number} de …",
     "_comment_countUnknown": "The total could not be read at all. Says only what is known rather than stating a total that would be wrong.",
-    "countUnknown": "{count, plural, one {# mostrado} other {# mostrados}}",
+    "countUnknown": "{count, plural, one {# mostrado} many {# mostrados} other {# mostrados}}",
     "countFailed": "No se pudo leer el número de conexiones",
+    "_comment_subtitle": "The second line of a search result, for the two shapes whose subtitle is a count rather than an address: a folder's children and a group's members. The core sends the number, so the plural category and the digits are this catalogue's to get right. The # is the number itself.",
+    "subtitle": {
+      "items": "{count, plural, one {# elemento} many {# elementos} other {# elementos}}",
+      "members": "{count, plural, one {# miembro} many {# miembros} other {# miembros}}"
+    },
     "_comment_hintSelect": "A footer hint beside the Enter key cap. Two outcomes for one key: on a connection it opens a session, on a folder or a credential it selects. Lower case — it is a fragment beside a key, not a sentence.",
     "hintSelect": "conectar · seleccionar",
     "_comment_hintEdit": "Beside the Ctrl+Enter key cap. Verb: open the entry in the editor.",

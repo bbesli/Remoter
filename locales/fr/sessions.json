@@ -91,7 +91,7 @@
     "_comment_compare": "On both dialogs. The randomart is the picture form of the fingerprint; comparing it is easier than comparing 43 characters. The second sentence is the instruction that matters.",
     "compare": "Comparez le randomart avec celui que le serveur affiche en local. Si vous ne pouvez pas le vérifier par un canal indépendant, n'allez pas plus loin.",
     "_comment_confirmLabel": "SECURITY-CRITICAL. The friction is the point: the user must copy characters off the screen, which is what makes them look at the fingerprint. {count} is how many characters the core is asking for — it sends the length and never the text, so this dialog cannot fill the answer in.",
-    "confirmLabel": "Pour continuer, saisissez {count, plural, one {le dernier caractère} other {les # derniers caractères}} de la clé présentée maintenant",
+    "confirmLabel": "Pour continuer, saisissez {count, plural, one {le dernier caractère} many {les # derniers caractères} other {les # derniers caractères}} de la clé présentée maintenant",
     "confirmHint": "Recopiez-les depuis l'écran ci-dessus. Remoter ne remplit pas ce champ à votre place.",
     "_comment_audited": "In the footer of both dialogs, before the buttons. Applies to the refusal as much as to the acceptance.",
     "audited": "Quelle que soit votre décision, elle est inscrite dans le journal d'audit.",
@@ -297,7 +297,7 @@
     "tunnelsFailed": "Les redirections n'ont pas pu être lues",
     "closeFailed": "La redirection n'a pas été fermée",
     "_comment_openCount": "Footer of the sessions pane. English says '1 open' and '2 open' alike; other languages do not.",
-    "openCount": "{count, plural, =0 {aucune ouverte} one {# ouverte} other {# ouvertes}}"
+    "openCount": "{count, plural, =0 {aucune ouverte} one {# ouverte} many {# ouvertes} other {# ouvertes}}"
   },
   "forward": {
     "_comment_": "Opening a port forward. A forward runs on a connection of its own, so it belongs to a saved connection rather than to an open tab.",
