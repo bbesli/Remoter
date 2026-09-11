@@ -25,6 +25,12 @@
   text-align: start;
   cursor: default;
   min-width: 0;
+  /*
+   * A row is a target, not prose. The drag is a pointer gesture rather than a
+   * native one (see NodeRow.tsx), and a press-and-drag over selectable text
+   * paints a selection across the sidebar instead of moving the entry.
+   */
+  user-select: none;
 }
 
 .row:hover {

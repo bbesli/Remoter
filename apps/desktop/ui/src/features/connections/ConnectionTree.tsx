@@ -10,11 +10,22 @@
  * docs/features/connections.md describes, and it is what lets someone walk a
  * folder without the inspector following every step.
  *
- * Organisation is by drag-and-drop, native HTML5, with a keyboard equivalent on
- * Ctrl/Cmd and the arrow keys. The tree refuses a cycle or a non-folder parent
- * while the drag is still in the air rather than letting the core reject it
- * afterwards; when the core rejects a move anyway — a depth limit, a vault
- * write that failed — its message is shown on the tree, not swallowed.
+ * Organisation is by drag-and-drop, with a keyboard equivalent on Ctrl/Cmd and
+ * the arrow keys. The tree refuses a cycle or a non-folder parent while the
+ * drag is still in the air rather than letting the core reject it afterwards;
+ * when the core rejects a move anyway — a depth limit, a vault write that
+ * failed — its message is shown on the tree, not swallowed.
+ *
+ * The drag is built on pointer events rather than on HTML5 drag-and-drop. See
+ * the note at the top of `NodeRow.tsx`: under Tauri on Windows the page never
+ * receives `dragover` or `drop` at all, so the HTML5 version of this was dead
+ * on the platform most of its users are on, and jsdom cannot express the HTML5
+ * version either, so nothing in the suite noticed.
+ *
+ * A refusal is shown on the tree as well as announced. A drop the application
+ * refused and a drag the application never received look identical when the
+ * only channel is a visually hidden live region — which is the ambiguity that
+ * let the Windows defect survive as long as it did.
  *
  * Still missing, and tracked: the move does not yet show the inheritance diff
  * that docs/features/connections.md asks for. That needs a core command to
@@ -89,6 +100,27 @@ function menuAnchor(x: number, y: number): { x: number; y: number } {
 /** How long a drag rests on a closed folder before the folder opens under it. */
 const AUTO_EXPAND_MS = 600;
 
+/**
+ * How far the pointer travels before a press becomes a drag.
+ *
+ * Below it the gesture is still a click — selecting a row, or hitting its
+ * chevron — and a tree that started re-parenting on a two-pixel wobble would
+ * be unusable with a trackpad.
+ */
+const DRAG_THRESHOLD_PX = 4;
+
+/**
+ * Dragging toward the edge of the sidebar scrolls it.
+ *
+ * The platform did this for free while the gesture was a native drag. A
+ * pointer drag has to do it itself, and without it a tree longer than the
+ * sidebar can only be reordered within the screenful the drag started on —
+ * which for a real vault is most of the moves someone wants to make.
+ */
+const EDGE_SCROLL_PX = 28;
+const EDGE_SCROLL_STEP = 14;
+const EDGE_SCROLL_MS = 40;
+
 /** The gap left between siblings when a sort order has to be respaced. */
 const RESPACE_STRIDE = 16;
 
@@ -124,6 +156,24 @@ interface DropState {
   /** Null when the move is impossible; `reason` then says why. */
   plan: DropPlan | null;
   reason: string | null;
+}
+
+/**
+ * A press that may or may not turn into a drag.
+ *
+ * Held in a ref rather than in state because `pointermove` fires many times a
+ * second and because the handlers that read it — including the window-level
+ * ones that catch a release outside the sidebar — must never see a value one
+ * render behind the pointer.
+ */
+interface DragGesture {
+  id: string;
+  startX: number;
+  startY: number;
+  /** False until the pointer has moved far enough to mean a drag. */
+  active: boolean;
+  /** The dragged node's subtree: everywhere it cannot land. Empty until active. */
+  blocked: ReadonlySet<string>;
 }
 
 /** One `node_move` call. A reorder sometimes needs several. */
@@ -280,14 +330,27 @@ export function ConnectionTree() {
   const [dragId, setDragId] = useState<string | null>(null);
   const [drop, setDrop] = useState<DropState | null>(null);
   const [announcement, setAnnouncement] = useState("");
+  /**
+   * Why nothing moved, shown on the tree.
+   *
+   * The live region below is a 1×1 clipped box, so a refused drop used to
+   * leave a sighted user with no feedback at all at the moment of release —
+   * indistinguishable from a drag the application never received. It is set
+   * alongside the announcement rather than instead of it, and deliberately
+   * carries no `role="alert"`: the polite live region already reads it, and
+   * two channels announcing the same sentence is worse than one.
+   */
+  const [refusal, setRefusal] = useState<string | null>(null);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const confirmRef = useRef<HTMLDivElement | null>(null);
 
-  // `dragover` fires many times a second and `drop` has to read the plan the
-  // last one computed, so the plan lives in a ref and the state exists only to
-  // paint the indicator.
+  // `pointermove` fires many times a second and the release has to read the
+  // plan the last one computed, so the plan lives in a ref and the state
+  // exists only to paint the indicator.
   const dropRef = useRef<DropState | null>(null);
+  const gesture = useRef<DragGesture | null>(null);
   const autoExpand = useRef<{ id: string; timer: number } | null>(null);
+  const edgeScroll = useRef<{ direction: -1 | 1; timer: number } | null>(null);
   const pendingAnnouncement = useRef("");
 
   /*
@@ -499,11 +562,27 @@ export function ConnectionTree() {
     (steps: MoveStep[], success: string) => {
       if (steps.length === 0) return;
       pendingAnnouncement.current = success;
+      // A move that is actually happening answers whatever the last refusal
+      // said, so the note explaining the last one goes with it.
+      setRefusal(null);
       resetMove();
       startMove(steps);
     },
     [startMove, resetMove],
   );
+
+  /**
+   * Nothing moved, and this is why.
+   *
+   * Both halves matter and they are different audiences: the note is read off
+   * the screen, the announcement is read out. Every refusal in this component
+   * — a drop the tree would not take, a Ctrl+arrow with nowhere to go — goes
+   * through here so that neither audience can be served without the other.
+   */
+  const refuse = useCallback((reason: string) => {
+    setRefusal(reason);
+    setAnnouncement(reason);
+  }, []);
 
   const onSelect = useCallback(
     (id: string) => {
@@ -608,21 +687,31 @@ export function ConnectionTree() {
 
   // ------------------------------------------------------------- moving ----
 
-  /** Every id the dragged node cannot land inside: itself and its subtree. */
-  const blocked = useMemo(() => {
-    if (dragId === null) return null;
-    const out = new Set<string>([dragId]);
-    const stack = [dragId];
-    while (stack.length > 0) {
-      const current = stack.pop();
-      if (current === undefined) continue;
-      for (const kid of index.children.get(current) ?? []) {
-        out.add(kid.id);
-        stack.push(kid.id);
+  /**
+   * Every id the dragged node cannot land inside: itself and its subtree.
+   *
+   * Computed once, when the drag starts, and kept on the gesture rather than
+   * derived from state. A `pointermove` can start the drag and land on a
+   * target in the same event, and a set derived from `useState` would still be
+   * one render behind at that moment — which would silently plan the first
+   * hover of every drag against an empty set.
+   */
+  const subtreeOf = useCallback(
+    (id: string): ReadonlySet<string> => {
+      const out = new Set<string>([id]);
+      const stack = [id];
+      while (stack.length > 0) {
+        const current = stack.pop();
+        if (current === undefined) continue;
+        for (const kid of index.children.get(current) ?? []) {
+          out.add(kid.id);
+          stack.push(kid.id);
+        }
       }
-    }
-    return out;
-  }, [dragId, index]);
+      return out;
+    },
+    [index],
+  );
 
   const siblingsWithout = useCallback(
     (parentId: string | null, exclude: string | null): TreeNode[] => {
@@ -656,6 +745,49 @@ export function ConnectionTree() {
 
   useEffect(() => cancelAutoExpand, [cancelAutoExpand]);
 
+  const stopEdgeScroll = useCallback(() => {
+    if (edgeScroll.current === null) return;
+    window.clearInterval(edgeScroll.current.timer);
+    edgeScroll.current = null;
+  }, []);
+
+  /**
+   * Scroll the sidebar while the pointer rests against one of its edges.
+   *
+   * On a repeating timer rather than on the pointer's own movement: the
+   * gesture that needs this is holding still at the edge waiting for the
+   * target to come into view, and that produces no further `pointermove`.
+   */
+  const updateEdgeScroll = useCallback(
+    (y: number) => {
+      const el = scrollerRef.current;
+      // Nothing to scroll — a short tree, or a test environment with no
+      // layout — so there is nothing to arm either.
+      if (el === null || el.scrollHeight <= el.clientHeight) {
+        stopEdgeScroll();
+        return;
+      }
+      const rect = el.getBoundingClientRect();
+      const direction =
+        y < rect.top + EDGE_SCROLL_PX ? -1 : y > rect.bottom - EDGE_SCROLL_PX ? 1 : 0;
+      if (direction === 0) {
+        stopEdgeScroll();
+        return;
+      }
+      if (edgeScroll.current?.direction === direction) return;
+      stopEdgeScroll();
+      const timer = window.setInterval(() => {
+        const node = scrollerRef.current;
+        if (node === null) return;
+        node.scrollTop += direction * EDGE_SCROLL_STEP;
+      }, EDGE_SCROLL_MS);
+      edgeScroll.current = { direction, timer };
+    },
+    [stopEdgeScroll],
+  );
+
+  useEffect(() => stopEdgeScroll, [stopEdgeScroll]);
+
   const setDropState = useCallback((next: DropState | null) => {
     if (sameDrop(dropRef.current, next)) return;
     dropRef.current = next;
@@ -675,9 +807,12 @@ export function ConnectionTree() {
    */
   const planDrop = useCallback(
     (targetId: string | null, band: DropBand): DropState => {
-      if (dragId === null || blocked === null) {
+      const held = gesture.current;
+      if (held === null || !held.active) {
         return { targetId, band, plan: null, reason: null };
       }
+      const dragId = held.id;
+      const blocked = held.blocked;
       if (targetId === null) {
         const roots = siblingsWithout(null, dragId);
         return {
@@ -722,19 +857,48 @@ export function ConnectionTree() {
         reason: null,
       };
     },
-    [blocked, dragId, index, siblingsWithout, t],
+    [index, siblingsWithout, t],
   );
 
-  const onDragStartRow = useCallback(
-    (id: string) => {
+  /** A press landed on a row. It is not a drag until the pointer moves. */
+  const onPressRow = useCallback((id: string, x: number, y: number) => {
+    gesture.current = { id, startX: x, startY: y, active: false, blocked: new Set() };
+  }, []);
+
+  /**
+   * Promotes a press to a drag once the pointer has really travelled.
+   *
+   * Returns whether a drag is in flight, so both the row handler and the
+   * background handler can start one and plan against it in the same event.
+   */
+  const advanceGesture = useCallback(
+    (x: number, y: number): boolean => {
+      const held = gesture.current;
+      if (held === null) return false;
+      if (held.active) return true;
+      if (
+        Math.abs(x - held.startX) < DRAG_THRESHOLD_PX &&
+        Math.abs(y - held.startY) < DRAG_THRESHOLD_PX
+      ) {
+        return false;
+      }
+      held.active = true;
+      held.blocked = subtreeOf(held.id);
       setMenu(null);
-      setDragId(id);
+      // Whatever the last refusal was about, the user is answering it by
+      // dragging again; leaving it up would make the tree accumulate stale
+      // explanations.
+      setRefusal(null);
+      setDragId(held.id);
+      return true;
     },
-    [],
+    [subtreeOf],
   );
 
-  const onDragOverRow = useCallback(
-    (id: string, band: DropBand): boolean => {
+  const onPointerOverRow = useCallback(
+    (id: string, band: DropBand, x: number, y: number): boolean => {
+      if (!advanceGesture(x, y)) return false;
+      updateEdgeScroll(y);
       const next = planDrop(id, band);
       setDropState(next);
 
@@ -750,29 +914,60 @@ export function ConnectionTree() {
       if (canOpen) armAutoExpand(id);
       else cancelAutoExpand();
 
-      return next.plan !== null;
+      // Claimed either way: a refused row is still the row the pointer is
+      // over, and letting the background claim it instead would paint the
+      // whole tree as a valid top-level target while the user is being told
+      // "no" by the row under the cursor.
+      return true;
     },
-    [planDrop, setDropState, index, expanded, armAutoExpand, cancelAutoExpand],
+    [
+      advanceGesture,
+      updateEdgeScroll,
+      planDrop,
+      setDropState,
+      index,
+      expanded,
+      armAutoExpand,
+      cancelAutoExpand,
+    ],
   );
 
-  const onDragLeaveRow = useCallback(
+  const onPointerLeaveRow = useCallback(
     (id: string) => {
       if (autoExpand.current?.id === id) cancelAutoExpand();
     },
     [cancelAutoExpand],
   );
 
-  const commitDrop = useCallback(() => {
-    const state = dropRef.current;
-    const draggedId = dragId;
+  /** The pointer is over the background, which is the top level. */
+  const onPointerOverBackground = useCallback(
+    (x: number, y: number) => {
+      if (!advanceGesture(x, y)) return;
+      updateEdgeScroll(y);
+      cancelAutoExpand();
+      setDropState(planDrop(null, "into"));
+    },
+    [advanceGesture, updateEdgeScroll, cancelAutoExpand, planDrop, setDropState],
+  );
+
+  const endGesture = useCallback(() => {
+    gesture.current = null;
+    stopEdgeScroll();
     clearDrop();
     setDragId(null);
+  }, [clearDrop, stopEdgeScroll]);
+
+  const commitDrop = useCallback(() => {
+    const state = dropRef.current;
+    const held = gesture.current;
+    const draggedId = held !== null && held.active ? held.id : null;
+    endGesture();
     if (draggedId === null || state === null) return;
 
     const dragged = index.byId.get(draggedId);
     if (dragged === undefined) return;
     if (state.plan === null) {
-      setAnnouncement(state.reason ?? t("move.refuseGone"));
+      refuse(state.reason ?? t("move.refuseGone"));
       return;
     }
 
@@ -782,12 +977,50 @@ export function ConnectionTree() {
       movesFor(state.plan, draggedId, sibs),
       describeMove(t, dragged, target, state.band),
     );
-  }, [dragId, index, siblingsWithout, runMove, clearDrop, t]);
+  }, [index, siblingsWithout, runMove, endGesture, refuse, t]);
 
-  const onDragEndRow = useCallback(() => {
-    clearDrop();
-    setDragId(null);
-  }, [clearDrop]);
+  const cancelDrag = useCallback(() => {
+    const held = gesture.current;
+    const wasDragging = held !== null && held.active;
+    endGesture();
+    if (wasDragging) setAnnouncement(t("move.cancelled"));
+  }, [endGesture, t]);
+
+  /**
+   * The end of the gesture, wherever it happens.
+   *
+   * On the window rather than on the scroller: a release outside the sidebar
+   * — over the session area, over the title bar, off the window entirely — has
+   * to end the drag too, or the tree is left holding a pointer it will never
+   * hear from again. The drop target is whatever the last move planned, so a
+   * release over nothing simply moves nothing.
+   *
+   * Escape cancels, which native drag-and-drop gave for free and a pointer
+   * drag has to implement.
+   */
+  useEffect(() => {
+    const onUp = () => {
+      if (gesture.current === null) return;
+      commitDrop();
+    };
+    const onCancel = () => {
+      if (gesture.current === null) return;
+      cancelDrag();
+    };
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key !== "Escape" || gesture.current === null) return;
+      e.stopPropagation();
+      cancelDrag();
+    };
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onCancel);
+    window.addEventListener("keydown", onKey, true);
+    return () => {
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onCancel);
+      window.removeEventListener("keydown", onKey, true);
+    };
+  }, [commitDrop, cancelDrag]);
 
   /** Ctrl/Cmd with an arrow key: the same four moves, without a pointer. */
   const keyboardMove = useCallback(
@@ -803,7 +1036,7 @@ export function ConnectionTree() {
       switch (action) {
         case "up": {
           if (at === 0) {
-            setAnnouncement(t("move.atFirst", { name: isolate(node.name) }));
+            refuse(t("move.atFirst", { name: isolate(node.name) }));
             return;
           }
           const anchor = without[at - 1];
@@ -821,7 +1054,7 @@ export function ConnectionTree() {
         }
         case "down": {
           if (at >= sibs.length - 1) {
-            setAnnouncement(t("move.atLast", { name: isolate(node.name) }));
+            refuse(t("move.atLast", { name: isolate(node.name) }));
             return;
           }
           const anchor = without[at];
@@ -840,7 +1073,7 @@ export function ConnectionTree() {
         case "out": {
           const parentId = node.parentId;
           if (parentId === null) {
-            setAnnouncement(t("move.atTopLevel", { name: isolate(node.name) }));
+            refuse(t("move.atTopLevel", { name: isolate(node.name) }));
             return;
           }
           const parent = index.byId.get(parentId);
@@ -858,7 +1091,7 @@ export function ConnectionTree() {
         case "in": {
           const previous = at === 0 ? undefined : sibs[at - 1];
           if (previous === undefined || previous.kind !== "folder") {
-            setAnnouncement(t("move.cannotIndent", { name: isolate(node.name) }));
+            refuse(t("move.cannotIndent", { name: isolate(node.name) }));
             return;
           }
           const kids = siblingsWithout(previous.id, node.id);
@@ -873,7 +1106,7 @@ export function ConnectionTree() {
         }
       }
     },
-    [index, siblingsWithout, runMove, expanded, toggleExpanded, t],
+    [index, siblingsWithout, runMove, expanded, toggleExpanded, refuse, t],
   );
 
   // ------------------------------------------------------------ keyboard ----
@@ -1061,9 +1294,31 @@ export function ConnectionTree() {
         </div>
       )}
 
+      {/*
+        Why nothing moved, where the person who made the gesture is looking.
+        A refused drop used to reach the live region alone — a 1×1 clipped box
+        — so a sighted user released the pointer and saw the tree simply not
+        change, which is indistinguishable from a drag the application never
+        received. Tone is `warning` rather than `danger`: nothing broke, and a
+        `danger` callout carries `role="alert"`, which would announce the same
+        sentence a second time over the live region below.
+      */}
+      {refusal !== null && (
+        <div className={s.notice}>
+          <Callout tone="warning" title={t("move.failed")}>
+            {refusal}
+            <div className={s.noticeActions}>
+              <Button variant="ghost" size="sm" onClick={() => setRefusal(null)}>
+                {tCommon("action.dismiss")}
+              </Button>
+            </div>
+          </Callout>
+        </div>
+      )}
+
       <div
         ref={scrollerRef}
-        className={clsx(s.scroller, rootTargeted && s.dropRoot)}
+        className={clsx(s.scroller, dragId !== null && s.dragging, rootTargeted && s.dropRoot)}
         role="tree"
         aria-label={t("tree.label")}
         tabIndex={0}
@@ -1074,24 +1329,18 @@ export function ConnectionTree() {
           e.preventDefault();
           setMenu({ ...menuAnchor(e.clientX, e.clientY), nodeId: null });
         }}
-        onDragOver={(e) => {
-          // Rows stop their own dragover, so anything arriving here is the
-          // background: the top level.
-          if (dragId === null) return;
-          e.preventDefault();
-          e.dataTransfer.dropEffect = "move";
-          cancelAutoExpand();
-          setDropState(planDrop(null, "into"));
+        onPointerMove={(e) => {
+          // A row that can take the drop stops its own move, so anything
+          // arriving here is the background — including a move over a
+          // favourite row, which is a projection of a tag and not a place.
+          onPointerOverBackground(e.clientX, e.clientY);
         }}
-        onDragLeave={(e) => {
+        onPointerLeave={(e) => {
           const next = e.relatedTarget;
           if (next instanceof Node && e.currentTarget.contains(next)) return;
+          // The drag is still in flight — the release is handled on the window
+          // — but it is over nothing, so it plans nothing.
           clearDrop();
-        }}
-        onDrop={(e) => {
-          if (dragId === null) return;
-          e.preventDefault();
-          commitDrop();
         }}
       >
         {/* A blank sidebar and an empty vault look identical, so the wait is
@@ -1137,7 +1386,7 @@ export function ConnectionTree() {
                 selected={row.node.id === selectedNodeId}
                 cursored={row.key === cursorKey}
                 domId={rowDomId(row.key)}
-                draggable={row.section === "tree"}
+                movable={row.section === "tree"}
                 droppable={row.section === "tree"}
                 dragging={row.section === "tree" && row.node.id === dragId}
                 dropBand={targeted && drop !== null ? drop.band : null}
@@ -1146,11 +1395,9 @@ export function ConnectionTree() {
                 onSelect={onSelect}
                 onActivate={onActivate}
                 onContextMenu={onContextMenu}
-                onDragStartRow={onDragStartRow}
-                onDragOverRow={onDragOverRow}
-                onDragLeaveRow={onDragLeaveRow}
-                onDropRow={commitDrop}
-                onDragEndRow={onDragEndRow}
+                onPressRow={onPressRow}
+                onPointerOverRow={onPointerOverRow}
+                onPointerLeaveRow={onPointerLeaveRow}
               />
             </div>
           );

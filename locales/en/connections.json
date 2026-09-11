@@ -77,6 +77,8 @@
     "_comment_refuseNotFolder": "Only folders hold other entries. Groups look like folders and do not, which is exactly why this sentence has to be about folders rather than about containers.",
     "refuseNotFolder": "Only a folder can hold other entries.",
     "refuseGone": "That entry is no longer in the tree.",
+    "_comment_cancelled": "Escape during a drag abandons it and moves nothing. Announced only: a sighted user watches the drop indicator disappear, and this sentence is what replaces that for someone who cannot.",
+    "cancelled": "The move was cancelled.",
     "_comment_movedInto": "{name} is the entry that moved and {parent} the folder it went into. Both are user data, in any script, isolated before they arrive.",
     "movedInto": "Moved “{name}” into “{parent}”.",
     "_comment_movedToTop": "The top level is the root of the tree — no folder above it.",

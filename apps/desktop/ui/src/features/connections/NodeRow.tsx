@@ -12,9 +12,29 @@
  * The row is also the drag source and the drop target. It decides only which
  * band of itself the pointer is in; whether that band can accept the drag is
  * the tree's question, because only the tree knows what is being dragged.
+ *
+ * **The gesture is built on pointer events, not on HTML5 drag-and-drop.**
+ * Under Tauri on Windows the webview's own drop target is revoked before the
+ * page ever sees it: `dragDropEnabled` defaults to true, which makes wry
+ * `RevokeDragDrop()` every WebView2 child window and register an `IDropTarget`
+ * that understands file drops alone. An in-page drag then produces a
+ * `dragstart` and nothing else — no `dragover`, no `drop`, no cursor — which
+ * is exactly the "dragging does nothing" this tree shipped with, on the one
+ * platform none of us develops on. Pointer events are not routed through that
+ * target and behave the same on every platform.
+ *
+ * It also makes the gesture testable. jsdom implements `PointerEvent` and
+ * implements neither `DragEvent` nor `DataTransfer`, so a drag written on
+ * pointer events can be exercised end to end in the suite; one written on
+ * HTML5 drag events cannot, which is the other half of why this went
+ * unnoticed.
+ *
+ * There is no payload and no MIME type any more, because there was never a
+ * reader for one: a drag never left the window, and the tree carries the
+ * dragged id in its own state.
  */
 
-import { memo, type CSSProperties, type DragEvent, type MouseEvent } from "react";
+import { memo, type CSSProperties, type MouseEvent, type PointerEvent } from "react";
 import clsx from "clsx";
 
 import { Badge } from "@/components/Badge";
@@ -23,14 +43,6 @@ import { useT } from "@/i18n";
 import type { TreeNode } from "@/lib/ipc";
 
 import s from "./NodeRow.module.css";
-
-/**
- * The drag payload carries a node id under a private type.
- *
- * Not `text/plain`: a drop into another application would then paste the
- * contents of a vault into it.
- */
-export const NODE_DRAG_MIME = "application/x-remoter-node";
 
 /** Where a drop would put the dragged node relative to this row. */
 export type DropBand = "before" | "into" | "after";
@@ -43,9 +55,8 @@ export type DropBand = "before" | "into" | "after";
  * teaching — but it does mean the between-bands are only a few pixels tall,
  * which is why the indicator has to be unmistakable once you are in one.
  */
-function bandAt(e: DragEvent<HTMLElement>): DropBand {
-  const rect = e.currentTarget.getBoundingClientRect();
-  const offset = rect.height === 0 ? 0.5 : (e.clientY - rect.top) / rect.height;
+export function bandAt(rect: DOMRect, clientY: number): DropBand {
+  const offset = rect.height === 0 ? 0.5 : (clientY - rect.top) / rect.height;
   if (offset < 0.25) return "before";
   if (offset > 0.75) return "after";
   return "into";
@@ -112,7 +123,7 @@ export interface NodeRowProps {
   /** DOM id, so the tree can point `aria-activedescendant` at this row. */
   domId: string;
   /** False for the favourites projection, which has no position to drag from. */
-  draggable: boolean;
+  movable: boolean;
   /** False for rows that are a projection rather than a place in the tree. */
   droppable: boolean;
   /** True while this row is the node being dragged. */
@@ -126,12 +137,17 @@ export interface NodeRowProps {
   onSelect: (id: string) => void;
   onActivate: (id: string) => void;
   onContextMenu: (id: string, x: number, y: number) => void;
-  onDragStartRow: (id: string) => void;
-  /** Returns false when the band cannot take the drag, so the row can refuse it. */
-  onDragOverRow: (id: string, band: DropBand) => boolean;
-  onDragLeaveRow: (id: string) => void;
-  onDropRow: (id: string) => void;
-  onDragEndRow: () => void;
+  /** A press landed on this row; the tree decides whether it becomes a drag. */
+  onPressRow: (id: string, x: number, y: number) => void;
+  /**
+   * The pointer is over this row's `band`.
+   *
+   * Returns true when the tree claimed the move — a drag is in flight and this
+   * row is its target, accepted or refused. An unclaimed move must be left to
+   * bubble; see `handlePointerMove`.
+   */
+  onPointerOverRow: (id: string, band: DropBand, x: number, y: number) => boolean;
+  onPointerLeaveRow: (id: string) => void;
 }
 
 export const NodeRow = memo(function NodeRow({
@@ -142,7 +158,7 @@ export const NodeRow = memo(function NodeRow({
   selected,
   cursored,
   domId,
-  draggable,
+  movable,
   droppable,
   dragging,
   dropBand,
@@ -151,11 +167,9 @@ export const NodeRow = memo(function NodeRow({
   onSelect,
   onActivate,
   onContextMenu,
-  onDragStartRow,
-  onDragOverRow,
-  onDragLeaveRow,
-  onDropRow,
-  onDragEndRow,
+  onPressRow,
+  onPointerOverRow,
+  onPointerLeaveRow,
 }: NodeRowProps) {
   const t = useT("connections");
   const indent = { "--tree-depth": String(depth) } as CSSProperties;
@@ -178,42 +192,37 @@ export const NodeRow = memo(function NodeRow({
     onContextMenu(node.id, e.clientX, e.clientY);
   };
 
-  const handleDragStart = (e: DragEvent<HTMLDivElement>) => {
-    if (!draggable) {
-      e.preventDefault();
-      return;
-    }
-    e.dataTransfer.setData(NODE_DRAG_MIME, node.id);
-    e.dataTransfer.effectAllowed = "move";
-    onDragStartRow(node.id);
+  const handlePointerDown = (e: PointerEvent<HTMLDivElement>) => {
+    if (!movable) return;
+    // Primary button only, and never touch: on a tablet the same gesture is
+    // how the sidebar is scrolled, and a tree that cannot be scrolled is a
+    // worse trade than one that cannot be reordered by finger. The keyboard
+    // path in the tree is the equivalent that is always available.
+    if (e.button !== 0 || e.pointerType === "touch") return;
+    onPressRow(node.id, e.clientX, e.clientY);
   };
 
-  const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
-    // Whatever happens here, the background handler must not also claim this
-    // event and read it as a drop onto the top level.
-    e.stopPropagation();
+  const handlePointerMove = (e: PointerEvent<HTMLDivElement>) => {
+    // A row that is a projection rather than a place in the tree — the
+    // favourites section — cannot take a drop, so it must not swallow the
+    // move either: the scroller behind it reads an unclaimed move as the top
+    // level, and without this fall-through the favourites are a dead band
+    // that silently eats the drag. (The HTML5 version stopped the event
+    // *before* this guard, which is exactly how that happened.)
     if (!droppable) return;
-    if (!onDragOverRow(node.id, bandAt(e))) return;
-    // Only an accepted target calls preventDefault. Without it the platform
-    // draws its own refusal cursor, which is exactly the state a refused band
-    // should be in.
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (!onPointerOverRow(node.id, bandAt(rect, e.clientY), e.clientX, e.clientY)) return;
+    // Claimed: this row is the drag's target, so the background must not also
+    // read the same move as a drop onto the top level.
+    e.stopPropagation();
   };
 
-  const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
+  const handlePointerLeave = (e: PointerEvent<HTMLDivElement>) => {
     // Moving onto the row's own glyph or label fires a leave; ignore those or
     // the indicator flickers across the width of the row.
     const next = e.relatedTarget;
     if (next instanceof Node && e.currentTarget.contains(next)) return;
-    onDragLeaveRow(node.id);
-  };
-
-  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
-    if (!droppable) return;
-    e.preventDefault();
-    e.stopPropagation();
-    onDropRow(node.id);
+    onPointerLeaveRow(node.id);
   };
 
   return (
@@ -234,15 +243,12 @@ export const NodeRow = memo(function NodeRow({
         dropBand === "after" && !dropRefused && s.dropAfter,
       )}
       style={indent}
-      draggable={draggable}
       onClick={() => onSelect(node.id)}
       onDoubleClick={() => onActivate(node.id)}
       onContextMenu={handleContextMenu}
-      onDragStart={handleDragStart}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-      onDragEnd={onDragEndRow}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerLeave={handlePointerLeave}
     >
       {hasChildren ? (
         <button

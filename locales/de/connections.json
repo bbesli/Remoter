@@ -77,6 +77,7 @@
     "_comment_refuseNotFolder": "Only folders hold other entries. Groups look like folders and do not, which is exactly why this sentence has to be about folders rather than about containers.",
     "refuseNotFolder": "Nur ein Ordner kann andere Einträge enthalten.",
     "refuseGone": "Dieser Eintrag ist nicht mehr im Baum.",
+    "cancelled": "Das Verschieben wurde abgebrochen.",
     "_comment_movedInto": "{name} is the entry that moved and {parent} the folder it went into. Both are user data, in any script, isolated before they arrive.",
     "movedInto": "„{name}“ wurde in „{parent}“ verschoben.",
     "_comment_movedToTop": "The top level is the root of the tree — no folder above it.",

@@ -58,6 +58,17 @@
 }
 
 /*
+ * The drag is a pointer gesture rather than a native one (see NodeRow.tsx), so
+ * the cursor is ours to draw. Without this the pointer keeps the default arrow
+ * all the way through a drag and the only feedback is the indicator on the
+ * target row.
+ */
+.dragging,
+.dragging * {
+  cursor: grabbing;
+}
+
+/*
  * A drop onto the background is a move to the top level. It gets the whole
  * scroller rather than a line, because there is no row it belongs beside.
  */
