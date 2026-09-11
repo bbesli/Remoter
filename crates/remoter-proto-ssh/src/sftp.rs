@@ -337,9 +337,9 @@ pub struct NameRisks {
     /// Holds a zero-width or otherwise invisible character, so two rows can
     /// look identical and be different files.
     pub invisible: bool,
-    /// Is not a single path component: it holds a separator, or it is `.` or
-    /// `..`. A server that sends one is trying to make a click on a listing
-    /// row touch something outside the directory being listed.
+    /// Is not a single path component: it is empty, it holds a separator, or
+    /// it is `.` or `..`. A server that sends one is trying to make a click on
+    /// a listing row touch something outside the directory being listed.
     pub separator: bool,
 }
 
@@ -381,7 +381,18 @@ pub struct SafeName {
 #[must_use]
 pub fn safe_name(name: &str) -> SafeName {
     let mut risks = NameRisks {
-        separator: name.contains('/') || name.contains('\\') || name == "." || name == "..",
+        // The empty name belongs with the separators, not with the clean
+        // names. `join_path("/srv/data", "")` is `/srv/data/`, which addresses
+        // the directory being listed rather than anything inside it — so an
+        // unflagged empty entry lets a server point `remove_tree` at the
+        // parent it is already walking, and gives the interface a row with no
+        // text to click. Nothing filters it out upstream: `SSH_FXP_NAME`
+        // carries a length-prefixed string and zero is a length.
+        separator: name.is_empty()
+            || name.contains('/')
+            || name.contains('\\')
+            || name == "."
+            || name == "..",
         ..NameRisks::default()
     };
     let display = escape_into(name, &mut risks);
@@ -1658,13 +1669,70 @@ pub async fn run_sftp_session(
     Ok(reason)
 }
 
+/// Names Windows resolves to a device rather than to a file, in any directory,
+/// with or without an extension: `NUL.txt` is the null device, not a file.
+///
+/// A download that "succeeded" into `PRN` printed the file and saved nothing;
+/// one into `NUL` discarded it. Both are a server choosing what happens on the
+/// user's machine, which is the thing this module exists to prevent.
+const WINDOWS_DEVICE_NAMES: [&str; 22] = [
+    "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8",
+    "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+];
+
+/// Whether a server-chosen name may be joined onto a locally chosen folder.
+///
+/// Every rule below is enforced on **every** platform, never behind
+/// `cfg(windows)`. A name is chosen by the server and a vault travels: a
+/// transfer queued from Linux is replayed from the same vault on Windows, and a
+/// name that was only safe because of the machine that happened to check it is
+/// not safe. The rules, and the escape each one closes:
+///
+/// * **Empty, `.` or `..`** — addresses the chosen folder or its parent rather
+///   than a file in it.
+/// * **`/` or `\`** — a separator. A backslash is a separator on Windows and a
+///   UNC path (`\\host\share\...`) starts with two, so a name carrying one is
+///   refused rather than quietly cut at it.
+/// * **`:`** — three escapes at once. `C:\evil.exe` is drive-absolute;
+///   `C:evil.exe` is *drive-relative*, which `Path::join` resolves against the
+///   process's current directory on drive C and so lands the file wherever that
+///   is — outside the folder the user picked, with no `..` anywhere in sight;
+///   and `notes.txt:evil.exe` is an NTFS alternate data stream, which writes
+///   hidden bytes into a file that keeps its innocent name and size.
+/// * **A trailing `.` or space** — Windows strips them when it opens the path,
+///   so the name checked here is not the name created: `passwd. ` checks as a
+///   new file and opens `passwd`.
+/// * **A device name** — see [`WINDOWS_DEVICE_NAMES`].
+fn is_safe_local_name(name: &str) -> bool {
+    if name.is_empty() || name == "." || name == ".." {
+        return false;
+    }
+    if name.contains('/') || name.contains('\\') || name.contains(':') {
+        return false;
+    }
+    if name.ends_with('.') || name.ends_with(' ') {
+        return false;
+    }
+    // The stem is what Windows matches a device name against, so `COM1.txt`
+    // has to be refused exactly as `COM1` is.
+    let stem = name.split('.').next().unwrap_or(name);
+    !WINDOWS_DEVICE_NAMES
+        .iter()
+        .any(|device| stem.eq_ignore_ascii_case(device))
+}
+
 /// The local file name a remote path would be saved as.
 ///
 /// The remote name is server-supplied and may contain a path separator, a
-/// `..`, or a leading `/`; only the last component is kept and anything that
-/// still looks like a traversal is refused. A file manager that writes where
-/// the server told it to is a file manager that can be told to overwrite
-/// `~/.ssh/authorized_keys`.
+/// `..`, or a leading `/`; only the last `/`-separated component is kept, and
+/// that component is then held to [`is_safe_local_name`] — which refuses the
+/// Windows-shaped escapes as well as the POSIX ones, on every platform. A file
+/// manager that writes where the server told it to is a file manager that can
+/// be told to overwrite `~/.ssh/authorized_keys`.
+///
+/// Note that `\` is **not** split on: the remote side is POSIX, where a
+/// backslash is an ordinary character in a name, so splitting on it would
+/// silently rename the file rather than refuse it.
 ///
 /// # Errors
 ///
@@ -1676,10 +1744,10 @@ pub fn local_name_for(directory: &Path, remote: &str) -> Result<PathBuf, Protoco
         expected: "a file name that stays inside the chosen folder",
     };
     let name = remote
-        .rsplit(['/', '\\'])
+        .rsplit('/')
         .find(|part| !part.is_empty())
         .ok_or_else(invalid)?;
-    if name == "." || name == ".." || name.contains('/') || name.contains('\\') {
+    if !is_safe_local_name(name) {
         return Err(invalid());
     }
     Ok(directory.join(name))
@@ -1749,15 +1817,107 @@ mod tests {
             local_name_for(directory, "../../../etc/passwd").unwrap(),
             PathBuf::from("/home/ada/Downloads/passwd")
         );
-        assert_eq!(
-            local_name_for(directory, "C:\\Windows\\System32\\config").unwrap(),
-            PathBuf::from("/home/ada/Downloads/config")
-        );
 
         for hostile in ["", "/", "..", "../", "./", "///"] {
             assert!(
                 local_name_for(directory, hostile).is_err(),
                 "{hostile:?} produced a path"
+            );
+        }
+    }
+
+    /// The Windows shapes, checked on whatever platform the suite runs on.
+    ///
+    /// None of these is refused by "does it contain `/` or `..`", and the
+    /// project is built and run on Windows. A vault syncs, so a transfer
+    /// queued on Linux is replayed on Windows: a name that is only safe
+    /// because of the machine that checked it is not safe, and every case here
+    /// is therefore refused on Linux too.
+    #[test]
+    fn a_windows_shaped_name_cannot_escape_the_chosen_folder() {
+        let directory = Path::new("/home/ada/Downloads");
+
+        let escapes = [
+            // The one that started this: drive-*relative*. No `..`, no root,
+            // no separator — and `Path::join` still throws the chosen folder
+            // away, because a path with a prefix and no root replaces the
+            // whole of what it is pushed onto. The file lands at whatever the
+            // current directory on drive C happens to be.
+            "C:payload.exe",
+            "c:payload.exe",
+            // Drive-absolute, the obvious sibling.
+            "C:\\Windows\\System32\\payload.exe",
+            // UNC and its device-namespace forms: a write to a host the
+            // server names is a write off the machine entirely.
+            "\\\\evil.example\\share\\payload.exe",
+            "\\\\?\\C:\\Windows\\payload.exe",
+            "\\\\.\\PhysicalDrive0",
+            // A bare backslash is a separator on Windows; refused rather than
+            // cut at, because on the POSIX side it is part of the name.
+            "notes\\..\\..\\payload.exe",
+            "sub\\payload.exe",
+            // An NTFS alternate data stream: the bytes go into `notes.txt`,
+            // which keeps its name and its reported size, and nothing in a
+            // listing shows the passenger.
+            "notes.txt:payload.exe",
+            "notes.txt:$DATA",
+            // Trailing dots and spaces are stripped when the path is opened,
+            // so the name checked is not the name created. Without this,
+            // `config.` is a new file here and `config` on disk.
+            "config.",
+            "config ",
+            "config...",
+            // Device names, with and without an extension, in any case. A
+            // "successful" download into `NUL` saved nothing; one into `PRN`
+            // printed the file.
+            "NUL",
+            "nul",
+            "CON",
+            "con.txt",
+            "PRN.pdf",
+            "AUX",
+            "COM1",
+            "com9.tar.gz",
+            "LPT1",
+            "lpt9.txt",
+        ];
+        for hostile in escapes {
+            assert!(
+                local_name_for(directory, hostile).is_err(),
+                "{hostile:?} produced a path"
+            );
+        }
+
+        // A drive letter buried in a POSIX path is the same escape wearing a
+        // prefix: the last component is what gets joined.
+        assert!(local_name_for(directory, "/srv/data/C:payload.exe").is_err());
+
+        // A drive letter in front of `/` separators is not an escape, because
+        // `/` genuinely separates: the prefix is discarded with the rest of
+        // the leading components and the file lands in the chosen folder under
+        // its own name. Refusing this would refuse a download for no gain.
+        assert_eq!(
+            local_name_for(directory, "C:/Windows/System32/payload.exe").unwrap(),
+            directory.join("payload.exe")
+        );
+
+        // And the shapes that only *look* like the above stay downloadable —
+        // refusing these would make the pane unable to fetch files that are
+        // legitimately there.
+        for ordinary in [
+            "CONTRACT.pdf",
+            "COM10.log",
+            "console",
+            "nullify.txt",
+            ".bashrc",
+            "report.2024.tar.gz",
+            "a file.txt",
+            "Ünterlagen.pdf",
+        ] {
+            assert_eq!(
+                local_name_for(directory, ordinary).unwrap(),
+                directory.join(ordinary),
+                "{ordinary:?} was refused"
             );
         }
     }
@@ -2095,7 +2255,7 @@ mod tests {
         // A traversal. `russh-sftp` filters `.` and `..` out of a listing but
         // nothing filters this, and `DirEntry::path` would compose it into
         // `/tmp/scratch/../../etc/shadow`.
-        for hostile in ["../../etc/shadow", "..", ".", "a/b", "a\\b"] {
+        for hostile in ["../../etc/shadow", "..", ".", "a/b", "a\\b", ""] {
             assert!(
                 safe_name(hostile).risks.separator,
                 "{hostile:?} passed as a single component"
@@ -2116,6 +2276,25 @@ mod tests {
             escape_untrusted("/srv/data/annex\u{202E}txt.exe"),
             "/srv/data/annex\\u{202E}txt.exe"
         );
+    }
+
+    /// An empty name is a component check, not a cosmetic one.
+    ///
+    /// `SSH_FXP_NAME` carries a length-prefixed string and zero is a length,
+    /// so a server can list an entry with no name at all. Composed, it
+    /// addresses the directory being listed — so a walk that treated it as
+    /// clean would hand `remove_tree` the parent it is already standing in,
+    /// and the interface a row with nothing to read.
+    #[test]
+    fn an_empty_name_is_not_a_component_because_it_addresses_the_parent() {
+        let safe = safe_name("");
+        assert!(safe.risks.separator, "the empty name passed as a component");
+        assert!(!safe.risks.is_component());
+        assert!(!safe.risks.is_clean());
+        assert!(safe.display.is_empty());
+
+        // What it would have composed into, had it been treated as a name.
+        assert_eq!(join_path("/srv/data", ""), "/srv/data/");
     }
 
     #[test]

@@ -33,8 +33,10 @@ remoter-proto = { path = "../remoter-proto", version = "0.1.0" }
 #     this crate where a secret is handed over rather than borrowed.
 #   * `VncEncoding` has no RRE and no Hextile variant, and `From<u32>` folds
 #     every unrecognised encoding number onto `Raw`. See `crate::encoding`.
-#   * several of its decoders panic or allocate without bound on malformed
-#     input. See the "Defects in `vnc-rs` 0.5.3" section of `lib.rs`.
+#   * its handshake has no version floor and prefers security type `None`, and
+#     several of its decoders panic or allocate without bound on malformed
+#     input. `crate::negotiate` and `crate::gate` stand in front of all of it;
+#     see ADR-0013 and the "Defects in `vnc-rs` 0.5.3" section of `lib.rs`.
 vnc-rs = "0.5"
 
 async-trait = "0.1"
@@ -55,10 +57,10 @@ tokio-util = { version = "0.7", features = ["rt"] }
 thiserror.workspace = true
 tracing.workspace = true
 zeroize.workspace = true
-# The handshake observer is written from the transport's `poll_read`, which is
-# not async, and read from the connect path. `parking_lot` for the same reason
-# `remoter-proto` uses it: a lock taken and released without awaiting, and no
-# poisoning to reason about (ADR-0011).
+# The gate records the first rule the peer broke from inside `poll_read`, which
+# is not async, and the session reads it from its loop. `parking_lot` for the
+# same reason `remoter-proto` uses it: a lock taken and released without
+# awaiting, and no poisoning to reason about (ADR-0011).
 parking_lot.workspace = true
 
 [dev-dependencies]
@@ -69,10 +71,6 @@ tokio = { workspace = true, features = [
     "macros",
     "io-util",
 ] }
-# The scripted RFB server in `tests/` builds ZRLE rectangles, and a ZRLE
-# rectangle is a zlib stream (RFC 6143 §7.7.6). Already a workspace dependency
-# and already licence-checked; a test cannot construct a valid one without it.
-flate2.workspace = true
 
 [lints]
 workspace = true

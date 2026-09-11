@@ -16,11 +16,13 @@
 //! (`docs/security/threat-model.md` §T4) and "it renders my desktop" says
 //! nothing about what a compromised host can do with it.
 //!
-//! Two of these tests make `vnc-rs` panic. That is the finding, not the test
-//! failing: the library's decoders are not bounds-checked, and what these prove
-//! is the containment ADR-0011 promises — the panic happens inside a task the
-//! *library* spawned, the session ends, and the process carries on. The panic
-//! message on stderr during a test run is expected.
+//! Two of these tests used to make `vnc-rs` panic, and the comment here said so
+//! and called it contained. ADR-0013 closed both from outside: the input that
+//! reached them is now refused by [`crate::gate`] before the library sees it,
+//! so the tests assert a named failure rather than a survived panic. The ones
+//! that matter most are the inputs that were never panics at all — a rectangle
+//! whose declared size is a 17 GiB allocation aborts the process, and an abort
+//! is contained to nothing.
 
 #![allow(
     clippy::unwrap_used,
@@ -44,8 +46,11 @@ use remoter_proto::{
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
-use crate::encoding::RfbEncoding;
-use crate::protocol::{VncProtocol, WARNING_PASSWORD_TRUNCATED, WEAK_ALGORITHM_VNC_AUTH};
+use crate::encoding::{RfbEncoding, WITHDRAWN};
+use crate::protocol::{
+    SETTING_RFB_VERSION_MIN, VncProtocol, WARNING_NO_AUTHENTICATION, WARNING_PASSWORD_TRUNCATED,
+    WEAK_ALGORITHM_VNC_AUTH,
+};
 use crate::session::run_vnc_session;
 use crate::testing::{PipeTransport, RfbServer, Security, transport_pair, tunnelled_pair};
 
@@ -337,18 +342,14 @@ async fn the_encodings_promised_on_the_wire_are_the_ones_this_build_can_decode()
         .await
         .expect("connects");
 
-    assert!(
-        !live.offered_encodings.contains(&RfbEncoding::RRE.to_wire()),
-        "{:?}",
-        live.offered_encodings
-    );
-    assert!(
-        !live
-            .offered_encodings
-            .contains(&RfbEncoding::HEXTILE.to_wire()),
-        "{:?}",
-        live.offered_encodings
-    );
+    for withdrawn in WITHDRAWN {
+        assert!(
+            !live.offered_encodings.contains(&withdrawn.to_wire()),
+            "{} reached the wire: {:?}",
+            withdrawn.name(),
+            live.offered_encodings
+        );
+    }
     // Raw is mandatory for every client (RFC 6143 §7.7.1), and DesktopSize is
     // what makes a resize visible at all.
     assert!(live.offered_encodings.contains(&RfbEncoding::RAW.to_wire()));
@@ -362,8 +363,8 @@ async fn the_encodings_promised_on_the_wire_are_the_ones_this_build_can_decode()
     );
     assert_eq!(
         live.offered_encodings.first(),
-        Some(&RfbEncoding::TIGHT.to_wire()),
-        "the default preference leads with Tight"
+        Some(&RfbEncoding::COPY_RECT.to_wire()),
+        "the default preference leads with CopyRect, which carries no pixels"
     );
 
     live.finish().await;
@@ -377,14 +378,16 @@ async fn the_encoding_preference_reaches_the_wire() {
         server,
         Security::None,
         &NoCredential,
-        &[("encoding", "zrle"), ("cursor", "remote")],
+        &[("encoding", "raw"), ("cursor", "remote")],
     )
     .await
     .expect("connects");
 
-    assert_eq!(
-        live.offered_encodings.first(),
-        Some(&RfbEncoding::ZRLE.to_wire())
+    assert!(
+        !live
+            .offered_encodings
+            .contains(&RfbEncoding::COPY_RECT.to_wire()),
+        "\"raw\" means every rectangle carries its own pixels"
     );
     assert!(
         !live
@@ -506,6 +509,203 @@ async fn a_server_offering_only_vencrypt_names_what_it_offered() {
         panic!("this is an authentication failure with a name, not a mystery");
     };
     assert_eq!(offered, vec!["VeNCrypt".to_owned()]);
+}
+
+#[tokio::test]
+async fn a_server_offering_no_authentication_to_a_password_session_is_refused() {
+    // The CRITICAL defect, end to end. `vnc-rs` prefers security type `None`
+    // whenever a server offers it, so this exact handshake produced a working,
+    // unauthenticated desktop in which the configured password was never read
+    // and nothing told the user. The selection is made by `crate::negotiate`
+    // now, and a credential means authentication happens.
+    let (transport, server) = transport_pair(target());
+    let script = tokio::spawn(async move {
+        let mut server = server;
+        let chosen = server.announce(b"RFB 003.008\n").await.expect("version");
+        // One security type: None (RFC 6143 §7.2.1).
+        server.write(&[1, 1]).await.expect("offer");
+        // If the client selects anything, this read returns it; if it refuses,
+        // the transport is dropped and this fails with end-of-file.
+        let selection = server.read_exact(1).await;
+        (chosen, selection)
+    });
+
+    let (sink, mut events) = event_channel(64);
+    let protocol = VncProtocol::new().unwrap();
+    let error = tokio::time::timeout(
+        PATIENCE,
+        protocol.connect_session(
+            Box::new(transport),
+            &connection(&[]),
+            &Password(b"hunter2"),
+            sink.clone(),
+            CancellationToken::new(),
+        ),
+    )
+    .await
+    .expect("the refusal must not hang")
+    .expect_err("a configured password must not be silently unused");
+
+    let (chosen, selection) = script.await.unwrap();
+    assert_eq!(&chosen[..], b"RFB 003.008\n");
+    assert!(
+        selection.is_err(),
+        "not one byte of a security-type selection was sent: {selection:?}"
+    );
+
+    let ProtocolError::AuthMethodUnavailable { attempted, offered } = error else {
+        panic!("refusing a downgrade is an authentication failure, not a mystery");
+    };
+    assert_eq!(attempted, CredentialKind::Password);
+    assert_eq!(offered, vec!["None".to_owned()]);
+
+    // And no session was ever described as unauthenticated, because there was
+    // no session.
+    drop(sink);
+    let mut details = Vec::new();
+    while let Some(event) = events.recv().await {
+        if let SessionEvent::Warning(SessionWarning::Other { detail }) = event {
+            details.push(detail);
+        }
+    }
+    assert!(
+        !details.contains(&WARNING_NO_AUTHENTICATION.to_owned()),
+        "{details:?}"
+    );
+}
+
+#[tokio::test]
+async fn a_server_that_answers_33_is_refused_by_the_version_floor() {
+    // The downgrade the CRITICAL defect rode in on: RFC 6143 §7.1.1
+    // negotiation is `min(ours, theirs)`, which without a floor lets any peer
+    // move the conversation to 3.3 — the shape in which the *server* chooses
+    // the security type and the client has no reply to send.
+    let (transport, server) = transport_pair(target());
+    let script = tokio::spawn(async move {
+        let mut server = server;
+        server.write(b"RFB 003.003\n").await.expect("announce 3.3");
+        // What the client sends next, if anything at all.
+        let reply = tokio::time::timeout(PATIENCE, server.read_exact(1)).await;
+        reply.expect("the client must not hang")
+    });
+
+    let (sink, _events) = event_channel(64);
+    let protocol = VncProtocol::new().unwrap();
+    let error = tokio::time::timeout(
+        PATIENCE,
+        protocol.connect_session(
+            Box::new(transport),
+            &connection(&[]),
+            &Password(b"hunter2"),
+            sink,
+            CancellationToken::new(),
+        ),
+    )
+    .await
+    .expect("the floor must not hang")
+    .expect_err("3.3 is below the floor this build defaults to");
+
+    let reply = script.await.unwrap();
+    assert!(
+        reply.is_err(),
+        "the client answers a server below the floor with nothing at all: {reply:?}"
+    );
+    assert!(
+        matches!(error, ProtocolError::HandshakeFailed { .. }),
+        "{error:?}"
+    );
+}
+
+#[tokio::test]
+async fn lowering_the_floor_still_does_not_hand_the_server_the_security_choice() {
+    // A 3.3 server is reachable when the user says so, and the security policy
+    // is the same one: the server offering `None` to a session that has a
+    // password is refused, in the version shape where the server "chose".
+    let (transport, server) = transport_pair(target());
+    let script = tokio::spawn(async move {
+        let mut server = server;
+        let chosen = server.announce(b"RFB 003.003\n").await.expect("version");
+        server
+            .offer_single(1)
+            .await
+            .expect("the server chooses None");
+        (chosen, server.read_exact(1).await)
+    });
+
+    let (sink, _events) = event_channel(64);
+    let protocol = VncProtocol::new().unwrap();
+    let error = tokio::time::timeout(
+        PATIENCE,
+        protocol.connect_session(
+            Box::new(transport),
+            &connection(&[(SETTING_RFB_VERSION_MIN, "3.3")]),
+            &Password(b"hunter2"),
+            sink,
+            CancellationToken::new(),
+        ),
+    )
+    .await
+    .expect("the refusal must not hang")
+    .expect_err("a configured password must not be silently unused");
+
+    let (chosen, trailing) = script.await.unwrap();
+    assert_eq!(&chosen[..], b"RFB 003.003\n", "the lower version is spoken");
+    assert!(trailing.is_err(), "RFB 3.3 has no selection byte to send");
+    assert!(
+        matches!(
+            error,
+            ProtocolError::AuthMethodUnavailable {
+                attempted: CredentialKind::Password,
+                ..
+            }
+        ),
+        "{error:?}"
+    );
+}
+
+#[tokio::test]
+async fn an_out_of_range_security_result_ends_the_connection_without_undefined_behaviour() {
+    // The HIGH defect, end to end. RFC 6143 §7.2.2's `SecurityResult` is a
+    // `U32` with two defined values, and `vnc-rs` reaches it through
+    // `std::mem::transmute` into a two-variant `#[repr(u32)]` enum — so a
+    // server sending `2` was undefined behaviour in the branch that decides
+    // whether authentication failed. The gate reads the word itself and the
+    // library only ever sees zero.
+    let (transport, server) = transport_pair(target());
+    let script = tokio::spawn(async move {
+        let mut server = server;
+        let chosen = server.announce(b"RFB 003.008\n").await.expect("version");
+        let selected = server.offer_list(&[1]).await.expect("offer None");
+        server.security_result(2).await.expect("a word RFB forbids");
+        server.hang_up().await;
+        (chosen, selected)
+    });
+
+    let (sink, _events) = event_channel(64);
+    let protocol = VncProtocol::new().unwrap();
+    let error = tokio::time::timeout(
+        PATIENCE,
+        protocol.connect_session(
+            Box::new(transport),
+            &connection(&[]),
+            &NoCredential,
+            sink,
+            CancellationToken::new(),
+        ),
+    )
+    .await
+    .expect("an undefined security result must not hang")
+    .expect_err("2 is not a security result");
+
+    let (_chosen, selected) = script.await.unwrap();
+    assert_eq!(
+        selected, 1,
+        "None was selected, because nothing is configured"
+    );
+    assert!(
+        matches!(error, ProtocolError::ProtocolViolation { .. }),
+        "{error:?}"
+    );
 }
 
 #[tokio::test]
@@ -659,70 +859,53 @@ async fn a_truncated_raw_rectangle_ends_the_session_without_drawing_anything() {
 }
 
 #[tokio::test]
-async fn a_tight_fill_rectangle_becomes_a_solid_raw_rectangle() {
-    // Tight is registry number 7 and is defined outside RFC 6143. A control
-    // byte of 0x80 is "fill", followed by three bytes of colour.
-    let (transport, server) = transport_pair(target());
-    let mut live = live(transport, server, Security::None, &NoCredential, &[])
-        .await
-        .expect("connects");
+async fn a_rectangle_in_an_encoding_this_build_never_promised_ends_the_session() {
+    // RFC 6143 §7.5.2 is a promise, and this build no longer promises any
+    // compressed encoding (ADR-0013). `vnc-rs` folds every encoding number it
+    // does not recognise onto `Raw`, so a Tight or ZRLE rectangle would be read
+    // as `width * height * 4` raw bytes — a desynchronised stream at best and a
+    // 17 GiB allocation at worst. The gate refuses it by number.
+    for withdrawn in WITHDRAWN {
+        let (transport, server) = transport_pair(target());
+        let mut live = live(transport, server, Security::None, &NoCredential, &[])
+            .await
+            .expect("connects");
+        assert!(
+            !live.offered_encodings.contains(&withdrawn.to_wire()),
+            "{} was never promised",
+            withdrawn.name()
+        );
 
-    live.server.framebuffer_update(1).await.unwrap();
-    live.server
-        .rectangle_header(0, 0, 2, 2, RfbEncoding::TIGHT.to_wire())
-        .await
-        .unwrap();
-    live.server.write(&[0x80, 0x12, 0x34, 0x56]).await.unwrap();
+        live.server.framebuffer_update(1).await.unwrap();
+        live.server
+            .rectangle_header(0, 0, 4, 4, withdrawn.to_wire())
+            .await
+            .unwrap();
+        live.server.write(&[0u8; 64]).await.unwrap();
 
-    let FrameMessage::Framebuffer(update) = next_frame(&mut live.events).await else {
-        panic!("a Tight fill is a framebuffer message");
-    };
-    let rect = &update.rects[0];
-    assert_eq!(rect.encoding, FrameEncoding::Raw, "a fill is expanded");
-    assert_eq!(rect.payload().len(), 2 * 2 * 4);
-    // BGRX, which is the format `SetPixelFormat` asked for: the red byte the
-    // server sent (0x12) lands third.
-    assert_eq!(rect.payload()[0..4], [0x56, 0x34, 0x12, 0xff]);
-
-    live.finish().await;
+        let reason = tokio::time::timeout(PATIENCE, live.task)
+            .await
+            .expect("the session must end rather than hang")
+            .expect("and must not panic")
+            .expect("failures are folded into a close reason");
+        assert!(
+            matches!(reason, CloseReason::Failed(_)),
+            "{}: {reason:?}",
+            withdrawn.name()
+        );
+    }
 }
 
 #[tokio::test]
-async fn a_tight_jpeg_rectangle_keeps_its_own_colour_space() {
-    let (transport, server) = transport_pair(target());
-    let mut live = live(transport, server, Security::None, &NoCredential, &[])
-        .await
-        .expect("connects");
-
-    // Control byte 0x90 is "JPEG", then a length in Tight's 7-bit continuation
-    // form, then the image. The bytes are not a real JPEG; nothing in this
-    // crate decodes one, and the presenter is what would.
-    let image = [0xff_u8, 0xd8, 0xff, 0xe0, 0x00, 0x10];
-    live.server.framebuffer_update(1).await.unwrap();
-    live.server
-        .rectangle_header(0, 0, 8, 8, RfbEncoding::TIGHT.to_wire())
-        .await
-        .unwrap();
-    live.server.write(&[0x90]).await.unwrap();
-    live.server
-        .write(&[u8::try_from(image.len()).unwrap()])
-        .await
-        .unwrap();
-    live.server.write(&image).await.unwrap();
-
-    let FrameMessage::Framebuffer(update) = next_frame(&mut live.events).await else {
-        panic!("a Tight JPEG is a framebuffer message");
-    };
-    let rect = &update.rects[0];
-    assert_eq!(rect.encoding, FrameEncoding::Jpeg);
-    assert_eq!(rect.payload().as_ref(), &image[..]);
-
-    live.finish().await;
-}
-
-#[tokio::test]
-async fn a_tight_rectangle_with_an_illegal_compression_ends_the_session() {
-    // Control values 0x0b through 0x0f are not defined by the Tight encoding.
+async fn a_rectangle_whose_declared_size_is_an_abort_never_reaches_the_library() {
+    // The abort, as an executable fact. `vnc-rs` reads the rectangle header and
+    // immediately does `Vec::with_capacity(width * height * 4)`: 65535 squared
+    // is 17 GiB, the allocation fails, and an allocation failure calls
+    // `handle_alloc_error`, which **aborts**. It does not unwind, so ADR-0011
+    // does not contain it — every other tab and the unlocked vault go with it.
+    //
+    // A test cannot assert "the process did not abort" other than by finishing,
+    // which is exactly what it does here.
     let (transport, server) = transport_pair(target());
     let mut live = live(transport, server, Security::None, &NoCredential, &[])
         .await
@@ -730,47 +913,23 @@ async fn a_tight_rectangle_with_an_illegal_compression_ends_the_session() {
 
     live.server.framebuffer_update(1).await.unwrap();
     live.server
-        .rectangle_header(0, 0, 8, 8, RfbEncoding::TIGHT.to_wire())
+        .rectangle_header(0, 0, u16::MAX, u16::MAX, RfbEncoding::RAW.to_wire())
         .await
         .unwrap();
-    live.server.write(&[0xf0]).await.unwrap();
 
     let reason = tokio::time::timeout(PATIENCE, live.task)
         .await
-        .expect("an illegal compression must not hang the session")
+        .expect("the session must end rather than hang")
         .expect("and must not panic")
         .expect("failures are folded into a close reason");
     assert!(matches!(reason, CloseReason::Failed(_)), "{reason:?}");
 }
 
-/// One 64x64-or-smaller ZRLE tile, solid-colour subencoding.
-///
-/// RFC 6143 §7.7.6. The control byte is `palette-size` with the RLE bit clear;
-/// a palette size of one means "the whole tile is this colour". The pixel is a
-/// CPIXEL — three bytes rather than four, because the format the adapter asked
-/// for puts all of the colour in the low 24 bits.
-///
-/// The zlib stream is flushed with `Sync` and never finished, because RFC 6143
-/// §7.7.6 keeps one zlib stream for the whole connection: a finished stream is
-/// what a server never sends and what the decoder treats as an error.
-fn zrle_solid_tile(colour: [u8; 3]) -> Vec<u8> {
-    let mut raw = vec![0x01_u8];
-    raw.extend_from_slice(&colour);
-
-    let mut compressor = flate2::Compress::new(flate2::Compression::default(), true);
-    let mut compressed = Vec::with_capacity(64);
-    compressor
-        .compress_vec(&raw, &mut compressed, flate2::FlushCompress::Sync)
-        .expect("zlib compression of four bytes cannot fail");
-
-    let mut out = Vec::with_capacity(compressed.len() + 4);
-    out.extend_from_slice(&u32::try_from(compressed.len()).unwrap().to_be_bytes());
-    out.extend_from_slice(&compressed);
-    out
-}
-
 #[tokio::test]
-async fn a_zrle_solid_tile_fills_its_rectangle() {
+async fn a_cursor_larger_than_the_bound_ends_the_session() {
+    // The same allocation reached by a different route: a cursor rectangle's
+    // `x` and `y` are a hot spot, not a position, so it is not bounded by the
+    // framebuffer and needs a limit of its own.
     let (transport, server) = transport_pair(target());
     let mut live = live(transport, server, Security::None, &NoCredential, &[])
         .await
@@ -778,141 +937,100 @@ async fn a_zrle_solid_tile_fills_its_rectangle() {
 
     live.server.framebuffer_update(1).await.unwrap();
     live.server
-        .rectangle_header(0, 0, 4, 4, RfbEncoding::ZRLE.to_wire())
+        .rectangle_header(0, 0, 4096, 4096, RfbEncoding::CURSOR.to_wire())
         .await
         .unwrap();
-    live.server
-        .write(&zrle_solid_tile([0x11, 0x22, 0x33]))
-        .await
-        .unwrap();
-
-    let FrameMessage::Framebuffer(update) = next_frame(&mut live.events).await else {
-        panic!("a ZRLE tile is a framebuffer message");
-    };
-    let rect = &update.rects[0];
-    assert_eq!(rect.rect, remoter_proto::Rect::new(0, 0, 4, 4));
-    assert_eq!(rect.payload().len(), 4 * 4 * 4);
-    // Every pixel is the same, and the fourth byte is the opaque padding the
-    // contract's BGRX format requires.
-    for pixel in rect.payload().chunks_exact(4) {
-        assert_eq!(pixel, [0x11, 0x22, 0x33, 0xff]);
-    }
-
-    // How the session ends afterwards is deliberately not asserted: the
-    // library checks that its zlib input was fully consumed and a synthetic
-    // one-tile stream leaves the sync-flush trailer behind. The rectangle is
-    // emitted before that check runs, which is the behaviour under test.
-    live.cancel.cancel();
-}
-
-#[tokio::test]
-async fn a_zrle_tile_with_an_unusable_subencoding_ends_the_session() {
-    // Subencoding 1 with the RLE bit set is not a combination RFC 6143 §7.7.6
-    // defines. The library rejects it, and the session must end rather than
-    // draw whatever happened to be in the buffer.
-    let (transport, server) = transport_pair(target());
-    let mut live = live(transport, server, Security::None, &NoCredential, &[])
-        .await
-        .expect("connects");
-
-    let mut raw = vec![0x81_u8];
-    raw.extend_from_slice(&[0x11, 0x22, 0x33]);
-    let mut compressor = flate2::Compress::new(flate2::Compression::default(), true);
-    let mut compressed = Vec::new();
-    compressor
-        .compress_vec(&raw, &mut compressed, flate2::FlushCompress::Sync)
-        .unwrap();
-
-    live.server.framebuffer_update(1).await.unwrap();
-    live.server
-        .rectangle_header(0, 0, 4, 4, RfbEncoding::ZRLE.to_wire())
-        .await
-        .unwrap();
-    live.server
-        .write(&u32::try_from(compressed.len()).unwrap().to_be_bytes())
-        .await
-        .unwrap();
-    live.server.write(&compressed).await.unwrap();
-
-    let reason = tokio::time::timeout(PATIENCE, live.task)
-        .await
-        .expect("a malformed tile must not hang the session")
-        .expect("and must not panic the runtime")
-        .expect("failures are folded into a close reason");
-    // Either close reason is the same outcome from the user's side: the session
-    // is over and nothing was drawn. Which of the two arrives depends on
-    // whether the library reports the malformed tile as a decoder error or as
-    // an end-of-stream on its internal bridge, and it reports it both ways
-    // depending on how far into the tile the failure is.
-    assert!(
-        matches!(reason, CloseReason::Failed(_) | CloseReason::Disconnected),
-        "{reason:?}"
-    );
-
-    let mut frames = 0;
-    while let Ok(Some(event)) = tokio::time::timeout(PATIENCE, live.events.recv()).await {
-        if matches!(event, SessionEvent::Data(_)) {
-            frames += 1;
-        }
-    }
-    assert_eq!(frames, 0, "a tile that could not be decoded is not drawn");
-}
-
-#[tokio::test]
-async fn a_zrle_palette_index_past_the_palette_takes_down_one_tab_and_nothing_else() {
-    // A finding, stated as a test. `vnc-rs` indexes its ZRLE palette without a
-    // bounds check, so this input panics its decoding task. What is asserted is
-    // the containment ADR-0011 promises: the panic is inside a task the library
-    // spawned, this session ends, and the test process — every other tab —
-    // carries on. A panic message on stderr during this test is expected.
-    let (transport, server) = transport_pair(target());
-    let mut live = live(transport, server, Security::None, &NoCredential, &[])
-        .await
-        .expect("connects");
-
-    // RLE bit set with a palette of two entries, then an index of 5.
-    let mut raw = vec![0x82_u8];
-    raw.extend_from_slice(&[0x11, 0x22, 0x33]);
-    raw.extend_from_slice(&[0x44, 0x55, 0x66]);
-    raw.push(0x05);
-    let mut compressor = flate2::Compress::new(flate2::Compression::default(), true);
-    let mut compressed = Vec::new();
-    compressor
-        .compress_vec(&raw, &mut compressed, flate2::FlushCompress::Sync)
-        .unwrap();
-
-    live.server.framebuffer_update(1).await.unwrap();
-    live.server
-        .rectangle_header(0, 0, 4, 4, RfbEncoding::ZRLE.to_wire())
-        .await
-        .unwrap();
-    live.server
-        .write(&u32::try_from(compressed.len()).unwrap().to_be_bytes())
-        .await
-        .unwrap();
-    live.server.write(&compressed).await.unwrap();
 
     let reason = tokio::time::timeout(PATIENCE, live.task)
         .await
         .expect("the session must end rather than hang")
-        .expect("the *session* task must not panic, whatever the library's does")
+        .expect("and must not panic")
         .expect("failures are folded into a close reason");
-    assert!(
-        matches!(
-            reason,
-            CloseReason::Disconnected | CloseReason::Failed(_) | CloseReason::ClosedByUser
-        ),
-        "{reason:?}"
-    );
+    assert!(matches!(reason, CloseReason::Failed(_)), "{reason:?}");
 }
 
 #[tokio::test]
-async fn a_colour_map_message_ends_the_session_rather_than_the_process() {
-    // A second finding. RFC 6143 §7.6.2 `SetColorMapEntries` is server message
-    // type 1, and `vnc-rs` reaches `unimplemented!()` on it — so one byte from
-    // a hostile server panics its decoding task. The adapter always asks for a
-    // true-colour pixel format, so a conforming server has no reason to send
-    // one; this checks what happens when a server is not conforming.
+async fn clipboard_text_longer_than_the_bound_ends_the_session() {
+    // RFC 6143 §7.6.4's length is a `U32` and `vnc-rs` allocates it before a
+    // byte of the text arrives. This vector was not in the defect list `lib.rs`
+    // used to carry, and it is an abort rather than a panic.
+    let (transport, server) = transport_pair(target());
+    let mut live = live(transport, server, Security::None, &NoCredential, &[])
+        .await
+        .expect("connects");
+
+    let mut message = vec![3_u8, 0, 0, 0];
+    message.extend_from_slice(&u32::MAX.to_be_bytes());
+    live.server.write(&message).await.unwrap();
+
+    let reason = tokio::time::timeout(PATIENCE, live.task)
+        .await
+        .expect("the session must end rather than hang")
+        .expect("and must not panic")
+        .expect("failures are folded into a close reason");
+    assert!(matches!(reason, CloseReason::Failed(_)), "{reason:?}");
+}
+
+#[tokio::test]
+async fn one_request_is_outstanding_across_a_multi_rectangle_update() {
+    // The MEDIUM defect, stated as the thing the comment claimed. The flag was
+    // cleared on the *first* rectangle of a `FramebufferUpdate`, so a
+    // multi-rectangle update un-armed it while the server was still writing and
+    // the next frame tick sent a second request. RFC 6143 §7.6.1 makes the
+    // update one message; the answer to one request is one message, not one
+    // rectangle.
+    let (transport, server) = transport_pair(target());
+    let mut live = live(transport, server, Security::None, &NoCredential, &[])
+        .await
+        .expect("connects");
+
+    live.server.framebuffer_update(2).await.unwrap();
+    live.server
+        .rectangle_header(0, 0, 4, 4, RfbEncoding::RAW.to_wire())
+        .await
+        .unwrap();
+    live.server.write(&raw_pixels(4, 4, 0x20)).await.unwrap();
+
+    // Half an update has arrived. Many frame intervals pass; nothing may be
+    // asked for, because the request that is outstanding has not been answered.
+    let premature =
+        tokio::time::timeout(Duration::from_millis(400), live.server.read_exact(10)).await;
+    assert!(
+        premature.is_err(),
+        "a second request went out while the server was still writing the first update"
+    );
+
+    // The update completes, and now exactly one request follows.
+    live.server
+        .rectangle_header(8, 8, 4, 4, RfbEncoding::RAW.to_wire())
+        .await
+        .unwrap();
+    live.server.write(&raw_pixels(4, 4, 0x40)).await.unwrap();
+
+    let request = tokio::time::timeout(PATIENCE, live.server.read_exact(10))
+        .await
+        .expect("a request must follow a completed update")
+        .expect("the pipe is open");
+    assert_eq!(request[0], 3, "FramebufferUpdateRequest");
+    assert_eq!(request[1], 1, "incremental");
+
+    let second = tokio::time::timeout(Duration::from_millis(400), live.server.read_exact(10)).await;
+    assert!(
+        second.is_err(),
+        "and only one: the request it sent is outstanding until an update answers it"
+    );
+
+    live.finish().await;
+}
+
+#[tokio::test]
+async fn a_colour_map_message_is_refused_before_the_library_can_panic_on_it() {
+    // RFC 6143 §7.6.2 `SetColorMapEntries` is server message type 1, and
+    // `vnc-rs` reaches `unimplemented!()` on it — so one byte from a hostile
+    // server used to panic its decoding task. This build always asks for a
+    // true-colour pixel format (§7.5.1), so a conforming server has no reason
+    // to send one, and the gate refuses it by message type: a named failure
+    // rather than a panic that happens to be contained.
     let (transport, server) = transport_pair(target());
     let mut live = live(transport, server, Security::None, &NoCredential, &[])
         .await
@@ -925,13 +1043,10 @@ async fn a_colour_map_message_ends_the_session_rather_than_the_process() {
         .expect("the session must end rather than hang")
         .expect("the session task must not panic")
         .expect("failures are folded into a close reason");
-    assert!(
-        matches!(
-            reason,
-            CloseReason::Disconnected | CloseReason::Failed(_) | CloseReason::ClosedByUser
-        ),
-        "{reason:?}"
-    );
+    let CloseReason::Failed(report) = reason else {
+        panic!("a refused message type is a failure with a name: {reason:?}");
+    };
+    assert_eq!(report.stage, remoter_proto::Stage::Run, "{report:?}");
 }
 
 #[tokio::test]

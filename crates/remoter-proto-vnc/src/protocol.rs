@@ -1,10 +1,10 @@
 //! The adapter: `Protocol` for VNC.
 //!
 //! Everything else in this crate is machinery; this is the part the session
-//! pipeline calls. It receives an already-connected transport (ADR-0003),
-//! watches the RFB handshake go past, authenticates, waits for the server to
-//! say how big its framebuffer is, and hands back a
-//! [`remoter_proto::Session`].
+//! pipeline calls. It receives an already-connected transport (ADR-0003), runs
+//! the RFB handshake **itself** (ADR-0013), hands what is left to `vnc-rs`
+//! behind [`crate::gate`], waits for the server to say how big its framebuffer
+//! is, and hands back a [`remoter_proto::Session`].
 //!
 //! # The transport is injected, and this file is the proof
 //!
@@ -17,6 +17,15 @@
 //! `connect` is called, and the only thing that changes here is that
 //! [`crate::security::transport_protects_the_session`] stops raising the
 //! clear-text warning.
+//!
+//! # The client decides what it will accept, and says what it accepted
+//!
+//! The trust model `remoter_proto::hostkey` sets for SSH, applied to RFB. The
+//! version is bracketed by a floor as well as a ceiling; the security type is
+//! **selected here**, under a policy that refuses `None` whenever a credential
+//! is configured; and the type that was selected is reported to the user rather
+//! than inferred from what the server offered. `vnc-rs` did none of those
+//! things — see [`crate::negotiate`] for what that cost.
 //!
 //! # The one place a secret is handed over rather than borrowed
 //!
@@ -35,7 +44,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use parking_lot::Mutex;
 use remoter_core::{EffectiveConnection, ProtocolId};
 use remoter_proto::{
     Capabilities, ClipboardPolicy, CredentialProvider, CredentialProviderExt, EventSink, HostPort,
@@ -45,9 +53,13 @@ use remoter_proto::{
 use tokio_util::sync::CancellationToken;
 use vnc::{PixelFormat, VncClient, VncConnector, VncError, VncEvent, VncVersion};
 
-use crate::encoding::{CursorMode, EncodingPreference, encoding_list, library_encodings};
-use crate::error::{handshake_failed, map_vnc, unsupported, vnc_protocol_id};
-use crate::handshake::{HandshakeObserver, ObservingTransport, RfbVersion};
+use crate::encoding::{
+    CursorMode, EncodingPreference, RfbEncoding, encoding_list, library_encodings,
+};
+use crate::error::{map_vnc, unsupported, vnc_protocol_id};
+use crate::gate::{GateShared, GatedTransport, refine_with_gate};
+use crate::handshake::RfbVersion;
+use crate::negotiate::{Negotiated, negotiate};
 use crate::security::{Exposure, SecurityType, classify_exposure, transport_protects_the_session};
 use crate::session::{MAX_PREFACE_EVENTS, VncSession};
 
@@ -61,11 +73,15 @@ pub const SETTING_ENCODING: &str = "encoding";
 pub const SETTING_CURSOR: &str = "cursor";
 /// The highest RFB version to offer (RFC 6143 §7.1.1).
 pub const SETTING_RFB_VERSION: &str = "rfb_version";
+/// The lowest RFB version to accept (RFC 6143 §7.1.1).
+pub const SETTING_RFB_VERSION_MIN: &str = "rfb_version_min";
 
 /// The catalogue key for a password VNC authentication will truncate.
 pub const WARNING_PASSWORD_TRUNCATED: &str = "vnc.password_truncated";
 /// The catalogue key for a session that authenticated with nothing at all.
 pub const WARNING_NO_AUTHENTICATION: &str = "vnc.security.none";
+/// The catalogue key for a session that negotiated below RFB 3.8.
+pub const WARNING_LEGACY_RFB_VERSION: &str = "vnc.version.legacy";
 /// The algorithm name reported for VNC authentication's DES challenge.
 pub const WEAK_ALGORITHM_VNC_AUTH: &str = "VNC-Auth-DES";
 
@@ -99,14 +115,30 @@ pub const DEFAULT_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(30);
 /// advertising a capability whose control does nothing is worse than scaling
 /// the tab. The document needs amending, and this comment is the flag.
 ///
-/// `clipboard` is `Text`: RFC 6143 §7.5.6 and §7.6.4 carry text and nothing
-/// else. There is no file clipboard in RFB to switch on.
+/// # `clipboard` is `None`, and that is the same correction again
+///
+/// It used to be `Text`. RFB carries text in both directions on the wire
+/// (§7.5.6 out, §7.6.4 in), so `Text` looked right — but
+/// [`crate::session::VncSession::clipboard`] answers
+/// [`remoter_proto::ClipboardOp::Request`] with `Unsupported`, because the
+/// session contract has no event that can carry clipboard *content* back to the
+/// interface. So the capability promised a control the session then refused,
+/// and the interface drew it: a clipboard button that cannot work.
+///
+/// `ClipboardSupport` has three values — `None`, `Text`, `TextAndFiles` — and
+/// no way to say "one direction". Of the two available answers, `None` is the
+/// true one: a capability is a promise, and half a promise kept is a control
+/// that fails in the user's hand. Pasting *into* the session still works for a
+/// caller that sends `ClipboardOp::Offer`; what is withdrawn is the claim that
+/// the interface may offer both. This becomes `Text` again the day
+/// `SessionEvent` grows a clipboard-content variant — which is a change in
+/// `remoter-proto`, not here.
 #[must_use]
 pub const fn capabilities() -> Capabilities {
     Capabilities {
         kind: remoter_proto::SessionKind::Framebuffer,
         resizable: false,
-        clipboard: remoter_proto::ClipboardSupport::Text,
+        clipboard: remoter_proto::ClipboardSupport::None,
         file_transfer: false,
         audio: false,
         printing: false,
@@ -118,10 +150,9 @@ pub const fn capabilities() -> Capabilities {
 /// The settings this adapter understands.
 ///
 /// Every one of them is wired to something on the wire. There is deliberately
-/// no entry for Tight's compression and quality levels: those are pseudo-
-/// encodings (`-247`..`-256` and `-32`..`-23`) and `vnc-rs`'s encoding type is
-/// a closed enum with no way to express them, so a setting for them would be a
-/// form field that changes nothing.
+/// no entry for Tight's compression and quality levels: Tight is not negotiated
+/// at all (ADR-0013), so a setting for it would be a form field that changes
+/// nothing.
 #[must_use]
 pub fn schema() -> SettingsSchema {
     SettingsSchema::new(vec![
@@ -141,9 +172,6 @@ pub fn schema() -> SettingsSchema {
             SettingKind::Choice {
                 options: vec![
                     EncodingPreference::Auto.as_setting().to_owned(),
-                    EncodingPreference::Tight.as_setting().to_owned(),
-                    EncodingPreference::Zrle.as_setting().to_owned(),
-                    EncodingPreference::Trle.as_setting().to_owned(),
                     EncodingPreference::Raw.as_setting().to_owned(),
                 ],
             },
@@ -171,6 +199,21 @@ pub fn schema() -> SettingsSchema {
         // documents, and the only one that always sends a `SecurityResult`
         // after a `None` handshake — which means a failure is reported rather
         // than appearing as a stream that stops.
+        .with_default("3.8"),
+        SettingField::new(
+            SETTING_RFB_VERSION_MIN,
+            "settings.vnc.rfb_version_min",
+            SettingKind::Choice {
+                options: vec!["3.8".to_owned(), "3.7".to_owned(), "3.3".to_owned()],
+            },
+        )
+        // The floor, and it defaults to the same value as the ceiling on
+        // purpose. RFC 6143 §7.1.1 negotiation is `min(ours, theirs)`, which on
+        // its own is a ceiling with no floor — so the *server* decides how low
+        // the conversation goes, and 3.3 is the shape in which the server also
+        // decides the security type. A connection to a genuinely old server is
+        // a decision the user makes here, once, rather than one any peer can
+        // make for them on every connection.
         .with_default("3.8"),
     ])
 }
@@ -229,7 +272,10 @@ struct VncSettings {
     view_only: bool,
     encoding: EncodingPreference,
     cursor: CursorMode,
-    version: RfbVersion,
+    /// The highest RFB version this connection will speak.
+    version_max: RfbVersion,
+    /// The lowest it will accept. Never above `version_max`.
+    version_min: RfbVersion,
     handshake_timeout: Duration,
 }
 
@@ -315,16 +361,35 @@ impl VncProtocol {
                 .await;
         }
 
-        let (observing, observer) = ObservingTransport::new(transport, settings.version);
-        let client = start(observing, &observer, password, &settings, &target, &cancel).await?;
+        // RFC 6143 §7.1, performed here. Until this returns, `vnc-rs` has not
+        // been constructed and has seen nothing.
+        let mut transport = transport;
+        let negotiated = run_negotiation(
+            &mut transport,
+            &settings,
+            password.is_some(),
+            &target,
+            &cancel,
+        )
+        .await?;
+
+        // Said before the desktop appears, and said from what was *selected*
+        // rather than from what was offered.
+        warn_about_security(&events, &negotiated).await;
+
+        let encodings = encoding_list(settings.encoding, settings.cursor);
+        let (gate, shared) = GatedTransport::new(transport, &negotiated, &encodings);
+        let client = start(
+            gate, &encodings, password, &settings, &target, &cancel, &shared,
+        )
+        .await?;
 
         // From here the client owns two spawned tasks and the socket. Every
         // path below either builds a session that owns the client or returns —
         // and returning drops the client, whose destructor stops both tasks and
         // releases the socket. That is why there is no guard type here.
-        warn_about_weak_security(&events, &observer).await;
-
-        let (width, height, preface) = await_server_init(&client, &settings, &cancel).await?;
+        let (width, height, preface) =
+            await_server_init(&client, &settings, &cancel, &shared).await?;
 
         let mut session = VncSession::new(
             client,
@@ -334,6 +399,8 @@ impl VncProtocol {
             height,
             self.clipboard,
             settings.view_only,
+            Arc::clone(&shared),
+            negotiated.security,
         );
         for event in preface {
             session.queue_preface(event);
@@ -358,17 +425,31 @@ impl VncProtocol {
             .string(settings, SETTING_CURSOR)
             .and_then(CursorMode::from_setting)
             .unwrap_or_default();
-        let version = match self.schema.string(settings, SETTING_RFB_VERSION) {
-            Some("3.3") => RfbVersion::Rfb33,
-            Some("3.7") => RfbVersion::Rfb37,
-            _ => RfbVersion::Rfb38,
-        };
+        let version_max = self
+            .schema
+            .string(settings, SETTING_RFB_VERSION)
+            .and_then(RfbVersion::from_setting)
+            .unwrap_or(RfbVersion::Rfb38);
+        let version_min = self
+            .schema
+            .string(settings, SETTING_RFB_VERSION_MIN)
+            .and_then(RfbVersion::from_setting)
+            .unwrap_or(RfbVersion::Rfb38);
+        if version_min > version_max {
+            // A floor above the ceiling admits nothing, and silently swapping
+            // them would turn a typo into a downgrade.
+            return Err(ProtocolError::SettingInvalid {
+                key: SETTING_RFB_VERSION_MIN.to_owned(),
+                expected: "an RFB version no higher than `rfb_version`",
+            });
+        }
         Ok(VncSettings {
             shared: self.boolean_or(settings, SETTING_SHARED, true)?,
             view_only: self.boolean_or(settings, SETTING_VIEW_ONLY, false)?,
             encoding,
             cursor,
-            version,
+            version_max,
+            version_min,
             handshake_timeout: config
                 .connect_timeout_ms
                 .value
@@ -402,28 +483,52 @@ fn borrow_password(creds: &dyn CredentialProvider) -> Result<Option<String>, Pro
     }
 }
 
-/// Runs the RFB handshake, under the deadline and the cancellation token.
+/// Runs RFC 6143 §7.1 under the deadline and the cancellation token.
 ///
-/// Cancelling drops the connector, and the connector owns the transport — so a
-/// tab closed mid-handshake releases its socket at the moment it is closed
-/// rather than at the moment the server gives up. That is the defect this
-/// arrangement exists to avoid: one leaked task and one leaked socket per
-/// cancelled connection attempt.
+/// Cancelling drops the future, and the transport is still owned by the caller,
+/// so a tab closed mid-handshake releases its socket at the moment it is closed
+/// rather than at the moment the server gives up.
+async fn run_negotiation(
+    transport: &mut Box<dyn Transport>,
+    settings: &VncSettings,
+    has_credential: bool,
+    target: &HostPort,
+    cancel: &CancellationToken,
+) -> Result<Negotiated, ProtocolError> {
+    let handshake = negotiate(
+        transport,
+        settings.version_min,
+        settings.version_max,
+        has_credential,
+    );
+    let outcome = tokio::select! {
+        () = cancel.cancelled() => return Err(ProtocolError::Cancelled),
+        outcome = tokio::time::timeout(settings.handshake_timeout, handshake) => outcome,
+    };
+    match outcome {
+        Ok(result) => result,
+        Err(_elapsed) => Err(ProtocolError::ConnectTimeout {
+            target: target.clone(),
+            timeout_ms: u64::try_from(settings.handshake_timeout.as_millis()).unwrap_or(u64::MAX),
+        }),
+    }
+}
+
+/// Hands the gated stream to `vnc-rs` and lets it finish the connection.
+///
+/// What is left for the library at this point is `ClientInit`, `ServerInit`,
+/// `SetPixelFormat`, `SetEncodings` and the first update request — plus the DES
+/// exchange, if the security handshake selected VNC authentication, which the
+/// gate passes through because the library's DES is not public.
 async fn start(
-    transport: ObservingTransport,
-    observer: &Arc<Mutex<HandshakeObserver>>,
+    transport: GatedTransport,
+    encodings: &[RfbEncoding],
     password: Option<String>,
     settings: &VncSettings,
     target: &HostPort,
     cancel: &CancellationToken,
+    shared: &GateShared,
 ) -> Result<VncClient, ProtocolError> {
-    let encodings = library_encodings(&encoding_list(settings.encoding, settings.cursor));
-    let version = match settings.version {
-        RfbVersion::Rfb33 => VncVersion::RFB33,
-        RfbVersion::Rfb37 => VncVersion::RFB37,
-        RfbVersion::Rfb38 => VncVersion::RFB38,
-    };
-
     // `SyncTransport` adds the `Sync` the connector's bound demands, through an
     // uncontended mutex rather than a pump task. A `tokio::io::duplex` bridge
     // would copy every framebuffer byte *and* add a task that has to be
@@ -432,23 +537,28 @@ async fn start(
     let stream = SyncTransport::new(Box::new(transport));
 
     let mut connector = VncConnector::new(stream)
-        // The future is only polled if the server asks for VNC authentication,
-        // so a `None` server never sees the password at all.
+        // The future is only polled if VNC authentication was selected, so a
+        // `None` session never sees the password at all.
         .set_auth_method(async move {
             match password {
                 Some(password) => Ok(password),
                 None => Err(VncError::NoPassword),
             }
         })
-        .set_version(version)
+        // Always 3.8, whatever the real wire is speaking: the gate serves the
+        // library a synthetic 3.8 handshake so that the library's own floorless
+        // negotiation has nowhere to go. See `crate::gate`.
+        .set_version(VncVersion::RFB38)
         .allow_shared(settings.shared)
         // Always set, and not only for the pixel layout it asks for
         // (RFC 6143 §7.5.1). Leaving it unset makes the library adopt the
         // server's format, and two of its decoders reach `unreachable!()` on a
         // format whose colour masks are not one of four expected values — so
-        // the server would be choosing whether this process panics.
+        // the server would be choosing whether this process panics. It is also
+        // what makes `crate::gate::BYTES_PER_PIXEL` a constant rather than a
+        // number the far end picks.
         .set_pixel_format(PixelFormat::bgra());
-    for encoding in encodings {
+    for encoding in library_encodings(encodings) {
         connector = connector.add_encoding(encoding);
     }
 
@@ -463,7 +573,16 @@ async fn start(
 
     let state = match started {
         Ok(Ok(state)) => state,
-        Ok(Err(error)) => return Err(refine(error, observer)),
+        // Everything the library can fail on from here is either an I/O error
+        // or something the gate refused on its behalf, and the gate's reason is
+        // always the better one: the library flattens a refused security result
+        // and a refused rectangle into the same opaque error.
+        Ok(Err(error)) => {
+            return Err(refine_with_gate(
+                shared,
+                map_vnc(&error, "complete the RFB connection"),
+            ));
+        }
         Err(_elapsed) => {
             // The taxonomy's "`host` did not respond within N ms". The socket
             // was open — the server simply never finished the handshake — and
@@ -478,33 +597,7 @@ async fn start(
 
     state
         .finish()
-        .map_err(|error| map_vnc(&error, "finish the RFB connection"))
-}
-
-/// Turns a library handshake failure into something the user can act on.
-///
-/// The observer watched the security-type list go past (RFC 6143 §7.1.2), so
-/// "the handshake failed" can become "this server offers VeNCrypt and Apple
-/// Remote Desktop, and this build implements neither" — without ever quoting
-/// the server's own words back at the user.
-fn refine(error: VncError, observer: &Arc<Mutex<HandshakeObserver>>) -> ProtocolError {
-    let facts = observer.lock().facts().clone();
-    if facts.security_is_unusable() {
-        return ProtocolError::AuthMethodUnavailable {
-            // RFB has no account name and no key: a password is the only thing
-            // a client can present, so "the server does not accept password
-            // authentication" is the true sentence when it offers only
-            // VeNCrypt.
-            attempted: remoter_proto::CredentialKind::Password,
-            offered: facts.offered_names(),
-        };
-    }
-    if facts.refused_outright {
-        return handshake_failed(
-            "the server refused the connection before offering a security type",
-        );
-    }
-    map_vnc(&error, "complete the RFB handshake")
+        .map_err(|error| refine_with_gate(shared, map_vnc(&error, "finish the RFB connection")))
 }
 
 /// Waits for the framebuffer size, keeping anything else it finds on the way.
@@ -519,20 +612,26 @@ async fn await_server_init(
     client: &VncClient,
     settings: &VncSettings,
     cancel: &CancellationToken,
+    shared: &GateShared,
 ) -> Result<(u16, u16, Vec<VncEvent>), ProtocolError> {
     let mut preface = Vec::new();
     let deadline = tokio::time::timeout(settings.handshake_timeout, async {
         loop {
-            let event = client
-                .recv_event()
-                .await
-                .map_err(|error| map_vnc(&error, "read the RFB server initialisation"))?;
+            let event = client.recv_event().await.map_err(|error| {
+                refine_with_gate(
+                    shared,
+                    map_vnc(&error, "read the RFB server initialisation"),
+                )
+            })?;
             match event {
                 VncEvent::SetResolution(screen) if screen.width > 0 && screen.height > 0 => {
                     return Ok((screen.width, screen.height, std::mem::take(&mut preface)));
                 }
                 VncEvent::Error(_) => {
-                    return Err(crate::error::classify_decoder_failure());
+                    return Err(refine_with_gate(
+                        shared,
+                        crate::error::classify_decoder_failure(),
+                    ));
                 }
                 other => {
                     if preface.len() < MAX_PREFACE_EVENTS {
@@ -547,7 +646,7 @@ async fn await_server_init(
         () = cancel.cancelled() => Err(ProtocolError::Cancelled),
         outcome = deadline => match outcome {
             Ok(result) => result,
-            Err(_elapsed) => Err(handshake_failed(
+            Err(_elapsed) => Err(crate::error::handshake_failed(
                 "the server did not report its framebuffer size in time",
             )),
         },
@@ -585,25 +684,36 @@ async fn warn_about_clear_text(
         .await;
 }
 
-/// Names the security type the handshake actually used.
+/// Names the security type the handshake actually used, and the version it used
+/// it in.
 ///
-/// `vnc-rs` prefers `None` where the server offers it and VNC authentication
-/// otherwise, so the choice can be read off the observed list rather than
-/// guessed. Both outcomes are worth telling the user about: one is a desktop
-/// anybody who can reach the port can open, and the other is a DES challenge
-/// with an eight-byte key.
-async fn warn_about_weak_security(events: &EventSink, observer: &Arc<Mutex<HandshakeObserver>>) {
-    let offered = observer.lock().facts().offered_security.clone();
-    if offered.contains(&SecurityType::NONE) {
+/// The old version of this function read the *offered* list and reproduced
+/// `vnc-rs`'s preference to guess what had been chosen. That guess was the
+/// visible half of the CRITICAL defect: the library preferred `None` whenever a
+/// server offered it, so a session that silently skipped authentication was
+/// described by the same code path that described one which had not. The choice
+/// is now made here, so it is reported rather than inferred.
+async fn warn_about_security(events: &EventSink, negotiated: &Negotiated) {
+    if negotiated.is_unauthenticated() {
         let _ = events
             .send(SessionEvent::Warning(SessionWarning::Other {
                 detail: WARNING_NO_AUTHENTICATION.to_owned(),
             }))
             .await;
-    } else if offered.contains(&SecurityType::VNC_AUTH) {
+    } else if negotiated.security == SecurityType::VNC_AUTH {
         let _ = events
             .send(SessionEvent::Warning(SessionWarning::WeakAlgorithm {
                 algorithm: WEAK_ALGORITHM_VNC_AUTH.to_owned(),
+            }))
+            .await;
+    }
+    if negotiated.version < RfbVersion::Rfb38 {
+        // Reaching here at all means the floor was lowered deliberately, and a
+        // session that is not using the version the RFC documents is worth one
+        // line on screen rather than nothing.
+        let _ = events
+            .send(SessionEvent::Warning(SessionWarning::Other {
+                detail: WARNING_LEGACY_RFB_VERSION.to_owned(),
             }))
             .await;
     }
@@ -618,6 +728,7 @@ async fn warn_about_weak_security(events: &EventSink, observer: &Arc<Mutex<Hands
 )]
 mod tests {
     use super::*;
+    use crate::handshake::HandshakeFacts;
     use remoter_proto::{CredentialKind, KeyBorrow, event_channel};
 
     struct Password(&'static [u8]);
@@ -655,6 +766,18 @@ mod tests {
         }
     }
 
+    fn settled(version: RfbVersion, security: SecurityType) -> Negotiated {
+        Negotiated {
+            version,
+            security,
+            facts: HandshakeFacts {
+                negotiated_version: Some(version),
+                selected_security: Some(security),
+                ..HandshakeFacts::default()
+            },
+        }
+    }
+
     #[test]
     fn the_capability_set_matches_what_this_build_can_actually_do() {
         let caps = capabilities();
@@ -663,7 +786,10 @@ mod tests {
         // `SetDesktopSize` nor ExtendedDesktopSize is implemented here.
         // Advertising a control that cannot work is worse than scaling.
         assert!(!caps.resizable);
-        assert_eq!(caps.clipboard, remoter_proto::ClipboardSupport::Text);
+        // And the same rule applied to the clipboard: the session refuses
+        // `ClipboardOp::Request`, so promising `Text` drew a control that
+        // failed in the user's hand.
+        assert_eq!(caps.clipboard, remoter_proto::ClipboardSupport::None);
         assert!(!caps.file_transfer, "there is no file clipboard in RFB");
         assert!(!caps.audio);
         assert!(!caps.multi_monitor);
@@ -688,33 +814,46 @@ mod tests {
     }
 
     #[test]
+    fn the_version_floor_defaults_to_the_version_the_rfc_documents() {
+        // The defect this pins: negotiation used to be `min(ours, theirs)` with
+        // nothing underneath it, so any server could move the conversation to
+        // 3.3 — the shape in which the *server* picks the security type.
+        let schema = schema();
+        let floor = schema
+            .field(SETTING_RFB_VERSION_MIN)
+            .expect("the floor is a setting");
+        assert_eq!(floor.default.as_deref(), Some("3.8"));
+    }
+
+    #[test]
     fn the_encoding_and_cursor_choices_are_exactly_what_the_parsers_accept() {
         // A choice the form offers but the parser rejects would silently fall
         // back to the default, which is a setting that appears to do nothing.
         let schema = schema();
-        let SettingKind::Choice { options } = &schema
-            .field(SETTING_ENCODING)
-            .expect("the encoding field exists")
-            .kind
-        else {
-            panic!("the encoding setting is a choice");
-        };
-        for option in options {
-            assert!(
-                EncodingPreference::from_setting(option).is_some(),
-                "{option}"
-            );
-        }
-
-        let SettingKind::Choice { options } = &schema
-            .field(SETTING_CURSOR)
-            .expect("the cursor field exists")
-            .kind
-        else {
-            panic!("the cursor setting is a choice");
-        };
-        for option in options {
-            assert!(CursorMode::from_setting(option).is_some(), "{option}");
+        for (key, parse) in [
+            (
+                SETTING_ENCODING,
+                (|value: &str| EncodingPreference::from_setting(value).is_some())
+                    as fn(&str) -> bool,
+            ),
+            (SETTING_CURSOR, |value| {
+                CursorMode::from_setting(value).is_some()
+            }),
+            (SETTING_RFB_VERSION, |value| {
+                RfbVersion::from_setting(value).is_some()
+            }),
+            (SETTING_RFB_VERSION_MIN, |value| {
+                RfbVersion::from_setting(value).is_some()
+            }),
+        ] {
+            let SettingKind::Choice { options } =
+                &schema.field(key).expect("the field exists").kind
+            else {
+                panic!("{key} is a choice");
+            };
+            for option in options {
+                assert!(parse(option), "{key} = {option}");
+            }
         }
     }
 
@@ -778,9 +917,7 @@ mod tests {
     #[tokio::test]
     async fn vnc_authentication_is_reported_as_the_weak_algorithm_it_is() {
         let (events, mut rx) = event_channel(8);
-        let observer = Arc::new(Mutex::new(HandshakeObserver::new(RfbVersion::Rfb38)));
-        observer.lock().observe(b"RFB 003.008\n\x01\x02");
-        warn_about_weak_security(&events, &observer).await;
+        warn_about_security(&events, &settled(RfbVersion::Rfb38, SecurityType::VNC_AUTH)).await;
         let Some(SessionEvent::Warning(SessionWarning::WeakAlgorithm { algorithm })) =
             rx.recv().await
         else {
@@ -790,44 +927,54 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_server_with_no_authentication_at_all_says_so() {
+    async fn a_session_that_authenticated_with_nothing_says_so() {
         let (events, mut rx) = event_channel(8);
-        let observer = Arc::new(Mutex::new(HandshakeObserver::new(RfbVersion::Rfb38)));
-        observer.lock().observe(b"RFB 003.008\n\x01\x01");
-        warn_about_weak_security(&events, &observer).await;
+        warn_about_security(&events, &settled(RfbVersion::Rfb38, SecurityType::NONE)).await;
         let Some(SessionEvent::Warning(SessionWarning::Other { detail })) = rx.recv().await else {
             panic!("a desktop anybody who can reach the port can open is worth saying");
         };
         assert_eq!(detail, WARNING_NO_AUTHENTICATION);
     }
 
-    #[test]
-    fn a_server_offering_nothing_we_implement_names_what_it_offered() {
-        let observer = Arc::new(Mutex::new(HandshakeObserver::new(RfbVersion::Rfb38)));
-        // VeNCrypt and Apple Remote Desktop: the two a user is most likely to
-        // meet, and neither is implemented here.
-        observer.lock().observe(b"RFB 003.008\n\x02\x13\x1e");
-        let error = refine(
-            VncError::General("Security type apart from Vnc Auth has not been implemented".into()),
-            &observer,
-        );
-        let ProtocolError::AuthMethodUnavailable { offered, .. } = error else {
-            panic!("this is an authentication failure, not a mystery");
-        };
-        assert_eq!(
-            offered,
-            vec!["VeNCrypt".to_owned(), "Apple Remote Desktop".to_owned()]
+    #[tokio::test]
+    async fn the_warning_follows_what_was_selected_not_what_was_offered() {
+        // The visible half of the CRITICAL defect. A server offering both used
+        // to produce the `None` warning, because that is what `vnc-rs` would
+        // have picked; with the selection made here, a session that really did
+        // authenticate is described as one that did.
+        let (events, mut rx) = event_channel(8);
+        let mut negotiated = settled(RfbVersion::Rfb38, SecurityType::VNC_AUTH);
+        negotiated.facts.offered_security = vec![SecurityType::NONE, SecurityType::VNC_AUTH];
+        warn_about_security(&events, &negotiated).await;
+        drop(events);
+
+        let mut details = Vec::new();
+        while let Some(event) = rx.recv().await {
+            if let SessionEvent::Warning(SessionWarning::Other { detail }) = event {
+                details.push(detail);
+            }
+        }
+        assert!(
+            !details.contains(&WARNING_NO_AUTHENTICATION.to_owned()),
+            "{details:?}"
         );
     }
 
-    #[test]
-    fn a_server_that_refused_outright_is_not_blamed_on_authentication() {
-        let observer = Arc::new(Mutex::new(HandshakeObserver::new(RfbVersion::Rfb38)));
-        observer
-            .lock()
-            .observe(b"RFB 003.008\n\x00\x00\x00\x00\x08too many");
-        let error = refine(VncError::General("too many".into()), &observer);
-        assert_eq!(error.stage(), remoter_proto::Stage::Handshake);
-        assert!(!error.to_string().contains("too many"));
+    #[tokio::test]
+    async fn a_legacy_version_is_worth_a_line_on_screen() {
+        let (events, mut rx) = event_channel(8);
+        warn_about_security(&events, &settled(RfbVersion::Rfb33, SecurityType::NONE)).await;
+        drop(events);
+
+        let mut details = Vec::new();
+        while let Some(event) = rx.recv().await {
+            if let SessionEvent::Warning(SessionWarning::Other { detail }) = event {
+                details.push(detail);
+            }
+        }
+        assert!(
+            details.contains(&WARNING_LEGACY_RFB_VERSION.to_owned()),
+            "{details:?}"
+        );
     }
 }

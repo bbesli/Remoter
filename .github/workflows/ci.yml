@@ -39,13 +39,27 @@ jobs:
       # `integration-tests` and stopped compiling when SftpBrowser::list gained
       # a cancellation token — invisible to every default build, and to
       # `--all-targets`, which does not turn the feature on.
+      #
+      # The list used to be written out by hand, and had fallen three behind:
+      # remoter-proto-rdp/integration-tests, remoter-proto-vnc/integration-tests
+      # and remoter-proto-ssh/legacy-crypto were built by no job at all, which
+      # is the exact drift the paragraph above describes. Enumerating the
+      # features from cargo metadata instead means adding a feature enrols it,
+      # and nothing has to remember to update this file.
       - name: Feature-gated targets still compile
         run: |
-          cargo check -p remoter-ipc --features integration-tests --all-targets
-          cargo check -p remoter-proto-ssh --features integration-tests --all-targets
-          cargo check -p remoter-vault --features insecure-test-kdf --all-targets
+          cargo metadata --no-deps --format-version 1 \
+            | python3 -c 'import json,sys; print("\n".join(p["name"] + " " + f for p in json.load(sys.stdin)["packages"] for f in sorted(p["features"]) if f != "default"))' \
+            | while read -r pkg feat; do
+                echo "--- $pkg --features $feat"
+                cargo check -p "$pkg" --features "$feat" --all-targets || exit 1
+              done
       - run: cargo fmt --all --check
-      - run: cargo clippy --workspace --all-targets
+      # `-- -D warnings` spelled out rather than left to the workflow-level
+      # RUSTFLAGS: CLAUDE.md §4 states this exact command as the contract, and a
+      # step whose name claims it denies warnings should not depend on an env
+      # var three screens away that a future edit could drop.
+      - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
 
   frontend:
@@ -64,7 +78,10 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
-      - run: npm test --if-present
+      # Not `--if-present`: apps/desktop/ui/package.json has a "test" script, and
+      # with the flag the day someone deletes it is the day this step starts
+      # passing by running nothing.
+      - run: npm run test
 
   security:
     name: Security
@@ -75,8 +92,29 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-deny,cargo-audit
-      - run: cargo deny check
+      # Split so the two questions fail separately. CLAUDE.md §8 makes deny.toml
+      # the record that licences were checked; if an advisory on some transitive
+      # crate turns that record red, nobody can tell from the job list whether
+      # the licence policy still holds. The build fails either way.
+      - name: Licences, bans and sources
+        run: cargo deny check licenses bans sources
+      - name: Security advisories
+        run: cargo deny check advisories
       - run: cargo audit
+      # deny.toml has to run `wildcards = "warn"` because every workspace path
+      # dependency counts as a wildcard and cargo-deny's `allow-wildcard-paths`
+      # exemption only applies to crates marked `publish = false`. This keeps the
+      # property that check was there for — no `foo = "*"` resolved from a
+      # registry, where a future release is a future supply-chain change — and,
+      # unlike the cargo-deny check, it does not fire on path dependencies.
+      - name: No wildcard registry dependencies
+        run: |
+          if grep -rn --include=Cargo.toml --exclude-dir=target --exclude-dir=node_modules \
+               -E '^[[:space:]]*[A-Za-z0-9_-]+[[:space:]]*=[[:space:]]*"\*"|version[[:space:]]*=[[:space:]]*"\*"' . ; then
+            echo "::error::a dependency is pinned to \"*\"; give it a real version requirement"
+            exit 1
+          fi
+          echo "No wildcard registry dependencies."
       - name: Source files must stay greppable
         run: scripts/check-source-is-text.sh
       - name: Scan for committed secrets
@@ -96,15 +134,59 @@ jobs:
       # ADR-0009: remoter-plugin-abi and remoter-plugin-sdk are Apache-2.0 OR
       # MIT so that plugin authors compile against nothing copyleft. A GPL
       # dependency in either silently breaks the exception in LICENSE-EXCEPTION.
+      #
+      # This job used to pipe `cargo tree --format {p}` — package names and
+      # versions, no licences — into `grep -iE '(gpl|agpl|sspl)'`, which can only
+      # match a crate literally *named* something like "gpl". It could not fail
+      # unless a copyleft crate happened to be named after its licence, so it had
+      # been passing while checking nothing, and CLAUDE.md §0.7's invariant was
+      # unguarded. `{l}` is the licence expression; that is what has to be read.
+      #
+      # `--edges normal` because a plugin author links neither dev- nor
+      # build-dependencies, and `--target all` because a dependency gated to one
+      # platform revokes the exception on that platform just as thoroughly.
       - name: No copyleft in the plugin ABI or SDK
         run: |
+          # Prints one `package|licence` line per dependency a plugin author
+          # could not link permissively: no licence declared at all (a crate that
+          # declares none is indistinguishable from one that declares a hostile
+          # one), or every arm of the SPDX expression copyleft.
+          #
+          # Arms matter. `r-efi` is "MIT OR Apache-2.0 OR LGPL-2.1-or-later" and
+          # reaches this tree through getrandom on UEFI targets; a plain grep for
+          # "GPL" condemns it, and a check that cries wolf on a crate anyone can
+          # take under MIT is a check the next person switches off. Only an
+          # expression with no permissive arm left is a breach.
+          scan() {
+            cargo tree -p "$1" --edges normal --target all --prefix none \
+                       --format '{p}|{l}' \
+              | python3 -c 'import re,sys; pat = re.compile(r"(?:^|[^A-Za-z])(?:A|L)?GPL|SSPL|BUSL|CC-BY-NC|Commons-Clause|Proprietary", re.I); ok = lambda lic: bool(lic.strip()) and any(not pat.search(arm) for arm in re.split(r"\s+OR\s+", lic)); rows = sorted({re.sub(r"\s*\(\*\)$", "", l.strip()) for l in sys.stdin if l.strip()}); print("\n".join(r for r in rows if not ok(r.rpartition("|")[2])))'
+          }
+
+          # Negative control, and the reason the broken version of this job did
+          # not survive review a second time: remoter-ipc's tree is
+          # GPL-3.0-or-later from remoter-core up. A detector that reports
+          # nothing there is reporting nothing anywhere, so say so loudly
+          # instead of shipping another green tick that means nothing.
+          control="$(scan remoter-ipc)"
+          if [ -z "$control" ]; then
+            echo "::error::the copyleft detector found nothing in remoter-ipc, whose dependency tree is GPL-3.0-or-later throughout. The detector is broken, not the tree."
+            exit 1
+          fi
+          echo "Detector self-check: found copyleft in remoter-ipc as expected."
+
           for crate in remoter-plugin-abi remoter-plugin-sdk; do
-            echo "--- $crate ---"
-            if cargo tree -p "$crate" --edges normal --prefix none \
-               | grep -viE '^(remoter-plugin-abi|remoter-plugin-sdk)' \
-               | grep -iE '\b(gpl|agpl|sspl)\b'; then
-              echo "::error::$crate has a copyleft dependency"
+            echo "--- $crate"
+            found="$(scan "$crate")"
+            if [ -n "$found" ]; then
+              echo "$found"
+              echo "::error::$crate has a copyleft or unlicensed dependency; LICENSE-EXCEPTION does not survive it (CLAUDE.md §0.7)"
               exit 1
             fi
           done
+
+          # The exception also rests on these two crates' own licence field. A
+          # clean dependency tree under a GPL-3.0 ABI crate protects nobody.
+          cargo metadata --no-deps --format-version 1 \
+            | python3 -c 'import json,sys; bad = [p["name"] + " is licensed " + str(p.get("license")) + ", not Apache-2.0 OR MIT" for p in json.load(sys.stdin)["packages"] if p["name"] in ("remoter-plugin-abi", "remoter-plugin-sdk") and p.get("license") != "Apache-2.0 OR MIT"]; print("\n".join(bad)); sys.exit(1 if bad else 0)'
           echo "Plugin ABI licence boundary intact."

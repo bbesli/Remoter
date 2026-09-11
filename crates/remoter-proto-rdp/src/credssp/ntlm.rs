@@ -546,23 +546,75 @@ impl NtlmSecurity {
     /// [MS-NLMP] §3.4.5.2 `SIGNKEY` and §3.4.5.3 `SEALKEY`. The magic
     /// constants include their terminating NUL — a detail that is easy to drop
     /// and produces four wrong keys with no other symptom.
+    ///
+    /// **`SIGNKEY` and `SEALKEY` treat the key length differently**, and that
+    /// asymmetry is the whole reason `flags` is read here. `SIGNKEY` always
+    /// hashes the full sixteen bytes; `SEALKEY` hashes a *prefix* whose length
+    /// is the strength the server agreed to:
+    ///
+    /// | Negotiated | `SealKey` input | Bytes |
+    /// |---|---|---|
+    /// | `NTLMSSP_NEGOTIATE_128` | `ExportedSessionKey` | 16 |
+    /// | else `NTLMSSP_NEGOTIATE_56` | `ExportedSessionKey[0..6]` | 7 |
+    /// | else | `ExportedSessionKey[0..4]` | 5 |
+    ///
+    /// [MS-NLMP]'s `X[0..n]` is inclusive of `n`, which is why the 56-bit row
+    /// is seven bytes and not six — §3.4.5.3's own legacy branch concatenates
+    /// `ExportedSessionKey[0..6]` with one more byte to make an eight-byte RC4
+    /// key, which only adds up on the inclusive reading.
+    ///
+    /// This used to hash all sixteen bytes on every path and read `flags` only
+    /// for `NTLMSSP_NEGOTIATE_KEY_EXCH`, so a server that agreed to 56-bit or
+    /// 40-bit session security got four keys it could not use: every sealed
+    /// message failed its integrity check, and the session died at the first
+    /// `pubKeyAuth` with no way to tell that from an interception.
+    ///
+    /// The `NegFlg` without `NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY`
+    /// branch of §3.4.5.3 is not implemented and is unreachable:
+    /// [`NtlmClient::authenticate`] forces that flag into the negotiated set,
+    /// because CredSSP is not defined over §3.4.4.1's weaker signature.
     #[must_use]
     fn derive(session_key: Zeroizing<[u8; 16]>, flags: u32) -> Self {
-        let derive_key = |constant: &[u8]| -> Zeroizing<[u8; 16]> {
-            let mut input = Zeroizing::new(Vec::with_capacity(16 + constant.len()));
-            input.extend_from_slice(&*session_key);
+        let derive_key = |material: &[u8], constant: &[u8]| -> Zeroizing<[u8; 16]> {
+            let mut input = Zeroizing::new(Vec::with_capacity(material.len() + constant.len()));
+            input.extend_from_slice(material);
             input.extend_from_slice(constant);
             Zeroizing::new(md5(&input))
         };
 
-        let client_sign =
-            derive_key(b"session key to client-to-server signing key magic constant\0");
-        let server_sign =
-            derive_key(b"session key to server-to-client signing key magic constant\0");
-        let client_seal =
-            derive_key(b"session key to client-to-server sealing key magic constant\0");
-        let server_seal =
-            derive_key(b"session key to server-to-client sealing key magic constant\0");
+        // [MS-NLMP] §3.4.5.3, `SEALKEY`. The prefix is whatever strength the
+        // server actually agreed to; 128 is checked first because a client
+        // offers 128 and 56 together and a server that accepts both means 128.
+        let seal_bytes = if flags & NEGOTIATE_128 != 0 {
+            16
+        } else if flags & NEGOTIATE_56 != 0 {
+            7
+        } else {
+            5
+        };
+        // `session_key` is 16 bytes and `seal_bytes` is at most 16, so the
+        // slice is total; `get` rather than an index because this crate
+        // forbids a panicking path outside tests. Borrowed, not copied: the
+        // material stays inside the buffer that already zeroes itself.
+        let seal_material: &[u8] = session_key.get(..seal_bytes).unwrap_or(&*session_key);
+
+        // [MS-NLMP] §3.4.5.2, `SIGNKEY`: the whole key, at every strength.
+        let client_sign = derive_key(
+            &*session_key,
+            b"session key to client-to-server signing key magic constant\0",
+        );
+        let server_sign = derive_key(
+            &*session_key,
+            b"session key to server-to-client signing key magic constant\0",
+        );
+        let client_seal = derive_key(
+            seal_material,
+            b"session key to client-to-server sealing key magic constant\0",
+        );
+        let server_seal = derive_key(
+            seal_material,
+            b"session key to server-to-client sealing key magic constant\0",
+        );
 
         Self {
             client_seal: Rc4::new(&*client_seal),
@@ -573,6 +625,39 @@ impl NtlmSecurity {
             server_seq: 0,
             key_exchange: flags & NEGOTIATE_KEY_EXCH != 0,
         }
+    }
+
+    /// The far end of an exchange that agreed to everything this client
+    /// offers, for tests that have to play the server.
+    ///
+    /// `pub(crate)` and test-only so `credssp`'s own tests can drive a full
+    /// round trip without `derive` or the flag constants leaving this module.
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) fn matching_peer(session_key: [u8; 16]) -> Self {
+        Self::derive(Zeroizing::new(session_key), CLIENT_FLAGS)
+    }
+
+    /// [`Self::seal`] in the server-to-client direction, for the same tests.
+    ///
+    /// The real client never seals as the server, which is why this is not
+    /// part of the type's ordinary surface.
+    #[cfg(test)]
+    pub(crate) fn seal_as_server(&mut self, message: &[u8]) -> Vec<u8> {
+        let sealed = self.server_seal.applied(message);
+        let signature = Self::sign(
+            &mut self.server_seal,
+            &self.server_sign,
+            self.server_seq,
+            message,
+            self.key_exchange,
+        );
+        self.server_seq = self.server_seq.wrapping_add(1);
+
+        let mut out = Vec::with_capacity(SIGNATURE_BYTES + sealed.len());
+        out.extend_from_slice(&signature);
+        out.extend_from_slice(&sealed);
+        out
     }
 
     /// Seals `message` for the server: the signature, then the ciphertext.
@@ -905,6 +990,71 @@ mod tests {
         wrapped[last] ^= 0xff;
         let error = server.unseal(&wrapped).unwrap_err();
         assert!(matches!(error, ProtocolError::ProtocolViolation { .. }));
+    }
+
+    /// [MS-NLMP] §3.4.5.3, `SEALKEY`, all three strengths.
+    ///
+    /// The sealing keys are MD5 over a *prefix* of the exported session key
+    /// whose length is the strength the server agreed to — 16, 7 or 5 bytes —
+    /// while the signing keys always hash all sixteen. `derive` used to hash
+    /// sixteen everywhere and read `flags` only for
+    /// `NTLMSSP_NEGOTIATE_KEY_EXCH`, so every sealed message to a server that
+    /// agreed to 56-bit or 40-bit session security failed its integrity check
+    /// with nothing on screen to say why.
+    #[test]
+    fn the_sealing_key_is_truncated_to_the_strength_the_server_agreed_to() {
+        // Everything the client offers except the strength bits, so each case
+        // below differs only in what it negotiated.
+        let base = CLIENT_FLAGS & !(NEGOTIATE_128 | NEGOTIATE_56);
+        let session_key = [0x77u8; 16];
+
+        for (label, flags, prefix) in [
+            ("128-bit", base | NEGOTIATE_128 | NEGOTIATE_56, 16usize),
+            // A server that clears 128 and keeps 56.
+            ("56-bit", base | NEGOTIATE_56, 7),
+            // A server that clears both: the 40-bit fallback.
+            ("40-bit", base, 5),
+        ] {
+            let mut derived = NtlmSecurity::derive(Zeroizing::new(session_key), flags);
+
+            let keystream = |constant: &[u8]| -> Vec<u8> {
+                let mut input = Vec::new();
+                input.extend_from_slice(&session_key[..prefix]);
+                input.extend_from_slice(constant);
+                Rc4::new(&md5(&input)).applied(&[0u8; 32])
+            };
+
+            // The keystreams are compared rather than the keys, because the
+            // keystream is what a server actually sees.
+            assert_eq!(
+                derived.client_seal.applied(&[0u8; 32]),
+                keystream(b"session key to client-to-server sealing key magic constant\0"),
+                "{label} client-to-server sealing key is not MD5 over the first {prefix} bytes"
+            );
+            assert_eq!(
+                derived.server_seal.applied(&[0u8; 32]),
+                keystream(b"session key to server-to-client sealing key magic constant\0"),
+                "{label} server-to-client sealing key is not MD5 over the first {prefix} bytes"
+            );
+        }
+    }
+
+    /// The other half of §3.4.5.2/§3.4.5.3: `SIGNKEY` must *not* be truncated,
+    /// so shortening the seal key must not quietly shorten the sign key too.
+    #[test]
+    fn the_signing_key_is_the_whole_session_key_at_every_strength() {
+        let base = CLIENT_FLAGS & !(NEGOTIATE_128 | NEGOTIATE_56);
+        let session_key = [0x77u8; 16];
+
+        let mut input = Vec::new();
+        input.extend_from_slice(&session_key);
+        input.extend_from_slice(b"session key to client-to-server signing key magic constant\0");
+        let expected = md5(&input);
+
+        for flags in [base | NEGOTIATE_128, base | NEGOTIATE_56, base] {
+            let derived = NtlmSecurity::derive(Zeroizing::new(session_key), flags);
+            assert_eq!(*derived.client_sign, expected);
+        }
     }
 
     #[test]

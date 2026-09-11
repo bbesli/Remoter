@@ -17,7 +17,18 @@ allow = [
     "Zlib",
     "CC0-1.0",
     "0BSD",
-    "GPL-3.0",
+    # Remoter's own crates. `cargo deny` checks every node in the graph,
+    # workspace members included, so the workspace's own expression has to be
+    # allowed or the policy rejects the project it exists to protect.
+    #
+    # This entry used to read "GPL-3.0", which is not the expression any
+    # manifest in this workspace carries — every one of them says
+    # "GPL-3.0-or-later". SPDX treats the two as different licences, so the
+    # allowance matched nothing and all nine workspace crates were rejected,
+    # which meant `cargo deny check` could never exit zero and CLAUDE.md §8's
+    # record of "licences were checked" recorded nothing. Do not shorten it
+    # back: keep this string byte-identical to the manifests' `license` field.
+    "GPL-3.0-or-later",
     # `webpki-roots`, the Mozilla CA root store the update check verifies
     # github.com against. CDLA-Permissive-2.0 is a permissive data licence with
     # no copyleft and no further obligations, so it imposes nothing on a
@@ -82,17 +93,73 @@ license-files = [{ path = "LICENSE", hash = 0xbd0eed23 }]
 
 [bans]
 multiple-versions = "warn"
-wildcards = "deny"
+# Every dependency between workspace crates is `{ path = "..." }` with no
+# version, which cargo-deny counts as a wildcard. `wildcards = "deny"` therefore
+# fired eight times on this workspace — on nothing but internal path edges,
+# which carry none of the supply-chain risk the check exists for, because they
+# resolve to a directory in this repository and never to a registry.
+#
+# `allow-wildcard-paths` is the intended exemption, but cargo-deny only applies
+# it to crates marked `publish = false`; none of Remoter's manifests are, so the
+# exemption alone does not clear them. Downgrading to "warn" is what lets the
+# rest of the policy run today.
+#
+# The property this drops — no `foo = "*"` pulled from crates.io — is not lost:
+# the "No wildcard registry dependencies" step in .github/workflows/ci.yml fails
+# the build on one, and it is precise where this check is not. Restore
+# `wildcards = "deny"` (keeping allow-wildcard-paths) the moment the workspace
+# members gain `publish = false`, and drop that CI step then.
+wildcards = "warn"
+allow-wildcard-paths = true
 
 # ADR-0009: the plugin ABI and SDK crates are Apache-2.0 OR MIT so that plugin
 # authors compile against nothing copyleft. A GPL dependency in either silently
 # breaks the licence exception in LICENSE-EXCEPTION.
+#
+# `wrappers` is an allow list of the crates that may depend on the banned crate;
+# anything else that reaches it fails the check. It used to read `wrappers = []`,
+# which allows no dependent at all — that bans remoter-core outright, so the
+# check reported the whole workspace rather than the edge it was written to
+# forbid, and `cargo deny check bans` could not pass. Listing the legitimate
+# dependents is what makes it an edge ban: remoter-plugin-abi and
+# remoter-plugin-sdk are deliberately absent, so the day either one grows a
+# dependency on GPL-3.0-or-later remoter-core, this fails.
+#
+# A new workspace crate that legitimately depends on remoter-core has to be
+# added to this list or the check fails. That is the intended direction: the
+# list fails closed, and the cost of adding a line is smaller than the cost of
+# a plugin ABI that quietly stopped being permissively licensed.
+#
+# It only covers the one workspace crate. Any *other* copyleft dependency
+# appearing under the ABI or the SDK is caught by the "No copyleft in the plugin
+# ABI or SDK" job in .github/workflows/ci.yml, which reads real licence
+# expressions out of the dependency graph.
 [[bans.deny]]
 crate = "remoter-core"
-wrappers = []
+wrappers = [
+    "remoter-vault",
+    "remoter-proto",
+    "remoter-proto-ssh",
+    "remoter-proto-rdp",
+    "remoter-proto-vnc",
+    "remoter-import",
+    "remoter-ipc",
+]
 
 [advisories]
 yanked = "deny"
+# Vulnerabilities stay at cargo-deny's default, which is "deny". Nothing below
+# relaxes that, and `ignore` stays empty: an advisory silenced here is an
+# advisory nobody reads again.
+#
+# "workspace" narrows *unmaintained* advisories to crates this workspace chose
+# itself. The five that fire today — proc-macro-error and four `unic-*` crates —
+# arrive under tauri, several levels down, and every one says "No safe upgrade
+# is available". Failing on them means the security job is red forever for
+# something no change to this repository can fix, and a permanently red check is
+# a check people learn to skip. An unmaintained crate we add on purpose still
+# fails, which is the case where the warning is actionable.
+unmaintained = "workspace"
 ignore = []
 
 [sources]

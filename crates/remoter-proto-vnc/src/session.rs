@@ -10,13 +10,19 @@
 //! `vnc-rs` sends the first, non-incremental request itself and then leaves the
 //! asking to the caller — and it gives no signal for "this update is complete",
 //! because the library's event stream has no update boundary in it. The loop
-//! below therefore tracks one bit, [`VncSession::outstanding_request`]: a
-//! request is sent when none is outstanding, and it stops being outstanding as
-//! soon as any rectangle arrives. On an idle desktop that means exactly one
-//! request is in flight and the loop wakes for nothing; on a busy one it means
-//! at most one request per frame interval. It is a compromise the library's
-//! shape forces, and it is written down rather than left to be inferred from a
-//! timer.
+//! below tracks one bit, `outstanding_request`: a request is sent when none is
+//! outstanding, and it stops being outstanding when the update that answers it
+//! has arrived **in full**.
+//!
+//! "In full" is the part that used to be wrong. The flag was cleared on the
+//! first rectangle of a `FramebufferUpdate`, so a multi-rectangle update
+//! un-armed it while the server was still writing and the next tick sent a
+//! second request — the very thing the comment claimed could not happen. The
+//! boundary the rule needs is the *message* boundary (RFC 6143 §7.6.1), and the
+//! only place in this crate that can see one is [`crate::gate`], which parses
+//! the server stream on its way in. It counts completed updates; this loop
+//! compares that count against the one it last saw. One outstanding request,
+//! stated as something that is checked rather than as something that is hoped.
 //!
 //! # How a session ends, and why nothing leaks
 //!
@@ -35,6 +41,7 @@
 //! runs, but it is belt and braces rather than the mechanism.
 
 use std::collections::VecDeque;
+use std::sync::Arc;
 use std::time::Instant;
 
 use async_trait::async_trait;
@@ -48,8 +55,10 @@ use vnc::{ClientKeyEvent, ClientMouseEvent, VncClient, X11Event};
 use crate::clipboard;
 use crate::error::{map_vnc, unsupported};
 use crate::frame::{Decoded, FrameTranslator};
+use crate::gate::{GateShared, refine_with_gate};
 use crate::keymap::rfb_keysym;
 use crate::pointer::{WheelAccumulator, button_mask, has_unencodable_button};
+use crate::security::SecurityType;
 
 /// The catalogue key for the bell (RFC 6143 §7.6.3).
 pub const WARNING_BELL: &str = "vnc.bell";
@@ -92,6 +101,15 @@ pub struct VncSession {
     clipboard: ClipboardPolicy,
     view_only: bool,
     outstanding_request: bool,
+    /// The gate's half of the session: the completed-update counter, and
+    /// whatever rule the peer breaks later.
+    gate: Arc<GateShared>,
+    /// How many complete framebuffer updates had arrived last time the loop
+    /// looked. See the module documentation.
+    updates_seen: u64,
+    /// What RFC 6143 §7.1.2 settled on. Kept so that a session can be asked
+    /// what it authenticated with rather than having it inferred.
+    security: SecurityType,
     /// Whether the "this button has no RFB encoding" note has been logged. Once
     /// per session: a user holding the back button would otherwise fill a log.
     warned_about_button: bool,
@@ -103,6 +121,10 @@ impl VncSession {
     /// `width` and `height` come from `ServerInit` (RFC 6143 §7.3.2) and are
     /// what every rectangle is subsequently checked against.
     #[must_use]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "every one of these is a distinct fact the connect path resolved;                   bundling them into a struct would move the argument list rather                   than shorten it"
+    )]
     pub fn new(
         client: VncClient,
         events: EventSink,
@@ -111,6 +133,8 @@ impl VncSession {
         height: u16,
         clipboard: ClipboardPolicy,
         view_only: bool,
+        gate: Arc<GateShared>,
+        security: SecurityType,
     ) -> Self {
         Self {
             client,
@@ -130,8 +154,21 @@ impl VncSession {
             // `VncClient::new` sends the first, non-incremental request before
             // handing the client back, so one is already in flight.
             outstanding_request: true,
+            updates_seen: gate.updates_completed(),
+            gate,
+            security,
             warned_about_button: false,
         }
+    }
+
+    /// What RFC 6143 §7.1.2 settled on for this session.
+    ///
+    /// Reported rather than inferred. Guessing it from the server's offer list
+    /// and the library's preference is how a session that authenticated with
+    /// nothing could be described as one that used the password.
+    #[must_use]
+    pub const fn security(&self) -> SecurityType {
+        self.security
     }
 
     /// Records the identity the supervisor minted for this session.
@@ -183,10 +220,11 @@ impl VncSession {
     ) -> Result<Option<CloseReason>, ProtocolError> {
         match self.translator.translate(event)? {
             Decoded::Rect(rect) => {
+                // The flag is deliberately *not* cleared here. A rectangle is
+                // not an answer; a complete `FramebufferUpdate` is, and this
+                // event carries no boundary. Clearing it here is the defect
+                // `poll_for_update` now prevents coming back.
                 self.coalescer.push(rect, Instant::now());
-                // Any rectangle means the server answered; the next tick may
-                // ask again.
-                self.outstanding_request = false;
             }
 
             Decoded::Cursor {
@@ -291,10 +329,26 @@ impl VncSession {
     /// A transport failure, or [`ProtocolError::Disconnected`] once the engine
     /// has stopped.
     pub async fn poll_for_update(&mut self) -> Result<(), ProtocolError> {
+        self.note_completed_updates();
         if self.outstanding_request {
             return Ok(());
         }
         self.request(X11Event::Refresh).await
+    }
+
+    /// Clears the outstanding-request flag once a whole update has landed.
+    ///
+    /// RFC 6143 §7.6.1: a `FramebufferUpdate` is one message carrying any
+    /// number of rectangles, and the server answers one request with one
+    /// message. [`crate::gate`] counts those messages as it parses them on the
+    /// way in — it is the only thing here that sees the boundary — so "the
+    /// request was answered" is a comparison rather than a guess.
+    fn note_completed_updates(&mut self) {
+        let completed = self.gate.updates_completed();
+        if completed != self.updates_seen {
+            self.updates_seen = completed;
+            self.outstanding_request = false;
+        }
     }
 
     async fn request(&mut self, what: X11Event) -> Result<(), ProtocolError> {
@@ -466,6 +520,11 @@ impl Session for VncSession {
             // delivered, and it is deliberately not retained while it cannot
             // be. This becomes a one-line change the day `SessionEvent` grows
             // a clipboard-content variant.
+            //
+            // `crate::capabilities` reports `ClipboardSupport::None` **because**
+            // of this arm. It used to report `Text`, which promised the
+            // interface a control this line then refused, and the interface
+            // drew it. A capability is a promise; the two now agree.
             ClipboardOp::Request { .. } => Err(unsupported("reading the remote clipboard")),
             // RFB has no way to withdraw an offer. Reporting a failure would
             // make a tab close report an error it cannot act on.
@@ -613,8 +672,13 @@ async fn drive(session: &mut VncSession, ctx: &mut SessionContext) -> CloseReaso
 
             Step::Event(Err(error)) => {
                 // The engine stopped. That is the far end going away, and it is
-                // the normal end of a session as often as it is a failure.
-                let error = map_vnc(&error, "read from the VNC engine");
+                // the normal end of a session as often as it is a failure — but
+                // it is also what a rule the gate refused looks like from here,
+                // and the gate's reason is the better one. `vnc-rs` flattens a
+                // rectangle that was refused before it could allocate and a
+                // socket that simply closed into the same opaque error.
+                let error =
+                    refine_with_gate(&session.gate, map_vnc(&error, "read from the VNC engine"));
                 break match error {
                     ProtocolError::Disconnected { .. } => CloseReason::Disconnected,
                     other => CloseReason::Failed(FailureReport::from(&other)),

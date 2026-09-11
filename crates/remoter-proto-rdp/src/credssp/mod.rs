@@ -31,6 +31,12 @@
 //! verification in [`CredsspClient::step`] is not a formality: a mismatch is a
 //! hard failure and the credentials are never sent.
 //!
+//! Because it is the only man-in-the-middle detector in this crate, its
+//! failure is reported as [`ProtocolError::HostKeyChanged`] naming the real
+//! host — not as an untrusted certificate, which would offer "pin it" as the
+//! remedy for an active interception. See
+//! [`CredsspClient::peer_impersonated`].
+//!
 //! Two encodings exist, and the one to use depends on the version the peer
 //! reports ([MS-CSSP] §3.1.5, "Processing Events and Sequencing Rules"):
 //! version 5 and above hash a client-chosen nonce alongside the public key,
@@ -50,7 +56,7 @@ pub mod crypto;
 pub mod der;
 pub mod ntlm;
 
-use remoter_proto::ProtocolError;
+use remoter_proto::{Fingerprint, HostPort, ProtocolError};
 use sha2::{Digest as _, Sha256};
 use zeroize::Zeroize;
 
@@ -85,6 +91,33 @@ pub const EARLY_USER_AUTH_RESULT_BYTES: usize = 4;
 
 /// `AUTHZ_SUCCESS`. MS-RDPBCGR §2.2.10.2.
 const AUTHZ_SUCCESS: u32 = 0x0000_0000;
+
+/// The label the CredSSP public-key proof is reported under when it fails.
+///
+/// Deliberately **not** [`crate::cert::CERTIFICATE_ALGORITHM`]. Nothing in the
+/// trust store has changed when this check fails, so a message that named the
+/// pinned certificate would send the user to re-pin something that is not the
+/// problem.
+const PUBLIC_KEY_PROOF_ALGORITHM: &str = "credssp-public-key";
+
+/// The port the peer is named on in that failure.
+///
+/// A service principal name carries no port and `TSRequest` has no field for
+/// one, so this is the adapter's default (MS-RDPBCGR) and is used only to
+/// render the host in a message. It is not a trust-store key: nothing in this
+/// module reads or writes the trust store.
+const PEER_REPORTING_PORT: u16 = 3389;
+
+/// The host a `TERMSRV/<host>` service principal name names.
+///
+/// The SPN is built by the connector from the connection's own target, so it
+/// is the one value in this module that knows which machine is on the other
+/// end. Parsing it here is what lets the public-key failure name a real host
+/// instead of a placeholder — see [`CredsspClient::peer_impersonated`].
+fn peer_from_spn(spn: &str) -> Option<HostPort> {
+    let host = spn.split_once('/').map_or(spn, |(_, rest)| rest);
+    HostPort::new(host, PEER_REPORTING_PORT).ok()
+}
 
 /// What the caller should do next.
 #[derive(Debug)]
@@ -122,6 +155,11 @@ pub struct CredsspClient {
     /// `subjectPublicKeyInfo` BIT STRING. Public by definition.
     public_key: Vec<u8>,
     nonce: [u8; NONCE_BYTES],
+    /// The machine on the other end, parsed once from the service principal
+    /// name. Carried so that a failed public-key proof can say *which* host
+    /// was impersonated; a failure that cannot name the host sends the user
+    /// looking through every tab they have open.
+    peer: Option<HostPort>,
     /// `min(CLIENT_VERSION, peer)`, known once the server has answered once.
     negotiated_version: u32,
     domain: String,
@@ -177,6 +215,7 @@ impl CredsspClient {
             state: State::Challenge,
             public_key,
             nonce,
+            peer: peer_from_spn(spn),
             negotiated_version: CLIENT_VERSION,
             domain: domain.to_owned(),
             username: username.to_owned(),
@@ -204,9 +243,12 @@ impl CredsspClient {
     /// # Errors
     ///
     /// [`ProtocolError::AuthRejected`] when the server reports an
-    /// authentication error code, or when its `pubKeyAuth` does not match what
-    /// the client computed — the second is a man-in-the-middle indication, and
-    /// the credentials are never sent.
+    /// authentication error code.
+    /// [`ProtocolError::HostKeyChanged`] when its `pubKeyAuth` does not match
+    /// what the client computed — a man-in-the-middle indication, naming the
+    /// host that was impersonated; the credentials are never sent. See
+    /// [`CredsspClient::peer_impersonated`] for why it is not reported as an
+    /// untrusted certificate.
     /// [`ProtocolError::ProtocolViolation`] for a malformed or out-of-order
     /// message.
     pub fn step(
@@ -328,23 +370,7 @@ impl CredsspClient {
 
         use subtle::ConstantTimeEq as _;
         if !bool::from(returned.ct_eq(&expected)) {
-            // Not a "handshake failure": the TLS handshake succeeded and this
-            // is the far end failing to prove it is the far end. The
-            // credentials stop here.
-            tracing::warn!(
-                "the server's CredSSP public key check failed; the credentials were not sent"
-            );
-            return Err(ProtocolError::CertificateUntrusted {
-                host: remoter_proto::HostPort::new("credssp-peer", 3389).unwrap_or_else(|_| {
-                    // Unreachable: the literal is a valid host and 3389 a
-                    // valid port. The fallback exists because this crate
-                    // forbids `unwrap`, and losing the host name is better
-                    // than losing the failure.
-                    #[allow(clippy::expect_used, reason = "unreachable; see above")]
-                    remoter_proto::HostPort::new("unknown", 3389).expect("a literal host")
-                }),
-                reason: remoter_proto::CertificateProblem::Changed,
-            });
+            return Err(self.peer_impersonated(&expected, &returned));
         }
 
         // The credentials, sealed, and then dropped. This is the only place in
@@ -365,6 +391,60 @@ impl CredsspClient {
             }
             .encode(),
         ))
+    }
+
+    /// The failure for a server that could not prove it holds the private key
+    /// of the certificate the TLS tunnel was built with.
+    ///
+    /// This is the crate's only man-in-the-middle detector, and it gets a path
+    /// of its own rather than borrowing the certificate-pinning one. It used
+    /// to report [`ProtocolError::CertificateUntrusted`] with
+    /// `CertificateProblem::Changed` against a fabricated host called
+    /// `credssp-peer:3389`, which was wrong in all three of the ways that
+    /// matter:
+    ///
+    /// - it named a host that does not exist, so the user was never told which
+    ///   machine was being impersonated;
+    /// - `CertificateUntrusted`'s next action is
+    ///   [`NextAction::PinCertificate`](remoter_proto::NextAction::PinCertificate),
+    ///   so the remedy offered for an *active interception* was "trust it";
+    /// - nothing in the trust store had changed, so pinning would have
+    ///   recorded the attacker's certificate under the real host's name.
+    ///
+    /// [`ProtocolError::HostKeyChanged`] is the taxonomy's "possible
+    /// man-in-the-middle": it names the host, it is an identity failure so
+    /// auto-reconnect will not retry it, and its next actions are
+    /// `VerifyFingerprintOutOfBand` and `ContactAdministrator` — no button
+    /// that trusts anything.
+    ///
+    /// The two fingerprints are of the proof the client required and the proof
+    /// the server returned, hashed rather than carried raw so the message has
+    /// a fixed shape. Neither is secret: `expected` is derived from the
+    /// server's own public key and the client's nonce, and `returned` is what
+    /// the server sent.
+    fn peer_impersonated(&self, expected: &[u8], returned: &[u8]) -> ProtocolError {
+        // Not a "handshake failure": the TLS handshake succeeded and this is
+        // the far end failing to prove it is the far end. The credentials stop
+        // here, unsent.
+        let Some(host) = self.peer.clone() else {
+            // Unreachable: `peer` is parsed from the service principal name
+            // the connector builds out of the validated target host. If it
+            // ever is `None` the connection still stops here — losing the
+            // host's name is bad, and continuing would be far worse.
+            return ProtocolError::Internal {
+                detail: "the CredSSP peer could not be named after its public key proof failed",
+            };
+        };
+        tracing::warn!(
+            host = %host,
+            "the server could not prove it holds its certificate's private key; the credentials were not sent"
+        );
+        ProtocolError::HostKeyChanged {
+            host,
+            algorithm: PUBLIC_KEY_PROOF_ALGORITHM.to_owned(),
+            expected: Fingerprint::sha256(expected),
+            offered: Fingerprint::sha256(returned),
+        }
     }
 
     /// `TSCredentials` wrapping `TSPasswordCreds`. [MS-CSSP] §2.2.1.2.
@@ -729,10 +809,117 @@ mod tests {
         // of the two guards; either outcome must refuse.
         assert!(
             matches!(error, ProtocolError::ProtocolViolation { .. })
-                || matches!(error, ProtocolError::CertificateUntrusted { .. }),
+                || matches!(error, ProtocolError::HostKeyChanged { .. }),
             "{error:?}"
         );
         assert!(!client.is_done());
+    }
+
+    /// Drives the exchange to the public-key step and hands the client a
+    /// correctly sealed but *wrong* `pubKeyAuth` — an interceptor that
+    /// completed NTLM but does not hold the certificate's private key. The
+    /// NTLM signature verifies, so the public-key check is the only thing
+    /// standing between the password and the attacker.
+    fn intercepted_public_key_failure() -> ProtocolError {
+        let mut client = client();
+        let _ = client.start();
+        let server = Server::new();
+        let _ = client
+            .step(&server.challenge_request(), [0xaa; 8], [0x55; 16], 0)
+            .expect("the challenge step");
+
+        // The same keys the client derived, so the seal and the NTLM signature
+        // are genuine and only the sealed *value* is wrong — which is what an
+        // interceptor that relayed NTLM but holds no private key produces.
+        let mut peer = ntlm::NtlmSecurity::matching_peer([0x55; 16]);
+        let sealed = peer.seal_as_server(&[0x00u8; 32]);
+
+        let forged = TsRequest {
+            version: 6,
+            pub_key_auth: Some(sealed),
+            ..TsRequest::empty()
+        }
+        .encode();
+
+        let error = client
+            .step(&forged, [0xaa; 8], [0x55; 16], 0)
+            .expect_err("a wrong public key proof must refuse");
+        assert!(!client.is_done(), "the credentials were sent anyway");
+        error
+    }
+
+    /// The defect this path exists to close: the failure used to be reported
+    /// as `CertificateUntrusted` against a host called `credssp-peer:3389`, so
+    /// the user was offered "pin the certificate" as the remedy for an active
+    /// interception and was never told which machine was attacked.
+    #[test]
+    fn an_intercepted_public_key_proof_names_the_real_host_and_never_offers_to_trust_it() {
+        use remoter_proto::NextAction;
+
+        let error = intercepted_public_key_failure();
+
+        let ProtocolError::HostKeyChanged {
+            host, algorithm, ..
+        } = &error
+        else {
+            panic!("an interception must not be reported as a certificate problem: {error:?}");
+        };
+        // The real host, from the service principal name the connector built
+        // out of the connection's target — not a placeholder.
+        assert_eq!(host.host(), "ts-01.corp.example");
+        assert_ne!(host.host(), "credssp-peer");
+        // And not the label the trust store pins certificates under: nothing
+        // in the trust store has changed.
+        assert_eq!(algorithm, PUBLIC_KEY_PROOF_ALGORITHM);
+        assert_ne!(algorithm.as_str(), crate::cert::CERTIFICATE_ALGORITHM);
+
+        // The remedy is verification, not trust. A "pin the certificate"
+        // button here would record the interceptor under the real host's name.
+        let actions = error.next_actions();
+        assert!(
+            !actions.contains(&NextAction::PinCertificate),
+            "an active interception offered `pin the certificate`: {actions:?}"
+        );
+        assert!(
+            actions.contains(&NextAction::VerifyFingerprintOutOfBand),
+            "{actions:?}"
+        );
+        assert!(
+            actions.contains(&NextAction::ContactAdministrator),
+            "{actions:?}"
+        );
+
+        // And no machine may retry its way past it.
+        assert!(error.involves_identity_failure());
+        assert!(!error.is_retryable());
+        assert_eq!(error.stage(), remoter_proto::Stage::Handshake);
+    }
+
+    /// The message is rendered into logs and onto a failure card, so it must
+    /// carry the host and nothing the client holds in confidence.
+    #[test]
+    fn the_interception_message_carries_the_host_and_no_secret() {
+        let error = intercepted_public_key_failure();
+        let rendered = format!("{error} {error:?}");
+        assert!(rendered.contains("ts-01.corp.example"), "{rendered}");
+        // `client()` authenticates with this password.
+        assert!(!rendered.contains("hunter2"), "{rendered}");
+    }
+
+    #[test]
+    fn a_service_principal_name_yields_the_host_it_names() {
+        assert_eq!(
+            peer_from_spn("TERMSRV/ts-01.corp.example").map(|peer| peer.host().to_owned()),
+            Some("ts-01.corp.example".to_owned())
+        );
+        // A name with no service prefix is still a host.
+        assert_eq!(
+            peer_from_spn("ts-01.corp.example").map(|peer| peer.host().to_owned()),
+            Some("ts-01.corp.example".to_owned())
+        );
+        // And something that is not a host at all yields nothing rather than a
+        // fabricated name; `peer_impersonated` still refuses in that case.
+        assert!(peer_from_spn("TERMSRV/").is_none());
     }
 
     #[test]

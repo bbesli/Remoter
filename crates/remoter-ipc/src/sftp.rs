@@ -262,7 +262,19 @@ pub struct TransferStatusDto {
     /// The same, escaped for display.
     pub remote_display: String,
     /// The local path, as resolved when it was queued.
+    ///
+    /// Raw, so it is what a "reveal in folder" action addresses — and for that
+    /// reason never what a row draws.
     pub local: String,
+    /// The same, escaped for display.
+    ///
+    /// A download into a folder takes its file name from the remote path, so
+    /// this string is server-chosen too: `annex\u{202E}txt.exe` renders as
+    /// `annexexe.txt` in every toolkit that honours bidi, and a control byte
+    /// truncates the row it is drawn in. Every other DTO here carries both
+    /// forms; this one lacked the escaped half, which left the transfer list
+    /// as the one place a hostile name reached the interface unescaped.
+    pub local_display: String,
     pub resume: bool,
     pub state: TransferStateDto,
     /// What it settled before it began. `None` until it does.
@@ -969,12 +981,16 @@ fn delete_report_dto(report: &DeleteReport) -> SftpDeleteReportDto {
 }
 
 fn transfer_dto(status: &TransferStatus) -> TransferStatusDto {
+    let local = status.request.local.display().to_string();
     TransferStatusDto {
         transfer_id: status.id.get(),
         direction: direction_wire(status.request.direction).to_owned(),
         remote_display: escape_untrusted(&status.request.remote),
         remote: status.request.remote.clone(),
-        local: status.request.local.display().to_string(),
+        // Escaped like the remote path, and for the same reason: the file name
+        // half of this path came from the server.
+        local_display: escape_untrusted(&local),
+        local,
         resume: status.request.resume,
         state: state_dto(&status.state),
         start: status
@@ -1354,6 +1370,104 @@ mod tests {
         let dto = entry_dto(&ordinary);
         assert!(dto.risks.clean());
         assert_eq!(dto.display_name, "report.pdf");
+    }
+
+    /// The transfer list draws server-chosen text, so it needs both forms.
+    ///
+    /// A download into a folder takes its file name from the remote path, so
+    /// the local path is half the user's choice and half the server's. Without
+    /// an escaped twin the transfer list was the one surface where a hostile
+    /// name reached the interface as-is.
+    #[test]
+    fn a_transfer_row_carries_an_escaped_local_path_beside_the_raw_one() {
+        let queued = |local: &str| TransferStatus {
+            id: TransferId::from_raw(7),
+            request: TransferRequest {
+                direction: TransferDirection::Download,
+                // Renders as `annexexe.txt` wherever bidi is honoured, and is
+                // an executable (CVE-2021-42574 applied to a file listing).
+                remote: String::from("/srv/data/annex\u{202E}txt.exe"),
+                local: PathBuf::from(local),
+                resume: false,
+            },
+            state: TransferState::Queued,
+            start: None,
+        };
+
+        let status = queued("/home/ada/Downloads/annex\u{202E}txt.exe");
+        let dto = transfer_dto(&status);
+        assert_eq!(
+            dto.local_display,
+            "/home/ada/Downloads/annex\\u{202E}txt.exe"
+        );
+        assert!(
+            !dto.local_display.contains('\u{202E}'),
+            "the override reached the display: {:?}",
+            dto.local_display
+        );
+        // The raw form is untouched: it is what opens the file on disk.
+        assert_eq!(dto.local, "/home/ada/Downloads/annex\u{202E}txt.exe");
+        assert!(!dto.remote_display.contains('\u{202E}'));
+        assert_eq!(dto.remote, status.request.remote);
+
+        // A control byte truncates the row it is drawn in, and an escape
+        // sequence rewrites what was printed before it.
+        let noisy = queued("/home/ada/Downloads/notes\u{0007}\u{001B}[2Kgone");
+        let dto = transfer_dto(&noisy);
+        assert!(!dto.local_display.contains('\u{001B}'));
+        assert!(!dto.local_display.contains('\u{0007}'));
+
+        // An ordinary path is left as it is, or every row would look escaped.
+        let plain = queued("/home/ada/Downloads/backup.tar");
+        assert_eq!(
+            transfer_dto(&plain).local_display,
+            "/home/ada/Downloads/backup.tar"
+        );
+    }
+
+    /// The Windows shapes, refused here as well as one layer down.
+    ///
+    /// None of these carries a `/` or a `..`, and `C:payload.exe` in
+    /// particular is drive-*relative*: joined onto the chosen folder on
+    /// Windows it replaces that folder outright and the file lands at
+    /// whatever the current directory on drive C is.
+    #[test]
+    fn a_windows_shaped_remote_name_cannot_choose_where_a_download_lands() {
+        for hostile in [
+            "C:payload.exe",
+            "/srv/data/C:payload.exe",
+            "C:\\Windows\\System32\\payload.exe",
+            "\\\\evil.example\\share\\payload.exe",
+            // An alternate data stream: the bytes go into `notes.txt`, which
+            // keeps its name and its size.
+            "notes.txt:payload.exe",
+            // Windows strips the trailing dot, so this checks as a new file
+            // and opens `config`.
+            "config.",
+            "NUL",
+            "com1.txt",
+        ] {
+            let request = TransferRequestDto {
+                remote: String::from(hostile),
+                ..download(None, Some("/home/ada/Downloads"))
+            };
+            let refused = resolve_request(&request);
+            assert!(
+                matches!(refused, Err(ref error) if error.code == "sftp.unsafe-name"),
+                "{hostile:?} produced {refused:?}"
+            );
+        }
+
+        // The user naming the destination themselves is a different thing: the
+        // path is theirs, not the server's, and is not second-guessed.
+        let chosen = TransferRequestDto {
+            remote: String::from("C:payload.exe"),
+            ..download(Some("/home/ada/Downloads/payload.exe"), None)
+        };
+        assert_eq!(
+            resolve_request(&chosen).unwrap().local,
+            PathBuf::from("/home/ada/Downloads/payload.exe")
+        );
     }
 
     #[test]

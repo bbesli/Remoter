@@ -180,8 +180,68 @@ impl RfbServer {
         drop(self);
     }
 
-    /// RFC 6143 §7.1.1, then §7.1.2, then §7.2 — the whole handshake up to the
-    /// point where the client sends `ClientInit`.
+    /// RFC 6143 §7.1.1: announces `version` and reads the client's reply.
+    ///
+    /// Returns the twelve bytes the client chose, so a test can assert what the
+    /// version floor did rather than assume it.
+    ///
+    /// # Errors
+    ///
+    /// Whatever the pipe reported.
+    pub async fn announce(&mut self, version: &[u8; 12]) -> io::Result<Vec<u8>> {
+        self.write(version).await?;
+        self.read_exact(12).await
+    }
+
+    /// RFC 6143 §7.1.2 in the 3.7/3.8 shape: a `U8` count, that many `U8` type
+    /// numbers, and the client's one-byte selection.
+    ///
+    /// # Errors
+    ///
+    /// Whatever the pipe reported.
+    pub async fn offer_list(&mut self, types: &[u8]) -> io::Result<u8> {
+        let mut message = vec![u8::try_from(types.len()).unwrap_or(0)];
+        message.extend_from_slice(types);
+        self.write(&message).await?;
+        Ok(self.read_exact(1).await?[0])
+    }
+
+    /// RFC 6143 §7.1.2 in the 3.3 shape: the server chooses, and sends a `U32`.
+    ///
+    /// There is no selection to read back; RFB 3.3 gives the client no reply.
+    ///
+    /// # Errors
+    ///
+    /// Whatever the pipe reported.
+    pub async fn offer_single(&mut self, security_type: u32) -> io::Result<()> {
+        self.write(&security_type.to_be_bytes()).await
+    }
+
+    /// RFC 6143 §7.2.2: a 16-byte challenge out, a 16-byte DES response back.
+    ///
+    /// # Errors
+    ///
+    /// Whatever the pipe reported.
+    pub async fn challenge(&mut self) -> io::Result<Vec<u8>> {
+        self.write(&[0x11; 16]).await?;
+        self.read_exact(16).await
+    }
+
+    /// RFC 6143 §7.1.3's `SecurityResult`.
+    ///
+    /// The word is a parameter because the interesting values are the ones the
+    /// RFC does not define: `vnc-rs` transmutes this into a two-variant
+    /// `#[repr(u32)]` enum, so a test needs to be able to send `2`.
+    ///
+    /// # Errors
+    ///
+    /// Whatever the pipe reported.
+    pub async fn security_result(&mut self, word: u32) -> io::Result<()> {
+        self.write(&word.to_be_bytes()).await
+    }
+
+    /// RFC 6143 §7.1.1, then §7.1.2, then §7.2 — the whole 3.8 handshake up to
+    /// the point where the client sends `ClientInit`.
     ///
     /// Returns the sixteen bytes of the client's authentication response when
     /// the security type was VNC authentication, so a test can assert something
@@ -191,47 +251,37 @@ impl RfbServer {
     ///
     /// Whatever the pipe reported.
     pub async fn handshake(&mut self, security: Security) -> io::Result<Option<Vec<u8>>> {
-        // §7.1.1: the server announces, the client replies with the version it
-        // will use.
-        self.write(b"RFB 003.008\n").await?;
-        let chosen = self.read_exact(12).await?;
+        let chosen = self.announce(b"RFB 003.008\n").await?;
         assert_eq!(
             &chosen[..],
             b"RFB 003.008\n",
             "the client must not choose a version above the server's"
         );
 
-        // §7.1.2: a U8 count, then that many U8 type numbers.
         let offered = match security {
             Security::None => 1_u8,
             Security::VncAuth => 2,
             Security::VeNCrypt => 19,
         };
-        self.write(&[1, offered]).await?;
         if security == Security::VeNCrypt {
             // The client refuses before it selects anything, so waiting for a
             // selection here would hang the test rather than fail it.
+            self.write(&[1, offered]).await?;
             return Ok(None);
         }
-        let selected = self.read_exact(1).await?;
-        assert_eq!(
-            selected[0], offered,
-            "the client picks from what was offered"
-        );
+        let selected = self.offer_list(&[offered]).await?;
+        assert_eq!(selected, offered, "the client picks from what was offered");
 
         match security {
             Security::None => {
                 // §7.1.3: in 3.8 the SecurityResult is always sent, even for
                 // `None`. Zero is OK.
-                self.write(&0_u32.to_be_bytes()).await?;
+                self.security_result(0).await?;
                 Ok(None)
             }
             Security::VncAuth => {
-                // §7.2.2: a 16-byte challenge, a 16-byte DES response, then
-                // the SecurityResult.
-                self.write(&[0x11; 16]).await?;
-                let response = self.read_exact(16).await?;
-                self.write(&0_u32.to_be_bytes()).await?;
+                let response = self.challenge().await?;
+                self.security_result(0).await?;
                 Ok(Some(response))
             }
             Security::VeNCrypt => Ok(None),

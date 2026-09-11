@@ -20,6 +20,15 @@ DIR="${REMOTER_SSHD_DIR:-${TMPDIR:-/tmp}/remoter-dev-sshd}"
 PORT="${REMOTER_SSHD_PORT:-2222}"
 SSHD="$(command -v sshd || echo /usr/sbin/sshd)"
 
+# True when this sshd accepts the given `key=value` directive. `sshd -G` parses
+# a config and dumps it without binding a port, so it is a safe probe. Both it
+# and the directives it is used to test below are recent; on an sshd too old for
+# `-G` the probe fails, which is the answer we want, because such an sshd is
+# also too old for the directive.
+sshd_supports() {
+  "$SSHD" -G -f /dev/null -o "$1" >/dev/null 2>&1
+}
+
 sftp_server() {
   for candidate in /usr/lib/ssh/sftp-server /usr/lib/openssh/sftp-server \
                    /usr/libexec/openssh/sftp-server /usr/lib/sftp-server; do
@@ -56,8 +65,30 @@ start() {
     echo "PubkeyAuthentication yes"
     echo "StrictModes no"
     echo "PrintMotd no"
+    # sshd defaults to `MaxStartups 10:30:100`: past ten connections that have
+    # not authenticated yet it starts dropping new ones at random, before it
+    # even sends the banner. The live integration suite opens more than ten at
+    # once, so it was failing on dropped connections and blaming the code —
+    # a red suite that says nothing about the product is worse than no suite.
+    # Raise the floor well above anything the suite opens. This is a throwaway
+    # server on 127.0.0.1; the DoS protection the default provides is not
+    # something a test target needs.
+    echo "MaxStartups 100:30:200"
+    # OpenSSH 9.8 turned PerSourcePenalties on by default, and it penalises the
+    # *source address* — which here is always 127.0.0.1, the only address this
+    # server listens on. Every connection the suite closes without
+    # authenticating, every deliberate wrong-password case, every cancelled
+    # connect adds seconds to a ban that compounds to ten minutes, after which
+    # unrelated tests fail with no banner and no explanation. Same defect as the
+    # MaxStartups one above: the suite failing for a reason that has nothing to
+    # do with the product. Guarded because the directive does not exist before
+    # 9.8 and an unknown keyword stops sshd from starting at all.
+    if sshd_supports "PerSourcePenalties=no"; then echo "PerSourcePenalties no"; fi
     echo "LogLevel VERBOSE"
-    [[ -n "$sftp" ]] && echo "Subsystem sftp $sftp"
+    # `if`, not `&&`: under `set -e` a trailing `&&` list that evaluates false
+    # is a failing command, so the script used to exit here — silently, with no
+    # config written — on any machine without an sftp-server binary.
+    if [[ -n "$sftp" ]]; then echo "Subsystem sftp $sftp"; fi
   } > "$DIR/sshd_config"
 
   stop >/dev/null 2>&1 || true

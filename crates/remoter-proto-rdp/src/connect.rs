@@ -67,6 +67,54 @@ pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 /// How often the deadline is re-examined while the sequence runs.
 const TICK: Duration = Duration::from_millis(100);
 
+/// How many Deactivate All PDUs may precede the Demand Active before the
+/// reactivation is given up on.
+///
+/// A server sends at most one (§1.3.1.3); Windows Server and
+/// gnome-remote-desktop both do. A server that sends them without end is
+/// either broken or wasting this client's time on purpose, and each one costs
+/// a read — so the sequence is bounded by a count as well as by the clock
+/// [`reactivate`] puts on it, because a count is what makes the bound testable
+/// without waiting out a whole [`DEFAULT_TIMEOUT`].
+pub const MAX_DEACTIVATIONS: usize = 8;
+
+/// The MCS `result` value that means the request succeeded.
+///
+/// T.125 §7: `Result ::= ENUMERATED { rt-successful(0), ... }`. Every other
+/// value is a refusal, and MS-RDPBCGR §2.2.1.7 and §2.2.1.9 carry the field
+/// unchanged.
+const MCS_RT_SUCCESSFUL: u8 = 0;
+
+/// The name T.125 gives an MCS `result` code.
+///
+/// For the diagnostic log only — the taxonomy's `detail` fields are
+/// `&'static str` so that no formatted value can reach one, and a bare number
+/// in a log sends the reader to the specification for the one thing the
+/// specification does supply. The codes a real RDP server sends are
+/// `rt-no-such-channel` (the channel was never created),
+/// `rt-too-many-channels` and `rt-user-rejected`.
+const fn mcs_result_name(result: u8) -> &'static str {
+    match result {
+        0 => "rt-successful",
+        1 => "rt-domain-merging",
+        2 => "rt-domain-not-hierarchical",
+        3 => "rt-no-such-channel",
+        4 => "rt-no-such-domain",
+        5 => "rt-no-such-user",
+        6 => "rt-not-admitted",
+        7 => "rt-other-user-id",
+        8 => "rt-parameters-unacceptable",
+        9 => "rt-token-not-available",
+        10 => "rt-token-not-possessed",
+        11 => "rt-too-many-channels",
+        12 => "rt-too-many-tokens",
+        13 => "rt-too-many-users",
+        14 => "rt-unspecified-failure",
+        15 => "rt-user-rejected",
+        _ => "an MCS result T.125 does not define",
+    }
+}
+
 /// The desktop the client asks for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DesktopSize {
@@ -393,8 +441,20 @@ async fn run(
     .await?;
 
     // ── 8 · Capabilities Exchange, MS-RDPBCGR §2.2.1.13 ─────────────────────
-    let (share_id, desktop) =
-        capabilities_exchange(&mut stream, config, user_channel_id, io_channel_id, pending).await?;
+    // No deadline of their own: `with_deadline` already bounds this whole
+    // sequence from the outside, and a second clock inside it would silently
+    // override the timeout the connection was configured with. The
+    // *reactivation* path has no such outer bound and supplies one; see
+    // `reactivate`.
+    let (share_id, desktop) = capabilities_exchange(
+        &mut stream,
+        config,
+        user_channel_id,
+        io_channel_id,
+        pending,
+        None,
+    )
+    .await?;
 
     // ── 9 · Connection Finalization, MS-RDPBCGR §2.2.1.14–2.2.1.19 ──────────
     finalize(
@@ -403,6 +463,7 @@ async fn run(
         io_channel_id,
         share_id,
         desktop,
+        None,
     )
     .await?;
 
@@ -450,7 +511,10 @@ async fn initiate(
 ) -> Result<nego::SecurityProtocol, ProtocolError> {
     let request = nego::ConnectionRequest {
         // The routing cookie a load balancer reads to send a reconnecting user
-        // back to the host holding their session (MS-RDPBCGR §2.2.1.1.1).
+        // back to the host holding their session. It is the `cookie` field of
+        // the X.224 Connection Request PDU, MS-RDPBCGR §2.2.1.1 — the citation
+        // here read §2.2.1.1.1, which is the RDP Negotiation Request that sits
+        // *beside* the cookie and says nothing about it.
         // Carrying the user name is what every client does and what makes
         // session reconnection work behind a Connection Broker.
         nego_data: (!config.username.is_empty())
@@ -595,8 +659,23 @@ async fn join_channels(
     batch.extend_from_slice(&attach);
     stream.write_all(&batch).await?;
 
-    // §2.2.1.7.
+    // §2.2.1.7. The `result` field is an MCS Result (T.125 §7), and only
+    // rt-successful means a user was attached: on a refusal the `initiator_id`
+    // beside it is not a channel this client owns. Reading the id without
+    // reading the result is how a refusal becomes a session that continues on
+    // a user channel the server declined — every later PDU addressed to
+    // nobody, and the failure surfacing far from its cause.
     let confirm = read_x224::<mcs::AttachUserConfirm>(stream).await?;
+    if confirm.result != MCS_RT_SUCCESSFUL {
+        tracing::warn!(
+            result = confirm.result,
+            reason = mcs_result_name(confirm.result),
+            "the server refused to attach an MCS user"
+        );
+        return Err(handshake_failed(
+            "the server refused to attach this client to its MCS domain",
+        ));
+    }
     let user_channel_id = confirm.initiator_id;
 
     let Some(mut to_join) = to_join else {
@@ -630,6 +709,26 @@ async fn join_channels(
     let mut remaining = to_join;
     while !remaining.is_empty() {
         let confirm = read_x224::<mcs::ChannelJoinConfirm>(stream).await?;
+        // Before anything else is read out of this PDU. `result` is an MCS
+        // Result (T.125 §7): on anything but rt-successful the join did *not*
+        // happen, and T.125 makes the joined `channelId` optional in that
+        // case, so the comparison below would be comparing against a field the
+        // server never filled in. Skipping this check let a T.125 refusal read
+        // as success — the session then ran on a channel the server had
+        // declined, which is a silent black screen rather than a message.
+        if confirm.result != MCS_RT_SUCCESSFUL {
+            tracing::warn!(
+                channel_id = confirm.requested_channel_id,
+                result = confirm.result,
+                reason = mcs_result_name(confirm.result),
+                "the server refused a channel join"
+            );
+            return Err(if confirm.requested_channel_id == user_channel_id {
+                handshake_failed("the server refused to join this client's own MCS user channel")
+            } else {
+                handshake_failed("the server refused to join a channel this connection asked for")
+            });
+        }
         if confirm.requested_channel_id != confirm.channel_id {
             // The server joined a channel other than the one asked for. The
             // ids are how every later PDU is addressed, so proceeding would
@@ -944,36 +1043,112 @@ async fn answer_autodetect(
 /// Only `config.desktop` is read, as the fallback for a server that sends no
 /// bitmap capability set; the rest of the connection is already established.
 ///
+/// # This sequence is bounded, and the initial one is bounded elsewhere
+///
+/// [`connect()`] runs inside [`with_deadline`]; this does not, and for a while
+/// nothing replaced it. A server that sent a Deactivate All and then simply
+/// stopped — or sent Deactivate All for ever — held the session's read loop,
+/// its task and its socket open indefinitely, with a tab that never painted
+/// and never failed. Two bounds close that: every read below must complete
+/// within `config.timeout` of entering this function ([`DEFAULT_TIMEOUT`]
+/// unless the connection set its own), and at most [`MAX_DEACTIVATIONS`]
+/// Deactivate All PDUs may arrive before the Demand Active.
+///
+/// The clock is applied to the reads one at a time rather than around the
+/// whole call on purpose. Abandoning a read costs nothing — [`Framed`] keeps
+/// what already arrived — while abandoning the call could drop a half-written
+/// Confirm Active and leave a truncated PDU on the stream.
+///
 /// # Errors
 ///
 /// As the connection sequence: a malformed PDU is a protocol violation, and a
-/// server that sends something other than a Demand Active is refused.
+/// server that sends something other than a Demand Active is refused. A server
+/// that sends nothing, or nothing but Deactivate All PDUs, is a violation too:
+/// §1.3.1.3 requires a Demand Active to follow.
 pub async fn reactivate(
     stream: &mut Framed,
     config: &ConnectionConfig,
     user_channel_id: u16,
     io_channel_id: u16,
 ) -> Result<(u32, DesktopSize), ProtocolError> {
-    let (share_id, desktop) =
-        capabilities_exchange(stream, config, user_channel_id, io_channel_id, None).await?;
-    finalize(stream, user_channel_id, io_channel_id, share_id, desktop).await?;
+    // One deadline for the whole sequence, not one per read: a server that
+    // answered each read a tick before its budget could otherwise stall the
+    // session for as long as it liked. The budget is the connection's own
+    // `timeout` — the same number that bounded the initial sequence, because
+    // it answers the same question: how long this server may take to answer
+    // before the user is told it is not answering.
+    let deadline = Some(tokio::time::Instant::now() + config.timeout);
+    let (share_id, desktop) = capabilities_exchange(
+        stream,
+        config,
+        user_channel_id,
+        io_channel_id,
+        None,
+        deadline,
+    )
+    .await?;
+    finalize(
+        stream,
+        user_channel_id,
+        io_channel_id,
+        share_id,
+        desktop,
+        deadline,
+    )
+    .await?;
     Ok((share_id, desktop))
 }
 
+/// Reads one X.224-framed PDU, giving up at `deadline` when there is one.
+///
+/// Only the *read* is raced. A read abandoned mid-PDU loses nothing — the
+/// bytes are in [`Framed`]'s buffer and the next read resumes from them — and
+/// that is what makes bounding the read the right place to bound a phase that
+/// also writes.
+///
+/// `None` is the initial connection sequence, which is bounded from the
+/// outside by [`with_deadline`] and must not be bounded twice: two clocks on
+/// one sequence means the shorter one silently wins and the configured timeout
+/// stops meaning what it says.
+async fn read_x224_pdu_by(
+    stream: &mut Framed,
+    deadline: Option<tokio::time::Instant>,
+) -> Result<bytes::BytesMut, ProtocolError> {
+    let Some(deadline) = deadline else {
+        return stream.read_x224_pdu().await;
+    };
+    match tokio::time::timeout_at(deadline, stream.read_x224_pdu()).await {
+        Ok(outcome) => outcome,
+        // MS-RDPBCGR §1.3.1.3 makes the Demand Active the server's obligation
+        // after a Deactivate All. Not sending one is a breach of the sequence,
+        // not a network problem, and saying so puts the defect on the server
+        // rather than on the user's link.
+        Err(_) => Err(violation(
+            "the server did not finish the deactivation-reactivation sequence in time",
+        )),
+    }
+}
+
 /// Step 8: Demand Active in, Confirm Active out. MS-RDPBCGR §2.2.1.13.
+///
+/// `deadline` bounds the reads when this runs as part of a reactivation; see
+/// [`reactivate`]. The initial sequence passes `None` because [`with_deadline`]
+/// already bounds it from the outside.
 async fn capabilities_exchange(
     stream: &mut Framed,
     config: &ConnectionConfig,
     user_channel_id: u16,
     io_channel_id: u16,
     mut pending: Option<bytes::BytesMut>,
+    deadline: Option<tokio::time::Instant>,
 ) -> Result<(u32, DesktopSize), ProtocolError> {
+    let mut deactivations = 0usize;
     loop {
         // `pending` is the PDU the licensing phase read and found was not a
         // licensing PDU. It is consumed once; every later iteration reads.
         let pdu = match pending.take() {
             Some(pdu) => pdu,
-            None => stream.read_x224_pdu().await?,
+            None => read_x224_pdu_by(stream, deadline).await?,
         };
         let indication = mcs::decode_send_data_indication(&pdu).map_err(|_| decode_failure())?;
         let control =
@@ -984,7 +1159,24 @@ async fn capabilities_exchange(
             // it — send a Deactivate All before the first Demand Active, as
             // the Deactivation-Reactivation Sequence of §1.3.1.3. It carries
             // nothing this phase needs; the next PDU is the real one.
-            ShareControlPdu::ServerDeactivateAll(_) => continue,
+            //
+            // Counted, because "the next PDU is the real one" is the server's
+            // obligation and not something this loop can assume: an unbounded
+            // `continue` here is a read loop a server can hold open by sending
+            // Deactivate All and nothing else.
+            ShareControlPdu::ServerDeactivateAll(_) => {
+                deactivations += 1;
+                if deactivations > MAX_DEACTIVATIONS {
+                    tracing::warn!(
+                        deactivations,
+                        "the server sent Deactivate All PDUs without ever demanding active"
+                    );
+                    return Err(violation(
+                        "the server deactivated the share repeatedly without demanding active",
+                    ));
+                }
+                continue;
+            }
 
             ShareControlPdu::ServerDemandActive(demand) => {
                 let capabilities = demand.pdu.capability_sets;
@@ -1040,12 +1232,17 @@ async fn capabilities_exchange(
 /// The four client PDUs go out in one write without waiting for a reply to
 /// each, which is what §1.3.1.1 permits and what saves three round trips on a
 /// high-latency link.
+///
+/// `deadline` bounds the reads when this runs as part of a reactivation; see
+/// [`reactivate`]. The initial sequence passes `None` because [`with_deadline`]
+/// already bounds it from the outside.
 async fn finalize(
     stream: &mut Framed,
     user_channel_id: u16,
     io_channel_id: u16,
     share_id: u32,
     desktop: DesktopSize,
+    deadline: Option<tokio::time::Instant>,
 ) -> Result<(), ProtocolError> {
     use rdp::finalization_messages::{ControlAction, ControlPdu, FontPdu, SynchronizePdu};
 
@@ -1080,7 +1277,7 @@ async fn finalize(
     stream.write_all(buffer.filled()).await?;
 
     loop {
-        let pdu = stream.read_x224_pdu().await?;
+        let pdu = read_x224_pdu_by(stream, deadline).await?;
         let indication = mcs::decode_send_data_indication(&pdu).map_err(|_| decode_failure())?;
         let data = rdp::headers::decode_share_data(indication).map_err(|_| decode_failure())?;
 
@@ -1554,6 +1751,7 @@ mod tests {
     use crate::testing::ScriptedTransport;
     use ironrdp::core::encode_vec;
     use ironrdp::pdu::rdp::headers::ShareControlHeader;
+    use remoter_proto::{Transport, TransportKind, TransportPeer};
 
     /// A [`Framed`] over a scripted peer, plus what the client wrote to it.
     fn scripted(reads: Vec<Vec<u8>>) -> (Framed, std::sync::Arc<parking_lot::Mutex<Vec<u8>>>) {
@@ -1710,6 +1908,75 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn an_mcs_refusal_to_attach_a_user_is_not_read_as_success() {
+        // T.125 §7: `result` is an MCS Result and only rt-successful means the
+        // user was attached. The defect this covers read `initiator_id` and
+        // ignored `result`, so a refusal became a session addressed to a user
+        // channel the server had declined — every later PDU going nowhere, and
+        // the failure surfacing several steps from its cause.
+        let script = encode_vec(&X224(mcs::AttachUserConfirm {
+            // rt-not-admitted: this client may not join the domain.
+            result: 6,
+            initiator_id: USER_CHANNEL,
+        }))
+        .unwrap();
+        let (mut stream, _) = scripted(vec![script]);
+
+        let error = join_channels(&mut stream, None).await.unwrap_err();
+        assert_eq!(error.stage(), remoter_proto::Stage::Handshake);
+        assert!(error.to_string().contains("refused to attach"), "{error}");
+    }
+
+    #[tokio::test]
+    async fn an_mcs_refusal_to_join_a_channel_is_not_read_as_success() {
+        // The same field on the other confirm. A refusal carries no joined
+        // channel id — T.125 makes it optional — so the requested/joined
+        // comparison below it cannot stand in for this check.
+        let mut script = encode_vec(&X224(mcs::AttachUserConfirm {
+            result: 0,
+            initiator_id: USER_CHANNEL,
+        }))
+        .unwrap();
+        script.extend_from_slice(
+            &encode_vec(&X224(mcs::ChannelJoinConfirm {
+                // rt-no-such-channel: the server never created it.
+                result: 3,
+                initiator_id: USER_CHANNEL,
+                requested_channel_id: IO_CHANNEL,
+                channel_id: IO_CHANNEL,
+            }))
+            .unwrap(),
+        );
+        let (mut stream, _) = scripted(vec![script]);
+
+        let error = join_channels(&mut stream, Some(vec![IO_CHANNEL]))
+            .await
+            .unwrap_err();
+        assert_eq!(error.stage(), remoter_proto::Stage::Handshake);
+        assert!(
+            error.to_string().contains("refused to join a channel"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn every_mcs_result_code_is_named_rather_than_logged_as_a_number() {
+        // The names are T.125's own; a bare number in the log sends the reader
+        // to the specification for the one thing it does supply.
+        assert_eq!(mcs_result_name(MCS_RT_SUCCESSFUL), "rt-successful");
+        assert_eq!(mcs_result_name(3), "rt-no-such-channel");
+        assert_eq!(mcs_result_name(15), "rt-user-rejected");
+        let mut named = std::collections::HashSet::new();
+        for result in 0..=15u8 {
+            assert!(
+                named.insert(mcs_result_name(result)),
+                "MCS result {result} repeats another name"
+            );
+        }
+        assert!(!named.contains(mcs_result_name(16)));
+    }
+
+    #[tokio::test]
     async fn a_channel_confirmed_that_was_never_requested_is_refused() {
         // The ids are how every later PDU is addressed; accepting a stray one
         // would send graphics to a channel nobody is listening on.
@@ -1809,7 +2076,7 @@ mod tests {
         };
 
         let (share_id, desktop) =
-            capabilities_exchange(&mut stream, &config, USER_CHANNEL, IO_CHANNEL, None)
+            capabilities_exchange(&mut stream, &config, USER_CHANNEL, IO_CHANNEL, None, None)
                 .await
                 .unwrap();
         assert_eq!(share_id, SHARE_ID);
@@ -1839,10 +2106,127 @@ mod tests {
         let (mut stream, _) = scripted(vec![script]);
 
         let (_, desktop) =
-            capabilities_exchange(&mut stream, &config(), USER_CHANNEL, IO_CHANNEL, None)
+            capabilities_exchange(&mut stream, &config(), USER_CHANNEL, IO_CHANNEL, None, None)
                 .await
                 .unwrap();
         assert_eq!(desktop, DesktopSize::default());
+    }
+
+    /// A transport that never answers and never hangs up.
+    ///
+    /// The case a deadline exists for, and the one `ScriptedTransport` cannot
+    /// express: an exhausted script reads as end of stream, which is a server
+    /// that *did* say something. This one says nothing at all.
+    struct SilentTransport {
+        peer: TransportPeer,
+    }
+
+    impl SilentTransport {
+        fn new() -> Self {
+            Self {
+                peer: TransportPeer::direct(TransportKind::Tcp, target()),
+            }
+        }
+    }
+
+    impl tokio::io::AsyncRead for SilentTransport {
+        fn poll_read(
+            self: std::pin::Pin<&mut Self>,
+            _cx: &mut std::task::Context<'_>,
+            _buf: &mut tokio::io::ReadBuf<'_>,
+        ) -> std::task::Poll<std::io::Result<()>> {
+            std::task::Poll::Pending
+        }
+    }
+
+    impl tokio::io::AsyncWrite for SilentTransport {
+        fn poll_write(
+            self: std::pin::Pin<&mut Self>,
+            _cx: &mut std::task::Context<'_>,
+            buf: &[u8],
+        ) -> std::task::Poll<std::io::Result<usize>> {
+            std::task::Poll::Ready(Ok(buf.len()))
+        }
+        fn poll_flush(
+            self: std::pin::Pin<&mut Self>,
+            _cx: &mut std::task::Context<'_>,
+        ) -> std::task::Poll<std::io::Result<()>> {
+            std::task::Poll::Ready(Ok(()))
+        }
+        fn poll_shutdown(
+            self: std::pin::Pin<&mut Self>,
+            _cx: &mut std::task::Context<'_>,
+        ) -> std::task::Poll<std::io::Result<()>> {
+            std::task::Poll::Ready(Ok(()))
+        }
+    }
+
+    impl Transport for SilentTransport {
+        fn peer(&self) -> &TransportPeer {
+            &self.peer
+        }
+    }
+
+    #[tokio::test]
+    async fn a_reactivation_the_server_never_finishes_is_given_up_on() {
+        // The defect: the Deactivation-Reactivation Sequence ran with no
+        // deadline, so a server that deactivated the share and then said
+        // nothing held the session's read loop — and with it the tab, the task
+        // and the socket — open for as long as the connection lasted. A tab
+        // that never paints and never fails is the worst of both.
+        //
+        // The budget is the connection's own, so the test sets a short one
+        // rather than waiting out `DEFAULT_TIMEOUT`. The outer timeout is
+        // twenty times longer: *it* firing first is what "there is no deadline
+        // in here" looks like.
+        let mut config = config();
+        config.timeout = Duration::from_millis(150);
+        let mut stream = Framed::new(Box::new(SilentTransport::new()), target());
+        let outcome = tokio::time::timeout(
+            config.timeout * 20,
+            reactivate(&mut stream, &config, USER_CHANNEL, IO_CHANNEL),
+        )
+        .await
+        .expect("the reactivation sequence ran with no deadline of its own");
+
+        let error = outcome.unwrap_err();
+        assert!(
+            matches!(error, ProtocolError::ProtocolViolation { .. }),
+            "{error:?}"
+        );
+        // Named as the server's breach of §1.3.1.3, not as a network problem:
+        // the link is fine and retrying the address fixes nothing.
+        assert!(
+            error.to_string().contains("deactivation-reactivation"),
+            "{error}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_server_that_only_deactivates_the_share_is_refused_rather_than_read_for_ever() {
+        // The other half of the bound. A Demand Active does eventually follow
+        // here, so nothing but the iteration cap can refuse this script —
+        // which is what makes the test fail without one.
+        let deactivate = share_control(
+            IO_CHANNEL,
+            SHARE_ID,
+            ShareControlPdu::ServerDeactivateAll(rdp::headers::ServerDeactivateAll),
+        );
+        let mut script = Vec::new();
+        for _ in 0..=MAX_DEACTIVATIONS {
+            script.extend_from_slice(&deactivate);
+        }
+        script.extend_from_slice(&demand_active(1024, 768));
+        let (mut stream, _) = scripted(vec![script]);
+
+        let error =
+            capabilities_exchange(&mut stream, &config(), USER_CHANNEL, IO_CHANNEL, None, None)
+                .await
+                .unwrap_err();
+        assert!(
+            matches!(error, ProtocolError::ProtocolViolation { .. }),
+            "{error:?}"
+        );
     }
 
     #[tokio::test]
@@ -1856,6 +2240,7 @@ mod tests {
             USER_CHANNEL,
             IO_CHANNEL,
             Some(pending),
+            None,
         )
         .await
         .unwrap();
@@ -1911,6 +2296,7 @@ mod tests {
             IO_CHANNEL,
             SHARE_ID,
             DesktopSize::default(),
+            None,
         )
         .await
         .unwrap();
@@ -1940,6 +2326,7 @@ mod tests {
             IO_CHANNEL,
             SHARE_ID,
             DesktopSize::default(),
+            None,
         )
         .await
         .unwrap_err();

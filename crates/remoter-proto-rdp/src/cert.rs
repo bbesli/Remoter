@@ -12,9 +12,26 @@
 //!
 //! | Situation | Behaviour |
 //! |---|---|
-//! | Chains to a trusted root **and** matches the name | Connect, silently. Nothing is pinned, so an ordinary renewal is not an alarm |
-//! | Otherwise, nothing pinned | Prompt with the fingerprint and why it did not validate; accepting pins it to this host |
-//! | Otherwise, and a **different** certificate is pinned | Hard failure. Replacing it needs the tail of the offered fingerprint, typed |
+//! | This exact certificate is pinned | Connect, silently |
+//! | A **different** certificate is pinned | Hard failure, whether or not the new one chains to a trusted root. Replacing it needs the tail of the offered fingerprint, typed |
+//! | Nothing pinned, chains to a trusted root **and** matches the name | Connect, silently. Nothing is pinned, so an ordinary renewal is not an alarm |
+//! | Nothing pinned, and it did not validate | Prompt with the fingerprint and why it did not validate; accepting pins it to this host |
+//!
+//! # The pin is consulted before the trust anchors, always
+//!
+//! The order of those rows is the security property, not a presentational
+//! choice. An earlier version of [`CertificateChecker::check`] returned `Ok` as
+//! soon as the chain validated, *before* the trust store was consulted at all,
+//! so a certificate that had been pinned and then changed was accepted in
+//! silence as long as the replacement chained to a Mozilla root and matched the
+//! name. Chaining to a public root says nothing about whether this is the same
+//! machine the user trusted last week: anyone who can obtain a certificate for
+//! the name — a hostile CA, a compromised registrar, an internal CA the machine
+//! already trusts — walks through that short circuit
+//! (`docs/security/threat-model.md`, T3). `remoter-proto-ssh/src/hostkey.rs`
+//! has no such branch, and neither does this module any more: the trust store
+//! answers first, and only a host with nothing stored for it can reach the
+//! anchored fast path.
 //!
 //! The unknown and changed paths are deliberately different paths, not one path
 //! with a flag: `remoter_proto::ChangedHostKey` has no boolean to pass `true`
@@ -327,16 +344,12 @@ impl CertificateChecker {
     /// confirmation did not match; [`ProtocolError::TrustStore`] if the
     /// decision could not be recorded.
     pub async fn check(&self, offered: &OfferedCertificate) -> Result<(), ProtocolError> {
-        if offered.anchored {
-            // A certificate that chains to a trusted root and matches the name
-            // is not pinned. Pinning it would turn an ordinary renewal under
-            // the same authority into a man-in-the-middle warning, and a
-            // warning that fires on routine maintenance is a warning people
-            // learn to dismiss.
-            tracing::debug!(host = %self.host, "the server's certificate validated against a trust anchor");
-            return Ok(());
-        }
-
+        // The trust store is asked FIRST, and `offered.anchored` is not
+        // consulted until the answer is "nothing is stored for this host".
+        // Reversing these two — returning early on `anchored` — is the defect
+        // this ordering exists to prevent: it let a pinned certificate be
+        // swapped for any other certificate that chained to a public root, in
+        // silence. See the module documentation.
         let key = OfferedKey::new(CERTIFICATE_ALGORITHM, offered.der.clone());
         match verify_host_key(self.trust.as_ref(), &self.host, &key) {
             HostKeyOutcome::Trusted => {
@@ -345,6 +358,16 @@ impl CertificateChecker {
             }
 
             HostKeyOutcome::Unknown(unknown) => {
+                if offered.anchored {
+                    // Nothing is pinned *and* the chain validated against a
+                    // trust anchor with a matching name: connect, and pin
+                    // nothing. Pinning here would turn an ordinary renewal
+                    // under the same authority into a man-in-the-middle
+                    // warning, and a warning that fires on routine maintenance
+                    // is a warning people learn to dismiss.
+                    tracing::debug!(host = %self.host, "the server's certificate validated against a trust anchor");
+                    return Ok(());
+                }
                 let Some(prompts) = self.prompts.as_deref() else {
                     return Err(certificate_untrusted(&self.host, offered.problem));
                 };
@@ -371,6 +394,12 @@ impl CertificateChecker {
             }
 
             HostKeyOutcome::Changed(changed) => {
+                // Reached whether or not `offered.anchored` is true. A pinned
+                // certificate that has been replaced is a changed host
+                // identity; that the replacement chains to a public root is
+                // not evidence about *which* machine answered, and treating it
+                // as evidence is the short circuit this arm is now reachable
+                // past.
                 let Some(prompts) = self.prompts.as_deref() else {
                     return Err(certificate_untrusted(
                         &self.host,
@@ -506,6 +535,13 @@ mod tests {
             None
         });
         let outcome = checker.check(&certificate).await;
+        // Dropped before the listener is joined so that a checker which
+        // decided *without* asking closes the event channel instead of leaving
+        // the listener blocked on a receive that will never complete. A test
+        // asserting "this must prompt" then fails on its assertion rather than
+        // hanging until CI's timeout, which is the difference between a
+        // diagnosis and a mystery.
+        drop(checker);
         let kind = asked.await.ok().flatten();
         (outcome, kind)
     }
@@ -655,6 +691,125 @@ mod tests {
         assert!(!previous.randomart.is_empty());
         assert!(!randomart.is_empty());
         // And the pinned certificate is untouched.
+        assert_eq!(
+            trust.lookup(&host(), CERTIFICATE_ALGORITHM).unwrap().blob,
+            b"the certificate from last week"
+        );
+    }
+
+    /// The regression this module's ordering exists for.
+    ///
+    /// A certificate was pinned; a *different* one arrives that chains to a
+    /// trust anchor and matches the name. The anchored fast path used to
+    /// return `Ok` before the trust store was consulted, so this was accepted
+    /// in silence — which is exactly the position an attacker holding any
+    /// certificate for the name wants to be in.
+    #[tokio::test]
+    async fn an_anchored_certificate_does_not_override_a_pin() {
+        let trust = Arc::new(Memory::default());
+        trust
+            .remember(
+                &host(),
+                &pinned(b"the certificate from last week".to_vec(), 0),
+            )
+            .unwrap();
+
+        let (sender, prompts) = PromptChannel::new();
+        let (events, rx) = event_channel(16);
+        let checker = CertificateChecker::new(
+            host(),
+            Arc::clone(&trust) as Arc<dyn TrustStore>,
+            events,
+            Some(prompts),
+        );
+
+        let (outcome, kind) = with_answer(
+            checker,
+            sender,
+            rx,
+            // `anchored: true` — a hostile CA, a compromised registrar or an
+            // internal CA the machine trusts can all produce one of these.
+            offered(b"a certificate from a public authority", true),
+            // Dismissed: the safe outcome and the default one.
+            |_| None,
+        )
+        .await;
+
+        assert!(
+            matches!(outcome, Err(ProtocolError::HostKeyChanged { .. })),
+            "an anchored certificate replaced a pinned one: {outcome:?}"
+        );
+        // And it must be the blocking dialog, not the gentle first-use one.
+        assert!(
+            matches!(kind, Some(PromptKind::HostKey { .. })),
+            "expected the changed-key dialog, got {kind:?}"
+        );
+        // The pin is untouched.
+        assert_eq!(
+            trust.lookup(&host(), CERTIFICATE_ALGORITHM).unwrap().blob,
+            b"the certificate from last week"
+        );
+    }
+
+    /// The other half of the same ordering: a pinned certificate that also
+    /// chains to an anchor still matches, and still does not prompt.
+    #[tokio::test]
+    async fn an_anchored_certificate_that_is_the_pinned_one_connects_silently() {
+        let trust = Arc::new(Memory::default());
+        trust
+            .remember(&host(), &pinned(b"the pinned certificate".to_vec(), 0))
+            .unwrap();
+
+        let (events, _rx) = event_channel(16);
+        let checker = CertificateChecker::new(
+            host(),
+            Arc::clone(&trust) as Arc<dyn TrustStore>,
+            events,
+            // No prompt channel: reaching a prompt at all would fail here.
+            None,
+        );
+        checker
+            .check(&offered(b"the pinned certificate", true))
+            .await
+            .unwrap();
+        assert_eq!(
+            trust.lookup(&host(), CERTIFICATE_ALGORITHM).unwrap().blob,
+            b"the pinned certificate"
+        );
+    }
+
+    /// A scripted connect — no interface to ask — must refuse a changed
+    /// certificate rather than let the anchored path wave it through.
+    #[tokio::test]
+    async fn an_anchored_certificate_over_a_pin_is_refused_when_nobody_can_be_asked() {
+        let trust = Arc::new(Memory::default());
+        trust
+            .remember(
+                &host(),
+                &pinned(b"the certificate from last week".to_vec(), 0),
+            )
+            .unwrap();
+
+        let (events, _rx) = event_channel(16);
+        let checker = CertificateChecker::new(
+            host(),
+            Arc::clone(&trust) as Arc<dyn TrustStore>,
+            events,
+            None,
+        );
+        let outcome = checker
+            .check(&offered(b"a certificate from a public authority", true))
+            .await;
+        assert!(
+            matches!(
+                outcome,
+                Err(ProtocolError::CertificateUntrusted {
+                    reason: CertificateProblem::Changed,
+                    ..
+                })
+            ),
+            "{outcome:?}"
+        );
         assert_eq!(
             trust.lookup(&host(), CERTIFICATE_ALGORITHM).unwrap().blob,
             b"the certificate from last week"
