@@ -75,10 +75,10 @@ describe("choosing a palette", () => {
 
     applyTerminalAppearance({ palette: "solarized-dark", overrides: {}, fontFamily: "", fontSize: 13 });
 
-    // The assertion the reported defect needs: assigning the theme repaints
-    // the background on its own, and leaves already-drawn text in the old
-    // palette until something marks its rows dirty. Without this call the
-    // interface shows one palette's background behind another's foreground.
+    // Not the mechanism that makes palettes work — the renderer handles a
+    // colour change itself, and a pixel measurement in a real browser confirmed
+    // it. This pins the repaint that `applyTerminalAppearance` asks for anyway,
+    // so a refactor cannot drop the safety net without saying so.
     expect(refresh).toHaveBeenCalledWith(0, entry.term.rows - 1);
   });
 });

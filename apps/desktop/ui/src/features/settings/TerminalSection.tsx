@@ -513,6 +513,7 @@ export function TerminalSection({
           </div>
         </div>
 
+
         <div className={s.previewBlock}>
           <p className={s.previewHead}>
             <span className={s.previewTitle}>{t("terminal.previewLabel")}</span>

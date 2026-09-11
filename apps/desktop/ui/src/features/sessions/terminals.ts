@@ -245,24 +245,23 @@ export function applyTerminalAppearance(next: TerminalAppearance): void {
     entry.term.options.theme = theme;
     if (fontFamily !== "") entry.term.options.fontFamily = fontFamily;
     entry.term.options.fontSize = fontSize;
-    // Three steps, because assigning the theme is demonstrably not enough.
+    // A safety net, kept deliberately.
     //
-    // The background moves on its own: the WebGL addon's rectangle renderer
-    // subscribes to the colour change and repaints from it. The TEXT does not,
-    // and the owner reported twice that a new palette arrived as its
-    // background behind the previous palette's foreground — the one
-    // combination nobody chose and the one most likely to be unreadable.
+    // The WebGL addon does handle a colour change on its own — it subscribes
+    // to the theme service and rebuilds its glyph atlas — and a measurement of
+    // the pixels actually painted, taken in a real browser, confirmed that the
+    // background, the foreground and all sixteen ANSI entries follow a palette
+    // change without any help from here.
     //
-    // A test against a real `Terminal` proves every one of the sixteen ANSI
-    // entries reaches `options.theme`, so the gap is between the option and
-    // the glyphs on screen: cached glyphs are keyed by colour, and a redraw
-    // only touches rows something has marked dirty — which a theme change does
-    // not do. So: drop the cached glyphs, then damage every row so they are
-    // drawn again.
+    // This stays anyway, because it costs one repaint on a deliberate user
+    // action and it does not depend on a renderer we do not control behaving
+    // the same way on every GPU and driver. What it must not do is claim to be
+    // the thing that makes palettes work: it is not, and a comment saying so
+    // would send the next reader to the wrong place.
     //
-    // Failures are reported rather than swallowed. An earlier version of this
-    // caught and discarded them, which would have hidden the addon refusing
-    // the call as effectively as not making it.
+    // Failures are reported rather than swallowed — an earlier version caught
+    // and discarded them, which hid the addon refusing the call as effectively
+    // as not making it.
     if (entry.webgl !== null) {
       try {
         entry.webgl.clearTextureAtlas();
