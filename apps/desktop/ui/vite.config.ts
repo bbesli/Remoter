@@ -22,7 +22,15 @@ export default defineConfig({
   },
   build: {
     target: "es2022",
-    sourcemap: true,
+    // Off by default, because Tauri embeds everything in `dist` into the
+    // binary: source maps were adding 4.5 MB to a 3.9 MB bundle, more than
+    // doubling the shipped frontend to carry something no user can use. They
+    // also break the one honest way to check whether code reached the build —
+    // a map holds the whole original source, so grepping `dist` for a string
+    // hits the map whether or not the code was tree-shaken out of the bundle.
+    //
+    // REMOTER_SOURCEMAPS=1 brings them back for diagnosing a stack trace.
+    sourcemap: process.env["REMOTER_SOURCEMAPS"] === "1",
   },
   // A DOM environment, so interface behaviour can be tested rather than only
   // described. Its absence is why the focus traps, the discard prompt and the
