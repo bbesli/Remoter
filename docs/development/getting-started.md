@@ -44,8 +44,34 @@ HID.
 
 ### Windows
 
-- Visual Studio Build Tools with the C++ workload
+- **[Build Tools for Visual Studio 2022](https://aka.ms/vs/17/release/vs_BuildTools.exe)**,
+  with the **Desktop development with C++** workload ticked. Rust links through
+  the MSVC linker on Windows and cannot build anything without it.
 - WebView2 runtime (present on Windows 11; installable on Windows 10)
+
+Tick the workload, not just the individual compiler: a Visual Studio install
+can carry `link.exe` without the C++ libraries beside it, and the failure comes
+much later and says nothing useful —
+
+```text
+LINK : fatal error LNK1104: cannot open file 'msvcrt.lib'
+```
+
+The frontend will have built, several hundred crates will have downloaded, and
+then every link step fails. Confirm the libraries exist before spending a build
+on it:
+
+```powershell
+Get-ChildItem "C:\Program Files*\Microsoft Visual Studio\*\*\VC\Tools\MSVC\*\lib\x64\msvcrt.lib" |
+  Select-Object -First 3 FullName
+```
+
+A path means the toolchain is complete. Nothing printed means the workload is
+missing, whatever the installer's summary said.
+
+Prefer the released Build Tools over a Visual Studio preview or Insiders build:
+Rust finds the toolchain through `vswhere` and expects the layout a released
+install has. The two can sit side by side.
 
 ### macOS
 
