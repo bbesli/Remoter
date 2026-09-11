@@ -76,6 +76,7 @@ function settings(over: Partial<AppSettings> = {}): AppSettings {
     terminalPrefix: "ctrl+alt",
     shortcuts: {},
     terminal: null as unknown as AppSettings["terminal"],
+    fileDownloadFolder: null,
     ...over,
   };
 }

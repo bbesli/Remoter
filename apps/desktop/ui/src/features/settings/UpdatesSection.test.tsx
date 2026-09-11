@@ -72,6 +72,7 @@ function settings(overrides: Partial<AppSettings> = {}): AppSettings {
     terminalPrefix: "ctrl+alt",
     shortcuts: {},
     terminal: { palette: "auto", overrides: {}, fontFamily: "", fontSize: 13 },
+    fileDownloadFolder: null,
     ...overrides,
   };
 }

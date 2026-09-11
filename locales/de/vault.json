@@ -339,5 +339,23 @@
       "openOther": "Öffnen",
       "noBackups": "Neben dieser Datei liegen keine rollierenden Backups. Eine Kopie aus Ihrer eigenen Datensicherung ist der Weg zurück."
     }
+  },
+  "relock": {
+    "_comment_": "The unlock screen, when the vault locked while it was open rather than being opened from the picker. Two rules. (1) 'cleared' must keep saying that the contents left the WINDOW and not the file; a reader who believes the lock destroyed their connections will go hunting for a backup they do not need. (2) reason.unknown must not guess: the core reports that no vault is open without saying what closed it, and naming the idle timeout there would be a sentence the application cannot stand behind.",
+    "windowTitle": "Tresor gesperrt",
+    "title": "Dieser Tresor ist gesperrt",
+    "_comment_reason": "Why it locked, as far as the application can honestly tell. Each is a whole sentence and follows the title above it.",
+    "reason": {
+      "idle": "Er wurde nach der von Ihnen eingestellten Leerlaufzeit gesperrt.",
+      "trigger": "Er wurde gesperrt, weil ein von Ihnen gewähltes Ereignis eingetreten ist.",
+      "manual": "Sie haben ihn gesperrt.",
+      "unknown": "Er hat sich nach der Leerlaufzeit selbst gesperrt, wurde durch ein gewähltes Ereignis gesperrt oder aus einem anderen Fenster gesperrt."
+    },
+    "cleared": "Es ist nichts verloren gegangen. Die Verbindungen stehen weiterhin in der Datei; sie wurden nur aus diesem Fenster entfernt und sind wieder da, sobald Sie entsperren.",
+    "_comment_sessions": "What became of the sessions that were open. Measured, not assumed - the vault's session policy is stored inside the vault and cannot be read while it is locked. Both sentences are shown when some sessions ended and others survived, so each has to stand on its own.",
+    "sessions": {
+      "closed": "{count, plural, one {# Sitzung wurde beim Sperren des Tresors geschlossen. Das Entsperren öffnet sie nicht erneut.} other {# Sitzungen wurden beim Sperren des Tresors geschlossen. Das Entsperren öffnet sie nicht erneut.}}",
+      "running": "{count, plural, one {# Sitzung ist weiterhin verbunden und bleibt nach dem Entsperren bestehen.} other {# Sitzungen sind weiterhin verbunden und bleiben nach dem Entsperren bestehen.}}"
+    }
   }
 }

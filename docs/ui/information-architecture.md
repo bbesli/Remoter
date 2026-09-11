@@ -62,7 +62,7 @@ the three blocking questions that are allowed to cover a session.
 | Screen | Purpose |
 |---|---|
 | **Vault picker** | Shown at launch. Recent vaults, open from file, create new |
-| **Unlock** | Slot selection and credential entry |
+| **Unlock** | Slot selection and credential entry. Also where a vault that locks while open lands — the file is already known, so it asks for one credential rather than for a file, and says why it locked and what became of the open sessions |
 | **Main window** | The layout above — the application's home |
 | **Connection editor** | Modal or inspector; form generated from the protocol's settings schema |
 | **Vault settings** | Key slots, auto-lock, recording policy, backups |
@@ -98,6 +98,16 @@ and the small set of universal shortcuts — lock the vault, the command palette
 
 Every action is keyboard-reachable, every shortcut is user-editable, and the
 current bindings are visible in a searchable cheat sheet (`?`).
+
+**A grid is driven like a grid.** The file manager's listing carries a roving
+tabindex — one row in the tab order, the arrows move which — and the map every
+file manager has: Enter opens, Alt+Enter shows properties, Space selects, Shift
+extends the selection, Ctrl adds a row, Backspace goes up a folder, F2 renames,
+Delete removes, and typing a few letters jumps to a name. The map is written on
+screen under the listing rather than left to be discovered, because a keyboard
+model nobody is told about is a keyboard model nobody uses. It was also, for a
+while, the counter-example to the claim above: the rows were not focusable and
+the grid had no key handler at all.
 
 ## States that must be designed, not defaulted
 

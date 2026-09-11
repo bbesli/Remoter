@@ -339,5 +339,23 @@
       "openOther": "打开",
       "noBackups": "这个文件旁边没有滚动备份。从您自己的备份里取一份副本，是回去的路。"
     }
+  },
+  "relock": {
+    "_comment_": "The unlock screen, when the vault locked while it was open rather than being opened from the picker. Two rules. (1) 'cleared' must keep saying that the contents left the WINDOW and not the file; a reader who believes the lock destroyed their connections will go hunting for a backup they do not need. (2) reason.unknown must not guess: the core reports that no vault is open without saying what closed it, and naming the idle timeout there would be a sentence the application cannot stand behind.",
+    "windowTitle": "保险库已锁定",
+    "title": "此保险库已锁定",
+    "_comment_reason": "Why it locked, as far as the application can honestly tell. Each is a whole sentence and follows the title above it.",
+    "reason": {
+      "idle": "它在你设置的闲置时长之后锁定了。",
+      "trigger": "它锁定了，因为你选择用于锁定的事件发生了。",
+      "manual": "是你锁定了它。",
+      "unknown": "它在闲置一段时间后自动锁定，或因你选择的事件锁定，或是在另一个窗口中被锁定的。"
+    },
+    "cleared": "没有任何内容丢失。连接仍然在文件里；它们只是从此窗口中被清除，解锁后就会回来。",
+    "_comment_sessions": "What became of the sessions that were open. Measured, not assumed - the vault's session policy is stored inside the vault and cannot be read while it is locked. Both sentences are shown when some sessions ended and others survived, so each has to stand on its own.",
+    "sessions": {
+      "closed": "{count, plural, other {保险库锁定时有 # 个会话被关闭。解锁不会重新打开它们。}}",
+      "running": "{count, plural, other {仍有 # 个会话处于连接状态，解锁后它们还会在。}}"
+    }
   }
 }

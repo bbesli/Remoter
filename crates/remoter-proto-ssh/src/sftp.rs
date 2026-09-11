@@ -567,6 +567,88 @@ impl TransferDirection {
     }
 }
 
+// ================================================== folder transfer plans ==
+
+/// The most files one folder transfer may expand into.
+///
+/// A directory transfer is not one transfer: it is one queue entry per file,
+/// each with a row, a progress bar and a stop of its own. Ten thousand of those
+/// is already more than anyone can read, and a quarter of a million makes the
+/// list itself the bottleneck. The walk therefore stops and says it stopped —
+/// which is recoverable, because the user can descend and take a subtree.
+/// Queueing fewer than were asked for without saying so is not.
+pub const MAX_TREE_TRANSFERS: usize = 10_000;
+
+/// How deep a folder transfer descends before it refuses.
+pub const MAX_TREE_DEPTH: usize = 64;
+
+/// The failure a walk that hit [`MAX_TREE_DEPTH`] reports.
+const TRANSFER_TREE_TOO_DEEP: &str =
+    "the directory tree is deeper than a folder transfer will descend";
+
+/// The failure a name that cannot become a local file name reports.
+const NAME_NOT_LOCALLY_SAFE: &str =
+    "the server listed a name that cannot be used as a file name on this computer";
+
+/// The operation a symbolic link inside a transferred folder is refused for.
+const FOLLOWING_A_LINK: &str = "following a symbolic link inside a folder transfer";
+
+/// The operation a socket, device or named pipe is refused for.
+const MOVING_A_SPECIAL_FILE: &str = "copying a socket, a device or a named pipe";
+
+/// One file a folder transfer expands into.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlannedTransfer {
+    /// The remote side of it, raw — what goes back on the wire.
+    pub remote: String,
+    /// The local side of it.
+    pub local: PathBuf,
+}
+
+/// One entry a folder transfer would not queue, and why.
+#[derive(Debug)]
+pub struct PlanSkip {
+    /// Where it was. Server-supplied on a download, so it is escaped with
+    /// [`escape_untrusted`] before it is shown.
+    pub path: String,
+    /// Why it was left out, in the failure taxonomy's terms.
+    pub reason: ProtocolError,
+}
+
+/// What expanding a folder produced.
+///
+/// A report rather than a bare `Vec`, for the reason [`DeleteReport`] is one: a
+/// walk that queued nine hundred and ninety-six of a thousand files has not
+/// done what was asked, and the only honest thing to do with that is say so
+/// before a byte moves.
+#[derive(Debug, Default)]
+pub struct TransferPlan {
+    /// One entry per file, in the order the walk found them.
+    pub files: Vec<PlannedTransfer>,
+    /// How many directories had to be created on the destination side.
+    pub directories: u64,
+    /// Everything the walk would not queue, and why.
+    pub skipped: Vec<PlanSkip>,
+    /// Whether it stopped at [`MAX_TREE_TRANSFERS`] rather than at the end.
+    pub limit_reached: bool,
+}
+
+impl TransferPlan {
+    /// Whether everything under the folder is in [`files`](Self::files).
+    #[must_use]
+    pub fn is_complete(&self) -> bool {
+        self.skipped.is_empty() && !self.limit_reached
+    }
+}
+
+/// One directory still to walk, and where its contents land.
+#[derive(Debug)]
+struct TreeStep {
+    remote: String,
+    local: PathBuf,
+    depth: usize,
+}
+
 /// One queued transfer.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TransferRequest {
@@ -678,6 +760,37 @@ impl TransferStart {
     }
 }
 
+/// When a transfer reached each of the moments worth timing.
+///
+/// Milliseconds since the Unix epoch, because the reader of these is the
+/// interface, whose clock is `Date.now()` on the same machine. A monotonic
+/// instant would be the better measurement and the worse wire value: it has no
+/// meaning outside this process, and every figure the queue draws — elapsed,
+/// rate, an estimate of what is left — is a difference computed where the bar
+/// is.
+///
+/// They exist because the queue could previously show a byte count and a
+/// percentage and nothing else. "412 MiB of 1.2 GiB" does not answer the
+/// question somebody watching a transfer actually has, which is whether to wait
+/// for it; and with no clock on the DTO the interface had nothing to compute an
+/// answer from but its own successive readings, which is a timer, a piece of
+/// derived state, and a reconciliation bug waiting to happen.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct TransferClock {
+    /// When it was added to the queue.
+    pub queued_at_ms: u64,
+    /// When it took a slot and began. `None` while it is still waiting.
+    pub started_at_ms: Option<u64>,
+    /// When it reached a terminal state. `None` until it does.
+    pub finished_at_ms: Option<u64>,
+    /// When its byte count last moved.
+    ///
+    /// What tells a stalled transfer from a slow one: a transfer moving four
+    /// bytes a second and a transfer moving none look identical in a rate
+    /// averaged over its whole life, and only one of them is worth waiting for.
+    pub progress_at_ms: Option<u64>,
+}
+
 /// A transfer and where it has got to.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TransferStatus {
@@ -689,6 +802,22 @@ pub struct TransferStatus {
     pub state: TransferState,
     /// What it decided when it began. `None` until it does.
     pub start: Option<TransferStart>,
+    /// When it reached each moment worth timing.
+    pub clock: TransferClock,
+}
+
+/// Milliseconds since the Unix epoch.
+///
+/// Zero if the system clock is set before 1970, which is not a case worth
+/// failing a transfer over: the figures derived from it degrade to "a long time
+/// ago" rather than to a panic, and this crate forbids `unwrap` for exactly
+/// this shape of "cannot happen".
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |since| {
+            u64::try_from(since.as_millis()).unwrap_or(u64::MAX)
+        })
 }
 
 /// The transfer queue.
@@ -739,6 +868,10 @@ impl TransferQueue {
                 request,
                 state: TransferState::Queued,
                 start: None,
+                clock: TransferClock {
+                    queued_at_ms: now_ms(),
+                    ..TransferClock::default()
+                },
             },
             cancel: CancellationToken::new(),
         });
@@ -797,6 +930,7 @@ impl TransferQueue {
             entry.cancel.cancel();
             if !entry.status.state.is_terminal() {
                 entry.status.state = TransferState::Cancelled;
+                entry.status.clock.finished_at_ms = Some(now_ms());
             }
         }
     }
@@ -831,6 +965,10 @@ impl TransferQueue {
             done: 0,
             total: None,
         };
+        // Stamped where the slot is taken rather than where the bytes start,
+        // because the first thing a transfer does is a round trip for the
+        // source's size — which is part of how long it took.
+        entry.status.clock.started_at_ms = Some(now_ms());
         Some((
             entry.status.request.clone(),
             entry.status.id,
@@ -853,6 +991,21 @@ impl TransferQueue {
             // a lie about a partial file.
             if entry.status.state == TransferState::Cancelled && !state.is_terminal() {
                 return;
+            }
+            // Only a byte count that actually moved restamps the progress
+            // clock. A repeated reading of the same `done` is what a stalled
+            // transfer produces, and treating it as movement would make the
+            // stall undetectable.
+            if let (
+                TransferState::Running { done: was, .. },
+                TransferState::Running { done: now, .. },
+            ) = (&entry.status.state, &state)
+                && now > was
+            {
+                entry.status.clock.progress_at_ms = Some(now_ms());
+            }
+            if state.is_terminal() && entry.status.clock.finished_at_ms.is_none() {
+                entry.status.clock.finished_at_ms = Some(now_ms());
             }
             entry.status.state = state;
         }
@@ -1197,6 +1350,374 @@ impl SftpBrowser {
         }
 
         Ok(report)
+    }
+
+    /// Expands a remote folder into one transfer per file, creating the local
+    /// directories as it goes.
+    ///
+    /// This is the commonest real job a file manager is asked for — "copy this
+    /// directory down" — and it was the one thing the pane could not do at all.
+    /// It is a walk rather than a primitive because SFTP has no recursive copy:
+    /// `draft-ietf-secsh-filexfer-02` moves one file handle at a time.
+    ///
+    /// Four rules, every one of them the same rule `remove_tree` follows:
+    ///
+    ///   * **Child paths are composed here, from the entry's name.** A server
+    ///     chooses the `path` it puts in a listing, and honouring it would let
+    ///     a listing of `/tmp/scratch` return `../../etc/shadow` and have this
+    ///     walk fetch it.
+    ///   * **Every name is held to [`is_safe_local_name`] before it becomes
+    ///     part of a local path**, on every platform, because the name decides
+    ///     where the bytes land on *this* computer.
+    ///   * **Symbolic links are not followed.** Descending into one is how a
+    ///     link to `/` becomes a copy of the whole filesystem, and a link to
+    ///     `../..` becomes an infinite one.
+    ///   * **Nothing is silently dropped.** Anything the walk refuses is in
+    ///     [`TransferPlan::skipped`] with the reason, so the interface can say
+    ///     what it is not going to copy before it copies anything.
+    ///
+    /// # Errors
+    ///
+    /// [`ProtocolError::Cancelled`] if the pane was closed while walking;
+    /// [`ProtocolError::SettingInvalid`] if no safe local name can be taken
+    /// from `remote_root`; [`ProtocolError::Io`] if a local directory could not
+    /// be created; otherwise whatever the server said about the root itself.
+    /// Everything that fails *below* the root is in the plan, not in the `Err`.
+    pub async fn plan_download_tree(
+        &self,
+        remote_root: &str,
+        local_root: &Path,
+        cancel: &CancellationToken,
+    ) -> Result<TransferPlan, ProtocolError> {
+        validate_remote_path(remote_root)?;
+        let protocol = sftp_protocol_id()?;
+        // `local_root` is the caller's: either a path a save picker produced or
+        // one [`local_name_for`] derived, which is where the root's own
+        // server-chosen name was held to [`is_safe_local_name`]. Nothing below
+        // this line takes a local path component from anywhere else.
+        tokio::fs::create_dir_all(local_root)
+            .await
+            .map_err(|source| ProtocolError::Io {
+                operation: "create the folder to download into",
+                source,
+            })?;
+
+        let mut plan = TransferPlan {
+            directories: 1,
+            ..TransferPlan::default()
+        };
+        let mut stack = vec![TreeStep {
+            remote: remote_root.to_owned(),
+            local: local_root.to_path_buf(),
+            depth: 0,
+        }];
+
+        while let Some(step) = stack.pop() {
+            if cancel.is_cancelled() {
+                return Err(ProtocolError::Cancelled);
+            }
+            if plan.files.len() >= MAX_TREE_TRANSFERS {
+                plan.limit_reached = true;
+                break;
+            }
+
+            let entries = match self.list(&step.remote, cancel).await {
+                Ok(entries) => entries,
+                Err(ProtocolError::Cancelled) => return Err(ProtocolError::Cancelled),
+                Err(reason) => {
+                    plan.skipped.push(PlanSkip {
+                        path: step.remote,
+                        reason,
+                    });
+                    continue;
+                }
+            };
+
+            for entry in entries {
+                if plan.files.len() >= MAX_TREE_TRANSFERS {
+                    plan.limit_reached = true;
+                    break;
+                }
+                // A report line, not an address: a name that is not a single
+                // component is never joined onto anything.
+                let shown = || join_path(&step.remote, &escape_untrusted(&entry.name));
+                if !safe_name(&entry.name).risks.is_component() {
+                    plan.skipped.push(PlanSkip {
+                        path: shown(),
+                        reason: ProtocolError::ProtocolViolation {
+                            detail: NAME_NOT_A_COMPONENT,
+                        },
+                    });
+                    continue;
+                }
+                if !is_safe_local_name(&entry.name) {
+                    plan.skipped.push(PlanSkip {
+                        path: shown(),
+                        reason: ProtocolError::ProtocolViolation {
+                            detail: NAME_NOT_LOCALLY_SAFE,
+                        },
+                    });
+                    continue;
+                }
+
+                let child_remote = join_path(&step.remote, &entry.name);
+                let child_local = step.local.join(&entry.name);
+                match entry.kind {
+                    EntryKind::Directory => {
+                        if step.depth.saturating_add(1) >= MAX_TREE_DEPTH {
+                            plan.skipped.push(PlanSkip {
+                                path: shown(),
+                                reason: ProtocolError::ProtocolViolation {
+                                    detail: TRANSFER_TREE_TOO_DEEP,
+                                },
+                            });
+                            continue;
+                        }
+                        if let Err(source) = tokio::fs::create_dir_all(&child_local).await {
+                            plan.skipped.push(PlanSkip {
+                                path: shown(),
+                                reason: ProtocolError::Io {
+                                    operation: "create a folder to download into",
+                                    source,
+                                },
+                            });
+                            continue;
+                        }
+                        plan.directories = plan.directories.saturating_add(1);
+                        stack.push(TreeStep {
+                            remote: child_remote,
+                            local: child_local,
+                            depth: step.depth.saturating_add(1),
+                        });
+                    }
+                    EntryKind::File => plan.files.push(PlannedTransfer {
+                        remote: child_remote,
+                        local: child_local,
+                    }),
+                    EntryKind::Symlink => plan.skipped.push(PlanSkip {
+                        path: shown(),
+                        reason: ProtocolError::Unsupported {
+                            operation: FOLLOWING_A_LINK,
+                            protocol: protocol.clone(),
+                        },
+                    }),
+                    EntryKind::Other => plan.skipped.push(PlanSkip {
+                        path: shown(),
+                        reason: ProtocolError::Unsupported {
+                            operation: MOVING_A_SPECIAL_FILE,
+                            protocol: protocol.clone(),
+                        },
+                    }),
+                }
+            }
+        }
+
+        Ok(plan)
+    }
+
+    /// Expands a local folder into one transfer per file, creating the remote
+    /// directories as it goes.
+    ///
+    /// The mirror of [`plan_download_tree`](Self::plan_download_tree), and
+    /// easier in one respect and harder in another. Easier because every name
+    /// comes from this machine's own filesystem rather than from the far end,
+    /// so nothing here is hostile input. Harder because the destination is the
+    /// server, and `SSH_FXP_MKDIR` on a directory that already exists is a
+    /// failure rather than a no-op — so an existing directory is checked for
+    /// rather than assumed from the refusal, which would confuse "it is already
+    /// there" with "this account may not create it".
+    ///
+    /// Symbolic links are not followed, for the same reason as above.
+    ///
+    /// # Errors
+    ///
+    /// [`ProtocolError::Cancelled`] if the pane was closed while walking;
+    /// [`ProtocolError::SettingInvalid`] if the folder has no usable name;
+    /// [`ProtocolError::Io`] if the folder itself could not be read; otherwise
+    /// whatever the server said about creating the root directory.
+    pub async fn plan_upload_tree(
+        &self,
+        local_root: &Path,
+        remote_root: &str,
+        cancel: &CancellationToken,
+    ) -> Result<TransferPlan, ProtocolError> {
+        validate_remote_path(remote_root)?;
+        let protocol = sftp_protocol_id()?;
+
+        let mut plan = TransferPlan::default();
+        self.ensure_directory(remote_root).await?;
+        plan.directories = 1;
+
+        let mut stack = vec![TreeStep {
+            remote: remote_root.to_owned(),
+            local: local_root.to_path_buf(),
+            depth: 0,
+        }];
+
+        while let Some(step) = stack.pop() {
+            if cancel.is_cancelled() {
+                return Err(ProtocolError::Cancelled);
+            }
+            if plan.files.len() >= MAX_TREE_TRANSFERS {
+                plan.limit_reached = true;
+                break;
+            }
+
+            let mut reader = match tokio::fs::read_dir(&step.local).await {
+                Ok(reader) => reader,
+                Err(source) => {
+                    plan.skipped.push(PlanSkip {
+                        path: step.local.display().to_string(),
+                        reason: ProtocolError::Io {
+                            operation: "read a folder on this computer",
+                            source,
+                        },
+                    });
+                    continue;
+                }
+            };
+
+            loop {
+                if cancel.is_cancelled() {
+                    return Err(ProtocolError::Cancelled);
+                }
+                if plan.files.len() >= MAX_TREE_TRANSFERS {
+                    plan.limit_reached = true;
+                    break;
+                }
+                let entry = match reader.next_entry().await {
+                    Ok(Some(entry)) => entry,
+                    Ok(None) => break,
+                    Err(source) => {
+                        plan.skipped.push(PlanSkip {
+                            path: step.local.display().to_string(),
+                            reason: ProtocolError::Io {
+                                operation: "read a folder on this computer",
+                                source,
+                            },
+                        });
+                        break;
+                    }
+                };
+
+                let child_local = entry.path();
+                let shown = || child_local.display().to_string();
+                // A name from this filesystem, but still checked: a file name
+                // that is not valid UTF-8 has no representation on an SFTP
+                // wire, and one holding a `/` cannot be a single component.
+                let Some(child_name) = entry.file_name().to_str().map(str::to_owned) else {
+                    plan.skipped.push(PlanSkip {
+                        path: shown(),
+                        reason: ProtocolError::SettingInvalid {
+                            key: "local".to_owned(),
+                            expected: "a file name this computer can spell in Unicode",
+                        },
+                    });
+                    continue;
+                };
+                if !safe_name(&child_name).risks.is_component() {
+                    plan.skipped.push(PlanSkip {
+                        path: shown(),
+                        reason: ProtocolError::SettingInvalid {
+                            key: "local".to_owned(),
+                            expected: "a file name that is a single path component",
+                        },
+                    });
+                    continue;
+                }
+
+                // `symlink_metadata`, not `metadata`: a link to a directory is
+                // a link, and following one is how a folder upload walks out of
+                // the folder it was given.
+                let kind = match tokio::fs::symlink_metadata(&child_local).await {
+                    Ok(metadata) => metadata.file_type(),
+                    Err(source) => {
+                        plan.skipped.push(PlanSkip {
+                            path: shown(),
+                            reason: ProtocolError::Io {
+                                operation: "read a file's kind on this computer",
+                                source,
+                            },
+                        });
+                        continue;
+                    }
+                };
+                let child_remote = join_path(&step.remote, &child_name);
+
+                if kind.is_symlink() {
+                    plan.skipped.push(PlanSkip {
+                        path: shown(),
+                        reason: ProtocolError::Unsupported {
+                            operation: FOLLOWING_A_LINK,
+                            protocol: protocol.clone(),
+                        },
+                    });
+                } else if kind.is_dir() {
+                    if step.depth.saturating_add(1) >= MAX_TREE_DEPTH {
+                        plan.skipped.push(PlanSkip {
+                            path: shown(),
+                            reason: ProtocolError::ProtocolViolation {
+                                detail: TRANSFER_TREE_TOO_DEEP,
+                            },
+                        });
+                        continue;
+                    }
+                    if let Err(reason) = self.ensure_directory(&child_remote).await {
+                        plan.skipped.push(PlanSkip {
+                            path: shown(),
+                            reason,
+                        });
+                        continue;
+                    }
+                    plan.directories = plan.directories.saturating_add(1);
+                    stack.push(TreeStep {
+                        remote: child_remote,
+                        local: child_local,
+                        depth: step.depth.saturating_add(1),
+                    });
+                } else if kind.is_file() {
+                    plan.files.push(PlannedTransfer {
+                        remote: child_remote,
+                        local: child_local,
+                    });
+                } else {
+                    plan.skipped.push(PlanSkip {
+                        path: shown(),
+                        reason: ProtocolError::Unsupported {
+                            operation: MOVING_A_SPECIAL_FILE,
+                            protocol: protocol.clone(),
+                        },
+                    });
+                }
+            }
+        }
+
+        Ok(plan)
+    }
+
+    /// Makes sure a remote directory exists, without turning "it already does"
+    /// into a failure.
+    ///
+    /// `SSH_FXP_MKDIR` on an existing directory is refused
+    /// (`draft-ietf-secsh-filexfer-02` §6.6), and version 3 gives the same
+    /// catch-all status for that as for a full disk and a read-only mount. So
+    /// the refusal is not interpreted: the path is looked at, and it is only an
+    /// error if what is there is not a directory — or if nothing is.
+    async fn ensure_directory(&self, path: &str) -> Result<(), ProtocolError> {
+        let Err(refusal) = self.make_directory(path).await else {
+            return Ok(());
+        };
+        match self.metadata(path).await {
+            Ok(entry) if entry.kind == EntryKind::Directory => Ok(()),
+            // Something is there and it is not a directory. Reporting the
+            // mkdir refusal here would be reporting the symptom; this is the
+            // cause, and it is the one the user can act on.
+            Ok(_) => Err(ProtocolError::SettingInvalid {
+                key: "remote".to_owned(),
+                expected: "a path with either a folder or nothing at it",
+            }),
+            Err(_) => Err(refusal),
+        }
     }
 
     /// Renames or moves an entry.

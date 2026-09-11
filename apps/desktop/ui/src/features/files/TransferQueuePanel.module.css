@@ -171,3 +171,40 @@
     transition: none;
   }
 }
+
+/*
+ * The collapse control's chevron, and the figures beside a progress bar.
+ *
+ * The chevron is turned over rather than swapped for a sideways one: a
+ * directional icon mirrors in a right-to-left layout, and "open" is not a
+ * direction. `rotate` rather than `transform: rotate(...)` so a future
+ * transform on the same element does not silently cancel it.
+ */
+.chevron {
+  display: inline-flex;
+  rotate: 0deg;
+  transition: rotate var(--motion-fast) ease;
+}
+
+.chevronCollapsed {
+  display: inline-flex;
+  rotate: -90deg;
+  transition: rotate var(--motion-fast) ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chevron,
+  .chevronCollapsed {
+    transition: none;
+  }
+}
+
+/*
+ * A rate, an estimate or an elapsed time, beside the byte count. Muted because
+ * the byte count is the fact and these are measurements of it.
+ */
+.rate {
+  margin-inline-start: var(--space-2);
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+}

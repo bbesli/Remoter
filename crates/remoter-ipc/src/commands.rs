@@ -5184,6 +5184,7 @@ mod tests {
             terminal_prefix: String::new(),
             shortcuts: BTreeMap::new(),
             terminal: TerminalAppearanceDto::default(),
+            file_download_folder: None,
         });
         assert_eq!(defaults.theme, "system");
         // The shipped default is "follow the interface theme" with nothing

@@ -339,5 +339,23 @@
       "openOther": "खोलें",
       "noBackups": "इस फ़ाइल के बगल में कोई रोलिंग बैकअप नहीं है। अब वापसी का रास्ता आपके अपने बैकअप की कोई कॉपी ही है।"
     }
+  },
+  "relock": {
+    "_comment_": "The unlock screen, when the vault locked while it was open rather than being opened from the picker. Two rules. (1) 'cleared' must keep saying that the contents left the WINDOW and not the file; a reader who believes the lock destroyed their connections will go hunting for a backup they do not need. (2) reason.unknown must not guess: the core reports that no vault is open without saying what closed it, and naming the idle timeout there would be a sentence the application cannot stand behind.",
+    "windowTitle": "वॉल्ट लॉक है",
+    "title": "यह वॉल्ट लॉक है",
+    "_comment_reason": "Why it locked, as far as the application can honestly tell. Each is a whole sentence and follows the title above it.",
+    "reason": {
+      "idle": "आपकी तय की गई निष्क्रियता अवधि पूरी होने पर यह लॉक हो गया।",
+      "trigger": "आपने लॉक करने के लिए जो घटना चुनी थी, वह होने पर यह लॉक हो गया।",
+      "manual": "आपने इसे लॉक किया था।",
+      "unknown": "यह निष्क्रियता अवधि के बाद खुद लॉक हो गया, आपकी चुनी हुई किसी घटना पर लॉक हुआ, या किसी दूसरी विंडो से लॉक किया गया।"
+    },
+    "cleared": "कुछ भी खोया नहीं है। कनेक्शन अब भी फ़ाइल में हैं; उन्हें सिर्फ़ इस विंडो से हटाया गया है और अनलॉक करते ही वापस आ जाएँगे।",
+    "_comment_sessions": "What became of the sessions that were open. Measured, not assumed - the vault's session policy is stored inside the vault and cannot be read while it is locked. Both sentences are shown when some sessions ended and others survived, so each has to stand on its own.",
+    "sessions": {
+      "closed": "{count, plural, one {वॉल्ट लॉक होने पर # सेशन बंद हो गया। अनलॉक करने से वह दोबारा नहीं खुलता।} other {वॉल्ट लॉक होने पर # सेशन बंद हो गए। अनलॉक करने से वे दोबारा नहीं खुलते।}}",
+      "running": "{count, plural, one {# सेशन अब भी जुड़ा हुआ है और अनलॉक करने के बाद भी वहीं रहेगा।} other {# सेशन अब भी जुड़े हुए हैं और अनलॉक करने के बाद भी वहीं रहेंगे।}}"
+    }
   }
 }

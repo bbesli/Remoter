@@ -38,10 +38,14 @@ describe("screen history", () => {
   });
 
   it("returns to the unlock screen with the path it was showing", () => {
-    initial.go({ name: "unlock", path: "/vaults/work.rvault" });
+    initial.go({ name: "unlock", path: "/vaults/work.rvault", relock: null });
     initial.go({ name: "settings" });
     initial.goBack();
-    expect(useApp.getState().screen).toEqual({ name: "unlock", path: "/vaults/work.rvault" });
+    expect(useApp.getState().screen).toEqual({
+      name: "unlock",
+      path: "/vaults/work.rvault",
+      relock: null,
+    });
   });
 
   it("falls back to the picker when there is no history", () => {

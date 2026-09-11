@@ -61,7 +61,9 @@
     "openPanels": "Oturumlar ve tüneller panelini aç",
     "_comment_locksIn": "{clock} is mm:ss, produced by formatClock() so the digits follow the locale's numbering system.",
     "locksIn": "kasa {clock} sonra kilitlenir",
-    "noAutoLock": "otomatik kilit kapalı"
+    "noAutoLock": "otomatik kilit kapalı",
+    "_comment_vaultLocked": "SECURITY-ADJACENT. Sits where the auto-lock countdown goes. It exists because the countdown is null in two different situations - auto-lock switched off, and the vault LOCKED - and the footer used to say 'auto-lock is off' at the exact moment auto-lock had just fired. Lower case, like the counts beside it.",
+    "vaultLocked": "kasa kilitli"
   },
 
   "inspector": {
@@ -128,12 +130,6 @@
     "connectHint": "Ağaçta çift tıklayın, palette Enter'a basın ya da bağlam menüsünden Bağlan'ı kullanın.",
     "folderSelected": "Klasörler, altlarındaki bağlantıların devraldığı ayarları tutar.",
 
-    "lockedTitle": "Bu kasa kilitli",
-    "_comment_lockedBody": "SECURITY-CRITICAL wording in one respect: it must keep saying that nothing was lost. A user who believes a lock destroyed their connections will go looking for a backup they do not need.",
-    "lockedBody": "Boşta kalma süresi dolduğu için kendi kendine kilitlendi ya da başka bir pencereden kilitlendi. Hiçbir şey kaybolmadı; bağlantılar hâlâ dosyanın içinde ve kilidi açtığınızda geri gelirler.",
-    "lockedAction": "Bu kasanın kilidini aç",
-    "lockedNoPath": "Bir kasa seçin",
-
     "vaultStateFailed": "Remoter, açık bir kasa olup olmadığını anlayamıyor.",
     "treeFailed": "Bağlantı ağacı okunamadı.",
     "lockFailed": "Kasa kilitlenmedi.",
@@ -142,7 +138,9 @@
     "fullscreenFailedBody": "Pencere yöneticisi bunu reddetti ya da bu sayfa Remoter penceresinin içinde çalışmıyor. Oturumla ilgili hiçbir şey değişmedi.",
 
     "checkingVault": "Açık bir kasa olup olmadığı denetleniyor…",
-    "readingTree": "Bağlantılar kasadan okunuyor…"
+    "readingTree": "Bağlantılar kasadan okunuyor…",
+    "_comment_lockedLeaving": "The one frame between the application noticing the vault has locked and the unlock screen replacing this window. Nothing of the vault is drawn behind it, which is the point: this is what the shell says while it is taking the connection tree off the screen.",
+    "lockedLeaving": "Kasanın içeriği bu pencereden temizleniyor…"
   },
 
   "kdfUpgrade": {

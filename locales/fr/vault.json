@@ -339,5 +339,23 @@
       "openOther": "Ouvrir",
       "noBackups": "Il n'y a aucune sauvegarde tournante à côté de ce fichier. Une copie issue de vos propres sauvegardes est la seule voie de retour."
     }
+  },
+  "relock": {
+    "_comment_": "The unlock screen, when the vault locked while it was open rather than being opened from the picker. Two rules. (1) 'cleared' must keep saying that the contents left the WINDOW and not the file; a reader who believes the lock destroyed their connections will go hunting for a backup they do not need. (2) reason.unknown must not guess: the core reports that no vault is open without saying what closed it, and naming the idle timeout there would be a sentence the application cannot stand behind.",
+    "windowTitle": "Coffre-fort verrouillé",
+    "title": "Ce coffre-fort est verrouillé",
+    "_comment_reason": "Why it locked, as far as the application can honestly tell. Each is a whole sentence and follows the title above it.",
+    "reason": {
+      "idle": "Il s'est verrouillé après la période d'inactivité que vous avez définie.",
+      "trigger": "Il s'est verrouillé parce qu'un évènement que vous avez choisi s'est produit.",
+      "manual": "Vous l'avez verrouillé.",
+      "unknown": "Il s'est verrouillé après la période d'inactivité, il a été verrouillé par un évènement que vous avez choisi, ou depuis une autre fenêtre."
+    },
+    "cleared": "Rien n'a été perdu. Les connexions sont toujours dans le fichier : elles ont seulement été effacées de cette fenêtre et reviendront dès que vous le déverrouillerez.",
+    "_comment_sessions": "What became of the sessions that were open. Measured, not assumed - the vault's session policy is stored inside the vault and cannot be read while it is locked. Both sentences are shown when some sessions ended and others survived, so each has to stand on its own.",
+    "sessions": {
+      "closed": "{count, plural, one {# session a été fermée au verrouillage du coffre-fort. Le déverrouiller ne la rouvre pas.} many {# de sessions ont été fermées au verrouillage du coffre-fort. Le déverrouiller ne les rouvre pas.} other {# sessions ont été fermées au verrouillage du coffre-fort. Le déverrouiller ne les rouvre pas.}}",
+      "running": "{count, plural, one {# session est toujours connectée et le restera après le déverrouillage.} many {# de sessions sont toujours connectées et le resteront après le déverrouillage.} other {# sessions sont toujours connectées et le resteront après le déverrouillage.}}"
+    }
   }
 }

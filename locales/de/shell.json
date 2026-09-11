@@ -61,7 +61,9 @@
     "openPanels": "Bereich „Sitzungen und Tunnel“ öffnen",
     "_comment_locksIn": "{clock} is mm:ss, produced by formatClock() so the digits follow the locale's numbering system.",
     "locksIn": "Tresor sperrt in {clock}",
-    "noAutoLock": "automatische Sperre ist aus"
+    "noAutoLock": "automatische Sperre ist aus",
+    "_comment_vaultLocked": "SECURITY-ADJACENT. Sits where the auto-lock countdown goes. It exists because the countdown is null in two different situations - auto-lock switched off, and the vault LOCKED - and the footer used to say 'auto-lock is off' at the exact moment auto-lock had just fired. Lower case, like the counts beside it.",
+    "vaultLocked": "Tresor gesperrt"
   },
 
   "inspector": {
@@ -128,12 +130,6 @@
     "connectHint": "Doppelklicken Sie sie im Baum, drücken Sie Enter in der Palette oder nutzen Sie „Verbinden“ im Kontextmenü.",
     "folderSelected": "Ordner halten Einstellungen, die die Verbindungen darunter erben.",
 
-    "lockedTitle": "Dieser Tresor ist gesperrt",
-    "_comment_lockedBody": "SECURITY-CRITICAL wording in one respect: it must keep saying that nothing was lost. A user who believes a lock destroyed their connections will go looking for a backup they do not need.",
-    "lockedBody": "Er hat sich nach der Leerlaufzeit selbst gesperrt oder wurde aus einem anderen Fenster gesperrt. Es ist nichts verloren gegangen; die Verbindungen stehen weiterhin in der Datei und sind wieder da, sobald Sie entsperren.",
-    "lockedAction": "Diesen Tresor entsperren",
-    "lockedNoPath": "Tresor auswählen",
-
     "vaultStateFailed": "Remoter kann nicht feststellen, ob ein Tresor geöffnet ist.",
     "treeFailed": "Der Verbindungsbaum konnte nicht gelesen werden.",
     "lockFailed": "Der Tresor wurde nicht gesperrt.",
@@ -142,7 +138,9 @@
     "fullscreenFailedBody": "Der Fenstermanager hat es abgelehnt, oder diese Seite läuft nicht im Remoter-Fenster. An der Sitzung hat sich nichts geändert.",
 
     "checkingVault": "Es wird geprüft, ob ein Tresor geöffnet ist…",
-    "readingTree": "Die Verbindungen werden aus dem Tresor gelesen…"
+    "readingTree": "Die Verbindungen werden aus dem Tresor gelesen…",
+    "_comment_lockedLeaving": "The one frame between the application noticing the vault has locked and the unlock screen replacing this window. Nothing of the vault is drawn behind it, which is the point: this is what the shell says while it is taking the connection tree off the screen.",
+    "lockedLeaving": "Der Inhalt des Tresors wird aus diesem Fenster entfernt…"
   },
 
   "kdfUpgrade": {

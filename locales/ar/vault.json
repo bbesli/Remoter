@@ -339,5 +339,23 @@
       "openOther": "فتح",
       "noBackups": "لا توجد نسخ احتياطية متعاقبة بجوار هذا الملف. الطريق الوحيد للعودة هو نسخة من نسخك الاحتياطية الخاصة."
     }
+  },
+  "relock": {
+    "_comment_": "The unlock screen, when the vault locked while it was open rather than being opened from the picker. Two rules. (1) 'cleared' must keep saying that the contents left the WINDOW and not the file; a reader who believes the lock destroyed their connections will go hunting for a backup they do not need. (2) reason.unknown must not guess: the core reports that no vault is open without saying what closed it, and naming the idle timeout there would be a sentence the application cannot stand behind.",
+    "windowTitle": "الخزنة مقفلة",
+    "title": "هذه الخزنة مقفلة",
+    "_comment_reason": "Why it locked, as far as the application can honestly tell. Each is a whole sentence and follows the title above it.",
+    "reason": {
+      "idle": "أُقفلت بعد مدة الخمول التي ضبطتها.",
+      "trigger": "أُقفلت لأن حدثًا اخترت الإقفال عنده قد وقع.",
+      "manual": "أنت من أقفلها.",
+      "unknown": "أقفلت نفسها بعد مدة الخمول، أو أُقفلت بسبب حدث اخترت الإقفال عنده، أو أُقفلت من نافذة أخرى."
+    },
+    "cleared": "لم يُفقد شيء. الاتصالات لا تزال في الملف؛ إنما مُسحت من هذه النافذة وتعود عند فتح القفل.",
+    "_comment_sessions": "What became of the sessions that were open. Measured, not assumed - the vault's session policy is stored inside the vault and cannot be read while it is locked. Both sentences are shown when some sessions ended and others survived, so each has to stand on its own.",
+    "sessions": {
+      "closed": "{count, plural, zero {لم تُغلق أي جلسة عند قفل الخزنة.} one {أُغلقت جلسة واحدة عند قفل الخزنة. فتح القفل لا يعيد فتحها.} two {أُغلقت جلستان عند قفل الخزنة. فتح القفل لا يعيد فتحهما.} few {أُغلقت # جلسات عند قفل الخزنة. فتح القفل لا يعيد فتحها.} many {أُغلقت # جلسة عند قفل الخزنة. فتح القفل لا يعيد فتحها.} other {أُغلقت # جلسة عند قفل الخزنة. فتح القفل لا يعيد فتحها.}}",
+      "running": "{count, plural, zero {لا توجد جلسات متصلة.} one {لا تزال جلسة واحدة متصلة وستبقى بعد فتح القفل.} two {لا تزال جلستان متصلتين وستبقيان بعد فتح القفل.} few {لا تزال # جلسات متصلة وستبقى بعد فتح القفل.} many {لا تزال # جلسة متصلة وستبقى بعد فتح القفل.} other {لا تزال # جلسة متصلة وستبقى بعد فتح القفل.}}"
+    }
   }
 }

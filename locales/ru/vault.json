@@ -339,5 +339,23 @@
       "openOther": "Открыть",
       "noBackups": "Рядом с этим файлом нет ротируемых резервных копий. Вернуться можно только из ваших собственных резервных копий."
     }
+  },
+  "relock": {
+    "_comment_": "The unlock screen, when the vault locked while it was open rather than being opened from the picker. Two rules. (1) 'cleared' must keep saying that the contents left the WINDOW and not the file; a reader who believes the lock destroyed their connections will go hunting for a backup they do not need. (2) reason.unknown must not guess: the core reports that no vault is open without saying what closed it, and naming the idle timeout there would be a sentence the application cannot stand behind.",
+    "windowTitle": "Хранилище заблокировано",
+    "title": "Это хранилище заблокировано",
+    "_comment_reason": "Why it locked, as far as the application can honestly tell. Each is a whole sentence and follows the title above it.",
+    "reason": {
+      "idle": "Оно заблокировалось по истечении заданного вами времени простоя.",
+      "trigger": "Оно заблокировалось, потому что произошло выбранное вами событие.",
+      "manual": "Вы заблокировали его сами.",
+      "unknown": "Оно заблокировалось само после простоя, было заблокировано выбранным вами событием или заблокировано из другого окна."
+    },
+    "cleared": "Ничего не потеряно. Подключения по-прежнему в файле: они лишь удалены из этого окна и вернутся, как только вы его разблокируете.",
+    "_comment_sessions": "What became of the sessions that were open. Measured, not assumed - the vault's session policy is stored inside the vault and cannot be read while it is locked. Both sentences are shown when some sessions ended and others survived, so each has to stand on its own.",
+    "sessions": {
+      "closed": "{count, plural, one {При блокировке хранилища закрыт # сеанс. Разблокировка не откроет его заново.} few {При блокировке хранилища закрыто # сеанса. Разблокировка не откроет их заново.} many {При блокировке хранилища закрыто # сеансов. Разблокировка не откроет их заново.} other {При блокировке хранилища закрыто # сеанса. Разблокировка не откроет их заново.}}",
+      "running": "{count, plural, one {# сеанс всё ещё подключён и останется на месте после разблокировки.} few {# сеанса всё ещё подключены и останутся на месте после разблокировки.} many {# сеансов всё ещё подключены и останутся на месте после разблокировки.} other {# сеанса всё ещё подключены и останутся на месте после разблокировки.}}"
+    }
   }
 }

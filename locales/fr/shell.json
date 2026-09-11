@@ -57,7 +57,9 @@
     "openPanels": "Ouvrir le panneau des sessions et des tunnels",
     "_comment_locksIn": "{clock} is mm:ss, produced by formatClock() so the digits follow the locale's numbering system.",
     "locksIn": "verrouillage du coffre-fort dans {clock}",
-    "noAutoLock": "verrouillage automatique désactivé"
+    "noAutoLock": "verrouillage automatique désactivé",
+    "_comment_vaultLocked": "SECURITY-ADJACENT. Sits where the auto-lock countdown goes. It exists because the countdown is null in two different situations - auto-lock switched off, and the vault LOCKED - and the footer used to say 'auto-lock is off' at the exact moment auto-lock had just fired. Lower case, like the counts beside it.",
+    "vaultLocked": "coffre-fort verrouillé"
   },
   "inspector": {
     "title": "Valeurs effectives",
@@ -120,18 +122,15 @@
     },
     "connectHint": "Double-cliquez dessus dans l'arborescence, appuyez sur Enter dans la palette, ou utilisez Se connecter dans son menu contextuel.",
     "folderSelected": "Les dossiers portent des paramètres dont héritent les connexions situées en dessous.",
-    "lockedTitle": "Ce coffre-fort est verrouillé",
-    "_comment_lockedBody": "SECURITY-CRITICAL wording in one respect: it must keep saying that nothing was lost. A user who believes a lock destroyed their connections will go looking for a backup they do not need.",
-    "lockedBody": "Il s'est verrouillé après la période d'inactivité, ou il a été verrouillé depuis une autre fenêtre. Rien n'a été perdu : les connexions sont toujours dans le fichier et reviendront dès que vous le déverrouillerez.",
-    "lockedAction": "Déverrouiller ce coffre-fort",
-    "lockedNoPath": "Choisir un coffre-fort",
     "vaultStateFailed": "Remoter ne parvient pas à déterminer si un coffre-fort est ouvert.",
     "treeFailed": "L'arborescence des connexions n'a pas pu être lue.",
     "lockFailed": "Le coffre-fort n'a pas été verrouillé.",
     "fullscreenFailedTitle": "La fenêtre n'est pas passée en plein écran.",
     "fullscreenFailedBody": "Le gestionnaire de fenêtres l'a refusé, ou cette page ne s'exécute pas dans la fenêtre Remoter. Rien n'a changé pour la session.",
     "checkingVault": "Vérification de la présence d'un coffre-fort ouvert…",
-    "readingTree": "Lecture des connexions contenues dans le coffre-fort…"
+    "readingTree": "Lecture des connexions contenues dans le coffre-fort…",
+    "_comment_lockedLeaving": "The one frame between the application noticing the vault has locked and the unlock screen replacing this window. Nothing of the vault is drawn behind it, which is the point: this is what the shell says while it is taking the connection tree off the screen.",
+    "lockedLeaving": "Effacement du contenu du coffre-fort de cette fenêtre…"
   },
   "kdfUpgrade": {
     "_comment_": "SECURITY-CRITICAL SECTION. This is the offer to strengthen a vault's key derivation. Do not soften 'weaker than the current standard' into 'could be improved', and do not drop the sentence explaining why the password is asked for again — a credential prompt without a stated reason is exactly what a phishing dialog looks like.",

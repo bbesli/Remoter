@@ -339,5 +339,23 @@
       "openOther": "Abrir",
       "noBackups": "No hay copias de seguridad rotativas junto a este archivo. La vía de vuelta es una copia de sus propias copias de seguridad."
     }
+  },
+  "relock": {
+    "_comment_": "The unlock screen, when the vault locked while it was open rather than being opened from the picker. Two rules. (1) 'cleared' must keep saying that the contents left the WINDOW and not the file; a reader who believes the lock destroyed their connections will go hunting for a backup they do not need. (2) reason.unknown must not guess: the core reports that no vault is open without saying what closed it, and naming the idle timeout there would be a sentence the application cannot stand behind.",
+    "windowTitle": "Bóveda bloqueada",
+    "title": "Esta bóveda está bloqueada",
+    "_comment_reason": "Why it locked, as far as the application can honestly tell. Each is a whole sentence and follows the title above it.",
+    "reason": {
+      "idle": "Se bloqueó tras el periodo de inactividad que configuraste.",
+      "trigger": "Se bloqueó porque ocurrió un evento que elegiste para bloquearla.",
+      "manual": "La bloqueaste tú.",
+      "unknown": "Se bloqueó sola tras el periodo de inactividad, la bloqueó un evento que elegiste, o la bloquearon desde otra ventana."
+    },
+    "cleared": "No se perdió nada. Las conexiones siguen en el archivo: solo se borraron de esta ventana y vuelven a aparecer al desbloquearla.",
+    "_comment_sessions": "What became of the sessions that were open. Measured, not assumed - the vault's session policy is stored inside the vault and cannot be read while it is locked. Both sentences are shown when some sessions ended and others survived, so each has to stand on its own.",
+    "sessions": {
+      "closed": "{count, plural, one {Se cerró # sesión al bloquearse la bóveda. Desbloquearla no la vuelve a abrir.} many {Se cerraron # de sesiones al bloquearse la bóveda. Desbloquearla no las vuelve a abrir.} other {Se cerraron # sesiones al bloquearse la bóveda. Desbloquearla no las vuelve a abrir.}}",
+      "running": "{count, plural, one {# sesión sigue conectada y seguirá ahí cuando desbloquees.} many {# de sesiones siguen conectadas y seguirán ahí cuando desbloquees.} other {# sesiones siguen conectadas y seguirán ahí cuando desbloquees.}}"
+    }
   }
 }

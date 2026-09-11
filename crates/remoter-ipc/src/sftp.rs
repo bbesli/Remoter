@@ -187,6 +187,33 @@ pub struct SftpDeleteReportDto {
     pub complete: bool,
 }
 
+/// A path the server resolved, in both the forms every other DTO here carries.
+///
+/// It used to be a bare `String`, and that was the one place a *whole path*
+/// chosen by the server reached the interface with no escaped twin. Both of the
+/// commands that produce one — `sftp_canonicalize` and `sftp_read_link` — take
+/// a path from the user and get a path from the far end, and the far end's
+/// answer is text it chose: a symbolic link may point at
+/// `/srv/annex\u{202E}txt.exe`, and a canonicalised path travels through
+/// whatever the server's own symlinks resolve to.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResolvedPathDto {
+    /// What goes back on the wire.
+    pub path: String,
+    /// What a human reads. Never addressed with.
+    pub display_path: String,
+}
+
+impl ResolvedPathDto {
+    fn new(path: String) -> Self {
+        Self {
+            display_path: escape_untrusted(&path),
+            path,
+        }
+    }
+}
+
 /// A transfer the interface is asking for.
 ///
 /// A download names its destination one of two ways, and exactly one:
@@ -211,6 +238,98 @@ pub struct TransferRequestDto {
     /// Honoured only where it is safe; see [`TransferStartDto`].
     #[serde(default)]
     pub resume: bool,
+}
+
+/// Why one destination could not be looked at before a transfer was queued.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PreflightProblemDto {
+    /// The stable code from the failure taxonomy, for `errors.json`.
+    pub code: String,
+    /// The core's English. The interface renders the catalogue's sentence.
+    pub message: String,
+}
+
+/// What one queued transfer would land on top of.
+///
+/// A transfer overwrites its destination — an upload truncates, and a download
+/// whose resume offset is zero truncates too — so this is the answer to the
+/// question that has to be asked before a byte moves: is something already
+/// there, and what is it?
+///
+/// `exists: false` with a `problem` is a *third* answer and must never be drawn
+/// as the first. "Nothing is there" and "nobody could look" lead to different
+/// decisions, and collapsing them is how a file manager quietly replaces
+/// something it told the user was not there.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransferPreflightDto {
+    /// Which request in the batch this answers, by position.
+    pub index: usize,
+    /// `"upload" | "download"`.
+    pub direction: String,
+    /// Where it would land, escaped. A download's destination takes its file
+    /// name from the remote path, so this string is half server-chosen.
+    pub destination_display: String,
+    pub exists: bool,
+    /// What is there now, in bytes, where that was reported.
+    pub size: Option<u64>,
+    /// When what is there now was last changed, in seconds since the epoch.
+    pub modified: Option<u32>,
+    /// True when what is there is a directory, which a transfer cannot replace.
+    pub directory: bool,
+    /// True when the *source* is a folder, so this request expands into one
+    /// transfer per file underneath it.
+    ///
+    /// The facts above then describe the destination *folder* rather than a
+    /// file: a folder transfer merges, replacing only the files whose names
+    /// collide. Showing that in the same list as "this file will be replaced"
+    /// would be saying something untrue about both.
+    pub source_is_folder: bool,
+    pub problem: Option<PreflightProblemDto>,
+}
+
+/// One entry a folder transfer would not queue, and why.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EnqueueSkippedDto {
+    /// Where it was, escaped for display.
+    pub path: String,
+    /// The stable code from the failure taxonomy.
+    pub code: String,
+    /// The core's English. The interface renders the catalogue's sentence.
+    pub message: String,
+}
+
+/// What queueing a batch actually queued.
+///
+/// A list of ids would answer "how many" and nothing else, which stopped being
+/// enough the moment a folder became transferable: one request can now expand
+/// into nine hundred transfers, skip four of them because the server named them
+/// something this computer cannot spell, and stop at its own limit. A caller
+/// that got back nine hundred ids would have no way to know any of that, and
+/// the interface would report a partial result as a success.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EnqueueReportDto {
+    /// The new transfers, in the order they were queued.
+    pub transfer_ids: Vec<u64>,
+    /// How many of the requests were folders that had to be walked.
+    pub folders_expanded: u64,
+    /// How many directories had to be created on the destination side.
+    pub directories_created: u64,
+    /// Everything a folder walk would not queue, and why.
+    pub skipped: Vec<EnqueueSkippedDto>,
+    /// True when a walk stopped at its own limit rather than at the end.
+    pub limit_reached: bool,
+}
+
+impl EnqueueReportDto {
+    /// Whether everything asked for is in the queue.
+    #[must_use]
+    pub fn is_complete(&self) -> bool {
+        self.skipped.is_empty() && !self.limit_reached
+    }
 }
 
 /// What a transfer decided before it moved a byte.
@@ -279,6 +398,23 @@ pub struct TransferStatusDto {
     pub state: TransferStateDto,
     /// What it settled before it began. `None` until it does.
     pub start: Option<TransferStartDto>,
+    /// When it was added to the queue, in milliseconds since the Unix epoch.
+    ///
+    /// These four are what let the queue say how fast, how long and how much
+    /// longer. Without them a row could show a byte count and a percentage and
+    /// nothing else — and "412 MiB of 1.2 GiB" does not answer the question
+    /// somebody watching a transfer has, which is whether to wait for it. The
+    /// interface computes the figures rather than being sent them: a rate is a
+    /// difference between two readings and the reader's own clock is the one
+    /// the bar is drawn against.
+    pub queued_at_ms: u64,
+    /// When it took a slot. `None` while it is still waiting.
+    pub started_at_ms: Option<u64>,
+    /// When it reached a terminal state. `None` until it does.
+    pub finished_at_ms: Option<u64>,
+    /// When its byte count last moved. What tells a stalled transfer from a
+    /// slow one, which a lifetime average cannot.
+    pub progress_at_ms: Option<u64>,
 }
 
 // =============================================================== the pane ==
@@ -551,7 +687,7 @@ pub(crate) async fn sftp_canonicalize(
     state: State<'_, AppState>,
     pane_id: u64,
     path: String,
-) -> Result<String, IpcError> {
+) -> Result<ResolvedPathDto, IpcError> {
     sftp_canonicalize_impl(&state, pane_id, path).await
 }
 
@@ -559,11 +695,12 @@ pub(crate) async fn sftp_canonicalize_impl(
     state: &AppState,
     pane_id: u64,
     path: String,
-) -> Result<String, IpcError> {
+) -> Result<ResolvedPathDto, IpcError> {
     let browser = browser_for(state, pane_id, &path)?;
     browser
         .canonicalize(&path)
         .await
+        .map(ResolvedPathDto::new)
         .map_err(|err| ipc_error(&err))
 }
 
@@ -573,7 +710,7 @@ pub(crate) async fn sftp_read_link(
     state: State<'_, AppState>,
     pane_id: u64,
     path: String,
-) -> Result<String, IpcError> {
+) -> Result<ResolvedPathDto, IpcError> {
     sftp_read_link_impl(&state, pane_id, path).await
 }
 
@@ -581,11 +718,12 @@ pub(crate) async fn sftp_read_link_impl(
     state: &AppState,
     pane_id: u64,
     path: String,
-) -> Result<String, IpcError> {
+) -> Result<ResolvedPathDto, IpcError> {
     let browser = browser_for(state, pane_id, &path)?;
     browser
         .read_link(&path)
         .await
+        .map(ResolvedPathDto::new)
         .map_err(|err| ipc_error(&err))
 }
 
@@ -775,37 +913,261 @@ pub(crate) async fn sftp_symlink_impl(
 ///
 /// Returns the new ids in the order the requests were given. The queue drains
 /// itself; nothing here waits for a byte to move.
+/// What a batch of transfers would land on, before any of it is queued.
+///
+/// Read-only and side-effect free by construction: it looks, it does not queue,
+/// and it does not create so much as an empty directory. That is what lets the
+/// interface ask the question a destructive action has to ask — "these files
+/// will be replaced; go ahead?" — *before* anything is started rather than
+/// after, which is the difference between a confirmation and a notification.
+///
+/// One entry per request, by position, so a caller can put an answer beside the
+/// request that produced it. A request whose source is a folder gets one entry
+/// describing the destination folder and `sourceIsFolder`, not one entry per
+/// file underneath it: enumerating a tree is a walk over the network, and doing
+/// it here as well as in [`sftp_enqueue`] would walk it twice for one click.
 #[tauri::command]
-pub(crate) fn sftp_enqueue(
+pub(crate) async fn sftp_preflight(
     state: State<'_, AppState>,
     pane_id: u64,
     requests: Vec<TransferRequestDto>,
-) -> Result<Vec<u64>, IpcError> {
-    sftp_enqueue_impl(&state, pane_id, requests)
+) -> Result<Vec<TransferPreflightDto>, IpcError> {
+    sftp_preflight_impl(&state, pane_id, requests).await
 }
 
-pub(crate) fn sftp_enqueue_impl(
+pub(crate) async fn sftp_preflight_impl(
     state: &AppState,
     pane_id: u64,
     requests: Vec<TransferRequestDto>,
-) -> Result<Vec<u64>, IpcError> {
-    // Every request is resolved before any is queued: a batch of forty with a
-    // bad one in the middle should refuse as a batch rather than start twenty
-    // and then complain.
+) -> Result<Vec<TransferPreflightDto>, IpcError> {
+    // The same resolution the queue would do, so the destination reported is
+    // the destination that would be written — including the file name
+    // `local_name_for` derives from a remote path, which is the half of a
+    // download's destination the server chose.
+    let resolved = requests
+        .iter()
+        .map(resolve_request)
+        .collect::<Result<Vec<_>, _>>()?;
+    let browser = pane_browser(state, pane_id)?;
+
+    let mut answers = Vec::with_capacity(resolved.len());
+    for (index, request) in resolved.iter().enumerate() {
+        answers.push(preflight_one(&browser, index, request).await);
+    }
+    Ok(answers)
+}
+
+async fn preflight_one(
+    browser: &Arc<SftpBrowser>,
+    index: usize,
+    request: &TransferRequest,
+) -> TransferPreflightDto {
+    let source_is_folder = source_is_folder(browser, request).await;
+    let mut answer = TransferPreflightDto {
+        index,
+        direction: direction_wire(request.direction).to_owned(),
+        destination_display: match request.direction {
+            TransferDirection::Upload => escape_untrusted(&request.remote),
+            // Escaped as well: the file-name half of a download's destination
+            // came from the remote path.
+            TransferDirection::Download => escape_untrusted(&request.local.display().to_string()),
+        },
+        exists: false,
+        size: None,
+        modified: None,
+        directory: false,
+        source_is_folder,
+        problem: None,
+    };
+
+    match request.direction {
+        TransferDirection::Upload => match browser.metadata(&request.remote).await {
+            Ok(entry) => {
+                answer.exists = true;
+                answer.size = entry.size;
+                answer.modified = entry.modified;
+                answer.directory = entry.kind == EntryKind::Directory;
+            }
+            // The one refusal that is an answer rather than a failure: there is
+            // nothing there, which is exactly what the caller asked.
+            Err(ProtocolError::PathNotFound) => {}
+            Err(error) => {
+                let mapped = ipc_error(&error);
+                answer.problem = Some(PreflightProblemDto {
+                    code: mapped.code,
+                    message: mapped.message,
+                });
+            }
+        },
+        TransferDirection::Download => match tokio::fs::metadata(&request.local).await {
+            Ok(metadata) => {
+                answer.exists = true;
+                answer.size = Some(metadata.len());
+                answer.directory = metadata.is_dir();
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => {
+                answer.problem = Some(PreflightProblemDto {
+                    code: String::from("sftp.local-destination-unreadable"),
+                    message: local_destination_unreadable(&request.local, &error).message,
+                });
+            }
+        },
+    }
+
+    answer
+}
+
+/// The failure for a local destination nobody could look at.
+///
+/// Deliberately not fatal: the transfer is still offered, and the dialog says
+/// which destinations could not be checked. What it must not do is let the
+/// interface draw "nothing is there" over "nobody could look" — see
+/// [`TransferPreflightDto`].
+fn local_destination_unreadable(path: &Path, error: &std::io::Error) -> IpcError {
+    IpcError::new(
+        "sftp.local-destination-unreadable",
+        format!(
+            "Remoter could not check whether a file is already at `{}` on this computer. The \
+             transfer can still be sent, but nothing is known about what it would replace.",
+            path.display()
+        ),
+    )
+    .with_detail(error.to_string())
+    .with_actions([
+        "Choose a different folder",
+        "Check the folder's permissions on this computer",
+    ])
+}
+
+/// Whether the thing being copied is a folder rather than a file.
+///
+/// `false` when it could not be looked at: the transfer is then queued as a
+/// single file and fails with the server's own reason, which is a better
+/// sentence than a guess made here.
+///
+/// **One round trip per request, and only in one direction.** A download asks
+/// the server about its source; an upload asks this machine, which is free. So
+/// a batch of forty downloads costs forty stats here and forty in the
+/// preflight, and a batch of forty uploads costs forty in the preflight alone.
+/// That is a real cost on a high-latency link and it is the price of knowing,
+/// before anything is queued, whether the thing the user pointed at is a
+/// directory — which is the difference between "copy this folder down" working
+/// and failing forty times.
+///
+/// The *root* of a transfer follows a symbolic link — the user pointed at this
+/// entry and a link to a directory is a directory to them — while the walk
+/// underneath it does not follow any. That asymmetry is deliberate and is the
+/// same one `cp -r link/` has: one link the user named is a choice, and every
+/// link found by a walk is the server's.
+async fn source_is_folder(browser: &Arc<SftpBrowser>, request: &TransferRequest) -> bool {
+    match request.direction {
+        TransferDirection::Download => browser
+            .metadata(&request.remote)
+            .await
+            .is_ok_and(|entry| entry.kind == EntryKind::Directory),
+        TransferDirection::Upload => tokio::fs::metadata(&request.local)
+            .await
+            .is_ok_and(|metadata| metadata.is_dir()),
+    }
+}
+
+/// Queues transfers, expanding any folder among them into its files.
+///
+/// Asynchronous because a folder is not one transfer: expanding it is a walk
+/// over the network, and the directories on the destination side have to exist
+/// before the files land in them. A synchronous enqueue is what made "copy this
+/// directory down" — the commonest job anyone opens a file manager for —
+/// impossible rather than merely slow.
+///
+/// Every request is resolved before any of them is queued, so a batch of forty
+/// with one impossible request in the middle refuses as a batch rather than
+/// starting twenty and then complaining. A folder whose walk was incomplete is
+/// the one case that is *not* refused: the files it did find are queued and the
+/// report says what was left out, because refusing a thousand-file directory
+/// over four unreadable entries helps nobody.
+#[tauri::command]
+pub(crate) async fn sftp_enqueue(
+    state: State<'_, AppState>,
+    pane_id: u64,
+    requests: Vec<TransferRequestDto>,
+) -> Result<EnqueueReportDto, IpcError> {
+    sftp_enqueue_impl(&state, pane_id, requests).await
+}
+
+pub(crate) async fn sftp_enqueue_impl(
+    state: &AppState,
+    pane_id: u64,
+    requests: Vec<TransferRequestDto>,
+) -> Result<EnqueueReportDto, IpcError> {
     let resolved = requests
         .iter()
         .map(resolve_request)
         .collect::<Result<Vec<_>, _>>()?;
 
+    let (browser, cancel) = pane_parts(state, pane_id)?;
+
+    let mut queueing: Vec<TransferRequest> = Vec::new();
+    let mut report = EnqueueReportDto {
+        transfer_ids: Vec::new(),
+        folders_expanded: 0,
+        directories_created: 0,
+        skipped: Vec::new(),
+        limit_reached: false,
+    };
+
+    for request in resolved {
+        if !source_is_folder(&browser, &request).await {
+            queueing.push(request);
+            continue;
+        }
+
+        let plan = match request.direction {
+            TransferDirection::Download => {
+                browser
+                    .plan_download_tree(&request.remote, &request.local, &cancel)
+                    .await
+            }
+            TransferDirection::Upload => {
+                browser
+                    .plan_upload_tree(&request.local, &request.remote, &cancel)
+                    .await
+            }
+        }
+        .map_err(|error| ipc_error(&error))?;
+
+        report.folders_expanded = report.folders_expanded.saturating_add(1);
+        report.directories_created = report.directories_created.saturating_add(plan.directories);
+        report.limit_reached = report.limit_reached || plan.limit_reached;
+        for skip in &plan.skipped {
+            let mapped = ipc_error(&skip.reason);
+            report.skipped.push(EnqueueSkippedDto {
+                // Escaped: on a download every component of this path was
+                // chosen by the server.
+                path: escape_untrusted(&skip.path),
+                code: mapped.code,
+                message: mapped.message,
+            });
+        }
+        for file in plan.files {
+            queueing.push(TransferRequest {
+                direction: request.direction,
+                remote: file.remote,
+                local: file.local,
+                resume: request.resume,
+            });
+        }
+    }
+
     let hub = state.sessions();
     let panes = hub.panes.lock();
     let pane = panes.get(&pane_id).ok_or_else(no_such_pane)?;
-    let ids = resolved
+    report.transfer_ids = queueing
         .into_iter()
         .map(|request| pane.queue.enqueue(request).get())
         .collect();
     pane.wake();
-    Ok(ids)
+    Ok(report)
 }
 
 /// Every transfer this pane knows about, in the order they were queued.
@@ -996,6 +1358,10 @@ fn transfer_dto(status: &TransferStatus) -> TransferStatusDto {
         start: status
             .start
             .map(|start| start_dto(start, status.request.direction)),
+        queued_at_ms: status.clock.queued_at_ms,
+        started_at_ms: status.clock.started_at_ms,
+        finished_at_ms: status.clock.finished_at_ms,
+        progress_at_ms: status.clock.progress_at_ms,
     }
 }
 
@@ -1147,6 +1513,35 @@ fn browser_for(state: &AppState, pane_id: u64, path: &str) -> Result<Arc<SftpBro
         .ok_or_else(no_such_pane)
 }
 
+/// The browser for a pane, with no path to check first.
+///
+/// Cloned out from under the lock so nothing awaits while holding it.
+fn pane_browser(state: &AppState, pane_id: u64) -> Result<Arc<SftpBrowser>, IpcError> {
+    let hub = state.sessions();
+    let panes = hub.panes.lock();
+    panes
+        .get(&pane_id)
+        .map(|pane| Arc::clone(&pane.browser))
+        .ok_or_else(no_such_pane)
+}
+
+/// The browser and the pane's cancellation token together.
+///
+/// A folder walk is the one operation here that can run for a while, so it
+/// needs the token: closing the tab has to stop a walk over a hundred
+/// thousand entries, not merely stop the transfers it would have queued.
+fn pane_parts(
+    state: &AppState,
+    pane_id: u64,
+) -> Result<(Arc<SftpBrowser>, CancellationToken), IpcError> {
+    let hub = state.sessions();
+    let panes = hub.panes.lock();
+    panes
+        .get(&pane_id)
+        .map(|pane| (Arc::clone(&pane.browser), pane.cancel.clone()))
+        .ok_or_else(no_such_pane)
+}
+
 fn no_such_pane() -> IpcError {
     IpcError::new(
         "sftp.no-such-pane",
@@ -1215,9 +1610,11 @@ fn listing_error(error: &ProtocolError, path: &str) -> IpcError {
 /// A rename that failed, with the cause most servers cannot tell you about.
 ///
 /// `SSH_FXP_RENAME` fails across filesystems on most servers and reports it as
-/// a plain failure, which reads as a permission problem the user does not have.
+/// `SSH_FX_FAILURE`, version 3's one catch-all status — which is
+/// [`ProtocolError::FileOperationRefused`] in the taxonomy and would otherwise
+/// reach the user as "the server did not say why".
 fn rename_error(error: &ProtocolError, from: &str, to: &str) -> IpcError {
-    if matches!(error, ProtocolError::ProtocolViolation { .. }) {
+    if matches!(error, ProtocolError::FileOperationRefused) {
         return IpcError::new(
             "sftp.rename-failed",
             format!(
@@ -1244,7 +1641,9 @@ fn rename_error(error: &ProtocolError, from: &str, to: &str) -> IpcError {
     reason = "test code, per the workspace convention"
 )]
 mod tests {
-    use remoter_proto_ssh::sftp::{DeleteFailure, MAX_DELETE_DEPTH, MAX_DELETE_ENTRIES};
+    use remoter_proto_ssh::sftp::{
+        DeleteFailure, MAX_DELETE_DEPTH, MAX_DELETE_ENTRIES, TransferClock,
+    };
 
     use super::*;
 
@@ -1392,6 +1791,7 @@ mod tests {
             },
             state: TransferState::Queued,
             start: None,
+            clock: TransferClock::default(),
         };
 
         let status = queued("/home/ada/Downloads/annex\u{202E}txt.exe");
@@ -1559,9 +1959,7 @@ mod tests {
     #[test]
     fn a_failed_rename_offers_the_thing_that_actually_works() {
         let error = rename_error(
-            &ProtocolError::ProtocolViolation {
-                detail: "the SFTP server reported a failure",
-            },
+            &ProtocolError::FileOperationRefused,
             "/srv/data/a.tar",
             "/mnt/backup/a.tar",
         );
@@ -1584,9 +1982,9 @@ mod tests {
             directories_removed: 1,
             failures: vec![DeleteFailure {
                 path: String::from("/srv/data/locked\u{202E}txt.exe"),
-                reason: ProtocolError::AuthRejected {
-                    attempted: remoter_proto::CredentialKind::None,
-                },
+                // A file-permission refusal, which is what a locked file in
+                // a tree being removed actually produces.
+                reason: ProtocolError::PathPermissionDenied,
             }],
             cancelled: false,
             limit_reached: false,

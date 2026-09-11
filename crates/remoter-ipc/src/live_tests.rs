@@ -53,10 +53,10 @@ use crate::session::{
     session_resize_impl,
 };
 use crate::sftp::{
-    SftpPaneDto, TransferRequestDto, TransferStateDto, TransferStatusDto, sftp_close_impl,
-    sftp_delete_impl, sftp_enqueue_impl, sftp_list_impl, sftp_mkdir_impl, sftp_open_impl,
-    sftp_rename_impl, sftp_set_permissions_impl, sftp_stat_impl, sftp_transfer_cancel_impl,
-    sftp_transfer_retry_impl, sftp_transfers_impl,
+    EnqueueReportDto, SftpPaneDto, TransferRequestDto, TransferStateDto, TransferStatusDto,
+    sftp_close_impl, sftp_delete_impl, sftp_enqueue_impl, sftp_list_impl, sftp_mkdir_impl,
+    sftp_open_impl, sftp_preflight_impl, sftp_rename_impl, sftp_set_permissions_impl,
+    sftp_stat_impl, sftp_transfer_cancel_impl, sftp_transfer_retry_impl, sftp_transfers_impl,
 };
 use crate::state::AppState;
 use crate::test_support::{Scratch, open_vault};
@@ -744,6 +744,21 @@ async fn open_pane(fixture: &Fixture) -> (SessionOpenedDto, SftpPaneDto, Arc<Mut
     (opened, pane, collected)
 }
 
+/// The ids from an enqueue, with the report asserted complete.
+///
+/// A batch that skipped an entry or stopped at its own limit is not what any of
+/// these tests asked for, and letting one through would turn a partial result
+/// into a green tick — the exact defect the report exists to prevent.
+fn report_ids(report: EnqueueReportDto) -> Vec<u64> {
+    assert!(
+        report.is_complete(),
+        "the batch was queued only in part: skipped {:?}, limit reached {}",
+        report.skipped,
+        report.limit_reached
+    );
+    report.transfer_ids
+}
+
 /// Waits for a transfer to reach a terminal state.
 async fn await_transfer(state: &Arc<AppState>, pane: u64, id: u64) -> TransferStatusDto {
     for _ in 0..600 {
@@ -911,18 +926,21 @@ async fn a_transfer_moves_every_byte_and_reports_progress_as_it_goes() {
     std::fs::write(&local_source, &source).expect("the local file should be written");
     let remote_target = format!("{root}/payload.bin");
 
-    let ids = sftp_enqueue_impl(
-        &fixture.state,
-        pane.pane_id,
-        vec![TransferRequestDto {
-            direction: String::from("upload"),
-            remote: remote_target.clone(),
-            local: Some(local_source.display().to_string()),
-            local_directory: None,
-            resume: false,
-        }],
-    )
-    .expect("the upload should queue");
+    let ids = report_ids(
+        sftp_enqueue_impl(
+            &fixture.state,
+            pane.pane_id,
+            vec![TransferRequestDto {
+                direction: String::from("upload"),
+                remote: remote_target.clone(),
+                local: Some(local_source.display().to_string()),
+                local_directory: None,
+                resume: false,
+            }],
+        )
+        .await
+        .expect("the upload should queue"),
+    );
     let status = await_transfer(&fixture.state, pane.pane_id, ids[0]).await;
     match status.state {
         TransferStateDto::Completed { bytes } => assert_eq!(bytes, source.len() as u64),
@@ -956,18 +974,21 @@ async fn a_transfer_moves_every_byte_and_reports_progress_as_it_goes() {
     // `local_name_for` rather than from anything the server said.
     let into = local_scratch.join("incoming");
     std::fs::create_dir_all(&into).expect("the download folder should be created");
-    let ids = sftp_enqueue_impl(
-        &fixture.state,
-        pane.pane_id,
-        vec![TransferRequestDto {
-            direction: String::from("download"),
-            remote: remote_target,
-            local: None,
-            local_directory: Some(into.display().to_string()),
-            resume: false,
-        }],
-    )
-    .expect("the download should queue");
+    let ids = report_ids(
+        sftp_enqueue_impl(
+            &fixture.state,
+            pane.pane_id,
+            vec![TransferRequestDto {
+                direction: String::from("download"),
+                remote: remote_target,
+                local: None,
+                local_directory: Some(into.display().to_string()),
+                resume: false,
+            }],
+        )
+        .await
+        .expect("the download should queue"),
+    );
     let status = await_transfer(&fixture.state, pane.pane_id, ids[0]).await;
     assert!(
         matches!(status.state, TransferStateDto::Completed { .. }),
@@ -1003,12 +1024,15 @@ async fn a_resume_continues_a_partial_file_and_says_so_when_it_will_not() {
     let partial = local_scratch.join("archive.bin");
     std::fs::write(&partial, &source[..400_000]).expect("the partial file should be written");
 
-    let ids = sftp_enqueue_impl(
-        &fixture.state,
-        pane.pane_id,
-        vec![download(&remote_path, &partial.display().to_string(), true)],
-    )
-    .expect("the resume should queue");
+    let ids = report_ids(
+        sftp_enqueue_impl(
+            &fixture.state,
+            pane.pane_id,
+            vec![download(&remote_path, &partial.display().to_string(), true)],
+        )
+        .await
+        .expect("the resume should queue"),
+    );
     let status = await_transfer(&fixture.state, pane.pane_id, ids[0]).await;
     assert!(
         matches!(status.state, TransferStateDto::Completed { .. }),
@@ -1030,12 +1054,15 @@ async fn a_resume_continues_a_partial_file_and_says_so_when_it_will_not() {
     // Now the file is already whole. `resume_offset` refuses anything that is
     // not strictly shorter, and the refusal is a sentence the user can act on
     // rather than a bar that silently restarts.
-    let ids = sftp_enqueue_impl(
-        &fixture.state,
-        pane.pane_id,
-        vec![download(&remote_path, &partial.display().to_string(), true)],
-    )
-    .expect("the second attempt should queue");
+    let ids = report_ids(
+        sftp_enqueue_impl(
+            &fixture.state,
+            pane.pane_id,
+            vec![download(&remote_path, &partial.display().to_string(), true)],
+        )
+        .await
+        .expect("the second attempt should queue"),
+    );
     let status = await_transfer(&fixture.state, pane.pane_id, ids[0]).await;
     let start = status
         .start
@@ -1071,19 +1098,22 @@ async fn transfers_are_cancellable_one_at_a_time_and_retryable_afterwards() {
 
     let destination = local_scratch.join("big.bin");
     let queued_destination = local_scratch.join("never.bin");
-    let ids = sftp_enqueue_impl(
-        &fixture.state,
-        pane.pane_id,
-        vec![
-            download(&remote_path, &destination.display().to_string(), false),
-            download(
-                &remote_path,
-                &queued_destination.display().to_string(),
-                false,
-            ),
-        ],
-    )
-    .expect("both should queue");
+    let ids = report_ids(
+        sftp_enqueue_impl(
+            &fixture.state,
+            pane.pane_id,
+            vec![
+                download(&remote_path, &destination.display().to_string(), false),
+                download(
+                    &remote_path,
+                    &queued_destination.display().to_string(),
+                    false,
+                ),
+            ],
+        )
+        .await
+        .expect("both should queue"),
+    );
     assert_eq!(ids.len(), 2);
 
     // Stop the second one while it is still waiting for a slot: it must never
@@ -1218,18 +1248,21 @@ async fn a_hostile_file_name_is_shown_safely_and_still_addresses_the_right_file(
     // else, under the name the server chose.
     let into = local_scratch.join("incoming");
     std::fs::create_dir_all(&into).expect("the folder should be created");
-    let ids = sftp_enqueue_impl(
-        &fixture.state,
-        pane.pane_id,
-        vec![TransferRequestDto {
-            direction: String::from("download"),
-            remote: shown.path.clone(),
-            local: None,
-            local_directory: Some(into.display().to_string()),
-            resume: false,
-        }],
-    )
-    .expect("the download should queue");
+    let ids = report_ids(
+        sftp_enqueue_impl(
+            &fixture.state,
+            pane.pane_id,
+            vec![TransferRequestDto {
+                direction: String::from("download"),
+                remote: shown.path.clone(),
+                local: None,
+                local_directory: Some(into.display().to_string()),
+                resume: false,
+            }],
+        )
+        .await
+        .expect("the download should queue"),
+    );
     let status = await_transfer(&fixture.state, pane.pane_id, ids[0]).await;
     assert!(
         matches!(status.state, TransferStateDto::Completed { .. }),
@@ -1330,8 +1363,11 @@ async fn a_queue_of_several_transfers_arrives_intact() {
         });
     }
 
-    let ids =
-        sftp_enqueue_impl(&fixture.state, pane.pane_id, requests).expect("the batch should queue");
+    let ids = report_ids(
+        sftp_enqueue_impl(&fixture.state, pane.pane_id, requests)
+            .await
+            .expect("the batch should queue"),
+    );
     assert_eq!(ids.len(), payloads.len());
     for id in &ids {
         let status = await_transfer(&fixture.state, pane.pane_id, *id).await;
@@ -1370,16 +1406,19 @@ async fn closing_a_pane_stops_a_transfer_that_is_in_flight() {
     std::fs::write(&remote_path, &source).expect("the remote file should be written");
     let destination = local_scratch.join("big.bin");
 
-    let ids = sftp_enqueue_impl(
-        &fixture.state,
-        pane.pane_id,
-        vec![download(
-            &remote_path,
-            &destination.display().to_string(),
-            false,
-        )],
-    )
-    .expect("the download should queue");
+    let ids = report_ids(
+        sftp_enqueue_impl(
+            &fixture.state,
+            pane.pane_id,
+            vec![download(
+                &remote_path,
+                &destination.display().to_string(),
+                false,
+            )],
+        )
+        .await
+        .expect("the download should queue"),
+    );
 
     let mut moving = false;
     for _ in 0..2_000 {
@@ -1422,6 +1461,308 @@ async fn closing_a_pane_stops_a_transfer_that_is_in_flight() {
         Some(String::from("sftp.no-such-pane"))
     );
     assert_eq!(ids.len(), 1);
+
+    session_close_impl(&fixture.state, opened.session_id)
+        .await
+        .unwrap();
+}
+
+/// A whole directory, down and back up again, against a real server.
+///
+/// The commonest job anyone opens a file manager for, and the one the pane
+/// could not do at all: `sftp_enqueue` was synchronous, so it had nowhere to
+/// put the walk. This asserts the *effect* — every file present on the other
+/// side with its bytes intact, and the nesting preserved — rather than that a
+/// walk was called.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_folder_is_transferred_whole_in_both_directions() {
+    let fixture = fixture(KEY, None);
+    let (opened, pane, _collected) = open_pane(&fixture).await;
+    let (_remote_scratch, root) = remote_dir();
+    let local_scratch = Scratch::new();
+
+    // A tree with a subdirectory, because a flat folder would pass with a walk
+    // that never descends.
+    let source_root = format!("{root}/project");
+    std::fs::create_dir_all(format!("{source_root}/config/nested"))
+        .expect("the remote tree should be created");
+    let payloads: [(&str, &[u8]); 3] = [
+        ("readme.txt", b"the top level"),
+        ("config/app.toml", b"one level down"),
+        ("config/nested/deep.bin", b"\x00\x01\x02two levels down"),
+    ];
+    for (relative, bytes) in payloads {
+        std::fs::write(format!("{source_root}/{relative}"), bytes)
+            .expect("a remote file should be written");
+    }
+
+    // --- down ---
+    let into = local_scratch.join("landing");
+    std::fs::create_dir_all(&into).expect("the landing folder should be created");
+    let down = report_ids(
+        sftp_enqueue_impl(
+            &fixture.state,
+            pane.pane_id,
+            vec![TransferRequestDto {
+                direction: String::from("download"),
+                remote: source_root.clone(),
+                local: None,
+                local_directory: Some(into.display().to_string()),
+                resume: false,
+            }],
+        )
+        .await
+        .expect("the folder download should queue"),
+    );
+    assert_eq!(
+        down.len(),
+        payloads.len(),
+        "one transfer per file under the folder"
+    );
+    for id in &down {
+        let status = await_transfer(&fixture.state, pane.pane_id, *id).await;
+        assert!(
+            matches!(status.state, TransferStateDto::Completed { .. }),
+            "transfer {id} did not complete: {:?}",
+            status.state
+        );
+    }
+    for (relative, bytes) in payloads {
+        let landed = into.join("project").join(relative);
+        assert_eq!(
+            std::fs::read(&landed).unwrap_or_else(|_| panic!("{} should exist", landed.display())),
+            bytes,
+            "{relative} did not arrive byte for byte"
+        );
+    }
+
+    // --- and back up, into a folder of its own on the far side ---
+    let up_root = format!("{root}/returned");
+    std::fs::create_dir_all(&up_root).expect("the destination should exist");
+    let up = report_ids(
+        sftp_enqueue_impl(
+            &fixture.state,
+            pane.pane_id,
+            vec![TransferRequestDto {
+                direction: String::from("upload"),
+                remote: format!("{up_root}/project"),
+                local: Some(into.join("project").display().to_string()),
+                local_directory: None,
+                resume: false,
+            }],
+        )
+        .await
+        .expect("the folder upload should queue"),
+    );
+    assert_eq!(up.len(), payloads.len());
+    for id in &up {
+        let status = await_transfer(&fixture.state, pane.pane_id, *id).await;
+        assert!(
+            matches!(status.state, TransferStateDto::Completed { .. }),
+            "transfer {id} did not complete: {:?}",
+            status.state
+        );
+    }
+    for (relative, bytes) in payloads {
+        assert_eq!(
+            std::fs::read(format!("{up_root}/project/{relative}"))
+                .unwrap_or_else(|_| panic!("{relative} should have been sent")),
+            bytes
+        );
+    }
+
+    session_close_impl(&fixture.state, opened.session_id)
+        .await
+        .unwrap();
+}
+
+/// A folder walk reports what it refused rather than dropping it.
+///
+/// A symbolic link inside a transferred folder is not followed — descending one
+/// is how a link to `/` becomes a copy of the filesystem — and the caller is
+/// told, because a folder transfer that silently arrived four files short is
+/// how a backup turns out to be incomplete six months later.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_folder_transfer_reports_what_it_would_not_take() {
+    let fixture = fixture(KEY, None);
+    let (opened, pane, _collected) = open_pane(&fixture).await;
+    let (_remote_scratch, root) = remote_dir();
+    let local_scratch = Scratch::new();
+
+    let source_root = format!("{root}/mixed");
+    std::fs::create_dir_all(&source_root).expect("the remote tree should be created");
+    std::fs::write(format!("{source_root}/real.txt"), b"a real file")
+        .expect("the file should be written");
+    std::os::unix::fs::symlink("/etc/passwd", format!("{source_root}/link"))
+        .expect("the link should be created");
+
+    let into = local_scratch.join("landing");
+    std::fs::create_dir_all(&into).expect("the landing folder should be created");
+    let report = sftp_enqueue_impl(
+        &fixture.state,
+        pane.pane_id,
+        vec![TransferRequestDto {
+            direction: String::from("download"),
+            remote: source_root.clone(),
+            local: None,
+            local_directory: Some(into.display().to_string()),
+            resume: false,
+        }],
+    )
+    .await
+    .expect("the folder download should queue");
+
+    assert_eq!(report.transfer_ids.len(), 1, "only the real file is queued");
+    assert!(
+        !report.is_complete(),
+        "a walk that left the link behind is not complete"
+    );
+    assert_eq!(report.skipped.len(), 1);
+    let skipped = &report.skipped[0];
+    assert!(skipped.path.ends_with("/link"), "{}", skipped.path);
+    assert!(!skipped.code.is_empty());
+    assert!(!skipped.message.is_empty());
+
+    let status = await_transfer(&fixture.state, pane.pane_id, report.transfer_ids[0]).await;
+    assert!(matches!(status.state, TransferStateDto::Completed { .. }));
+    assert!(
+        !into.join("mixed").join("link").exists(),
+        "the link was followed after all"
+    );
+
+    session_close_impl(&fixture.state, opened.session_id)
+        .await
+        .unwrap();
+}
+
+/// Preflight answers "is something already there?" without queueing anything.
+///
+/// Three answers, and the third is the one that matters: "nothing is there",
+/// "this is what is there", and "nobody could look". Drawing the third as the
+/// first is how a file manager quietly replaces a file it said was absent.
+#[tokio::test(flavor = "multi_thread")]
+async fn preflight_says_what_a_transfer_would_replace_and_queues_nothing() {
+    let fixture = fixture(KEY, None);
+    let (opened, pane, _collected) = open_pane(&fixture).await;
+    let (_remote_scratch, root) = remote_dir();
+    let local_scratch = Scratch::new();
+
+    let occupied = format!("{root}/occupied.bin");
+    std::fs::write(&occupied, b"0123456789").expect("the remote file should be written");
+    let free = format!("{root}/free.bin");
+    let local_source = local_scratch.join("send.bin");
+    std::fs::write(&local_source, b"payload").expect("the local file should be written");
+    let folder = format!("{root}/a-folder");
+    std::fs::create_dir_all(&folder).expect("the folder should be created");
+
+    let answers = sftp_preflight_impl(
+        &fixture.state,
+        pane.pane_id,
+        vec![
+            TransferRequestDto {
+                direction: String::from("upload"),
+                remote: occupied.clone(),
+                local: Some(local_source.display().to_string()),
+                local_directory: None,
+                resume: false,
+            },
+            TransferRequestDto {
+                direction: String::from("upload"),
+                remote: free.clone(),
+                local: Some(local_source.display().to_string()),
+                local_directory: None,
+                resume: false,
+            },
+            TransferRequestDto {
+                direction: String::from("upload"),
+                remote: folder.clone(),
+                local: Some(local_source.display().to_string()),
+                local_directory: None,
+                resume: false,
+            },
+        ],
+    )
+    .await
+    .expect("the preflight should answer");
+
+    assert_eq!(answers.len(), 3);
+    assert!(answers[0].exists, "something is at the occupied path");
+    assert_eq!(answers[0].size, Some(10));
+    assert!(!answers[0].directory);
+    assert!(answers[0].problem.is_none());
+
+    assert!(!answers[1].exists, "nothing is at the free path");
+    assert!(
+        answers[1].problem.is_none(),
+        "an absent file is an answer, not a failure"
+    );
+
+    assert!(answers[2].exists);
+    assert!(answers[2].directory, "a transfer cannot replace a folder");
+
+    // Nothing was queued, and nothing on either side was touched.
+    assert!(
+        sftp_transfers_impl(&fixture.state, pane.pane_id)
+            .expect("the queue should be readable")
+            .is_empty(),
+        "preflight queued a transfer"
+    );
+    assert_eq!(
+        std::fs::read(&occupied).expect("the occupied file should be intact"),
+        b"0123456789"
+    );
+    assert!(
+        !std::path::Path::new(&free).exists(),
+        "preflight created the destination"
+    );
+
+    session_close_impl(&fixture.state, opened.session_id)
+        .await
+        .unwrap();
+}
+
+/// A transfer carries the clock the queue needs to say how fast and how long.
+///
+/// Without these the queue could show a byte count and a percentage and nothing
+/// else, and had to measure a rate from its own successive readings — a timer
+/// and a piece of derived state where a subtraction would do.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_transfer_is_timed_from_queued_to_finished() {
+    let fixture = fixture(KEY, None);
+    let (opened, pane, _collected) = open_pane(&fixture).await;
+    let (_remote_scratch, root) = remote_dir();
+    let local_scratch = Scratch::new();
+
+    let source: Vec<u8> = (0..2_000_000u32).map(|i| (i % 251) as u8).collect();
+    let remote_path = format!("{root}/timed.bin");
+    std::fs::write(&remote_path, &source).expect("the remote file should be written");
+    let destination = local_scratch.join("timed.bin");
+
+    let ids = report_ids(
+        sftp_enqueue_impl(
+            &fixture.state,
+            pane.pane_id,
+            vec![download(
+                &remote_path,
+                &destination.display().to_string(),
+                false,
+            )],
+        )
+        .await
+        .expect("the download should queue"),
+    );
+    let status = await_transfer(&fixture.state, pane.pane_id, ids[0]).await;
+    assert!(matches!(status.state, TransferStateDto::Completed { .. }));
+
+    assert!(status.queued_at_ms > 0, "a transfer is queued at some time");
+    let started = status.started_at_ms.expect("it started");
+    let finished = status.finished_at_ms.expect("it finished");
+    assert!(started >= status.queued_at_ms, "it started after it queued");
+    assert!(finished >= started, "it finished after it started");
+    let moved = status
+        .progress_at_ms
+        .expect("a two-megabyte file reports progress at least once");
+    assert!(moved >= started && moved <= finished);
 
     session_close_impl(&fixture.state, opened.session_id)
         .await

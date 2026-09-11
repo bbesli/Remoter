@@ -505,6 +505,39 @@ pub enum ProtocolError {
         protocol: ProtocolId,
     },
 
+    /// Nothing is at the path the operation named.
+    ///
+    /// A *file-manager* failure on a session that is connected and working, and
+    /// deliberately its own variant rather than a
+    /// [`SettingInvalid`](Self::SettingInvalid): reporting a missing file as a
+    /// bad setting sent the reader to the connection editor to fix a setting
+    /// that was never wrong. The path is not carried — an SFTP status message
+    /// is server-supplied text about a path, and the operation that failed
+    /// already has the path where the interface can see it.
+    #[error("there is nothing at that path on the server")]
+    PathNotFound,
+
+    /// The server refused access to a path.
+    ///
+    /// Distinct from [`AuthRejected`](Self::AuthRejected), and the distinction
+    /// is the whole point. This arrives on a connection that authenticated
+    /// minutes ago; reporting it as a credential rejection sends the reader off
+    /// to re-check an SSH key that is working perfectly. "Who you are" and
+    /// "what this file allows" are different questions.
+    #[error("the server refused access to that path")]
+    PathPermissionDenied,
+
+    /// The server refused a file operation and did not say why.
+    ///
+    /// SFTP version 3 has a single catch-all status
+    /// (`draft-ietf-secsh-filexfer-02` §7, `SSH_FX_FAILURE`) for everything
+    /// that is neither "no such file" nor "permission denied", so a full disk,
+    /// a quota, a read-only mount, a lock and a rename across two filesystems
+    /// are genuinely indistinguishable here. Naming one of them would be a
+    /// guess presented as a diagnosis.
+    #[error("the server could not complete that operation on this file")]
+    FileOperationRefused,
+
     /// The server closed the connection.
     #[error("the server closed the connection: {reason}")]
     Disconnected {
@@ -671,6 +704,12 @@ impl ProtocolError {
             Self::SettingInvalid { .. } | Self::SettingRequired { .. } => Stage::Attach,
 
             Self::Unsupported { .. }
+            // A file-manager failure on a session that is already running: the
+            // connection is up, and only this one operation on this one path
+            // failed.
+            | Self::PathNotFound
+            | Self::PathPermissionDenied
+            | Self::FileOperationRefused
             | Self::Disconnected { .. }
             | Self::NetworkLost
             | Self::ProtocolViolation { .. }
@@ -742,6 +781,15 @@ impl ProtocolError {
             Self::SettingInvalid { .. } | Self::SettingRequired { .. } => &[A::OpenSettings],
 
             Self::Unsupported { .. } => &[],
+            // "Try again" is the way out of a stale listing, which is the
+            // commonest cause by a wide margin: the folder on screen is a few
+            // seconds old and the file moved in between.
+            Self::PathNotFound => &[A::Retry],
+            // Deliberately *not* a credential action. Offering "enter a
+            // credential" beside a file-permission refusal is what taught users
+            // to re-check a working key.
+            Self::PathPermissionDenied => &[A::ContactAdministrator],
+            Self::FileOperationRefused => &[A::Retry, A::ContactAdministrator],
             Self::Disconnected { .. } => &[A::Reconnect],
             Self::ProtocolViolation { .. } => &[A::Reconnect, A::ReportDefect],
             Self::Cancelled | Self::SessionClosed => &[],

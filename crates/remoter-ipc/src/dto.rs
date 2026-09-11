@@ -1065,6 +1065,16 @@ pub struct AppSettingsDto {
     /// version stay at 1 and existing users keep their settings.
     #[serde(default)]
     pub terminal: TerminalAppearanceDto,
+    /// The folder the file manager last downloaded into, as this platform
+    /// writes it. `None` until one has been chosen.
+    ///
+    /// Stored because the local side of the file manager had no memory at all:
+    /// every pane started with no destination, and every download began by
+    /// opening a folder picker — including the second download into the folder
+    /// the first one went to. It is a path on this machine and travels with the
+    /// machine, which is why it is here rather than in the vault.
+    #[serde(default)]
+    pub file_download_folder: Option<String>,
 }
 
 /// How the terminal is painted and set.

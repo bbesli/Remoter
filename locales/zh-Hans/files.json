@@ -53,7 +53,13 @@
       "_comment_remove": "Removes one file from that list. The accessible name; {name} is a local path.",
       "remove": "移除 {name}",
       "_comment_pickerFailed": "The system picker refused to open. Every other route into this screen still works, so this is an inconvenience rather than a dead end — but it must be said, because a button that opens nothing reads as broken.",
-      "pickerFailed": "系统的文件选择器没有打开。没有发送也没有下载任何东西。"
+      "pickerFailed": "系统的文件选择器没有打开。没有发送也没有下载任何东西。",
+      "_comment_chooseFolders": "Stages whole folders to send, beside the control that stages files. Two controls rather than one because the platform file dialogs choose files or folders, not either.",
+      "chooseFolders": "选择要发送的文件夹",
+      "_comment_defaultFolder": "Shown under the destination when it is the platform's own downloads folder rather than one anybody chose. 'Remoter picked this for you' and 'you picked this' are different promises, and the pane says which one it is making. The folder works either way.",
+      "defaultFolder": "Remoter 的建议——你系统的下载文件夹。",
+      "_comment_rememberedFolder": "Shown under the destination when it is the folder chosen last. It is remembered for every file pane and across restarts, which is worth saying once so nobody chooses it again out of doubt.",
+      "rememberedFolder": "记住了上次的选择，所有文件面板通用。"
     }
   },
 
@@ -67,7 +73,17 @@
     "_comment_breadcrumb": "The accessible name of the trail of folders above the listing.",
     "breadcrumb": "上层的各级文件夹",
     "_comment_atRoot": "The title of the control that goes up, when there is nowhere above to go.",
-    "atRoot": "这里已经是文件系统的顶层"
+    "atRoot": "这里已经是文件系统的顶层",
+    "_comment_back": "Retraces the folders this pane has been through, and goes forward again. Words rather than arrow glyphs: the icon set has one arrow per direction and it already means 'go to the folder above', and an icon language stops meaning anything the moment a mark is borrowed for a second job.",
+    "back": "后退",
+    "forward": "前进",
+    "_comment_noBack": "The title of Back when this pane has not been anywhere else yet, and of Forward when it is already at the most recent folder. A disabled control that says nothing is a control the reader has to guess about.",
+    "noBack": "还没有可以后退到的位置",
+    "noForward": "你已经在最近访问的文件夹",
+    "_comment_goHint": "Under the path field. The field used to refuse anything that did not begin with a slash by disabling its button and saying nothing, so `..` and a bare folder name both looked like a broken control. Both are now sent to the server, which is the only thing that knows what they mean from here. The slash and the two dots are path syntax and are never translated.",
+    "goHint": "以 / 开头的路径按原样使用；其他写法都相对于当前文件夹。.. 表示上一级。",
+    "_comment_keyboardHint": "SAID ONCE, UNDER THE LISTING. The listing is a grid and now behaves like one; a keyboard map nobody is told about is a keyboard map nobody uses. The key names are the ones printed on the keys and are translated the way that platform's keyboards label them, never transliterated.",
+    "keyboardHint": "在列表中：方向键移动，Enter 打开，空格选择，Shift 扩展选择，Ctrl 追加一行，Backspace 返回上一级文件夹，F2 重命名，Delete 删除，输入几个字母可跳到某个名称。"
   },
 
   "columns": {
@@ -136,10 +152,12 @@
     "upload": "发送",
     "_comment_selected": "How many rows are chosen. ICU plural.",
     "selected": "{count, plural, =0 {未选择任何项} other {已选 # 项}}",
-    "_comment_filesOnly": "HONESTY. On a folder row's disabled checkbox. Expanding a folder into one transfer per file is a walk on the source side that is not built, so folders cannot be queued at all — rather than appearing to queue and quietly moving nothing.",
-    "filesOnly": "此版本只能传输文件。",
+    "_comment_filesOnly": "HONESTY. On the disabled checkbox of a row that is neither a file nor a folder — a socket, a device, a named pipe. Folders *can* be transferred: the core walks one and queues a transfer per file underneath. What cannot be copied is an entry with no contents to copy.",
+    "filesOnly": "套接字、设备和命名管道无法传输：里面没有可复制的内容。",
     "selectAll": "选择此文件夹中的全部内容",
-    "clearSelection": "清除选择"
+    "clearSelection": "清除选择",
+    "_comment_properties": "The row action that opens the entry's own facts. A noun, because the dialog shows rather than does — the one thing it changes is named on its own button.",
+    "properties": "属性"
   },
 
   "drop": {
@@ -271,7 +289,24 @@
 
     "_comment_enqueueFailed": "Heading over the core's failure when a batch was refused. The batch is resolved before any of it is queued, so nothing has started.",
     "enqueueFailed": "没有任何内容进入队列",
-    "enqueueFailedNote": "整批任务在开始之前就已经检查过了，因此没有任何传输在运行。"
+    "enqueueFailedNote": "整批任务在开始之前就已经检查过了，因此没有任何传输在运行。",
+    "_comment_collapse": "Rolls the list of transfers away. The panel keeps its heading and its counts when collapsed — a queue that hides how many failed is a queue that hides a failure — and the preference is remembered per pane, because on a laptop the queue takes a third of the pane it shares with the listing.",
+    "collapse": "收起传输列表",
+    "expand": "显示传输列表",
+    "_comment_failedCount": "Shown beside the heading, including while the list is rolled up. A failure nobody can see is one they will read as nothing having happened. ICU plural.",
+    "failedCount": "{count, plural, other {# 项失败}}",
+    "_comment_speed": "HONEST ESTIMATE. Measured by the interface from the clock the core puts on each transfer, over this attempt rather than over the whole file — a resumed transfer moves at the speed of what it has actually fetched. {rate} is a byte count already formatted for the reader; the unit mark after it is a per-second, not a word.",
+    "speed": "{rate}/秒",
+    "_comment_remainingHours": "How much longer, at the measured rate. Rounded to the leading unit on purpose: the difference between four minutes and four minutes twelve seconds is precision the measurement does not have, and a figure that looks precise and is not teaches people to distrust the one beside it. Three keys rather than one with a unit placeholder, because the number and its unit inflect together in several languages.",
+    "remainingHours": "{hours, plural, other {还剩 # 小时}}",
+    "remainingMinutes": "{minutes, plural, other {还剩 # 分钟}}",
+    "remainingSeconds": "{seconds, plural, other {还剩 # 秒}}",
+    "_comment_elapsedHours": "How long it has been running, or how long it took once it finished. The same three units and the same rounding as the estimate above, for the same reason.",
+    "elapsedHours": "{hours, plural, other {已用 # 小时}}",
+    "elapsedMinutes": "{minutes, plural, other {已用 # 分钟}}",
+    "elapsedSeconds": "{seconds, plural, other {已用 # 秒}}",
+    "_comment_stalled": "Said in words rather than shown as a speed of zero, because this is the answer the person watching the bar actually needs. It is not a failure: the transfer is still open and may move again, and the threshold is deliberately generous because progress is reported in 512 KiB steps and a slow link is not a stalled one.",
+    "stalled": "有一段时间没有任何进展了。传输仍然保持着。"
   },
 
   "transferTo": {
@@ -281,5 +316,67 @@
     "needFiles": "请在本机上选择要发送的文件。",
     "_comment_needSelection": "Blocks a download with no rows chosen.",
     "needSelection": "请在远端文件夹中选择要下载的内容。"
+  },
+  "overwrite": {
+    "_comment_title": "DESTRUCTIVE. A transfer writes over whatever is at its destination — an upload truncates the remote file and a download truncates the local one — and there is no trash on either side. ICU plural on how many files already exist at their destinations. The =0 case is reachable: a batch where nothing is known to be there still reaches this dialog when something could not be checked, or when a folder is being merged.",
+    "title": "{count, plural, =0 {发送这些文件吗？} other {要替换 # 个文件吗？}}",
+    "_comment_permanent": "SECURITY-CRITICAL WORDING. There is no trash on the server and none on this side either — a transfer truncates. Do not soften 'written over' into 'updated', and do not soften 'cannot be undone'.",
+    "permanent": "这些路径上现有的内容会被覆盖。两边都没有回收站，此操作无法撤销。",
+    "_comment_listHeading": "Heading over the paths that already have something at them. Each is followed by the size and the date of what is there now, so the reader can tell a stale copy from the one they meant to keep.",
+    "listHeading": "以下内容将被替换：",
+    "_comment_existing": "The facts about the file that is already there, under its path. {size} and {when} are already formatted for the reader, and either may read 'Not reported' when the server did not say.",
+    "existing": "{size}，最后修改于 {when}",
+    "_comment_resumeNote": "Shown when 'Continue interrupted transfers' is on. The core continues only where the destination is strictly shorter than a source of known size, and starts over everywhere else — so the same batch can both append and truncate, and the dialog says so rather than implying one rule.",
+    "resumeNote": "已开启续传。如果这里的文件比要复制的文件短，就把剩下的部分接上去；其余情况一律替换。",
+    "_comment_blockedHeading": "A destination that is a folder. A transfer cannot replace one, so those requests are dropped from the batch rather than queued to fail one at a time against a server that will refuse each of them. ICU plural.",
+    "blockedHeading": "{count, plural, other {其中 # 项是文件夹}}：",
+    "blockedNote": "传输无法替换文件夹，因此这些项不会发送，其中的内容不会有任何改动。",
+    "_comment_uncheckedHeading": "A destination Remoter could not look at. 'Nothing is there' and 'nobody could look' are different answers and must not be shown as the same one. These are still sent: a destination nobody could inspect is a reason not to claim anything about it, not a reason to refuse the transfer. ICU plural.",
+    "uncheckedHeading": "{count, plural, other {有 # 项无法检查}}：",
+    "uncheckedNote": "Remoter 无法确定这些是否已经存在。它们仍会发送，那些路径上的任何内容都会被替换。",
+    "_comment_sending": "The last line before the buttons: what pressing the confirming button actually queues, after the folders have been dropped from the batch. ICU plural.",
+    "sending": "{count, plural, =0 {不会发送任何内容。} other {将开始 # 项传输。}}",
+    "_comment_confirm": "The confirming button. Names the act, never 'OK'. This general form is used when the batch replaces nothing, or when it mixes both directions; the two below name which side loses the file and are used whenever the batch goes one way. ICU plural.",
+    "confirm": "{count, plural, =0 {仍然发送} other {替换}}",
+    "confirmDownload": "{count, plural, other {替换本机上的 # 个文件}}",
+    "confirmUpload": "{count, plural, other {替换服务器上的 # 个文件}}",
+    "_comment_folderHeading": "A source that is a folder. It expands into one transfer per file underneath it and merges into whatever is at the destination, which is neither 'this file will be replaced' nor 'nothing is there'. ICU plural.",
+    "folderHeading": "{count, plural, other {其中 # 项是文件夹，将会合并}}：",
+    "_comment_folderNote": "DESTRUCTIVE, in part. A folder transfer does not replace the destination folder; it copies into it, and only the files whose names collide are written over. Do not soften 'written over' into 'updated'.",
+    "folderNote": "每个文件夹会复制到目标位置内，而不是替换目标位置。只有其中同名的文件会被覆盖，目标位置的其他内容不受影响。"
+  },
+  "enqueue": {
+    "_comment_partialTitle": "HONESTY. Heading over what a folder transfer would not queue. A transfer that queued 996 of 1000 files has not done what was asked, and a queue showing 996 healthy rows is exactly how that goes unnoticed until somebody needs the other four.",
+    "partialTitle": "并非全部都已加入队列",
+    "_comment_limitReached": "The folder walk stopped at Remoter's own limit for how many transfers one folder may expand into. It says the count is a floor rather than the whole of it, and points at the way out — taking a subfolder at a time.",
+    "limitReached": "这个文件夹里的文件数超过了一次传输所能展开的上限，遍历因此提前停止。已找到的部分已加入队列；要取其余部分，请打开子文件夹分批发送。",
+    "_comment_skipped": "Heading over the list of entries a folder walk refused, each with the sentence for its failure code from the errors catalogue. A symbolic link is the common case: the walk does not follow one, because descending a link to / would copy the whole filesystem. ICU plural.",
+    "skipped": "{count, plural, other {有 # 项未加入队列}}："
+  },
+  "properties": {
+    "_comment_title": "The dialog's heading. {name} is the escaped display form of the entry, isolated at the call site.",
+    "title": "{name} 的属性",
+    "_comment_reading": "While the entry's own metadata is being read. The listing already showed some of these facts; this dialog asks the server again, which is what makes a permission change verifiable.",
+    "reading": "正在读取此项…",
+    "_comment_readFailed": "Heading over the core's failure when the fresh read did not come back. The facts from the listing are still shown, so this says which of the two the reader is looking at.",
+    "readFailed": "无法重新读取此项。下方内容来自文件夹列表。",
+    "_comment_path": "The row's full path, escaped. Paths are never translated; this is the label beside one.",
+    "path": "路径",
+    "_comment_group": "The owning group. Server-supplied text, escaped by the core like every other name here.",
+    "group": "组",
+    "_comment_linkTarget": "Where a symbolic link points, read without following it. Shown only for a link, and beside the facts about what it points at — the two are different questions and the dialog answers both.",
+    "linkTarget": "链接指向",
+    "_comment_permissionsLabel": "The editable POSIX mode, in octal. Octal rather than nine checkboxes because the people who use this know 755 and 640, and reaching those through a grid of boxes is slower than typing three digits.",
+    "permissionsLabel": "权限（八进制）",
+    "_comment_permissionsHint": "Under the field. Names the range and says that the symbolic form beside it is the same value, so the two can be checked against each other. The digits and the letters are notation and are never translated.",
+    "permissionsHint": "最多四位八进制数字，例如 755 或 4755。旁边的形式是同一个值，按 ls 的写法显示。",
+    "_comment_invalidMode": "Why a typed mode was refused, under the field. States the rule rather than the mechanism.",
+    "invalidMode": "这不是八进制权限。请使用最多四位 0 到 7 的数字。",
+    "_comment_apply": "The button that writes the mode. Names the act, never 'OK'. There is no undo on a server, so it is deliberately not the dialog's default-looking control until the value has actually changed.",
+    "apply": "更改权限",
+    "_comment_applied": "After a successful change. The field and the symbolic form beside it are re-read from the server, so this confirms what the reader can already see rather than standing in for it.",
+    "applied": "服务器已接受新权限，并已重新读取。",
+    "_comment_applyFailed": "Heading over the core's failure when the mode could not be written. Nothing changed; the sentence and the buttons come from the errors catalogue, keyed by the code.",
+    "applyFailed": "权限未更改"
   }
 }

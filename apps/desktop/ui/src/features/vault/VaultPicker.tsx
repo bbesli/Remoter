@@ -183,7 +183,8 @@ export function VaultPicker() {
     setDialogError(null);
     // The plugin's return type widens to an array for the multi-select case.
     const path = Array.isArray(picked) ? picked[0] : picked;
-    if (typeof path === "string") go({ name: "unlock", path });
+    // The user picked this file; nothing locked under them.
+    if (typeof path === "string") go({ name: "unlock", path, relock: null });
   }
 
   const vaults = recents.data ?? [];
@@ -290,7 +291,7 @@ export function VaultPicker() {
                     vault={vault}
                     selected={preview?.path === vault.path}
                     onFocusRow={() => setPreviewPath(vault.path)}
-                    onOpen={() => go({ name: "unlock", path: vault.path })}
+                    onOpen={() => go({ name: "unlock", path: vault.path, relock: null })}
                   />
                 </li>
               ))}

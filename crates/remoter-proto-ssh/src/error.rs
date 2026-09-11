@@ -238,28 +238,47 @@ pub fn map_sftp(error: &russh_sftp::client::error::Error) -> ProtocolError {
     }
 }
 
-/// Maps an SFTP status code (RFC draft-ietf-secsh-filexfer-02 §7).
+/// Maps an SFTP status code (`draft-ietf-secsh-filexfer-02` §7).
+///
+/// # These are file-manager failures, not connection failures
+///
+/// Three of these arms used to borrow a variant from the connection pipeline,
+/// and both borrowings told the user something false about a connection that
+/// was working perfectly:
+///
+///   * `SSH_FX_NO_SUCH_FILE` was a [`ProtocolError::SettingInvalid`] on
+///     `"path"`, which the interface renders as "the setting `path` is not
+///     usable" and points at the connection editor. There is no `path` setting;
+///     the file had been moved since the folder was last listed.
+///   * `SSH_FX_PERMISSION_DENIED` was a [`ProtocolError::AuthRejected`], which
+///     reads "the server rejected these credentials" — on a session that
+///     authenticated minutes earlier. The reader is sent to re-check an SSH key
+///     that is fine, when what happened is that this account may not read this
+///     directory.
+///   * `SSH_FX_FAILURE`, the catch-all, fell through to
+///     [`ProtocolError::ProtocolViolation`], which accuses the server of
+///     breaking the protocol when all it did was run out of disk.
+///
+/// Each now has its own variant in the taxonomy, so the sentence the user reads
+/// is about the file they touched.
 fn sftp_status(code: russh_sftp::protocol::StatusCode) -> ProtocolError {
     use russh_sftp::protocol::StatusCode;
     match code {
         StatusCode::Ok | StatusCode::Eof => ProtocolError::Internal {
             detail: "an SFTP success status was reported as a failure",
         },
-        StatusCode::NoSuchFile => ProtocolError::SettingInvalid {
-            key: "path".to_owned(),
-            expected: "a path that exists on the server",
-        },
-        StatusCode::PermissionDenied => ProtocolError::AuthRejected {
-            attempted: CredentialKind::None,
-        },
+        StatusCode::NoSuchFile => ProtocolError::PathNotFound,
+        StatusCode::PermissionDenied => ProtocolError::PathPermissionDenied,
         StatusCode::OpUnsupported => unsupported("this SFTP operation"),
         StatusCode::ConnectionLost => ProtocolError::NetworkLost,
         StatusCode::NoConnection => ProtocolError::Disconnected {
             reason: "ssh.sftp_stream_lost".to_owned(),
         },
-        _ => ProtocolError::ProtocolViolation {
-            detail: "the SFTP server reported a failure",
-        },
+        // `SSH_FX_FAILURE` and anything else version 3 can produce. Version 3
+        // has one status for a full disk, a quota, a read-only mount, a lock
+        // and a cross-device rename, so this variant says so rather than
+        // guessing which of them it was.
+        _ => ProtocolError::FileOperationRefused,
     }
 }
 
@@ -272,6 +291,58 @@ fn sftp_status(code: russh_sftp::protocol::StatusCode) -> ProtocolError {
 )]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_sftp_status_is_a_file_failure_and_never_a_credential_or_setting_one() {
+        // The defect this mapping exists to prevent from recurring: an ordinary
+        // file-manager refusal reported as a rejected credential sends the user
+        // to re-check a key that is working, and a missing file reported as a
+        // bad setting sends them to a connection editor with no such setting.
+        use russh_sftp::protocol::StatusCode;
+
+        assert!(matches!(
+            sftp_status(StatusCode::NoSuchFile),
+            ProtocolError::PathNotFound
+        ));
+        assert!(matches!(
+            sftp_status(StatusCode::PermissionDenied),
+            ProtocolError::PathPermissionDenied
+        ));
+        assert!(matches!(
+            sftp_status(StatusCode::Failure),
+            ProtocolError::FileOperationRefused
+        ));
+
+        for code in [
+            StatusCode::NoSuchFile,
+            StatusCode::PermissionDenied,
+            StatusCode::Failure,
+        ] {
+            let error = sftp_status(code);
+            assert!(
+                !matches!(
+                    error,
+                    ProtocolError::AuthRejected { .. }
+                        | ProtocolError::SettingInvalid { .. }
+                        | ProtocolError::ProtocolViolation { .. }
+                ),
+                "{code:?} is still borrowing a connection-pipeline variant: {error:?}"
+            );
+            // None of the three is an identity question, so none of them may
+            // suspend the pipeline or block an automatic retry elsewhere.
+            assert!(!error.is_identity_failure());
+        }
+    }
+
+    #[test]
+    fn a_permission_refusal_offers_no_credential_button() {
+        // The actions are what the user sees as buttons. "Enter a credential"
+        // beside a file-permission refusal is the wrong advice, and it is the
+        // advice `AuthRejected` gives.
+        let actions = ProtocolError::PathPermissionDenied.next_actions();
+        assert!(!actions.contains(&remoter_proto::NextAction::EnterCredential));
+        assert!(!actions.contains(&remoter_proto::NextAction::ChooseCredential));
+    }
 
     #[test]
     fn the_protocol_id_validates() {

@@ -61,7 +61,9 @@
     "openPanels": "Abrir el panel de sesiones y túneles",
     "_comment_locksIn": "{clock} is mm:ss, produced by formatClock() so the digits follow the locale's numbering system.",
     "locksIn": "la bóveda se bloquea en {clock}",
-    "noAutoLock": "bloqueo automático desactivado"
+    "noAutoLock": "bloqueo automático desactivado",
+    "_comment_vaultLocked": "SECURITY-ADJACENT. Sits where the auto-lock countdown goes. It exists because the countdown is null in two different situations - auto-lock switched off, and the vault LOCKED - and the footer used to say 'auto-lock is off' at the exact moment auto-lock had just fired. Lower case, like the counts beside it.",
+    "vaultLocked": "bóveda bloqueada"
   },
 
   "inspector": {
@@ -128,12 +130,6 @@
     "connectHint": "Haga doble clic en el árbol, pulse Enter en la paleta o use Conectar en su menú contextual.",
     "folderSelected": "Las carpetas guardan ajustes que heredan las conexiones que hay debajo.",
 
-    "lockedTitle": "Esta bóveda está bloqueada",
-    "_comment_lockedBody": "SECURITY-CRITICAL wording in one respect: it must keep saying that nothing was lost. A user who believes a lock destroyed their connections will go looking for a backup they do not need.",
-    "lockedBody": "Se bloqueó sola tras el periodo de inactividad, o la bloquearon desde otra ventana. No se perdió nada: las conexiones siguen en el archivo y vuelven a aparecer al desbloquearla.",
-    "lockedAction": "Desbloquear esta bóveda",
-    "lockedNoPath": "Elegir una bóveda",
-
     "vaultStateFailed": "Remoter no puede determinar si hay una bóveda abierta.",
     "treeFailed": "No se pudo leer el árbol de conexiones.",
     "lockFailed": "La bóveda no se bloqueó.",
@@ -142,7 +138,9 @@
     "fullscreenFailedBody": "El gestor de ventanas lo rechazó, o esta página no se está ejecutando dentro de la ventana de Remoter. La sesión no cambió en nada.",
 
     "checkingVault": "Comprobando si hay una bóveda abierta…",
-    "readingTree": "Leyendo las conexiones de la bóveda…"
+    "readingTree": "Leyendo las conexiones de la bóveda…",
+    "_comment_lockedLeaving": "The one frame between the application noticing the vault has locked and the unlock screen replacing this window. Nothing of the vault is drawn behind it, which is the point: this is what the shell says while it is taking the connection tree off the screen.",
+    "lockedLeaving": "Borrando el contenido de la bóveda de esta ventana…"
   },
 
   "kdfUpgrade": {

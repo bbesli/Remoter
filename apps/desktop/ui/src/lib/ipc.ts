@@ -1188,6 +1188,15 @@ export interface AppSettings {
   shortcuts: Record<string, string>;
   /** The terminal's palette, overrides and font. */
   terminal: TerminalAppearance;
+  /**
+   * The folder the file manager last downloaded into, as this platform writes
+   * it. `null` until one has been chosen.
+   *
+   * The local side of the file manager had no memory at all: every pane started
+   * with no destination and every download began at a folder picker, including
+   * the second download into the folder the first went to.
+   */
+  fileDownloadFolder: string | null;
 }
 
 /**
@@ -1220,6 +1229,8 @@ export interface AppSettingsPatch {
    * selected.
    */
   terminal?: TerminalAppearance;
+  /** Absent leaves it alone; `null` forgets the folder. */
+  fileDownloadFolder?: string | null;
 }
 
 // --------------------------------------------------------- update check ----
@@ -1629,6 +1640,21 @@ export interface NameRisks {
   separator: boolean;
 }
 
+/**
+ * A path the server resolved, in both the forms every other type here carries.
+ *
+ * It used to be a bare `string`, which made it the one place a whole path
+ * chosen by the server reached the interface with no escaped twin. A symbolic
+ * link may point at `/srv/annex` + U+202E + `txt.exe`, and a canonicalised path
+ * travels through whatever the server's own links resolve to.
+ */
+export interface ResolvedPath {
+  /** What goes back on the wire. */
+  path: string;
+  /** What a human reads. Never addressed with. */
+  displayPath: string;
+}
+
 /** A file pane, once it is attached to a session. */
 export interface SftpPane {
   paneId: number;
@@ -1724,6 +1750,84 @@ export interface TransferRequest {
   resume?: boolean;
 }
 
+/** Why one destination could not be looked at before a transfer was queued. */
+export interface PreflightProblem {
+  /** The stable code from the failure taxonomy, for `errors.json`. */
+  code: string;
+  /** The core's English. Render the catalogue's sentence for `code` instead. */
+  message: string;
+}
+
+/**
+ * What one queued transfer would land on top of.
+ *
+ * A transfer overwrites its destination — an upload truncates, and a download
+ * whose resume offset is zero truncates too — so this is the answer to the
+ * question that has to be asked before a byte moves: is something already
+ * there, and what is it? `exists` false with a `problem` means nobody could
+ * look, which is not the same answer and must not be shown as one.
+ */
+export interface TransferPreflight {
+  /** Which request in the batch this answers, by position. */
+  index: number;
+  direction: TransferDirection;
+  /**
+   * Where it would land, escaped. A download's destination takes its file name
+   * from the remote path, so this string is half server-chosen.
+   */
+  destinationDisplay: string;
+  exists: boolean;
+  /** What is there now, in bytes, where that was reported. */
+  size: number | null;
+  /** When what is there now was last modified, in seconds since the epoch. */
+  modified: number | null;
+  /** True when what is there is a directory, which a transfer cannot replace. */
+  directory: boolean;
+  /**
+   * True when the *source* is a folder, so this request expands into one
+   * transfer per file underneath it.
+   *
+   * The fields above then describe the destination **folder** rather than a
+   * file: a folder transfer merges into what is there, replacing only the files
+   * whose names collide. Listing it beside "this file will be replaced" would
+   * say something untrue about both.
+   */
+  sourceIsFolder: boolean;
+  problem: PreflightProblem | null;
+}
+
+/** One entry a folder transfer would not queue, and why. */
+export interface EnqueueSkipped {
+  /** Where it was, escaped for display. */
+  path: string;
+  /** The stable code from the failure taxonomy, for `errors.json`. */
+  code: string;
+  /** The core's English. Render the catalogue's sentence for `code` instead. */
+  message: string;
+}
+
+/**
+ * What queueing a batch actually queued.
+ *
+ * A list of ids answered "how many" and nothing else, which stopped being
+ * enough the moment a folder became transferable: one request can expand into
+ * nine hundred transfers, skip four the server named something this computer
+ * cannot spell, and stop at its own limit. A caller holding only ids would have
+ * no way to know any of that, and would report a partial result as a success.
+ */
+export interface EnqueueReport {
+  /** The new transfers, in the order they were queued. */
+  transferIds: number[];
+  /** How many of the requests were folders that had to be walked. */
+  foldersExpanded: number;
+  /** How many directories had to be created on the destination side. */
+  directoriesCreated: number;
+  /** Everything a folder walk would not queue, and why. */
+  skipped: EnqueueSkipped[];
+  /** True when a walk stopped at its own limit rather than at the end. */
+  limitReached: boolean;
+}
+
 /**
  * What a transfer settled before it moved a byte.
  *
@@ -1788,6 +1892,28 @@ export type TransferStatus = {
   resume: boolean;
   /** What it settled before it began. `null` until it does. */
   start: TransferStart | null;
+  /**
+   * When it was added to the queue, in milliseconds since the Unix epoch.
+   *
+   * These four are what let a row say how fast, how long and how much longer.
+   * Without them the queue could show a byte count and a percentage and nothing
+   * else — and "412 MiB of 1.2 GiB" is not an answer to the question somebody
+   * watching a transfer has, which is whether to wait for it. The figures are
+   * computed here rather than sent: a rate is a subtraction, and the clock it
+   * is measured against is the one the bar is drawn on.
+   */
+  queuedAtMs: number;
+  /** When it took a slot. `null` while it is still waiting. */
+  startedAtMs: number | null;
+  /** When it reached a terminal state. `null` until it does. */
+  finishedAtMs: number | null;
+  /**
+   * When its byte count last moved.
+   *
+   * What tells a stalled transfer from a slow one, which an average over the
+   * transfer's whole life cannot.
+   */
+  progressAtMs: number | null;
 } & TransferState;
 
 // -------------------------------------------------------------- failure ----
@@ -2216,12 +2342,19 @@ export const ipc = {
   /** One entry's metadata, following symbolic links. */
   statPath: (paneId: number, path: string) =>
     invoke<DirectoryEntry>("sftp_stat", { paneId, path }),
-  /** Resolves a path to the absolute one the server means by it. */
+  /**
+   * Resolves a path to the absolute one the server means by it.
+   *
+   * What makes a relative path typed into the path box work: `..`, `.`, a bare
+   * folder name and a symbolic link all mean whatever the *server* says they
+   * mean, and answering that here would be a second implementation of a
+   * question the server already answers.
+   */
   canonicalizePath: (paneId: number, path: string) =>
-    invoke<string>("sftp_canonicalize", { paneId, path }),
+    invoke<ResolvedPath>("sftp_canonicalize", { paneId, path }),
   /** Reads where a symbolic link points, without following it. */
   readLink: (paneId: number, path: string) =>
-    invoke<string>("sftp_read_link", { paneId, path }),
+    invoke<ResolvedPath>("sftp_read_link", { paneId, path }),
   /** Creates a directory. */
   makeDirectory: (paneId: number, path: string) =>
     invoke<void>("sftp_mkdir", { paneId, path }),
@@ -2243,23 +2376,54 @@ export const ipc = {
    */
   deletePath: (paneId: number, path: string, recursive: boolean) =>
     invoke<SftpDeleteReport>("sftp_delete", { paneId, path, recursive }),
-  /** Changes an entry's POSIX mode bits. At most `0o7777`. */
+  /**
+   * Changes an entry's POSIX mode bits. At most `0o7777`.
+   *
+   * The properties dialog's one writing control. A mode change is not
+   * reversible by anything here — there is no undo on a server — so the button
+   * that sends it names the act.
+   */
   setPermissions: (paneId: number, path: string, mode: number) =>
     invoke<void>("sftp_set_permissions", { paneId, path, mode }),
-  /** Creates a symbolic link at `path` pointing at `target`. */
-  createSymlink: (paneId: number, path: string, target: string) =>
-    invoke<void>("sftp_symlink", { paneId, path, target }),
+  // `sftp_symlink` is deliberately **not** wrapped here.
+  //
+  // The core implements and tests it, and nothing in this build creates a
+  // symbolic link: there is no screen for choosing a target, no confirmation
+  // for a link that would point outside the folder it sits in, and no answer
+  // yet to what a listing should do with one it just made. A wrapper with no
+  // caller is not a capability, it is an entry on a command surface that reads
+  // as one — which is what the other four on this list turned out to be, and
+  // three of them now have a screen. When link creation gets its own, this
+  // comes back with it.
 
   // --- sftp: transfers ---
   /**
-   * Queues transfers, returning the new ids in the order given.
+   * What a batch of transfers would land on, before any of it is queued.
+   *
+   * One answer per request, in the order given. The destination is resolved
+   * the way the queue resolves it, so a download into a folder is inspected at
+   * the name the core derives rather than at one this layer invented.
+   *
+   * A check, not a lock: a file created in the gap between this and the
+   * enqueue is still overwritten. It closes the case that actually happens.
+   */
+  preflightTransfers: (paneId: number, requests: TransferRequest[]) =>
+    invoke<TransferPreflight[]>("sftp_preflight", { paneId, requests }),
+  /**
+   * Queues transfers, expanding any folder among them into its files.
    *
    * The batch is resolved before any of it is queued: forty requests with one
    * bad path refuse as a batch rather than starting twenty and then
    * complaining. Nothing here waits for a byte to move.
+   *
+   * A folder is a walk over the network and can come back incomplete — an
+   * entry the server named something this computer cannot spell, a symbolic
+   * link the walk will not follow, a tree past the core's own limit. The report
+   * says so, and a caller that renders only `transferIds` is a caller that
+   * reports a partial result as a success.
    */
   enqueueTransfers: (paneId: number, requests: TransferRequest[]) =>
-    invoke<number[]>("sftp_enqueue", { paneId, requests }),
+    invoke<EnqueueReport>("sftp_enqueue", { paneId, requests }),
   /**
    * Every transfer this pane knows about, in the order they were queued.
    *

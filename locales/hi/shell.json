@@ -61,7 +61,9 @@
     "openPanels": "सेशन और टनल पैनल खोलें",
     "_comment_locksIn": "{clock} is mm:ss, produced by formatClock() so the digits follow the locale's numbering system.",
     "locksIn": "वॉल्ट {clock} में लॉक होगा",
-    "noAutoLock": "ऑटो-लॉक बंद है"
+    "noAutoLock": "ऑटो-लॉक बंद है",
+    "_comment_vaultLocked": "SECURITY-ADJACENT. Sits where the auto-lock countdown goes. It exists because the countdown is null in two different situations - auto-lock switched off, and the vault LOCKED - and the footer used to say 'auto-lock is off' at the exact moment auto-lock had just fired. Lower case, like the counts beside it.",
+    "vaultLocked": "वॉल्ट लॉक है"
   },
 
   "inspector": {
@@ -128,12 +130,6 @@
     "connectHint": "ट्री में इस पर डबल-क्लिक करें, पैलेट में Enter दबाएँ, या इसके कॉन्टेक्स्ट मेन्यू में “कनेक्ट करें” चुनें।",
     "folderSelected": "फ़ोल्डरों में वे सेटिंग्स रहती हैं जो उनके नीचे के कनेक्शन इनहेरिट करते हैं।",
 
-    "lockedTitle": "यह वॉल्ट लॉक है",
-    "_comment_lockedBody": "SECURITY-CRITICAL wording in one respect: it must keep saying that nothing was lost. A user who believes a lock destroyed their connections will go looking for a backup they do not need.",
-    "lockedBody": "यह निष्क्रिय रहने की अवधि पूरी होने पर खुद लॉक हो गया, या किसी दूसरी विंडो से लॉक किया गया। कुछ भी खोया नहीं है; आपके कनेक्शन अब भी फ़ाइल में हैं और अनलॉक करते ही वापस आ जाएँगे।",
-    "lockedAction": "यह वॉल्ट अनलॉक करें",
-    "lockedNoPath": "कोई वॉल्ट चुनें",
-
     "vaultStateFailed": "Remoter यह नहीं बता पा रहा कि कोई वॉल्ट खुला है या नहीं।",
     "treeFailed": "कनेक्शन ट्री पढ़ा नहीं जा सका।",
     "lockFailed": "वॉल्ट लॉक नहीं हुआ।",
@@ -142,7 +138,9 @@
     "fullscreenFailedBody": "या तो विंडो मैनेजर ने इनकार कर दिया, या यह पेज Remoter विंडो के अंदर नहीं चल रहा है। सेशन में कोई बदलाव नहीं हुआ।",
 
     "checkingVault": "देखा जा रहा है कि कोई वॉल्ट खुला है या नहीं…",
-    "readingTree": "वॉल्ट से कनेक्शन पढ़े जा रहे हैं…"
+    "readingTree": "वॉल्ट से कनेक्शन पढ़े जा रहे हैं…",
+    "_comment_lockedLeaving": "The one frame between the application noticing the vault has locked and the unlock screen replacing this window. Nothing of the vault is drawn behind it, which is the point: this is what the shell says while it is taking the connection tree off the screen.",
+    "lockedLeaving": "इस विंडो से वॉल्ट की सामग्री हटाई जा रही है…"
   },
 
   "kdfUpgrade": {

@@ -907,6 +907,18 @@
     "protocol-violation": {
       "message": "Der Server hat etwas gesendet, das das Protokoll nicht erlaubt."
     },
+    "_comment_path-not-found": "A file-manager failure on a session that is connected and working. It used to be reported as `setting-invalid`, which sent the reader to the connection editor to fix a setting that was never wrong. Keep the second sentence: the commonest cause by far is a listing that is a few seconds out of date, and the way out is to read the folder again.",
+    "path-not-found": {
+      "message": "Unter diesem Pfad gibt es auf dem Server nichts. Möglicherweise wurde es verschoben, umbenannt oder gelöscht, seit dieser Ordner zuletzt gelesen wurde."
+    },
+    "_comment_path-permission-denied": "SECURITY-ADJACENT. This must not read as a sign-in failure. It used to be reported as `auth-rejected` — 'the server rejected these credentials' — on a connection that had authenticated minutes earlier, which sends the reader off to re-check an SSH key that is working. The distinction between 'who you are' and 'what this file allows' is the whole sentence; a translation that blurs it undoes the fix.",
+    "path-permission-denied": {
+      "message": "Der Server hat den Zugriff auf diesen Pfad verweigert. Das ist eine Verweigerung durch die Dateirechte und kein Anmeldeproblem: die Verbindung ist authentifiziert, und dieses Konto hat keine Berechtigung für diese Datei oder diesen Ordner."
+    },
+    "_comment_file-operation-refused": "HONESTY. SFTP version 3 has one catch-all status for everything that is not 'missing' or 'not permitted', so a full disk, a quota, a read-only mount, a lock and a cross-device rename are genuinely indistinguishable here. The sentence names the likely causes and admits it cannot tell them apart; do not turn it into a guess at one of them.",
+    "file-operation-refused": {
+      "message": "Der Server konnte diesen Vorgang an der Datei nicht ausführen und hat keinen Grund genannt. Eine volle Festplatte, ein Kontingent, ein schreibgeschütztes Dateisystem, eine Sperre oder ein Umbenennen über zwei Dateisysteme hinweg treffen alle genau in dieser Form ein."
+    },
     "cancelled": {
       "message": "Die Sitzung wurde abgebrochen, bevor sie geöffnet wurde."
     },
@@ -1004,6 +1016,10 @@
         "Hinüberkopieren und das Original löschen",
         "Innerhalb desselben Dateisystems umbenennen"
       ]
+    },
+    "_comment_local-destination-unreadable": "Raised while checking, before a transfer is queued, whether something is already at the place a download would write. It is deliberately not fatal: the transfer is still offered, and the dialog says which destinations could not be looked at. 'Nothing is there' and 'nobody could look' are different answers and the interface must not show the first when it means the second.",
+    "local-destination-unreadable": {
+      "message": "Remoter konnte nicht prüfen, ob an dieser Stelle auf diesem Computer bereits eine Datei liegt. Die Übertragung kann trotzdem gesendet werden, aber es ist nicht bekannt, was sie ersetzen würde."
     },
     "transfer-failed": {
       "_comment_": "Deliberately has no `message`, for the same reason as session.failed: the sentence is the transfer's own diagnostic, composed when it failed, and there is no detail beside it to fall back on."

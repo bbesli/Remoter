@@ -61,7 +61,9 @@
     "openPanels": "Открыть панель сеансов и туннелей",
     "_comment_locksIn": "{clock} is mm:ss, produced by formatClock() so the digits follow the locale's numbering system.",
     "locksIn": "блокировка через {clock}",
-    "noAutoLock": "автоблокировка выключена"
+    "noAutoLock": "автоблокировка выключена",
+    "_comment_vaultLocked": "SECURITY-ADJACENT. Sits where the auto-lock countdown goes. It exists because the countdown is null in two different situations - auto-lock switched off, and the vault LOCKED - and the footer used to say 'auto-lock is off' at the exact moment auto-lock had just fired. Lower case, like the counts beside it.",
+    "vaultLocked": "хранилище заблокировано"
   },
 
   "inspector": {
@@ -128,12 +130,6 @@
     "connectHint": "Дважды щёлкните его в дереве, нажмите Enter в палитре или выберите «Подключиться» в контекстном меню.",
     "folderSelected": "Папки хранят настройки, которые наследуют подключения под ними.",
 
-    "lockedTitle": "Это хранилище заблокировано",
-    "_comment_lockedBody": "SECURITY-CRITICAL wording in one respect: it must keep saying that nothing was lost. A user who believes a lock destroyed their connections will go looking for a backup they do not need.",
-    "lockedBody": "Оно заблокировалось само после простоя или было заблокировано из другого окна. Ничего не потеряно: подключения по-прежнему в файле и вернутся, как только вы его разблокируете.",
-    "lockedAction": "Разблокировать это хранилище",
-    "lockedNoPath": "Выбрать хранилище",
-
     "vaultStateFailed": "Remoter не может определить, открыто ли хранилище.",
     "treeFailed": "Не удалось прочитать дерево подключений.",
     "lockFailed": "Хранилище не заблокировано.",
@@ -142,7 +138,9 @@
     "fullscreenFailedBody": "Оконный менеджер отклонил переход, либо эта страница работает не внутри окна Remoter. С сеансом при этом ничего не изменилось.",
 
     "checkingVault": "Проверяется, открыто ли хранилище…",
-    "readingTree": "Подключения читаются из хранилища…"
+    "readingTree": "Подключения читаются из хранилища…",
+    "_comment_lockedLeaving": "The one frame between the application noticing the vault has locked and the unlock screen replacing this window. Nothing of the vault is drawn behind it, which is the point: this is what the shell says while it is taking the connection tree off the screen.",
+    "lockedLeaving": "Содержимое хранилища удаляется из этого окна…"
   },
 
   "kdfUpgrade": {

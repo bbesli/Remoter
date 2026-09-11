@@ -339,5 +339,23 @@
       "openOther": "Abrir",
       "noBackups": "Não há backups rotativos ao lado deste arquivo. Uma cópia dos seus próprios backups é o caminho de volta."
     }
+  },
+  "relock": {
+    "_comment_": "The unlock screen, when the vault locked while it was open rather than being opened from the picker. Two rules. (1) 'cleared' must keep saying that the contents left the WINDOW and not the file; a reader who believes the lock destroyed their connections will go hunting for a backup they do not need. (2) reason.unknown must not guess: the core reports that no vault is open without saying what closed it, and naming the idle timeout there would be a sentence the application cannot stand behind.",
+    "windowTitle": "Cofre bloqueado",
+    "title": "Este cofre está bloqueado",
+    "_comment_reason": "Why it locked, as far as the application can honestly tell. Each is a whole sentence and follows the title above it.",
+    "reason": {
+      "idle": "Ele bloqueou depois do tempo de inatividade que você definiu.",
+      "trigger": "Ele bloqueou porque aconteceu um evento que você escolheu para bloqueá-lo.",
+      "manual": "Você o bloqueou.",
+      "unknown": "Ele se bloqueou sozinho depois do tempo de inatividade, foi bloqueado por um evento que você escolheu, ou foi bloqueado a partir de outra janela."
+    },
+    "cleared": "Nada foi perdido. As conexões continuam no arquivo: elas só foram limpas desta janela e voltam quando você desbloqueá-lo.",
+    "_comment_sessions": "What became of the sessions that were open. Measured, not assumed - the vault's session policy is stored inside the vault and cannot be read while it is locked. Both sentences are shown when some sessions ended and others survived, so each has to stand on its own.",
+    "sessions": {
+      "closed": "{count, plural, one {# sessão foi fechada quando o cofre bloqueou. Desbloquear não a reabre.} many {# de sessões foram fechadas quando o cofre bloqueou. Desbloquear não as reabre.} other {# sessões foram fechadas quando o cofre bloqueou. Desbloquear não as reabre.}}",
+      "running": "{count, plural, one {# sessão continua conectada e ainda estará lá depois que você desbloquear.} many {# de sessões continuam conectadas e ainda estarão lá depois que você desbloquear.} other {# sessões continuam conectadas e ainda estarão lá depois que você desbloquear.}}"
+    }
   }
 }

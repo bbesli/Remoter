@@ -16,6 +16,16 @@
  * empty grid — would read as an empty disk or a broken pane, and the interface
  * would be claiming a capability the build does not have.
  *
+ * # It does, however, remember
+ *
+ * The one thing it used to get wrong beyond that. The pane started with no
+ * destination and remembered nothing, so every download began at a folder
+ * picker — the second one into the same folder as much as the first, and every
+ * one after a restart. The destination now comes from `useDownloadFolder`: the
+ * folder chosen last, or the platform's own downloads folder when nothing has
+ * been chosen yet. The pane says which of the two it is showing, because "we
+ * picked this for you" and "you picked this" are different promises.
+ *
  * # A remote name never chooses a local path
  *
  * The rule the command surface is most emphatic about. A download names either
@@ -35,26 +45,32 @@ import { Callout } from "@/components/Callout";
 import { Icon } from "@/components/Icon";
 import { isolateLtr, useT } from "@/i18n";
 
-import { LOCAL_DRAG_TYPE, REMOTE_DRAG_TYPE } from "./dragTypes";
+import { LOCAL_DRAG_TYPE, REMOTE_DRAG_TYPE, decodePaths, encodePaths } from "./dragTypes";
 
 import s from "./LocalPane.module.css";
 
 interface LocalPaneProps {
   /** The chosen download destination, as the platform writes it. */
   folder: string | null;
+  /**
+   * True when {@link folder} is the platform's own downloads folder rather
+   * than one anybody chose.
+   */
+  folderIsDefault: boolean;
   onFolderChange: (folder: string) => void;
   /** Local file paths waiting to be sent. */
   staged: readonly string[];
   onStagedChange: (staged: readonly string[]) => void;
   /** Sends everything staged. */
   onUpload: () => void;
-  /** A remote row was dropped here: download it into the chosen folder. */
-  onDownloadDropped: () => void;
+  /** Remote entries were dropped here: download exactly those. */
+  onDownloadDropped: (remotePaths: readonly string[]) => void;
   busy: boolean;
 }
 
 export function LocalPane({
   folder,
+  folderIsDefault,
   onFolderChange,
   staged,
   onStagedChange,
@@ -71,7 +87,13 @@ export function LocalPane({
     setPickerFailed(false);
     void (async () => {
       try {
-        const chosen = await open({ directory: true, multiple: false });
+        const chosen = await open({
+          directory: true,
+          multiple: false,
+          // Opens where the last download went rather than at the home
+          // directory, which is the difference between one click and six.
+          ...(folder === null ? {} : { defaultPath: folder }),
+        });
         if (typeof chosen === "string") onFolderChange(chosen);
       } catch {
         setPickerFailed(true);
@@ -83,18 +105,38 @@ export function LocalPane({
     setPickerFailed(false);
     void (async () => {
       try {
+        // `directory: true` as well would be one picker that cannot do both:
+        // the platform dialogs choose files *or* folders, not either. A folder
+        // is sent by choosing it as the download destination's opposite number
+        // — `chooseFolders` below — which is its own control for that reason.
         const chosen = await open({ multiple: true });
         if (chosen === null) return;
         const paths = Array.isArray(chosen) ? chosen : [chosen];
-        // De-duplicated against what is already staged: choosing the same file
-        // twice should not queue it twice.
-        const merged = [...staged];
-        for (const path of paths) if (!merged.includes(path)) merged.push(path);
-        onStagedChange(merged);
+        stage(paths);
       } catch {
         setPickerFailed(true);
       }
     })();
+  };
+
+  const chooseFolders = () => {
+    setPickerFailed(false);
+    void (async () => {
+      try {
+        const chosen = await open({ directory: true, multiple: true });
+        if (chosen === null) return;
+        stage(Array.isArray(chosen) ? chosen : [chosen]);
+      } catch {
+        setPickerFailed(true);
+      }
+    })();
+  };
+
+  /** Adds paths to the staging list, de-duplicated against what is there. */
+  const stage = (paths: readonly string[]) => {
+    const merged = [...staged];
+    for (const path of paths) if (!merged.includes(path)) merged.push(path);
+    onStagedChange(merged);
   };
 
   const onDrop = (e: DragEvent<HTMLElement>) => {
@@ -110,7 +152,10 @@ export function LocalPane({
     if (!e.dataTransfer.types.includes(REMOTE_DRAG_TYPE)) return;
     e.preventDefault();
     setOsFilesRefused(false);
-    onDownloadDropped();
+    // What was dragged. This used to ignore the payload and re-run the bulk
+    // download, so dropping one row fetched the whole selection.
+    const dropped = decodePaths(e.dataTransfer.getData(REMOTE_DRAG_TYPE));
+    if (dropped.length > 0) onDownloadDropped(dropped);
   };
 
   return (
@@ -163,9 +208,18 @@ export function LocalPane({
         </Button>
       </div>
 
+      {folder !== null && (
+        <p className={s.counts}>
+          {folderIsDefault ? t("pane.local.defaultFolder") : t("pane.local.rememberedFolder")}
+        </p>
+      )}
+
       <div className={s.tools}>
         <Button size="sm" onClick={chooseFiles} disabled={busy}>
           {t("pane.local.chooseFiles")}
+        </Button>
+        <Button size="sm" onClick={chooseFolders} disabled={busy}>
+          {t("pane.local.chooseFolders")}
         </Button>
         <Button size="sm" variant="primary" onClick={onUpload} disabled={busy || staged.length === 0}>
           {t("action.upload")}
@@ -193,7 +247,10 @@ export function LocalPane({
             className={s.item}
             draggable
             onDragStart={(e) => {
-              e.dataTransfer.setData(LOCAL_DRAG_TYPE, path);
+              // One path, because one item is what is being dragged. The
+              // receiving pane reads the payload rather than assuming the
+              // whole staging list, which is what it used to do.
+              e.dataTransfer.setData(LOCAL_DRAG_TYPE, encodePaths([path]));
               e.dataTransfer.effectAllowed = "copy";
             }}
           >

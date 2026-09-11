@@ -1009,6 +1009,14 @@ impl Inner {
         if let Some(terminal) = patch.terminal {
             self.settings.terminal = normalise_terminal(terminal)?;
         }
+        if let Some(folder) = patch.file_download_folder {
+            // Nothing here checks that the folder exists. It is a path on the
+            // user's own machine, it may be on a drive that is not plugged in
+            // today, and refusing to *remember* it would be refusing to
+            // remember the thing they will plug in tomorrow. The file manager
+            // finds out when it writes, and says so then.
+            self.settings.file_download_folder = folder.filter(|path| !path.trim().is_empty());
+        }
         if let Some(shortcuts) = patch.shortcuts {
             self.apply_shortcuts(shortcuts)?;
         }
@@ -1209,6 +1217,10 @@ pub(crate) struct AppSettingsPatch {
     /// overrides are one decision, and a merge would let the core hold
     /// overrides belonging to a palette that is no longer selected.
     pub(crate) terminal: Option<TerminalAppearanceDto>,
+    /// Absent leaves it alone; `null` forgets the folder. Collapsing the two
+    /// would make it impossible to stop remembering one.
+    #[serde(deserialize_with = "explicit_option")]
+    pub(crate) file_download_folder: Option<Option<String>>,
     /// Action id to accelerator. A `null` accelerator restores that action's
     /// shipped default.
     pub(crate) shortcuts: Option<BTreeMap<String, Option<String>>>,
@@ -1425,6 +1437,7 @@ fn default_settings() -> AppSettingsDto {
         terminal_prefix: String::from("ctrl+alt"),
         shortcuts: BTreeMap::new(),
         terminal: TerminalAppearanceDto::default(),
+        file_download_folder: None,
     }
 }
 

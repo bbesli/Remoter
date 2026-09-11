@@ -48,7 +48,9 @@ import { asFailure, ipc } from "@/lib/ipc";
 import type { Backup, IpcFailure, KdfParams, Slot, SlotKind, UnlockRequest } from "@/lib/ipc";
 import { qk } from "@/lib/queryKeys";
 import { useApp } from "@/stores/app";
+import { useSessions } from "@/features/sessions";
 
+import type { RelockNotice } from "./lock";
 import { kdfSummary } from "./kdf";
 import { folderOf, keyfileFilters, keyfileRefusal } from "./keyfile";
 import { formatStamp, splitPath } from "./VaultPicker";
@@ -134,7 +136,16 @@ function canUse(slot: Slot): boolean {
   return slot.kind !== "fido2";
 }
 
-export function UnlockScreen({ path }: { path: string }) {
+/**
+ * What the screen says when the vault locked under the user rather than being
+ * opened by them. Null on a cold open, and then nothing extra is drawn.
+ */
+interface UnlockScreenProps {
+  path: string;
+  relock: RelockNotice | null;
+}
+
+export function UnlockScreen({ path, relock }: UnlockScreenProps) {
   const t = useT("vault");
   const tCommon = useT("common");
   const { code: locale } = useLocale();
@@ -336,7 +347,9 @@ export function UnlockScreen({ path }: { path: string }) {
     <div className={s.screen}>
       <header className={s.titlebar} data-tauri-drag-region>
         <Mark size={18} />
-        <span className={s.titleText}>{t("unlock.windowTitle")}</span>
+        <span className={s.titleText}>
+          {relock === null ? t("unlock.windowTitle") : t("relock.windowTitle")}
+        </span>
       </header>
 
       <div className={s.centre}>
@@ -352,6 +365,11 @@ export function UnlockScreen({ path }: { path: string }) {
               <span className={s.vaultPath}>{isolateLtr(path)}</span>
             </div>
           </div>
+
+          {/* Above everything the screen asks for, because it explains why the
+              screen is here at all. A user who walked back to a window that
+              had emptied itself needs that before they need a password box. */}
+          {relock !== null && <RelockCard notice={relock} />}
 
           {probe.isPending ? (
             // The slot cards in outline. Which methods this vault has is the
@@ -376,7 +394,11 @@ export function UnlockScreen({ path }: { path: string }) {
           ) : damaged ? (
             <DamagedFile
               backups={probe.data.backups}
-              onOpenBackup={(backupPath) => go({ name: "unlock", path: backupPath })}
+              onOpenBackup={(backupPath) =>
+                // A different file, chosen from a list: a cold open like any
+                // other, whatever brought the user to this screen.
+                go({ name: "unlock", path: backupPath, relock: null })
+              }
             />
           ) : slots.length === 0 ? (
             <>
@@ -579,6 +601,49 @@ export function UnlockScreen({ path }: { path: string }) {
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Why this window emptied, and what became of what was running in it.
+ *
+ * Three things, in the order a returning user asks them. What happened. Where
+ * the connections went — they are in the file, not lost, which is the sentence
+ * that stops someone going to look for a backup they do not need. And what
+ * happened to the sessions, which is the only one of the three the application
+ * cannot answer from a constant.
+ *
+ * The session count is read live rather than from the snapshot taken when the
+ * lock was noticed. Under a `disconnect_all` policy the core's close events
+ * land a moment after the lock does, so a snapshot would have said "four
+ * sessions are still connected" about four sessions that were already gone.
+ * The total is the snapshot — the store no longer knows how many there were —
+ * and the difference between the two is how many went.
+ */
+function RelockCard({ notice }: { notice: RelockNotice }) {
+  const t = useT("vault");
+  const total = notice.sessions.total;
+  const running = useSessions(
+    (st) => st.order.filter((tabId) => st.byId[tabId]?.phase === "running").length,
+  );
+
+  // Two counts rather than three phrasings of one. A vault whose policy
+  // disconnected everything shows the first sentence, one that kept them
+  // shows the second, and a mixture — some ended on their own before the lock
+  // — shows both, which is the case a single sentence could only lie about.
+  const closed = Math.max(0, total - running);
+
+  return (
+    <Callout tone="warning" title={t("relock.title")}>
+      <p className={s.body}>{t(`relock.reason.${notice.reason}`)}</p>
+      <p className={s.body}>{t("relock.cleared")}</p>
+      {closed > 0 && (
+        <p className={s.bodyNote}>{t("relock.sessions.closed", { count: closed })}</p>
+      )}
+      {running > 0 && (
+        <p className={s.bodyNote}>{t("relock.sessions.running", { count: running })}</p>
+      )}
+    </Callout>
   );
 }
 

@@ -907,6 +907,18 @@
     "protocol-violation": {
       "message": "O servidor enviou algo que o protocolo não permite."
     },
+    "_comment_path-not-found": "A file-manager failure on a session that is connected and working. It used to be reported as `setting-invalid`, which sent the reader to the connection editor to fix a setting that was never wrong. Keep the second sentence: the commonest cause by far is a listing that is a few seconds out of date, and the way out is to read the folder again.",
+    "path-not-found": {
+      "message": "Não há nada nesse caminho no servidor. Ele pode ter sido movido, renomeado ou excluído desde a última vez que esta pasta foi lida."
+    },
+    "_comment_path-permission-denied": "SECURITY-ADJACENT. This must not read as a sign-in failure. It used to be reported as `auth-rejected` — 'the server rejected these credentials' — on a connection that had authenticated minutes earlier, which sends the reader off to re-check an SSH key that is working. The distinction between 'who you are' and 'what this file allows' is the whole sentence; a translation that blurs it undoes the fix.",
+    "path-permission-denied": {
+      "message": "O servidor recusou o acesso a esse caminho. É uma recusa de permissão de arquivo, não um problema de login: a conexão está autenticada e esta conta não tem permissão para este arquivo ou pasta."
+    },
+    "_comment_file-operation-refused": "HONESTY. SFTP version 3 has one catch-all status for everything that is not 'missing' or 'not permitted', so a full disk, a quota, a read-only mount, a lock and a cross-device rename are genuinely indistinguishable here. The sentence names the likely causes and admits it cannot tell them apart; do not turn it into a guess at one of them.",
+    "file-operation-refused": {
+      "message": "O servidor não conseguiu concluir essa operação no arquivo e não disse por quê. Um disco cheio, uma cota, um sistema de arquivos somente leitura, um bloqueio ou uma renomeação entre dois sistemas de arquivos chegam exatamente nesta forma."
+    },
     "cancelled": {
       "message": "A sessão foi cancelada antes de abrir."
     },
@@ -1004,6 +1016,10 @@
         "Copiar para lá e excluir o original",
         "Renomear dentro do mesmo sistema de arquivos"
       ]
+    },
+    "_comment_local-destination-unreadable": "Raised while checking, before a transfer is queued, whether something is already at the place a download would write. It is deliberately not fatal: the transfer is still offered, and the dialog says which destinations could not be looked at. 'Nothing is there' and 'nobody could look' are different answers and the interface must not show the first when it means the second.",
+    "local-destination-unreadable": {
+      "message": "O Remoter não conseguiu verificar se já existe um arquivo nesse lugar deste computador. A transferência ainda pode ser enviada, mas não se sabe o que ela substituiria."
     },
     "transfer-failed": {
       "_comment_": "Deliberately has no `message`, for the same reason as session.failed: the sentence is the transfer's own diagnostic, composed when it failed, and there is no detail beside it to fall back on."

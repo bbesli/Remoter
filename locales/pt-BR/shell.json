@@ -61,7 +61,9 @@
     "openPanels": "Abrir o painel de sessões e túneis",
     "_comment_locksIn": "{clock} is mm:ss, produced by formatClock() so the digits follow the locale's numbering system.",
     "locksIn": "o cofre bloqueia em {clock}",
-    "noAutoLock": "bloqueio automático desligado"
+    "noAutoLock": "bloqueio automático desligado",
+    "_comment_vaultLocked": "SECURITY-ADJACENT. Sits where the auto-lock countdown goes. It exists because the countdown is null in two different situations - auto-lock switched off, and the vault LOCKED - and the footer used to say 'auto-lock is off' at the exact moment auto-lock had just fired. Lower case, like the counts beside it.",
+    "vaultLocked": "cofre bloqueado"
   },
 
   "inspector": {
@@ -129,12 +131,6 @@
     "connectHint": "Dê um duplo clique nela na árvore, pressione Enter na paleta ou use Conectar no menu de contexto dela.",
     "folderSelected": "Pastas guardam configurações que as conexões abaixo delas herdam.",
 
-    "lockedTitle": "Este cofre está bloqueado",
-    "_comment_lockedBody": "SECURITY-CRITICAL wording in one respect: it must keep saying that nothing was lost. A user who believes a lock destroyed their connections will go looking for a backup they do not need.",
-    "lockedBody": "Ele se bloqueou sozinho depois do tempo de inatividade, ou foi bloqueado a partir de outra janela. Nada foi perdido: as conexões continuam no arquivo e voltam quando você desbloqueá-lo.",
-    "lockedAction": "Desbloquear este cofre",
-    "lockedNoPath": "Escolher um cofre",
-
     "vaultStateFailed": "O Remoter não consegue saber se há um cofre aberto.",
     "treeFailed": "Não foi possível ler a árvore de conexões.",
     "lockFailed": "O cofre não foi bloqueado.",
@@ -143,7 +139,9 @@
     "fullscreenFailedBody": "O gerenciador de janelas recusou, ou esta página não está sendo executada dentro da janela do Remoter. Nada mudou na sessão.",
 
     "checkingVault": "Verificando se há um cofre aberto…",
-    "readingTree": "Lendo as conexões de dentro do cofre…"
+    "readingTree": "Lendo as conexões de dentro do cofre…",
+    "_comment_lockedLeaving": "The one frame between the application noticing the vault has locked and the unlock screen replacing this window. Nothing of the vault is drawn behind it, which is the point: this is what the shell says while it is taking the connection tree off the screen.",
+    "lockedLeaving": "Limpando o conteúdo do cofre desta janela…"
   },
 
   "kdfUpgrade": {

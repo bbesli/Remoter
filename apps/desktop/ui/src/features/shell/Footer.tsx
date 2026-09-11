@@ -103,7 +103,20 @@ export function Footer({ vault, onShowPanels }: FooterProps) {
         </>
       )}
 
-      {remaining === null ? (
+      {/*
+        Three states, not two.
+
+        `locksInSeconds` is null in two quite different situations — auto-lock
+        is switched off, and the vault is LOCKED — and this corner used to
+        collapse them into one sentence. So the moment a vault locked itself
+        after fifteen idle minutes, the footer announced that auto-lock was
+        off: the one message contradicted by the thing that had just happened.
+        A locked vault gets its own words, and a state not yet known gets
+        none.
+      */}
+      {vault === undefined ? null : !vault.unlocked ? (
+        <span className={s.note}>{t("footer.vaultLocked")}</span>
+      ) : remaining === null ? (
         <span className={s.note}>{t("footer.noAutoLock")}</span>
       ) : (
         // The clock is inside the sentence rather than beside it, because

@@ -44,6 +44,7 @@ const settings: AppSettings = {
   updateCheckEnabled: false,
   updateChannel: "stable",
   updateLastCheckedAt: null,
+  fileDownloadFolder: null,
   terminalPrefix: "ctrl+alt",
   shortcuts: {},
   terminal: { palette: "auto", overrides: {}, fontFamily: "", fontSize: 13 },

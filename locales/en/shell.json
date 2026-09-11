@@ -61,7 +61,9 @@
     "openPanels": "Open the sessions and tunnels panel",
     "_comment_locksIn": "{clock} is mm:ss, produced by formatClock() so the digits follow the locale's numbering system.",
     "locksIn": "vault locks in {clock}",
-    "noAutoLock": "auto-lock is off"
+    "noAutoLock": "auto-lock is off",
+    "_comment_vaultLocked": "SECURITY-ADJACENT. Sits where the auto-lock countdown goes. It exists because the countdown is null in two different situations - auto-lock switched off, and the vault LOCKED - and the footer used to say 'auto-lock is off' at the exact moment auto-lock had just fired. Lower case, like the counts beside it.",
+    "vaultLocked": "vault locked"
   },
 
   "inspector": {
@@ -128,12 +130,6 @@
     "connectHint": "Double-click it in the tree, press Enter in the palette, or use Connect in its context menu.",
     "folderSelected": "Folders hold settings that the connections beneath them inherit.",
 
-    "lockedTitle": "This vault is locked",
-    "_comment_lockedBody": "SECURITY-CRITICAL wording in one respect: it must keep saying that nothing was lost. A user who believes a lock destroyed their connections will go looking for a backup they do not need.",
-    "lockedBody": "It locked itself after the idle period, or was locked from another window. Nothing was lost; the connections are still in the file and come back when you unlock it.",
-    "lockedAction": "Unlock this vault",
-    "lockedNoPath": "Choose a vault",
-
     "vaultStateFailed": "Remoter cannot tell whether a vault is open.",
     "treeFailed": "The connection tree could not be read.",
     "lockFailed": "The vault was not locked.",
@@ -142,7 +138,9 @@
     "fullscreenFailedBody": "The window manager refused it, or this page is not running inside the Remoter window. Nothing about the session changed.",
 
     "checkingVault": "Checking whether a vault is open…",
-    "readingTree": "Reading the connections out of the vault…"
+    "readingTree": "Reading the connections out of the vault…",
+    "_comment_lockedLeaving": "The one frame between the application noticing the vault has locked and the unlock screen replacing this window. Nothing of the vault is drawn behind it, which is the point: this is what the shell says while it is taking the connection tree off the screen.",
+    "lockedLeaving": "Clearing the vault's contents from this window…"
   },
 
   "kdfUpgrade": {

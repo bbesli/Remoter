@@ -13,7 +13,18 @@ import { describe, expect, it } from "vitest";
 
 import type { TransferStart, TransferStatus } from "@/lib/ipc";
 
-import { anyLive, failureOf, isLive, progressOf, refetchIntervalFor, resumeOutcome, summarise } from "./queue";
+import {
+  anyLive,
+  failureOf,
+  isLive,
+  progressOf,
+  refetchIntervalFor,
+  remainingParts,
+  resumeOutcome,
+  STALL_AFTER_MS,
+  summarise,
+  timingOf,
+} from "./queue";
 
 function base(): Omit<TransferStatus, "state"> & { state: "queued" } {
   return {
@@ -26,6 +37,10 @@ function base(): Omit<TransferStatus, "state"> & { state: "queued" } {
     resume: false,
     start: null,
     state: "queued",
+    queuedAtMs: 1_000,
+    startedAtMs: null,
+    finishedAtMs: null,
+    progressAtMs: null,
   };
 }
 
@@ -175,5 +190,119 @@ describe("failureOf", () => {
       actions: ["Try again"],
     });
     expect(failureOf({ ...base(), state: "cancelled" })).toBeNull();
+  });
+});
+
+describe("timingOf", () => {
+  it("says nothing about a transfer that has not started", () => {
+    // It has been queued and nothing else. An elapsed time measured from the
+    // moment it was queued would count the wait as work.
+    const timing = timingOf(base(), 50_000);
+    expect(timing.elapsedMs).toBeNull();
+    expect(timing.bytesPerSecond).toBeNull();
+    expect(timing.remainingMs).toBeNull();
+    expect(timing.stalled).toBe(false);
+  });
+
+  it("measures the rate over this attempt, not over the whole file", () => {
+    // A resumed transfer that continued from 900 MiB and has since moved 4 MiB
+    // is moving at the speed of those 4 MiB. Counting the 900 it never fetched
+    // reports a rate the link has never achieved — and an estimate built on it.
+    const resumed: TransferStatus = {
+      ...base(),
+      state: "running",
+      done: 904 * 1024 * 1024,
+      total: 1_000 * 1024 * 1024,
+      start: {
+        resumeRequested: true,
+        resumeFrom: 900 * 1024 * 1024,
+        total: 1_000 * 1024 * 1024,
+        resumeDeclined: false,
+        note: null,
+      },
+      startedAtMs: 10_000,
+      progressAtMs: 14_000,
+    };
+    const timing = timingOf(resumed, 14_000);
+    // Four MiB in four seconds is one MiB a second, whatever the file's size.
+    expect(timing.bytesPerSecond).toBeCloseTo(1024 * 1024, 0);
+    // 96 MiB left at 1 MiB/s.
+    expect(timing.remainingMs).toBeCloseTo(96_000, -2);
+  });
+
+  it("refuses to report a rate from a sample too short to be one", () => {
+    const justBegun: TransferStatus = {
+      ...base(),
+      state: "running",
+      done: 4_096,
+      total: 1_000_000,
+      startedAtMs: 10_000,
+      progressAtMs: 10_100,
+    };
+    expect(timingOf(justBegun, 10_100).bytesPerSecond).toBeNull();
+  });
+
+  it("calls a transfer stalled only once it is running and has stopped moving", () => {
+    const running: TransferStatus = {
+      ...base(),
+      state: "running",
+      done: 1_000,
+      total: 10_000,
+      startedAtMs: 0,
+      progressAtMs: 1_000,
+    };
+    expect(timingOf(running, 1_000 + STALL_AFTER_MS - 1).stalled).toBe(false);
+    expect(timingOf(running, 1_000 + STALL_AFTER_MS + 1).stalled).toBe(true);
+
+    // A queued transfer has not begun and a finished one will not move again.
+    // Calling either stalled describes the ordinary state of a queue as a fault.
+    expect(timingOf({ ...base(), startedAtMs: null }, 10_000_000).stalled).toBe(false);
+    expect(
+      timingOf(
+        { ...base(), state: "completed", bytes: 10, startedAtMs: 0, finishedAtMs: 5 },
+        10_000_000,
+      ).stalled,
+    ).toBe(false);
+  });
+
+  it("stops the elapsed clock where the transfer stopped", () => {
+    const done: TransferStatus = {
+      ...base(),
+      state: "completed",
+      bytes: 2_048,
+      startedAtMs: 1_000,
+      finishedAtMs: 3_000,
+    };
+    // Not "now minus started": a finished transfer's elapsed time must not keep
+    // growing while its row is on screen.
+    expect(timingOf(done, 9_999_999).elapsedMs).toBe(2_000);
+  });
+
+  it("never produces a negative duration from a clock that moved backwards", () => {
+    const skewed: TransferStatus = {
+      ...base(),
+      state: "running",
+      done: 1,
+      total: 2,
+      startedAtMs: 5_000,
+    };
+    expect(timingOf(skewed, 1_000).elapsedMs).toBe(0);
+  });
+});
+
+describe("remainingParts", () => {
+  it("rounds to the leading unit", () => {
+    expect(remainingParts(45_000)).toEqual({ unit: "seconds", value: 45 });
+    expect(remainingParts(4 * 60_000 + 12_000)).toEqual({ unit: "minutes", value: 4 });
+    expect(remainingParts(3 * 3_600_000)).toEqual({ unit: "hours", value: 3 });
+  });
+
+  it("says nothing where an estimate would not be one", () => {
+    expect(remainingParts(null)).toBeNull();
+    // About to finish: a countdown adds nothing.
+    expect(remainingParts(400)).toBeNull();
+    // Past a day, a rate measured over the last minute is not evidence.
+    expect(remainingParts(40 * 3_600_000)).toBeNull();
+    expect(remainingParts(Number.POSITIVE_INFINITY)).toBeNull();
   });
 });

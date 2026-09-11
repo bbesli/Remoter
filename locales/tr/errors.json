@@ -907,6 +907,18 @@
     "protocol-violation": {
       "message": "Sunucu, protokolün izin vermediği bir şey gönderdi."
     },
+    "_comment_path-not-found": "A file-manager failure on a session that is connected and working. It used to be reported as `setting-invalid`, which sent the reader to the connection editor to fix a setting that was never wrong. Keep the second sentence: the commonest cause by far is a listing that is a few seconds out of date, and the way out is to read the folder again.",
+    "path-not-found": {
+      "message": "Sunucuda bu yolda hiçbir şey yok. Bu klasör en son okunduktan sonra taşınmış, adı değiştirilmiş veya silinmiş olabilir."
+    },
+    "_comment_path-permission-denied": "SECURITY-ADJACENT. This must not read as a sign-in failure. It used to be reported as `auth-rejected` — 'the server rejected these credentials' — on a connection that had authenticated minutes earlier, which sends the reader off to re-check an SSH key that is working. The distinction between 'who you are' and 'what this file allows' is the whole sentence; a translation that blurs it undoes the fix.",
+    "path-permission-denied": {
+      "message": "Sunucu bu yola erişimi reddetti. Bu bir oturum açma sorunu değil, dosya izinlerinden kaynaklanan bir ret: bağlantının kimliği doğrulanmış durumda ve bu hesabın bu dosya ya da klasör için izni yok."
+    },
+    "_comment_file-operation-refused": "HONESTY. SFTP version 3 has one catch-all status for everything that is not 'missing' or 'not permitted', so a full disk, a quota, a read-only mount, a lock and a cross-device rename are genuinely indistinguishable here. The sentence names the likely causes and admits it cannot tell them apart; do not turn it into a guess at one of them.",
+    "file-operation-refused": {
+      "message": "Sunucu bu dosya üzerindeki işlemi tamamlayamadı ve nedenini söylemedi. Dolu disk, kota, salt okunur dosya sistemi, bir kilit ya da iki dosya sistemi arasında yeniden adlandırma — hepsi tam olarak bu biçimde gelir."
+    },
     "cancelled": {
       "message": "Oturum açılmadan iptal edildi."
     },
@@ -1004,6 +1016,10 @@
         "Öbür tarafa kopyalayıp özgün dosyayı sil",
         "Aynı dosya sistemi içinde adını değiştir"
       ]
+    },
+    "_comment_local-destination-unreadable": "Raised while checking, before a transfer is queued, whether something is already at the place a download would write. It is deliberately not fatal: the transfer is still offered, and the dialog says which destinations could not be looked at. 'Nothing is there' and 'nobody could look' are different answers and the interface must not show the first when it means the second.",
+    "local-destination-unreadable": {
+      "message": "Remoter, bu bilgisayarda o konumda zaten bir dosya olup olmadığını denetleyemedi. Aktarım yine de gönderilebilir, ancak neyin üzerine yazılacağı bilinmiyor."
     },
     "transfer-failed": {
       "_comment_": "Deliberately has no `message`, for the same reason as session.failed: the sentence is the transfer's own diagnostic, composed when it failed, and there is no detail beside it to fall back on."

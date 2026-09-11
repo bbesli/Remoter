@@ -8,11 +8,22 @@
 
 import { create } from "zustand";
 import type { CreateVaultResult, ThemeName } from "@/lib/ipc";
+import type { RelockNotice } from "@/features/vault/lock";
 
 export type Screen =
   | { name: "picker" }
   | { name: "create" }
-  | { name: "unlock"; path: string }
+  /**
+   * Asking for the password of a known vault.
+   *
+   * `relock` is what distinguishes the two ways of arriving here, and it is
+   * required rather than optional so that every caller has to answer the
+   * question. `null` is a cold open — the user picked this file and is opening
+   * it. Non-null means the vault was already open and locked under them, and
+   * the screen owes them two sentences it cannot otherwise know to write: why
+   * it locked, and what happened to the sessions they had running.
+   */
+  | { name: "unlock"; path: string; relock: RelockNotice | null }
   /** Shown once, immediately after creation, before the vault opens. */
   | { name: "recovery"; result: CreateVaultResult }
   | { name: "main" }

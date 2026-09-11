@@ -61,7 +61,9 @@
     "openPanels": "فتح لوحة الجلسات والأنفاق",
     "_comment_locksIn": "{clock} is mm:ss, produced by formatClock() so the digits follow the locale's numbering system.",
     "locksIn": "تُقفل الخزنة خلال {clock}",
-    "noAutoLock": "القفل التلقائي معطّل"
+    "noAutoLock": "القفل التلقائي معطّل",
+    "_comment_vaultLocked": "SECURITY-ADJACENT. Sits where the auto-lock countdown goes. It exists because the countdown is null in two different situations - auto-lock switched off, and the vault LOCKED - and the footer used to say 'auto-lock is off' at the exact moment auto-lock had just fired. Lower case, like the counts beside it.",
+    "vaultLocked": "الخزنة مقفلة"
   },
 
   "inspector": {
@@ -128,12 +130,6 @@
     "connectHint": "انقر عليه نقرًا مزدوجًا في الشجرة، أو اضغط Enter في لوحة الأوامر، أو استخدم «اتصال» من قائمة السياق.",
     "folderSelected": "تحمل المجلدات إعدادات ترثها الاتصالات التي تحتها.",
 
-    "lockedTitle": "هذه الخزنة مقفلة",
-    "_comment_lockedBody": "SECURITY-CRITICAL wording in one respect: it must keep saying that nothing was lost. A user who believes a lock destroyed their connections will go looking for a backup they do not need.",
-    "lockedBody": "أقفلت نفسها بعد مدة الخمول، أو أُقفلت من نافذة أخرى. لم يُفقد شيء؛ فالاتصالات لا تزال في الملف وتعود عند فتح القفل.",
-    "lockedAction": "فتح قفل هذه الخزنة",
-    "lockedNoPath": "اختر خزنة",
-
     "vaultStateFailed": "يتعذّر على Remoter معرفة ما إذا كانت هناك خزنة مفتوحة.",
     "treeFailed": "تعذّرت قراءة شجرة الاتصالات.",
     "lockFailed": "لم تُقفل الخزنة.",
@@ -142,7 +138,9 @@
     "fullscreenFailedBody": "رفض مدير النوافذ ذلك، أو أن هذه الصفحة لا تعمل داخل نافذة Remoter. لم يتغير شيء في الجلسة.",
 
     "checkingVault": "جارٍ التحقق مما إذا كانت هناك خزنة مفتوحة…",
-    "readingTree": "جارٍ قراءة الاتصالات من الخزنة…"
+    "readingTree": "جارٍ قراءة الاتصالات من الخزنة…",
+    "_comment_lockedLeaving": "The one frame between the application noticing the vault has locked and the unlock screen replacing this window. Nothing of the vault is drawn behind it, which is the point: this is what the shell says while it is taking the connection tree off the screen.",
+    "lockedLeaving": "يجري مسح محتوى الخزنة من هذه النافذة…"
   },
 
   "kdfUpgrade": {

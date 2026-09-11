@@ -167,3 +167,119 @@ export function failureOf(status: TransferStatus): IpcFailure | null {
     actions: status.actions,
   };
 }
+
+// ------------------------------------------------------------ the clock ----
+
+/**
+ * How long a transfer may report the same byte count before the queue says so.
+ *
+ * Not a failure, and deliberately generous. Progress is reported every 512 KiB
+ * (`PROGRESS_INTERVAL_BYTES` in the engine), so a link moving 30 KiB a second
+ * reports once every seventeen seconds and is working perfectly. A threshold
+ * tight enough to catch a hang quickly would call that link stalled, and a
+ * warning that fires on a slow-but-fine transfer is a warning people learn to
+ * ignore — which is the one thing it must not become, because the case it
+ * exists for is the transfer that will never finish.
+ */
+export const STALL_AFTER_MS = 20_000;
+
+/** Below this, a rate is noise rather than a measurement. */
+const MIN_RATE_SAMPLE_MS = 1_000;
+
+/**
+ * What a queue row can say about time, or `null` for each thing it cannot.
+ *
+ * Every field is derived from the timestamps the core puts on the transfer and
+ * the clock the interface is already drawing against. Nothing here is state:
+ * there is no timer, no `useEffect` and nothing to reconcile — which is
+ * deliberate, because the previous attempt at this kept a `Map` of readings in
+ * an effect, rebuilt it on every run, and looped forever.
+ */
+export interface TransferTiming {
+  /** Milliseconds from taking a slot to finishing, or to now. */
+  elapsedMs: number | null;
+  /** Bytes per second over this attempt, where that can be measured. */
+  bytesPerSecond: number | null;
+  /** Milliseconds left at the measured rate, where a total is known. */
+  remainingMs: number | null;
+  /** True when a running transfer's byte count has not moved for a while. */
+  stalled: boolean;
+}
+
+/**
+ * Reads a transfer's clock.
+ *
+ * `now` is a parameter rather than a call to `Date.now()` so this is a pure
+ * function of its arguments and can be tested without freezing a clock.
+ *
+ * The rate is measured over **this attempt**, from the resume offset rather
+ * than from zero. A transfer that continued from 900 MiB and has since moved
+ * 4 MiB is moving at the speed of those 4 MiB; counting the 900 it never
+ * fetched would report a rate the link has never achieved and an estimate built
+ * on it.
+ */
+export function timingOf(status: TransferStatus, now: number): TransferTiming {
+  const started = status.startedAtMs;
+  if (started === null) {
+    // Still waiting for a slot. It has a queue time, but nothing it has done.
+    return { elapsedMs: null, bytesPerSecond: null, remainingMs: null, stalled: false };
+  }
+
+  const until = status.finishedAtMs ?? now;
+  // Clamped at zero: the two stamps come from the same clock, but a clock that
+  // is set backwards mid-transfer would otherwise produce a negative duration
+  // and, through it, a negative rate.
+  const elapsedMs = Math.max(0, until - started);
+
+  const progress = progressOf(status);
+  const from = status.start?.resumeFrom ?? 0;
+  const movedThisAttempt = progress === null ? 0 : Math.max(0, progress.done - from);
+
+  const bytesPerSecond =
+    elapsedMs >= MIN_RATE_SAMPLE_MS && movedThisAttempt > 0
+      ? (movedThisAttempt * 1000) / elapsedMs
+      : null;
+
+  const left = progress?.total === null || progress === null ? null : progress.total - progress.done;
+  const remainingMs =
+    bytesPerSecond !== null && left !== null && left > 0 && status.state === "running"
+      ? (left / bytesPerSecond) * 1000
+      : null;
+
+  // Only a *running* transfer can stall. A queued one has not begun and a
+  // terminal one is not going to move again, and calling either stalled would
+  // be describing the ordinary state of the queue as a problem.
+  const lastMoved = status.progressAtMs ?? started;
+  const stalled = status.state === "running" && now - lastMoved > STALL_AFTER_MS;
+
+  return { elapsedMs, bytesPerSecond, remainingMs, stalled };
+}
+
+/** How a remaining time is said: the leading unit, and how many of it. */
+export type Remaining =
+  | { unit: "hours"; value: number }
+  | { unit: "minutes"; value: number }
+  | { unit: "seconds"; value: number };
+
+/**
+ * Rounds a duration to its leading unit.
+ *
+ * "Four minutes" rather than "four minutes and twelve seconds", because the
+ * second is a precision the measurement does not have: the rate it came from is
+ * an average over a link whose speed changes. A figure that looks precise and
+ * is not teaches people to distrust the one beside it.
+ *
+ * `null` for anything under a second — a bar about to finish does not need a
+ * countdown — and for a figure too large to be a useful answer.
+ */
+export function remainingParts(remainingMs: number | null): Remaining | null {
+  if (remainingMs === null || !Number.isFinite(remainingMs) || remainingMs < 1_000) return null;
+  const seconds = Math.round(remainingMs / 1_000);
+  if (seconds < 60) return { unit: "seconds", value: seconds };
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return { unit: "minutes", value: minutes };
+  const hours = Math.round(minutes / 60);
+  // Past a day the estimate is not an estimate. Saying nothing is more honest
+  // than saying "37 hours left" about a rate measured over the last minute.
+  return hours <= 24 ? { unit: "hours", value: hours } : null;
+}

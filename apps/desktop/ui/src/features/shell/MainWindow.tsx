@@ -9,7 +9,7 @@
  * footer off the bottom of the window.
  */
 
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { BusyStatus, SkeletonRows } from "@/components/Busy";
@@ -26,6 +26,7 @@ import {
   useShortcutGroup,
 } from "@/hooks/keyboard";
 import { ConnectionTree } from "@/features/connections/ConnectionTree";
+import { captureSessions, enterLockedState } from "@/features/vault/lock";
 import { CommandPalette } from "@/features/connections/CommandPalette";
 import {
   SessionPanels,
@@ -147,7 +148,6 @@ export function MainWindow() {
   const [panelsOpen, setPanelsOpen] = useState(false);
 
   const go = useApp((st) => st.go);
-  const select = useApp((st) => st.select);
   const selectedNodeId = useApp((st) => st.selectedNodeId);
   const sidebarOpen = useApp((st) => st.sidebarOpen);
   const toggleSidebar = useApp((st) => st.toggleSidebar);
@@ -231,9 +231,10 @@ export function MainWindow() {
   const treeError = failureOf(treeQuery.error);
 
   /**
-   * Locking clears the query cache as well as the core's keys. Everything
-   * cached here was decrypted from the vault; leaving it in memory behind a
-   * locked vault would defeat the lock for anything that can read the heap.
+   * Locking drops everything the vault fed as well as the core's keys.
+   * Everything cached here was decrypted from the vault; leaving it in the
+   * query cache behind a locked vault leaves it on screen, which is the defect
+   * the idle timeout used to ship — see `features/vault/lock.ts`.
    *
    * A refused lock leaves the vault open, so the failure has to be seen: it is
    * shown beside whichever control asked for it, which is what `destination`
@@ -246,15 +247,20 @@ export function MainWindow() {
     // locked vault would keep credentials in a process nobody is watching.
     // The vault's own idle policy is a different question and stays the
     // core's; this is only the button.
-    mutationFn: (destination: "unlock" | "picker") =>
-      closeAllSessions()
+    //
+    // Counted before they are closed, so the unlock screen can say how many
+    // went. After `closeAllSessions` there is nothing left to count.
+    mutationFn: (destination: "unlock" | "picker") => {
+      const sessions = captureSessions();
+      return closeAllSessions()
         .then(() => ipc.lockVault())
-        .then(() => destination),
-    onSuccess: (destination) => {
+        .then(() => ({ destination, sessions }));
+    },
+    onSuccess: ({ destination, sessions }) => {
       const path = vault?.path ?? null;
-      queryClient.clear();
-      select(null);
-      go(destination === "picker" || path === null ? { name: "picker" } : { name: "unlock", path });
+      // One transition for every way a vault can lock, so the button and the
+      // idle timeout leave the screen in the same state.
+      enterLockedState(queryClient, destination === "picker" ? null : path, "manual", sessions);
     },
   });
 
@@ -333,6 +339,30 @@ export function MainWindow() {
   // The one window-level listener. Everything above only declares handlers.
   useShortcutDispatcher(isTerminalFocused);
 
+  /*
+   * The vault locked while this window was open.
+   *
+   * A locked vault is a screen, not a notice inside the shell — see the header
+   * of `features/vault/lock.ts` for the failure that taught us so. Most locks
+   * are noticed sooner than this, by the rejection a vault-scoped query gets;
+   * the query client turns that into the same transition the moment it lands.
+   * This is the backstop for the case where nothing was reading: the poll
+   * comes back `unlocked: false` and nobody asked it a question that could
+   * fail.
+   *
+   * `undefined` is "not answered yet" and deliberately does not count. Treating
+   * a pending first read as locked would bounce the user out of the shell every
+   * time the window opened.
+   */
+  const vaultLocked = vault !== undefined && !vault.unlocked;
+  useEffect(() => {
+    if (!vaultLocked) return;
+    // Why the vault is locked is not in `VaultState`, and there is no honest
+    // way to infer it here: by this point the timeout, a trigger and another
+    // window's lock button all look identical. `unknown` says so.
+    enterLockedState(queryClient, vault?.path ?? null, "unknown", captureSessions());
+  }, [vaultLocked, vault?.path, queryClient]);
+
   const vaultEmpty = vault?.unlocked === true && treeQuery.isSuccess && nodes.length === 0;
 
   // What fills the session area when no session is open. It is passed to
@@ -364,30 +394,6 @@ export function MainWindow() {
                 <div className={s.sessionNotice}>
                   <BusyStatus label={t("main.checkingVault")} size={16} />
                 </div>
-              ) : vault !== undefined && !vault.unlocked ? (
-                // The core can lock the vault without the interface asking —
-                // the idle timeout does exactly that. Left unsaid, the window
-                // simply stops having any content in it.
-                <div className={s.sessionNotice}>
-                  <Callout tone="warning" title={t("main.lockedTitle")}>
-                    <p className={s.noticeBody}>{t("main.lockedBody")}</p>
-                    <div className={s.noticeActions}>
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        onClick={() =>
-                          go(
-                            vault.path === null
-                              ? { name: "picker" }
-                              : { name: "unlock", path: vault.path },
-                          )
-                        }
-                      >
-                        {vault.path === null ? t("main.lockedNoPath") : t("main.lockedAction")}
-                      </Button>
-                    </div>
-                  </Callout>
-                </div>
               ) : treeQuery.isPending ? (
                 // The shape of what is coming, rather than a blank panel that
                 // reads as "this vault has nothing in it".
@@ -409,6 +415,24 @@ export function MainWindow() {
                 <SessionPlaceholder node={selectedNode} />
               )
   );
+
+  /*
+   * One frame, at most, between the lock being noticed and the unlock screen
+   * replacing this window — and nothing of the vault is drawn in it. Not the
+   * tree, not the tab strip, not the inspector, not the footer's counts. The
+   * whole point of the lock is that the estate stops being readable, and a
+   * shell that keeps painting its last-known contents while the effect above
+   * runs would hand back exactly the frame the lock was meant to take away.
+   */
+  if (vaultLocked) {
+    return (
+      <div className={s.window}>
+        <div className={s.sessionNotice}>
+          <BusyStatus label={t("main.lockedLeaving")} size={16} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={s.window}>

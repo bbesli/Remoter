@@ -2502,6 +2502,36 @@ fn message_for(error: &ProtocolError) -> (String, String) {
             code("unsupported"),
             format!("`{protocol}` sessions do not support {operation}."),
         ),
+        // ── 8 · Run, file-manager failures ─────────────────────────────────
+        // Their own codes rather than `setting-invalid` and `auth-rejected`,
+        // which is what they used to borrow. Both borrowings described a
+        // connection problem on a connection that was working, and sent the
+        // reader somewhere that could not help: the connection editor, for a
+        // setting that does not exist, and the credential picker, for a key
+        // that had authenticated minutes earlier.
+        E::PathNotFound => (
+            code("path-not-found"),
+            String::from(
+                "There is nothing at that path on the server. It may have been moved, renamed or \
+                 deleted since this folder was last read.",
+            ),
+        ),
+        E::PathPermissionDenied => (
+            code("path-permission-denied"),
+            String::from(
+                "The server refused access to that path. This is a file-permission refusal, not a \
+                 sign-in problem: the connection is authenticated, and this account does not have \
+                 permission for this file or folder.",
+            ),
+        ),
+        E::FileOperationRefused => (
+            code("file-operation-refused"),
+            String::from(
+                "The server could not complete that operation on this file and did not say why. A \
+                 full disk, a quota, a read-only filesystem, a lock, or a rename across two \
+                 filesystems all arrive in exactly this form.",
+            ),
+        ),
         E::Disconnected { reason } => (
             code("disconnected"),
             if reason.trim().is_empty() {

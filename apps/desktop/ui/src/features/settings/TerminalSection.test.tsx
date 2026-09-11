@@ -51,6 +51,7 @@ function settingsWith(terminal: TerminalAppearance): AppSettings {
     updateCheckEnabled: false,
     updateChannel: "stable",
     updateLastCheckedAt: null,
+  fileDownloadFolder: null,
     terminalPrefix: "ctrl+alt",
     shortcuts: {},
     terminal,

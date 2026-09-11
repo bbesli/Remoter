@@ -92,3 +92,13 @@
     grid-template-columns: 1fr 1fr;
   }
 }
+
+/*
+ * A path in the partial-enqueue report. Monospaced and wrapping anywhere,
+ * because a remote path can be longer than the notice it sits in and a path
+ * that overflows is a path the reader cannot check.
+ */
+.skippedPath {
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}

@@ -37,7 +37,8 @@ pub use session::{
     SessionFailureDto, SessionMessageDto, SessionOpenedDto, SessionSummaryDto, TrustedHostKeyDto,
 };
 pub use sftp::{
-    DirectoryEntryDto, NameRisksDto, SftpDeleteFailureDto, SftpDeleteReportDto, SftpPaneDto,
+    DirectoryEntryDto, EnqueueReportDto, EnqueueSkippedDto, NameRisksDto, PreflightProblemDto,
+    ResolvedPathDto, SftpDeleteFailureDto, SftpDeleteReportDto, SftpPaneDto, TransferPreflightDto,
     TransferRequestDto, TransferStartDto, TransferStateDto, TransferStatusDto,
 };
 pub use state::AppState;
@@ -125,6 +126,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         sftp::sftp_delete,
         sftp::sftp_set_permissions,
         sftp::sftp_symlink,
+        sftp::sftp_preflight,
         sftp::sftp_enqueue,
         sftp::sftp_transfers,
         sftp::sftp_transfer_cancel,

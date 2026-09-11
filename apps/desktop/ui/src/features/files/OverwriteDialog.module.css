@@ -1,0 +1,49 @@
+/*
+ * The overwrite confirmation.
+ *
+ * Same shape as the removal confirmation, and for the same reason: the reader
+ * has to be able to check a list of paths before agreeing to write over them,
+ * so the paths are monospaced and wrap anywhere rather than overflowing the
+ * dialog they are supposed to be read in.
+ *
+ * Logical properties throughout, so the indent and the alignment follow the
+ * reading direction rather than assuming one.
+ */
+
+.heading {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--fg-default);
+}
+
+.note {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--fg-muted);
+}
+
+.sample {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  padding-inline-start: var(--space-4);
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--fg-default);
+}
+
+.path {
+  display: block;
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+.existing {
+  display: block;
+  font-family: var(--font-ui);
+  color: var(--fg-muted);
+}

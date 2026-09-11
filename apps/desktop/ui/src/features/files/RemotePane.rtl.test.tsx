@@ -14,13 +14,14 @@
  */
 
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { formatBytes, formatDateTime } from "@/i18n";
 import { withoutBidi } from "@/test/bidi";
 import type { DirectoryEntry, EntryKind } from "@/lib/ipc";
 
+import { REMOTE_DRAG_TYPE, decodePaths } from "./dragTypes";
 import { RemotePane } from "./RemotePane";
 import { DEFAULT_SORT } from "./sort";
 import type { DirectoryView } from "./useDirectory";
@@ -72,6 +73,13 @@ function renderPane(entries: DirectoryEntry[], overrides: Partial<Parameters<typ
   const onNavigate = vi.fn();
   const onRename = vi.fn();
   const onDelete = vi.fn();
+  const onSelectionChange = vi.fn();
+  const onDownload = vi.fn();
+  const onUploadDropped = vi.fn();
+  const onBack = vi.fn();
+  const onForward = vi.fn();
+  const onGoToTyped = vi.fn();
+  const onProperties = vi.fn();
   render(
     <RemotePane
       view={viewOf(entries)}
@@ -80,18 +88,36 @@ function renderPane(entries: DirectoryEntry[], overrides: Partial<Parameters<typ
       home="/home/deploy"
       homeDisplay="/home/deploy"
       selection={new Set()}
-      onSelectionChange={vi.fn()}
+      onSelectionChange={onSelectionChange}
       onNavigate={onNavigate}
+      canGoBack={false}
+      canGoForward={false}
+      onBack={onBack}
+      onForward={onForward}
+      onGoToTyped={onGoToTyped}
+      resolving={false}
+      resolveProblem={null}
       onNewFolder={vi.fn()}
       onRename={onRename}
       onDelete={onDelete}
-      onDownload={vi.fn()}
-      onUploadDropped={vi.fn()}
+      onProperties={onProperties}
+      onDownload={onDownload}
+      onUploadDropped={onUploadDropped}
       busy={false}
       {...overrides}
     />,
   );
-  return { onNavigate, onRename, onDelete };
+  return {
+    onNavigate,
+    onRename,
+    onDelete,
+    onProperties,
+    onSelectionChange,
+    onDownload,
+    onBack,
+    onForward,
+    onGoToTyped,
+  };
 }
 
 describe("a hostile name", () => {
@@ -166,14 +192,13 @@ describe("a folder", () => {
     expect(onNavigate).toHaveBeenCalledWith({ path: "/srv/log\u202Es", displayPath: "/srv/log\\u{202E}s" });
   });
 
-  it("cannot be queued for transfer, and says why", () => {
-    // Expanding a folder into one transfer per file is a walk that is not
-    // built. The checkbox is disabled and carries the reason rather than
-    // appearing to work.
+  it("can be queued for transfer", () => {
+    // The core walks a folder and queues one transfer per file underneath it,
+    // so the row takes part in a selection like any other. This used to be a
+    // disabled checkbox, which made the commonest real job — copy this
+    // directory down — impossible.
     renderPane([entry({ displayName: "logs", kind: "directory" })]);
-    const box = screen.getByRole("checkbox", { name: "logs" });
-    expect(box).toBeDisabled();
-    expect(box).toHaveAttribute("title", "Only files can be transferred in this build.");
+    expect(screen.getByRole("checkbox", { name: "logs" })).toBeEnabled();
   });
 });
 
@@ -218,5 +243,212 @@ describe("the columns", () => {
     renderPane([entry({ displayName: "socket" })]);
     // Four unreported fields: size, modified, permissions, owner.
     expect(screen.getAllByText("Not reported")).toHaveLength(4);
+  });
+});
+
+/**
+ * The listing is a grid, so it has to behave like one.
+ *
+ * Every assertion below is about an *effect* — where the focus went, what was
+ * handed to the selection callback, what the drag payload contained — rather
+ * than about an internal being called. A test that asserted "the key handler
+ * ran" would pass over a handler that moved the focus to the wrong row.
+ */
+describe("the keyboard", () => {
+  const three = () => [
+    entry({ displayName: "alpha.txt", path: "/srv/alpha.txt" }),
+    entry({ displayName: "beta.txt", path: "/srv/beta.txt" }),
+    entry({ displayName: "gamma.txt", path: "/srv/gamma.txt" }),
+  ];
+
+  /** The rows, in the order the grid draws them. */
+  function rows(): HTMLElement[] {
+    return screen.getAllByRole("row").filter((row) => row.hasAttribute("data-row"));
+  }
+
+  /**
+   * Puts the keyboard on one row, the way tabbing into the grid would.
+   *
+   * Wrapped in `act` because focusing a row moves the roving tabindex, which is
+   * React state: an unwrapped `focus()` updates it outside a render pass and
+   * the warning is React saying the next assertion may read a stale tree.
+   */
+  function focusRow(index: number) {
+    act(() => {
+      rows()[index]?.focus();
+    });
+  }
+
+  it("puts exactly one row in the tab order and moves it with the arrows", async () => {
+    renderPane(three());
+    // A roving tabindex: tabbing into the grid lands on one row, not on three
+    // hundred.
+    expect(rows().filter((row) => row.tabIndex === 0)).toHaveLength(1);
+
+    focusRow(0);
+    await userEvent.keyboard("{ArrowDown}");
+    expect(rows()[1]).toHaveFocus();
+    await userEvent.keyboard("{ArrowDown}");
+    expect(rows()[2]).toHaveFocus();
+    // Clamped at the end rather than wrapping: a list that wraps on the arrow
+    // keys is a list that loses your place.
+    await userEvent.keyboard("{ArrowDown}");
+    expect(rows()[2]).toHaveFocus();
+    await userEvent.keyboard("{Home}");
+    expect(rows()[0]).toHaveFocus();
+    await userEvent.keyboard("{End}");
+    expect(rows()[2]).toHaveFocus();
+  });
+
+  it("selects with Space and takes a range with Shift", async () => {
+    const { onSelectionChange } = renderPane(three());
+    focusRow(0);
+    await userEvent.keyboard(" ");
+    expect(onSelectionChange).toHaveBeenLastCalledWith(new Set(["/srv/alpha.txt"]));
+
+    onSelectionChange.mockClear();
+    await userEvent.keyboard("{Shift>}{ArrowDown}{/Shift}");
+    // The range from the anchor to the new row, both ends included.
+    expect(onSelectionChange).toHaveBeenLastCalledWith(
+      new Set(["/srv/alpha.txt", "/srv/beta.txt"]),
+    );
+  });
+
+  it("opens a folder with Enter and goes up with Backspace", async () => {
+    const { onNavigate } = renderPane([
+      entry({ displayName: "logs", path: "/srv/logs", displayPath: "/srv/logs", kind: "directory" }),
+    ]);
+    focusRow(0);
+    await userEvent.keyboard("{Enter}");
+    expect(onNavigate).toHaveBeenCalledWith({ path: "/srv/logs", displayPath: "/srv/logs" });
+
+    onNavigate.mockClear();
+    await userEvent.keyboard("{Backspace}");
+    // `/srv` has one segment, so the folder above it is the root.
+    expect(onNavigate).toHaveBeenCalledWith({ path: "/", displayPath: "/" });
+  });
+
+  it("renames with F2 and removes with Delete", async () => {
+    const { onRename, onDelete } = renderPane(three());
+    focusRow(1);
+    await userEvent.keyboard("{F2}");
+    expect(onRename).toHaveBeenCalledWith(expect.objectContaining({ path: "/srv/beta.txt" }));
+    await userEvent.keyboard("{Delete}");
+    expect(onDelete).toHaveBeenCalledWith(expect.objectContaining({ path: "/srv/beta.txt" }));
+  });
+
+  it("jumps to a name when letters are typed", async () => {
+    renderPane(three());
+    focusRow(0);
+    await userEvent.keyboard("g");
+    expect(rows()[2]).toHaveFocus();
+  });
+
+  it("folds the typed letters invariantly, the way the filter does", async () => {
+    // A file name is a byte string a machine chose, not language — so `B`
+    // finds `beta.txt`, and the Turkish fold is kept away from it for the
+    // reason `sort.ts` sets out at length.
+    //
+    // Its own test rather than a second keystroke in the one above: successive
+    // keystrokes inside the type-ahead window are a *prefix*, which is the
+    // behaviour that test is not about.
+    renderPane(three());
+    focusRow(0);
+    await userEvent.keyboard("B");
+    expect(rows()[1]).toHaveFocus();
+  });
+});
+
+describe("the mouse", () => {
+  const two = () => [
+    entry({ displayName: "one.txt", path: "/srv/one.txt" }),
+    entry({ displayName: "two.txt", path: "/srv/two.txt" }),
+  ];
+
+  it("replaces the selection on a plain click and adds on Ctrl", async () => {
+    const { onSelectionChange } = renderPane(two(), { selection: new Set(["/srv/two.txt"]) });
+    const rows = screen.getAllByRole("row").filter((row) => row.hasAttribute("data-row"));
+
+    await userEvent.click(rows[0] as HTMLElement);
+    // Replaced, not added: a plain click on a row means "this one".
+    expect(onSelectionChange).toHaveBeenLastCalledWith(new Set(["/srv/one.txt"]));
+
+    onSelectionChange.mockClear();
+    // `fireEvent` rather than `userEvent`, because the modifier has to be on
+    // the click itself: `userEvent.keyboard("{Control>}")` and a separate
+    // `click` are two interactions, and the second does not carry the first's
+    // modifier state.
+    fireEvent.click(rows[0] as HTMLElement, { ctrlKey: true });
+    // Added to what was already chosen, not replacing it. The selection prop
+    // is fixed in this test, so this is the callback's own arithmetic.
+    expect(onSelectionChange).toHaveBeenLastCalledWith(
+      new Set(["/srv/two.txt", "/srv/one.txt"]),
+    );
+  });
+});
+
+describe("a drag out of this pane", () => {
+  it("carries the rows that were dragged, not whatever happens to be selected", () => {
+    // The defect this pins: both panes ignored the payload and re-ran the bulk
+    // action, so dropping one row fetched the whole selection.
+    renderPane(
+      [
+        entry({ displayName: "one.txt", path: "/srv/one.txt" }),
+        entry({ displayName: "two.txt", path: "/srv/two.txt" }),
+      ],
+      { selection: new Set(["/srv/two.txt"]) },
+    );
+    const rows = screen.getAllByRole("row").filter((row) => row.hasAttribute("data-row"));
+
+    const stored = new Map<string, string>();
+    const dataTransfer = {
+      setData: (type: string, value: string) => stored.set(type, value),
+      effectAllowed: "none",
+    };
+
+    // A row outside the selection drags itself alone.
+    fireEvent.dragStart(rows[0] as HTMLElement, { dataTransfer });
+    expect(decodePaths(stored.get(REMOTE_DRAG_TYPE) ?? "")).toEqual(["/srv/one.txt"]);
+
+    // A row inside it drags the whole selection, which is what dragging a
+    // chosen row means everywhere else.
+    stored.clear();
+    fireEvent.dragStart(rows[1] as HTMLElement, { dataTransfer });
+    expect(decodePaths(stored.get(REMOTE_DRAG_TYPE) ?? "")).toEqual(["/srv/two.txt"]);
+  });
+});
+
+describe("the path box", () => {
+  it("accepts a relative path instead of silently disabling its button", async () => {
+    // It used to refuse anything that did not begin with a slash by disabling
+    // the button and saying nothing, so `..` and `logs` both looked broken.
+    const { onGoToTyped } = renderPane([]);
+    await userEvent.type(screen.getByLabelText("Folder path"), "..");
+    const go = screen.getByRole("button", { name: "Go" });
+    expect(go).toBeEnabled();
+    await userEvent.click(go);
+    expect(onGoToTyped).toHaveBeenCalledWith("..");
+  });
+});
+
+describe("an entry's properties", () => {
+  it("are reachable from the row and from the keyboard", async () => {
+    // `sftp_stat`, `sftp_read_link` and `sftp_set_permissions` were on the
+    // command surface with no way to reach any of them. This pins that there
+    // now is one, by both routes.
+    const { onProperties } = renderPane([entry({ displayName: "deploy.sh", path: "/srv/deploy.sh" })]);
+
+    await userEvent.click(screen.getByRole("button", { name: "Properties" }));
+    expect(onProperties).toHaveBeenCalledWith(expect.objectContaining({ path: "/srv/deploy.sh" }));
+
+    onProperties.mockClear();
+    const row = screen.getAllByRole("row").filter((one) => one.hasAttribute("data-row"))[0];
+    act(() => {
+      row?.focus();
+    });
+    // Alt+Enter, which is what every desktop file manager binds it to. Plain
+    // Enter still opens.
+    await userEvent.keyboard("{Alt>}{Enter}{/Alt}");
+    expect(onProperties).toHaveBeenCalledTimes(1);
   });
 });

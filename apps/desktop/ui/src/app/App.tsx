@@ -45,7 +45,7 @@ export function App() {
       {screen.name === "picker" && <VaultPicker />}
       {screen.name === "create" && <CreateVaultWizard />}
       {screen.name === "recovery" && <RecoveryKeyScreen result={screen.result} />}
-      {screen.name === "unlock" && <UnlockScreen path={screen.path} />}
+      {screen.name === "unlock" && <UnlockScreen path={screen.path} relock={screen.relock} />}
       {screen.name === "settings" && <AppSettings />}
       {/* Each of these three draws its own header and leaves through
           `goBack()`, so they get the window controls as an overlay exactly as

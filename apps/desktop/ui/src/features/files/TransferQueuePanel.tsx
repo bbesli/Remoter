@@ -20,20 +20,54 @@
  * says which of the two reasons applied. There is deliberately no setting that
  * overrides the refusal: appending to the wrong file corrupts it silently, and
  * re-copying one costs time.
+ *
+ * # What a row now says about time
+ *
+ * A byte count and a percentage answer "how much", and the question somebody
+ * watching a transfer actually has is "how long". Every figure below — the
+ * rate, the estimate, the elapsed time, and whether it has stalled — is a
+ * subtraction on the timestamps the core puts on each transfer, computed by the
+ * pure {@link timingOf} and rendered here.
+ *
+ * The only moving part is {@link useNow}: one clock, ticking once a second for
+ * exactly as long as something is still live, shared by every row. It is a
+ * subscription to the wall clock, not derived state — which is the distinction
+ * that matters here, because the previous attempt at this measured the rate
+ * from the panel's own successive readings, kept them in a `Map` rebuilt inside
+ * an effect on every run, and never settled. It did not merely run slowly; it
+ * hung the test suite.
+ *
+ * # It can be put away
+ *
+ * The panel used to take its share of the pane permanently, which on a laptop
+ * is a third of the space the listing needs. Collapsing keeps the heading, the
+ * live count and the failed count: a queue that hid how many had failed would
+ * be a queue that hid a failure.
  */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
 import { FailureNotice } from "@/components/FailureNotice";
+import { Icon } from "@/components/Icon";
 import { formatBytes, formatPercent, isolate, isolateLtr, useLocale, useT } from "@/i18n";
 import { asFailure, ipc, type IpcFailure, type TransferStatus } from "@/lib/ipc";
-import { qk } from "@/lib/queryKeys";
+import { invalidateListings, qk } from "@/lib/queryKeys";
 
 import { displayTail } from "./path";
-import { failureOf, isLive, progressOf, refetchIntervalFor, resumeOutcome, summarise } from "./queue";
+import {
+  failureOf,
+  isLive,
+  progressOf,
+  refetchIntervalFor,
+  remainingParts,
+  resumeOutcome,
+  summarise,
+  timingOf,
+  type Remaining,
+} from "./queue";
 
 import s from "./TransferQueuePanel.module.css";
 
@@ -50,6 +84,19 @@ const STATE_KEY = {
   failed: "queue.state.failed",
 } as const;
 
+/** Three keys rather than one with a unit placeholder; see the catalogue. */
+const REMAINING_KEY = {
+  hours: "queue.remainingHours",
+  minutes: "queue.remainingMinutes",
+  seconds: "queue.remainingSeconds",
+} as const satisfies Record<Remaining["unit"], string>;
+
+const ELAPSED_KEY = {
+  hours: "queue.elapsedHours",
+  minutes: "queue.elapsedMinutes",
+  seconds: "queue.elapsedSeconds",
+} as const satisfies Record<Remaining["unit"], string>;
+
 interface TransferQueuePanelProps {
   paneId: number;
   /** Whether new transfers ask to continue rather than start over. */
@@ -63,6 +110,7 @@ export function TransferQueuePanel({ paneId, resume, onResumeChange, enqueueProb
   const t = useT("files");
   const queryClient = useQueryClient();
   const [showFinished, setShowFinished] = useState(true);
+  const [collapsed, setCollapsed] = useState(false);
 
   const transfers = useQuery({
     queryKey: qk.sftpTransfers(paneId),
@@ -73,9 +121,36 @@ export function TransferQueuePanel({ paneId, resume, onResumeChange, enqueueProb
     retry: false,
   });
 
-  const list = transfers.data ?? [];
+  const data = transfers.data;
+  const list = data ?? EMPTY;
   const counts = summarise(list);
   const shown = showFinished ? list : list.filter(isLive);
+  // One clock for every row, ticking only while something can still change.
+  const now = useNow(counts.live > 0);
+
+  // Which transfers this panel has already seen finish. A ref rather than
+  // state: nothing renders from it, and writing it during an effect that also
+  // set state is exactly the shape that looped forever last time.
+  const settled = useRef(new Set<number>());
+
+  useEffect(() => {
+    if (data === undefined) return;
+    const fresh = data.filter(
+      (status) => status.state === "completed" && !settled.current.has(status.transferId),
+    );
+    if (fresh.length === 0) return;
+    for (const status of fresh) settled.current.add(status.transferId);
+    // A file that just arrived is in a folder on screen, and the pane had no
+    // way to know: the listing was never invalidated when a transfer finished,
+    // so an upload was simply absent from the directory it had gone into.
+    //
+    // `invalidateListings` and not `invalidatePane`: invalidating the transfer
+    // list from inside its own subscriber would refetch it and notice again,
+    // which is a loop with a network call in it.
+    void invalidateListings(queryClient, paneId);
+    // `data` is structurally shared by TanStack Query, so an unchanged list
+    // keeps its identity and this does not re-run on the poll's every tick.
+  }, [data, paneId, queryClient]);
 
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: qk.sftpTransfers(paneId) });
@@ -89,29 +164,54 @@ export function TransferQueuePanel({ paneId, resume, onResumeChange, enqueueProb
   return (
     <section className={s.panel} aria-label={t("queue.title")}>
       <header className={s.head}>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => {
+            setCollapsed((was) => !was);
+          }}
+          ariaLabel={collapsed ? t("queue.expand") : t("queue.collapse")}
+          title={collapsed ? t("queue.expand") : t("queue.collapse")}
+        >
+          {/* Turned over rather than swapped for a sideways chevron: a
+              directional icon mirrors in a right-to-left layout and "open" is
+              not a direction. */}
+          <span className={collapsed ? s.chevronCollapsed : s.chevron}>
+            <Icon name="chevron-down" size={13} />
+          </span>
+        </Button>
         <h3 className={s.title}>{t("queue.title")}</h3>
         <span className={s.count}>{t("queue.active", { count: counts.live })}</span>
+        {/* Shown collapsed as well. A failure nobody can see reads as nothing
+            having happened. */}
+        {counts.failed > 0 && (
+          <Badge tone="danger">{t("queue.failedCount", { count: counts.failed })}</Badge>
+        )}
         <div className={s.spacer} />
-        <label className={s.toggle}>
-          <input
-            type="checkbox"
-            checked={resume}
-            onChange={(e) => {
-              onResumeChange(e.target.checked);
-            }}
-          />
-          {t("queue.resumeToggle")}
-        </label>
-        <label className={s.toggle}>
-          <input
-            type="checkbox"
-            checked={showFinished}
-            onChange={(e) => {
-              setShowFinished(e.target.checked);
-            }}
-          />
-          {t("queue.showFinished")}
-        </label>
+        {!collapsed && (
+          <>
+            <label className={s.toggle}>
+              <input
+                type="checkbox"
+                checked={resume}
+                onChange={(e) => {
+                  onResumeChange(e.target.checked);
+                }}
+              />
+              {t("queue.resumeToggle")}
+            </label>
+            <label className={s.toggle}>
+              <input
+                type="checkbox"
+                checked={showFinished}
+                onChange={(e) => {
+                  setShowFinished(e.target.checked);
+                }}
+              />
+              {t("queue.showFinished")}
+            </label>
+          </>
+        )}
         <Button
           size="sm"
           variant="ghost"
@@ -124,43 +224,103 @@ export function TransferQueuePanel({ paneId, resume, onResumeChange, enqueueProb
         </Button>
       </header>
 
-      {resume && <p className={s.note}>{t("queue.resumeExplain")}</p>}
+      {!collapsed && (
+        <>
+          {resume && <p className={s.note}>{t("queue.resumeExplain")}</p>}
 
-      {enqueueProblem !== null && (
-        <div className={s.notice}>
-          <FailureNotice failure={enqueueProblem} title={t("queue.enqueueFailed")} />
-          <p className={s.note}>{t("queue.enqueueFailedNote")}</p>
-        </div>
-      )}
+          {enqueueProblem !== null && (
+            <div className={s.notice}>
+              <FailureNotice failure={enqueueProblem} title={t("queue.enqueueFailed")} />
+              <p className={s.note}>{t("queue.enqueueFailedNote")}</p>
+            </div>
+          )}
 
-      {transfers.error !== null && (
-        <div className={s.notice}>
-          {/* The list itself could not be read. An empty queue and an
-              unreadable one look identical, and only one of them is true. */}
-          <FailureNotice failure={asFailure(transfers.error)} onRetry={refresh} />
-        </div>
-      )}
+          {transfers.error !== null && (
+            <div className={s.notice}>
+              {/* The list itself could not be read. An empty queue and an
+                  unreadable one look identical, and only one of them is true. */}
+              <FailureNotice failure={asFailure(transfers.error)} onRetry={refresh} />
+            </div>
+          )}
 
-      {shown.length === 0 ? (
-        <p className={s.empty}>{t("queue.empty")}</p>
-      ) : (
-        <ul className={s.list}>
-          {shown.map((status) => (
-            <TransferRow key={status.transferId} paneId={paneId} status={status} onChanged={refresh} />
-          ))}
-        </ul>
+          {shown.length === 0 ? (
+            <p className={s.empty}>{t("queue.empty")}</p>
+          ) : (
+            <ul className={s.list}>
+              {shown.map((status) => (
+                <TransferRow
+                  key={status.transferId}
+                  paneId={paneId}
+                  status={status}
+                  now={now}
+                  onChanged={refresh}
+                />
+              ))}
+            </ul>
+          )}
+        </>
       )}
     </section>
   );
 }
 
+/**
+ * The empty list, as one value.
+ *
+ * `transfers.data ?? []` would build a new array on every render while the
+ * first read is in flight, and that array is an effect dependency.
+ */
+const EMPTY: readonly TransferStatus[] = [];
+
+/**
+ * The wall clock, read on a tick rather than during a render.
+ *
+ * Two reasons it is a hook and not a `Date.now()` where the figure is drawn.
+ * The first is correctness of a kind React enforces: reading a clock during
+ * render is an impure call, and a render that is replayed would produce a
+ * different answer. The second is that the figures have to move *between*
+ * renders — a transfer's elapsed time changes while nothing else does, and the
+ * poll that would have re-rendered stops the moment the last transfer ends.
+ *
+ * The interval exists only while `active`, so a pane with nothing in flight
+ * keeps no timer at all. `setNow` is called from the interval's callback rather
+ * than from the effect body, so this is a subscription to an external source
+ * and not derived state chasing itself.
+ */
+function useNow(active: boolean): number {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!active) return;
+    const timer = setInterval(() => {
+      setNow(Date.now());
+    }, TICK_MS);
+    return () => {
+      clearInterval(timer);
+    };
+  }, [active]);
+
+  return now;
+}
+
+/**
+ * How often the elapsed time and the rate are redrawn.
+ *
+ * A second: the figures are rounded to their leading unit, so anything faster
+ * redraws the same characters.
+ */
+const TICK_MS = 1_000;
+
 function TransferRow({
   paneId,
   status,
+  now,
   onChanged,
 }: {
   paneId: number;
   status: TransferStatus;
+  /** The clock every row in this panel shares. See {@link useNow}. */
+  now: number;
   onChanged: () => void;
 }) {
   const t = useT("files");
@@ -179,6 +339,9 @@ function TransferRow({
   const outcome = resumeOutcome(status);
   const problem = failureOf(status);
   const live = isLive(status);
+  const timing = timingOf(status, now);
+  const remaining = remainingParts(timing.remainingMs);
+  const elapsed = remainingParts(timing.elapsedMs);
 
   // The escaped twins throughout. The remote half was chosen by the server, and
   // so is the file-name half of the local path when a download went into a
@@ -268,8 +431,28 @@ function TransferRow({
           {progress.ratio !== null && status.state !== "completed" && (
             <span className={s.percent}>{formatPercent(locale, progress.ratio)}</span>
           )}
+          {/* Each of these appears only where it can be measured. A rate over a
+              sample too short to be one, or an estimate past a day, is a figure
+              that looks like knowledge and is not. */}
+          {timing.bytesPerSecond !== null && status.state === "running" && (
+            <span className={s.rate}>
+              {t("queue.speed", { rate: formatBytes(locale, timing.bytesPerSecond) })}
+            </span>
+          )}
+          {remaining !== null && (
+            <span className={s.rate}>
+              {t(REMAINING_KEY[remaining.unit], { [remaining.unit]: remaining.value })}
+            </span>
+          )}
+          {elapsed !== null && (
+            <span className={s.rate}>
+              {t(ELAPSED_KEY[elapsed.unit], { [elapsed.unit]: elapsed.value })}
+            </span>
+          )}
         </p>
       )}
+
+      {timing.stalled && <p className={s.note}>{t("queue.stalled")}</p>}
 
       {outcome !== null && (
         <p className={s.resume}>

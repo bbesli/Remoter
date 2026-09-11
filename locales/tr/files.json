@@ -53,7 +53,13 @@
       "_comment_remove": "Removes one file from that list. The accessible name; {name} is a local path.",
       "remove": "{name} dosyasını listeden çıkar",
       "_comment_pickerFailed": "The system picker refused to open. Every other route into this screen still works, so this is an inconvenience rather than a dead end — but it must be said, because a button that opens nothing reads as broken.",
-      "pickerFailed": "Sisteminizin dosya seçicisi açılmadı. Hiçbir şey gönderilmedi, hiçbir şey indirilmedi."
+      "pickerFailed": "Sisteminizin dosya seçicisi açılmadı. Hiçbir şey gönderilmedi, hiçbir şey indirilmedi.",
+      "_comment_chooseFolders": "Stages whole folders to send, beside the control that stages files. Two controls rather than one because the platform file dialogs choose files or folders, not either.",
+      "chooseFolders": "Gönderilecek klasörleri seç",
+      "_comment_defaultFolder": "Shown under the destination when it is the platform's own downloads folder rather than one anybody chose. 'Remoter picked this for you' and 'you picked this' are different promises, and the pane says which one it is making. The folder works either way.",
+      "defaultFolder": "Remoter'ın önerisi — sisteminizin indirilenler klasörü.",
+      "_comment_rememberedFolder": "Shown under the destination when it is the folder chosen last. It is remembered for every file pane and across restarts, which is worth saying once so nobody chooses it again out of doubt.",
+      "rememberedFolder": "Geçen seferden hatırlandı, her dosya paneli için."
     }
   },
 
@@ -67,7 +73,17 @@
     "_comment_breadcrumb": "The accessible name of the trail of folders above the listing.",
     "breadcrumb": "Bunun üstündeki klasörler",
     "_comment_atRoot": "The title of the control that goes up, when there is nowhere above to go.",
-    "atRoot": "Burası dosya sisteminin en üstü"
+    "atRoot": "Burası dosya sisteminin en üstü",
+    "_comment_back": "Retraces the folders this pane has been through, and goes forward again. Words rather than arrow glyphs: the icon set has one arrow per direction and it already means 'go to the folder above', and an icon language stops meaning anything the moment a mark is borrowed for a second job.",
+    "back": "Geri",
+    "forward": "İleri",
+    "_comment_noBack": "The title of Back when this pane has not been anywhere else yet, and of Forward when it is already at the most recent folder. A disabled control that says nothing is a control the reader has to guess about.",
+    "noBack": "Henüz geri dönülecek bir yer yok",
+    "noForward": "En son klasördesiniz",
+    "_comment_goHint": "Under the path field. The field used to refuse anything that did not begin with a slash by disabling its button and saying nothing, so `..` and a bare folder name both looked like a broken control. Both are now sent to the server, which is the only thing that knows what they mean from here. The slash and the two dots are path syntax and are never translated.",
+    "goHint": "/ ile başlayan bir yol olduğu gibi kullanılır; başka her şey bulunduğunuz klasöre göre yorumlanır. .. bir üst klasöre gider.",
+    "_comment_keyboardHint": "SAID ONCE, UNDER THE LISTING. The listing is a grid and now behaves like one; a keyboard map nobody is told about is a keyboard map nobody uses. The key names are the ones printed on the keys and are translated the way that platform's keyboards label them, never transliterated.",
+    "keyboardHint": "Listede: ok tuşları gezinir, Enter açar, Boşluk seçer, Shift seçimi genişletir, Ctrl bir satır ekler, Geri Al bir klasör yukarı çıkar, F2 yeniden adlandırır, Delete siler ve birkaç harf yazmak bir ada atlar."
   },
 
   "columns": {
@@ -136,10 +152,12 @@
     "upload": "Gönder",
     "_comment_selected": "How many rows are chosen. ICU plural.",
     "selected": "{count, plural, =0 {Seçili bir şey yok} one {# seçili} other {# seçili}}",
-    "_comment_filesOnly": "HONESTY. On a folder row's disabled checkbox. Expanding a folder into one transfer per file is a walk on the source side that is not built, so folders cannot be queued at all — rather than appearing to queue and quietly moving nothing.",
-    "filesOnly": "Bu sürümde yalnızca dosyalar aktarılabilir.",
+    "_comment_filesOnly": "HONESTY. On the disabled checkbox of a row that is neither a file nor a folder — a socket, a device, a named pipe. Folders *can* be transferred: the core walks one and queues a transfer per file underneath. What cannot be copied is an entry with no contents to copy.",
+    "filesOnly": "Soketler, aygıtlar ve adlandırılmış borular aktarılamaz: içlerinde kopyalanacak bir şey yok.",
     "selectAll": "Bu klasördeki her şeyi seç",
-    "clearSelection": "Seçimi temizle"
+    "clearSelection": "Seçimi temizle",
+    "_comment_properties": "The row action that opens the entry's own facts. A noun, because the dialog shows rather than does — the one thing it changes is named on its own button.",
+    "properties": "Özellikler"
   },
 
   "drop": {
@@ -271,7 +289,24 @@
 
     "_comment_enqueueFailed": "Heading over the core's failure when a batch was refused. The batch is resolved before any of it is queued, so nothing has started.",
     "enqueueFailed": "Hiçbir şey kuyruğa alınmadı",
-    "enqueueFailedNote": "Yığının tamamı, hiçbir parçası başlamadan önce denetlendi; bu yüzden çalışan bir aktarım yok."
+    "enqueueFailedNote": "Yığının tamamı, hiçbir parçası başlamadan önce denetlendi; bu yüzden çalışan bir aktarım yok.",
+    "_comment_collapse": "Rolls the list of transfers away. The panel keeps its heading and its counts when collapsed — a queue that hides how many failed is a queue that hides a failure — and the preference is remembered per pane, because on a laptop the queue takes a third of the pane it shares with the listing.",
+    "collapse": "Aktarım listesini topla",
+    "expand": "Aktarım listesini göster",
+    "_comment_failedCount": "Shown beside the heading, including while the list is rolled up. A failure nobody can see is one they will read as nothing having happened. ICU plural.",
+    "failedCount": "{count, plural, one {# başarısız} other {# başarısız}}",
+    "_comment_speed": "HONEST ESTIMATE. Measured by the interface from the clock the core puts on each transfer, over this attempt rather than over the whole file — a resumed transfer moves at the speed of what it has actually fetched. {rate} is a byte count already formatted for the reader; the unit mark after it is a per-second, not a word.",
+    "speed": "{rate}/sn",
+    "_comment_remainingHours": "How much longer, at the measured rate. Rounded to the leading unit on purpose: the difference between four minutes and four minutes twelve seconds is precision the measurement does not have, and a figure that looks precise and is not teaches people to distrust the one beside it. Three keys rather than one with a unit placeholder, because the number and its unit inflect together in several languages.",
+    "remainingHours": "{hours, plural, one {# saat} other {# saat}} kaldı",
+    "remainingMinutes": "{minutes, plural, one {# dakika} other {# dakika}} kaldı",
+    "remainingSeconds": "{seconds, plural, one {# saniye} other {# saniye}} kaldı",
+    "_comment_elapsedHours": "How long it has been running, or how long it took once it finished. The same three units and the same rounding as the estimate above, for the same reason.",
+    "elapsedHours": "şu ana kadar {hours, plural, one {# saat} other {# saat}}",
+    "elapsedMinutes": "şu ana kadar {minutes, plural, one {# dakika} other {# dakika}}",
+    "elapsedSeconds": "şu ana kadar {seconds, plural, one {# saniye} other {# saniye}}",
+    "_comment_stalled": "Said in words rather than shown as a speed of zero, because this is the answer the person watching the bar actually needs. It is not a failure: the transfer is still open and may move again, and the threshold is deliberately generous because progress is reported in 512 KiB steps and a slow link is not a stalled one.",
+    "stalled": "Bir süredir hiçbir şey ilerlemedi. Aktarım hâlâ açık."
   },
 
   "transferTo": {
@@ -281,5 +316,67 @@
     "needFiles": "Bu bilgisayarda gönderilecek dosyaları seçin.",
     "_comment_needSelection": "Blocks a download with no rows chosen.",
     "needSelection": "Uzak klasörde indirilecek bir şey seçin."
+  },
+  "overwrite": {
+    "_comment_title": "DESTRUCTIVE. A transfer writes over whatever is at its destination — an upload truncates the remote file and a download truncates the local one — and there is no trash on either side. ICU plural on how many files already exist at their destinations. The =0 case is reachable: a batch where nothing is known to be there still reaches this dialog when something could not be checked, or when a folder is being merged.",
+    "title": "{count, plural, =0 {Bu dosyalar gönderilsin mi?} one {# dosyanın üzerine yazılsın mı?} other {# dosyanın üzerine yazılsın mı?}}",
+    "_comment_permanent": "SECURITY-CRITICAL WORDING. There is no trash on the server and none on this side either — a transfer truncates. Do not soften 'written over' into 'updated', and do not soften 'cannot be undone'.",
+    "permanent": "Şu anda bu yollarda bulunanların üzerine yazılır. İki tarafta da çöp kutusu yok ve bu geri alınamaz.",
+    "_comment_listHeading": "Heading over the paths that already have something at them. Each is followed by the size and the date of what is there now, so the reader can tell a stale copy from the one they meant to keep.",
+    "listHeading": "Bunların üzerine yazılacak:",
+    "_comment_existing": "The facts about the file that is already there, under its path. {size} and {when} are already formatted for the reader, and either may read 'Not reported' when the server did not say.",
+    "existing": "{size}, son değişiklik {when}",
+    "_comment_resumeNote": "Shown when 'Continue interrupted transfers' is on. The core continues only where the destination is strictly shorter than a source of known size, and starts over everywhere else — so the same batch can both append and truncate, and the dialog says so rather than implying one rule.",
+    "resumeNote": "Sürdürme açık. Buradaki dosya kopyalanandan kısaysa kalanı ona eklenir; diğer her durumda üzerine yazılır.",
+    "_comment_blockedHeading": "A destination that is a folder. A transfer cannot replace one, so those requests are dropped from the batch rather than queued to fail one at a time against a server that will refuse each of them. ICU plural.",
+    "blockedHeading": "{count, plural, one {Bunlardan # tanesi klasör} other {Bunlardan # tanesi klasör}}:",
+    "blockedNote": "Bir aktarım klasörün üzerine yazamaz, bu yüzden bunlar gönderilmez. İçlerinde hiçbir şey değişmez.",
+    "_comment_uncheckedHeading": "A destination Remoter could not look at. 'Nothing is there' and 'nobody could look' are different answers and must not be shown as the same one. These are still sent: a destination nobody could inspect is a reason not to claim anything about it, not a reason to refuse the transfer. ICU plural.",
+    "uncheckedHeading": "{count, plural, one {# tanesi denetlenemedi} other {# tanesi denetlenemedi}}:",
+    "uncheckedNote": "Remoter bunların zaten var olup olmadığını anlayamadı. Yine de gönderilirler ve o yollarda ne varsa üzerine yazılır.",
+    "_comment_sending": "The last line before the buttons: what pressing the confirming button actually queues, after the folders have been dropped from the batch. ICU plural.",
+    "sending": "{count, plural, =0 {Hiçbir şey gönderilmeyecek.} one {# aktarım başlayacak.} other {# aktarım başlayacak.}}",
+    "_comment_confirm": "The confirming button. Names the act, never 'OK'. This general form is used when the batch replaces nothing, or when it mixes both directions; the two below name which side loses the file and are used whenever the batch goes one way. ICU plural.",
+    "confirm": "{count, plural, =0 {Yine de gönder} one {Üzerine yaz} other {Üzerine yaz}}",
+    "confirmDownload": "{count, plural, one {Bu bilgisayardaki dosyanın üzerine yaz} other {Bu bilgisayardaki # dosyanın üzerine yaz}}",
+    "confirmUpload": "{count, plural, one {Sunucudaki dosyanın üzerine yaz} other {Sunucudaki # dosyanın üzerine yaz}}",
+    "_comment_folderHeading": "A source that is a folder. It expands into one transfer per file underneath it and merges into whatever is at the destination, which is neither 'this file will be replaced' nor 'nothing is there'. ICU plural.",
+    "folderHeading": "{count, plural, one {Bunlardan # tanesi klasör ve birleştirilecek} other {Bunlardan # tanesi klasör ve birleştirilecek}}:",
+    "_comment_folderNote": "DESTRUCTIVE, in part. A folder transfer does not replace the destination folder; it copies into it, and only the files whose names collide are written over. Do not soften 'written over' into 'updated'.",
+    "folderNote": "Her klasör hedefin yerine geçmez, hedefin içine kopyalanır. Yalnızca adı orada zaten bulunan dosyaların üzerine yazılır; hedefteki diğer her şeye dokunulmaz."
+  },
+  "enqueue": {
+    "_comment_partialTitle": "HONESTY. Heading over what a folder transfer would not queue. A transfer that queued 996 of 1000 files has not done what was asked, and a queue showing 996 healthy rows is exactly how that goes unnoticed until somebody needs the other four.",
+    "partialTitle": "Her şey kuyruğa alınmadı",
+    "_comment_limitReached": "The folder walk stopped at Remoter's own limit for how many transfers one folder may expand into. It says the count is a floor rather than the whole of it, and points at the way out — taking a subfolder at a time.",
+    "limitReached": "Bu klasör, tek bir aktarımın kapsayabileceğinden daha fazla dosya içeriyor; bu yüzden tarama erken durdu. Bulunanlar kuyrukta; geri kalanına ulaşmak için bir alt klasörü açıp ayrıca gönderin.",
+    "_comment_skipped": "Heading over the list of entries a folder walk refused, each with the sentence for its failure code from the errors catalogue. A symbolic link is the common case: the walk does not follow one, because descending a link to / would copy the whole filesystem. ICU plural.",
+    "skipped": "{count, plural, one {# öğe kuyruğa alınmadı} other {# öğe kuyruğa alınmadı}}:"
+  },
+  "properties": {
+    "_comment_title": "The dialog's heading. {name} is the escaped display form of the entry, isolated at the call site.",
+    "title": "{name} özellikleri",
+    "_comment_reading": "While the entry's own metadata is being read. The listing already showed some of these facts; this dialog asks the server again, which is what makes a permission change verifiable.",
+    "reading": "Bu öğe okunuyor…",
+    "_comment_readFailed": "Heading over the core's failure when the fresh read did not come back. The facts from the listing are still shown, so this says which of the two the reader is looking at.",
+    "readFailed": "Bu öğe yeniden okunamadı. Aşağıdakiler klasör listesinden geliyor.",
+    "_comment_path": "The row's full path, escaped. Paths are never translated; this is the label beside one.",
+    "path": "Yol",
+    "_comment_group": "The owning group. Server-supplied text, escaped by the core like every other name here.",
+    "group": "Grup",
+    "_comment_linkTarget": "Where a symbolic link points, read without following it. Shown only for a link, and beside the facts about what it points at — the two are different questions and the dialog answers both.",
+    "linkTarget": "Bağlantının hedefi",
+    "_comment_permissionsLabel": "The editable POSIX mode, in octal. Octal rather than nine checkboxes because the people who use this know 755 and 640, and reaching those through a grid of boxes is slower than typing three digits.",
+    "permissionsLabel": "İzinler (sekizlik)",
+    "_comment_permissionsHint": "Under the field. Names the range and says that the symbolic form beside it is the same value, so the two can be checked against each other. The digits and the letters are notation and are never translated.",
+    "permissionsHint": "En fazla dört sekizlik basamak, örneğin 755 veya 4755. Yanındaki biçim, aynı değerin ls'in gösterdiği yazılışı.",
+    "_comment_invalidMode": "Why a typed mode was refused, under the field. States the rule rather than the mechanism.",
+    "invalidMode": "Bu sekizlik bir kip değil. 0 ile 7 arası en fazla dört basamak kullanın.",
+    "_comment_apply": "The button that writes the mode. Names the act, never 'OK'. There is no undo on a server, so it is deliberately not the dialog's default-looking control until the value has actually changed.",
+    "apply": "İzinleri değiştir",
+    "_comment_applied": "After a successful change. The field and the symbolic form beside it are re-read from the server, so this confirms what the reader can already see rather than standing in for it.",
+    "applied": "Sunucu yeni izinleri kabul etti ve izinler geri okundu.",
+    "_comment_applyFailed": "Heading over the core's failure when the mode could not be written. Nothing changed; the sentence and the buttons come from the errors catalogue, keyed by the code.",
+    "applyFailed": "İzinler değiştirilmedi"
   }
 }

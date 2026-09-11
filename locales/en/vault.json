@@ -345,5 +345,23 @@
       "openOther": "Open",
       "noBackups": "There are no rolling backups beside this file. A copy from your own backups is the way back."
     }
+  },
+  "relock": {
+    "_comment_": "The unlock screen, when the vault locked while it was open rather than being opened from the picker. Two rules. (1) 'cleared' must keep saying that the contents left the WINDOW and not the file; a reader who believes the lock destroyed their connections will go hunting for a backup they do not need. (2) reason.unknown must not guess: the core reports that no vault is open without saying what closed it, and naming the idle timeout there would be a sentence the application cannot stand behind.",
+    "windowTitle": "Vault locked",
+    "title": "This vault is locked",
+    "_comment_reason": "Why it locked, as far as the application can honestly tell. Each is a whole sentence and follows the title above it.",
+    "reason": {
+      "idle": "It locked after the idle period you set.",
+      "trigger": "It locked because an event you chose to lock on happened.",
+      "manual": "You locked it.",
+      "unknown": "It locked itself after the idle period, was locked by an event you lock on, or was locked from another window."
+    },
+    "cleared": "Nothing was lost. The connections are still in the file; they were cleared from this window and come back when you unlock it.",
+    "_comment_sessions": "What became of the sessions that were open. Measured, not assumed - the vault's session policy is stored inside the vault and cannot be read while it is locked. Both sentences are shown when some sessions ended and others survived, so each has to stand on its own.",
+    "sessions": {
+      "closed": "{count, plural, one {# session was closed when the vault locked. Unlocking does not reopen it.} other {# sessions were closed when the vault locked. Unlocking does not reopen them.}}",
+      "running": "{count, plural, one {# session is still connected, and will still be there after you unlock.} other {# sessions are still connected, and will still be there after you unlock.}}"
+    }
   }
 }
