@@ -694,6 +694,34 @@ impl Vault {
 
     /// Whether this credential, at the slot's stored parameters, unwraps the
     /// master key this vault is already holding.
+    ///
+    /// `Ok(false)` means the credential is wrong. A key file that was named but
+    /// could not be read is **not** that, and is reported as
+    /// [`VaultError::Keyfile`] rather than folded into the refusal.
+    ///
+    /// It used to be folded in, and that is how an owner whose credential was
+    /// never wrong ends up being told it was. A key file contributes
+    /// `BLAKE3(file_bytes)`, so reading it is a step that can fail on its own:
+    /// a removable drive that dropped between the unlock and the change, a
+    /// synchronised file whose local copy is no longer materialised, a path
+    /// that now names a directory, a file that has grown past the size cap. The
+    /// vault is still open on the master key it unwrapped earlier in the
+    /// session, so none of that is visible until something re-reads the file —
+    /// and when it did, "the key file could not be read" arrived on screen as
+    /// "that does not open key slot 0", which sends the owner to retype a
+    /// password that was never the problem.
+    ///
+    /// A key file the caller simply did not supply stays an ordinary refusal:
+    /// nothing is read, the derivation runs over the password alone, and the
+    /// wrong key comes out. That is the wrong credential, not an unreadable
+    /// file.
+    ///
+    /// Saying which half failed is safe here and nowhere else. Every caller of
+    /// this function holds an open vault, so the rule in
+    /// `docs/security/threat-model.md` — say nothing before a slot has
+    /// unwrapped — has already been satisfied. The silence that rule demands
+    /// lives in [`slots::kek_for`], which runs before anything is
+    /// authenticated and still answers every failure identically.
     fn password_opens_slot(
         &self,
         index: u8,
@@ -707,19 +735,13 @@ impl Vault {
         let normalisation = slots::normalisation_of(slot);
         let salt = slot.salt_array()?;
 
-        let kek = match slots::password_kek(
+        let kek = slots::password_kek(
             password.expose_secret(),
             normalisation,
             keyfile,
             &salt,
             &params,
-        ) {
-            Ok(kek) => kek,
-            // A key file the caller did not supply is the same "this is not
-            // your slot" answer as a wrong password.
-            Err(VaultError::Keyfile) => return Ok(false),
-            Err(e) => return Err(e),
-        };
+        )?;
 
         match slots::unwrap_vmk(&kek, slot) {
             Ok(vmk) => Ok(crypto::ct_eq(vmk.as_slice(), self.keys.vmk.as_slice())),
@@ -1236,11 +1258,21 @@ impl Vault {
         )
     }
 
-    /// Re-wraps the vault's master password slot under a new password.
+    /// Re-wraps key slot 0 under a new password.
     ///
-    /// Slot 0 is the slot every vault is created with, and the one the settings
-    /// screen calls "Master password". A vault holding several password slots
-    /// changes the others through [`Vault::change_password_slot`].
+    /// Slot 0 is where [`Vault::create`] puts the master password, so on a
+    /// vault whose slot table has never been edited this is the slot the
+    /// settings screen calls "Master password".
+    ///
+    /// It is not a synonym for "the password slot". Indices are reused — the
+    /// header hands out the lowest free one — so
+    /// removing slot 0 and enrolling anything else puts a different kind of
+    /// slot at index 0 and the next password slot elsewhere. This is a fixed
+    /// index and nothing more: on such a vault it refuses by kind rather than
+    /// rebuilding a recovery slot as a password slot, and the caller wants
+    /// [`Vault::change_password_slot`] with the index the password actually
+    /// lives in. Anything addressing a slot the user picked — the settings
+    /// screen does — should call that instead of this.
     pub fn change_master_password(
         &mut self,
         current: &PasswordCredential,
@@ -1257,10 +1289,29 @@ impl Vault {
     /// working. Only this slot's key-encryption key changes, which is why
     /// changing a password is instant on a vault of any size.
     ///
-    /// `current` is verified against the slot before anything is replaced. A
-    /// rewrap without that check would re-key the slot to the new password
-    /// while destroying the only copy of the master key it held, and the caller
-    /// would find out at the next unlock.
+    /// `current` is verified against **this** slot, by index, before anything
+    /// is replaced. A rewrap without that check would re-key the slot to the
+    /// new password while destroying the only copy of the master key it held,
+    /// and the caller would find out at the next unlock.
+    ///
+    /// Two things follow from "this slot, by index", and both reach a user:
+    ///
+    /// - An unlock tries every slot of the method's kind; this tries one. "The
+    ///   credential that has this vault open" and "the credential for slot
+    ///   `index`" are therefore different claims on a vault holding more than
+    ///   one password slot, and only the second one is asked here.
+    /// - A key file's contribution is `BLAKE3(file_bytes)`, so the credential
+    ///   is the file's *contents*. The same path is not the same key file once
+    ///   the file has been re-generated, restored or re-synchronised, and an
+    ///   open vault proves nothing about it: the master key was unwrapped
+    ///   earlier in the session and the file is not read again until this asks
+    ///   for it.
+    ///
+    /// [`VaultError::SlotCredentialRejected`] covers both, so a caller with a
+    /// user in front of it should say what it knows — which slot the session
+    /// was opened through, and what a key file actually is — rather than
+    /// passing on "that does not open key slot 0" alone. A key file that could
+    /// not be *read* is separate and arrives as [`VaultError::Keyfile`].
     ///
     /// `params` defaults to the slot's existing cost, raised to the floor if the
     /// vault was written by an older build. Saves on success.

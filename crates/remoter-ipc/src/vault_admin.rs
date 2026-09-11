@@ -231,6 +231,11 @@ fn vault_change_master_password_impl(
     let index = slot_index.unwrap_or(0);
     check_password_strength(&new_password)?;
 
+    // Kept as a fact rather than re-derived from the credential: the path is
+    // consumed below, and a refusal reads very differently depending on whether
+    // a key file was offered at all.
+    let keyfile_supplied = current_keyfile_path.is_some();
+
     let mut current = PasswordCredential::new(current_password);
     if let Some(path) = current_keyfile_path {
         current = current.with_keyfile(existing_keyfile(PathBuf::from(path))?);
@@ -247,9 +252,9 @@ fn vault_change_master_password_impl(
     let mut guard = state.lock();
     let vault = guard.vault_mut()?;
     // Saves on success, and puts the slot table back if the write fails.
-    vault
-        .change_password_slot(index, &current, &new, None)
-        .map_err(|err| IpcError::from_vault(&err, "this vault"))?;
+    if let Err(err) = vault.change_password_slot(index, &current, &new, None) {
+        return Err(refusal(vault, keyfile_supplied, &err));
+    }
 
     // The unlock screen offers back the key file this vault was last opened
     // with. If the slot the session was opened through now needs a different
@@ -523,6 +528,85 @@ fn check_password_strength(password: &Secret<String>) -> Result<(), IpcError> {
     ]))
 }
 
+/// A failed password change, with what the open vault can add to it.
+///
+/// Only `VaultError::SlotCredentialRejected` is enriched; everything else
+/// already says what happened. That one refusal covers three different
+/// mistakes — a mistyped password, a key file that is no longer the enrolled
+/// one, and a credential aimed at a slot it was never for — and on its own it
+/// is actionable for none of them. The vault is open, so two of the three can
+/// be narrowed for free, and `docs/security/threat-model.md`'s "say nothing"
+/// rule is already satisfied: it governs failures *before* a slot unwraps.
+fn refusal(vault: &Vault, keyfile_supplied: bool, err: &remoter_vault::VaultError) -> IpcError {
+    let remoter_vault::VaultError::SlotCredentialRejected(index) = err else {
+        return IpcError::from_vault(err, "this vault");
+    };
+    let slot_needs_keyfile = vault
+        .slots()
+        .iter()
+        .find(|slot| slot.index == *index)
+        .is_some_and(|slot| slot.requires_keyfile);
+
+    rejected_slot_error(
+        *index,
+        vault.opened_with(),
+        slot_needs_keyfile,
+        keyfile_supplied,
+    )
+}
+
+/// The refused-credential message, from facts the open vault already holds.
+///
+/// Pure, so the sentences a user reads can be tested without deriving a key —
+/// the derivation is a second of Argon2id and proves nothing about the wording.
+fn rejected_slot_error(
+    index: u8,
+    opened_with: Option<u8>,
+    slot_needs_keyfile: bool,
+    keyfile_supplied: bool,
+) -> IpcError {
+    let mut message =
+        format!("That does not open key slot {index}, so the slot was left exactly as it was.");
+    let mut actions: Vec<String> = Vec::new();
+
+    // The one the vault can be certain about. An unlock tries every slot; this
+    // change verified one, so "the credential that has this vault open" and
+    // "the credential for this slot" are different claims whenever a vault
+    // holds more than one password.
+    if let Some(opened) = opened_with {
+        if opened != index {
+            message.push_str(&format!(
+                " This session was opened through key slot {opened}, not this one. A vault can \
+                 hold several passwords, and each slot answers only to its own."
+            ));
+            actions.push(format!("Change key slot {opened} instead"));
+        }
+    }
+
+    if slot_needs_keyfile && keyfile_supplied {
+        // The likeliest cause once the path is right, and the one nothing on
+        // screen can show: the file's bytes are the credential, and the vault
+        // being open is not evidence about them.
+        message.push_str(
+            " This slot uses a key file, and a key file's contents are the credential rather \
+             than its path. One that has been re-generated, restored from a backup or \
+             re-synchronised is a different key file at the same place, and a vault that is \
+             already open says nothing about it: its master key was unwrapped earlier in this \
+             session, and the file is not read again until a change like this one asks for it.",
+        );
+        actions.push(String::from(
+            "Check this is the key file the slot was created with",
+        ));
+    } else if slot_needs_keyfile {
+        message.push_str(" This slot needs its key file as well as its password.");
+        actions.push(String::from("Choose the key file this slot requires"));
+    }
+
+    actions.push(String::from("Try again"));
+    actions.push(String::from("Use your recovery key"));
+    IpcError::new("vault.slot-credential-rejected", message).with_actions(actions)
+}
+
 /// Checks a key file is where the user says it is, before it is enrolled.
 ///
 /// A slot wrapped around a file that is not there is a slot that opens nothing,
@@ -593,6 +677,64 @@ mod tests {
         assert!(
             refused.is_err_and(|err| err.code == "vault.password-too-weak"),
             "a second password that is easily guessed undoes the first"
+        );
+    }
+
+    /// The refusal a user reads when the change is turned down.
+    ///
+    /// `SlotCredentialRejected` names three different mistakes, and the one
+    /// sentence it used to carry was actionable for none of them. These pin the
+    /// two the open vault can narrow. No key is derived: the wording is what is
+    /// under test, and a second of Argon2id would prove nothing about it.
+    #[test]
+    fn a_refused_credential_says_which_slot_this_session_was_opened_through() {
+        let refused = rejected_slot_error(0, Some(3), false, false);
+        assert_eq!(refused.code, "vault.slot-credential-rejected");
+        assert!(
+            refused.message.contains("key slot 3"),
+            "the slot that does open this session is the fact the vault is sure of: {}",
+            refused.message
+        );
+        assert!(
+            refused.actions.iter().any(|a| a.contains("key slot 3")),
+            "and it is offered as the next action: {:?}",
+            refused.actions
+        );
+    }
+
+    #[test]
+    fn a_refused_key_file_slot_says_the_credential_is_the_file_contents() {
+        let refused = rejected_slot_error(0, Some(0), true, true);
+        assert!(
+            !refused.message.contains("was opened through"),
+            "the session was opened through this very slot, so there is nothing to point at: {}",
+            refused.message
+        );
+        assert!(
+            refused.message.contains("contents"),
+            "a key file at the right path need not be the right key file: {}",
+            refused.message
+        );
+    }
+
+    #[test]
+    fn a_key_file_slot_offered_no_key_file_is_told_so() {
+        let refused = rejected_slot_error(0, None, true, false);
+        assert!(
+            refused.message.contains("needs its key file"),
+            "{}",
+            refused.message
+        );
+    }
+
+    /// The plain case keeps the plain sentence: nothing is invented for a
+    /// password slot with no key file that was simply mistyped.
+    #[test]
+    fn a_refused_plain_password_is_not_given_a_cause_it_does_not_have() {
+        let refused = rejected_slot_error(1, Some(1), false, false);
+        assert_eq!(
+            refused.message,
+            "That does not open key slot 1, so the slot was left exactly as it was."
         );
     }
 
@@ -726,9 +868,21 @@ mod tests {
                 new_keyfile_path: None,
             },
         );
-        assert!(
-            refused.is_err_and(|err| err.code == "vault.slot-credential-rejected"),
+        let (code, message) = match refused {
+            Err(err) => (err.code, err.message),
+            Ok(()) => (String::new(), String::new()),
+        };
+        assert_eq!(
+            code, "vault.slot-credential-rejected",
             "a rewrap that skipped the check would destroy the only copy of the master key"
+        );
+        // The slot has no key file, and this vault was created rather than
+        // opened so there is no other slot to point at. Nothing to add: a
+        // mistyped password gets the plain sentence rather than a cause it does
+        // not have.
+        assert_eq!(
+            message,
+            "That does not open key slot 0, so the slot was left exactly as it was."
         );
 
         let changed = vault_change_master_password_impl(
@@ -764,6 +918,99 @@ mod tests {
             },
         );
         assert!(opened.is_ok(), "unlocking failed: {}", why(&opened));
+    }
+
+    /// The reported defect, at the command the dialog actually calls: a vault
+    /// created with a password *and* a key file, whose owner supplies both.
+    ///
+    /// The vault is opened with that pair first, so a failure below cannot be
+    /// blamed on the credential — only on what the command does with it.
+    #[test]
+    fn a_key_file_slot_changes_under_the_credential_that_opens_it() {
+        let scratch = Scratch::new();
+        let keyfile = scratch.write("devoplus.keyfile", "devoplus key file bytes");
+        let keyfile_path = keyfile.display().to_string();
+        let path = scratch.join("test.rvault").display().to_string();
+        const NEW: &str = "granite-harbour-jasmine-kettle-lantern-marble";
+
+        let state = AppState::with_config_dir(scratch.join("config"));
+        let created = crate::commands::vault_create_impl(
+            &state,
+            crate::dto::CreateVaultRequestDto {
+                path: path.clone(),
+                label: String::from("Test vault"),
+                password: String::from(PASSPHRASE),
+                keyfile_path: Some(keyfile_path.clone()),
+                generate_keyfile_at: None,
+            },
+        );
+        assert!(created.is_ok(), "creating failed: {}", why(&created));
+
+        // The pair is known good: it opens the file.
+        assert!(vault_lock_impl(&state).is_ok());
+        let opened = crate::commands::vault_unlock_impl(
+            &state,
+            path.clone(),
+            UnlockRequestDto::Password {
+                password: String::from(PASSPHRASE),
+                keyfile_path: Some(keyfile_path.clone()),
+            },
+        );
+        assert!(opened.is_ok(), "unlocking failed: {}", why(&opened));
+
+        // The right password with a file that is not the enrolled one. The
+        // refusal has to say what a key file is, because the path looks right
+        // and the vault is open: neither is evidence about the file's bytes.
+        let other = scratch.write("other.keyfile", "an unrelated file");
+        let refused = vault_change_master_password_impl(
+            &state,
+            ChangePasswordDto {
+                slot_index: Some(0),
+                current_password: String::from(PASSPHRASE),
+                current_keyfile_path: Some(other.display().to_string()),
+                new_password: String::from(NEW),
+                new_keyfile_path: Some(keyfile_path.clone()),
+            },
+        );
+        let (code, message) = match refused {
+            Err(err) => (err.code, err.message),
+            Ok(()) => (String::new(), String::new()),
+        };
+        assert_eq!(
+            code, "vault.slot-credential-rejected",
+            "a slot must not be rewrapped under a key file that does not open it"
+        );
+        assert!(
+            message.contains("contents"),
+            "the refusal has to name the likeliest cause: {message}"
+        );
+
+        let changed = vault_change_master_password_impl(
+            &state,
+            ChangePasswordDto {
+                slot_index: Some(0),
+                current_password: String::from(PASSPHRASE),
+                current_keyfile_path: Some(keyfile_path.clone()),
+                new_password: String::from(NEW),
+                new_keyfile_path: Some(keyfile_path.clone()),
+            },
+        );
+        assert!(
+            changed.is_ok(),
+            "the credential that just opened the vault was refused: {}",
+            why(&changed)
+        );
+
+        assert!(vault_lock_impl(&state).is_ok());
+        let reopened = crate::commands::vault_unlock_impl(
+            &state,
+            path,
+            UnlockRequestDto::Password {
+                password: String::from(NEW),
+                keyfile_path: Some(keyfile_path),
+            },
+        );
+        assert!(reopened.is_ok(), "unlocking failed: {}", why(&reopened));
     }
 
     #[test]

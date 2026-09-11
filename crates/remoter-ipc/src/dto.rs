@@ -1528,6 +1528,40 @@ mod tests {
         assert!(rendered.contains("vault.key"), "rendered: {rendered}");
     }
 
+    /// Every field of the change-password request has to survive the crossing.
+    ///
+    /// `current_keyfile_path` is `Option`, so a name the interface spells
+    /// differently does not fail to deserialise — it arrives as `None`, the
+    /// key-encryption key is then derived from the password alone, and the
+    /// slot rejects the credential that opens it. The key file is a Windows
+    /// path because that is the shape reported, and backslashes are the one
+    /// character JSON escapes.
+    #[test]
+    fn the_change_password_request_reads_the_shape_the_dialog_sends() {
+        let parsed = serde_json::from_str::<ChangePasswordDto>(
+            r#"{"slotIndex":0,
+                "currentPassword":"the-master-password",
+                "currentKeyfilePath":"D:\\Remoter_Vault\\devoplus.keyfile",
+                "newPassword":"the-new-password",
+                "newKeyfilePath":"D:\\Remoter_Vault\\devoplus.keyfile"}"#,
+        );
+        let Ok(parsed) = parsed else {
+            unreachable!("the dialog's own shape must deserialise: {parsed:?}")
+        };
+        assert_eq!(parsed.slot_index, Some(0));
+        assert_eq!(parsed.current_password, "the-master-password");
+        assert_eq!(
+            parsed.current_keyfile_path.as_deref(),
+            Some(r"D:\Remoter_Vault\devoplus.keyfile"),
+            "the key file the slot is keyed to must reach the core intact"
+        );
+        assert_eq!(parsed.new_password, "the-new-password");
+        assert_eq!(
+            parsed.new_keyfile_path.as_deref(),
+            Some(r"D:\Remoter_Vault\devoplus.keyfile")
+        );
+    }
+
     #[test]
     fn the_credential_input_reads_the_shape_the_editor_sends() {
         let parsed = serde_json::from_str::<CredentialInputDto>(
