@@ -20,9 +20,9 @@
 //! 3. The reader borrows from a `&str` that was already length-checked, so the
 //!    parse allocates only the values it hands back, each of them bounded.
 
-use quick_xml::Reader;
 use quick_xml::errors::{Error as XmlError, SyntaxError};
 use quick_xml::events::{BytesRef, Event};
+use quick_xml::{Reader, XmlVersion};
 
 use crate::error::ImportError;
 use crate::limits::Limits;
@@ -212,8 +212,18 @@ impl<'a> BoundedXmlReader<'a> {
                 continue;
             }
             let key = String::from_utf8_lossy(key.as_ref()).into_owned();
+            // `decode_and_unescape_value` is deprecated as of quick-xml 0.41,
+            // which this crate had to take for RUSTSEC-2026-0194 and
+            // RUSTSEC-2026-0195. The replacement is not a behaviour change: in
+            // 0.41 the deprecated method is a thin forwarder to
+            // `decoded_and_normalized_value_with(XmlVersion::Implicit1_0,
+            // decoder, 1, resolve_predefined_entity)`, which is precisely what
+            // `decoded_and_normalized_value(XmlVersion::Implicit1_0, ..)`
+            // calls. Passing `Implicit1_0` rather than `Explicit1_1` is the
+            // load-bearing part — a confCons.xml is an XML 1.0 document, and
+            // 1.1 normalisation folds a different set of characters.
             let value = attribute
-                .decode_and_unescape_value(self.reader.decoder())
+                .decoded_and_normalized_value(XmlVersion::Implicit1_0, self.reader.decoder())
                 .map_err(|err| self.map_error(&err))?
                 .into_owned();
             attributes.push((key, value));

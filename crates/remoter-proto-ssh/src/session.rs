@@ -12,6 +12,7 @@
 //! server — the chain from a slow WebView back to a fast `yes(1)` is
 //! unbroken, and nothing is dropped along the way.
 
+use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -38,6 +39,20 @@ pub const DEFAULT_TERM: &str = "xterm-256color";
 pub const DEFAULT_COLUMNS: u16 = 80;
 /// The window height assumed before the interface reports its own.
 pub const DEFAULT_ROWS: u16 = 24;
+
+/// The catalogue key for agent forwarding having been requested.
+pub const WARNING_AGENT_FORWARDING: &str = "ssh.agent_forwarding_enabled";
+/// The catalogue key for input a terminal has no encoding for.
+pub const WARNING_INPUT_UNSUPPORTED: &str = "ssh.input_unsupported";
+/// The catalogue key for a clipboard operation the session's policy forbids.
+pub const WARNING_CLIPBOARD_POLICY: &str = "ssh.clipboard.policy_refused";
+/// The catalogue key for a clipboard operation SSH has no encoding for.
+pub const WARNING_CLIPBOARD_UNSUPPORTED: &str = "ssh.clipboard_unsupported";
+/// The prefix every exit-signal catalogue key is built from.
+///
+/// See [`exit_signal_key`] for why the suffix comes from a fixed table rather
+/// than from the name the server sent.
+pub const WARNING_EXIT_SIGNAL_PREFIX: &str = "ssh.exit_signal.";
 
 /// How the terminal should be opened.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -119,6 +134,12 @@ pub struct SshSession {
     exit_status: Option<u32>,
     /// Kept so the SSH session outlives the channel running on it.
     connection: Arc<SshConnection>,
+    /// The catalogue keys of refusals already announced on the event stream.
+    ///
+    /// One entry per kind of refusal, not per refusal: a misrouted pointer
+    /// event arrives as fast as a mouse moves, and the same warning at that
+    /// rate is noise a user learns to dismiss. See [`SshSession::refuse`].
+    refusals_announced: BTreeSet<&'static str>,
 }
 
 impl SshSession {
@@ -145,7 +166,7 @@ impl SshSession {
                 .map_err(|error| map_russh(&error, "request agent forwarding"))?;
             let _ = events
                 .send(SessionEvent::Warning(SessionWarning::Other {
-                    detail: "ssh.agent_forwarding_enabled".to_owned(),
+                    detail: WARNING_AGENT_FORWARDING.to_owned(),
                 }))
                 .await;
         }
@@ -232,6 +253,7 @@ impl SshSession {
             clipboard,
             exit_status: None,
             connection,
+            refusals_announced: BTreeSet::new(),
         }
     }
 
@@ -275,15 +297,17 @@ impl SshSession {
                 core_dumped,
                 ..
             } => {
-                // `Sig`'s `Debug` renders the RFC 4254 §6.10 constant —
-                // `KILL`, `SEGV` — and nothing the server wrote. The message
-                // text that comes with the signal is deliberately dropped: it
-                // is free-form server prose, and this is a catalogue key.
+                // The suffix comes from `exit_signal_key`, which is a fixed
+                // table, and not from `{signal_name:?}`, which was what stood
+                // here. See that function: the `Debug` of `russh::Sig` renders
+                // the server's own bytes for any signal outside RFC 4254
+                // §6.10's list, and this string is a catalogue key.
                 let _ = self
                     .events
                     .send(SessionEvent::Warning(SessionWarning::Other {
                         detail: format!(
-                            "ssh.exit_signal.{signal_name:?}{}",
+                            "{WARNING_EXIT_SIGNAL_PREFIX}{}{}",
+                            exit_signal_key(&signal_name),
                             if core_dumped { ".core" } else { "" }
                         ),
                     }))
@@ -303,6 +327,102 @@ impl SshSession {
         }
         None
     }
+
+    /// Refuses an operation, and says so somewhere a user can see it.
+    ///
+    /// The defect this exists to stop coming back: a refusal that lived only
+    /// in the returned `Err`. `SessionCommand` carries no reply channel, so
+    /// nothing hands a command's result back to whoever issued it, and
+    /// [`run_ssh_session`] matched `ProtocolError::Unsupported` into a
+    /// `tracing::debug!` — which is not a place a user looks. The interface
+    /// then drew a control, the control did nothing, and nothing on screen
+    /// explained why. A failure the user is never told about is
+    /// indistinguishable from a feature that does not work.
+    ///
+    /// The `Err` is still returned, so a caller holding this session directly
+    /// gets the typed failure and the loop still declines to end a working
+    /// shell over it. What changes is that the event stream carries the same
+    /// fact, once per `key` per session.
+    async fn refuse(&mut self, operation: &'static str, key: &'static str) -> ProtocolError {
+        announce_refusal(&self.events, &mut self.refusals_announced, operation, key).await
+    }
+}
+
+/// The body of [`SshSession::refuse`], with nothing of a session in it.
+///
+/// Split out for one reason: `russh::Channel::new` is `pub(crate)`, so an
+/// [`SshSession`] cannot exist without a real SSH handshake against a real
+/// server, and this crate's only such tests are the Docker-gated ones in
+/// `tests/live_server.rs`. Keeping the rule — *a refusal is announced, once
+/// per key* — in a function that takes only an [`EventSink`] and the set is
+/// what puts it inside reach of an ordinary unit test. The companion guard is
+/// `every_refusal_in_this_file_is_announced`, which checks that no refusal in
+/// this file goes around it.
+async fn announce_refusal(
+    events: &EventSink,
+    announced: &mut BTreeSet<&'static str>,
+    operation: &'static str,
+    key: &'static str,
+) -> ProtocolError {
+    if announced.insert(key) {
+        // Deliberately ignored. A closed event stream means the terminal is
+        // already gone and the loop is ending the session on its own account;
+        // turning this into `EventStreamClosed` would replace a true statement
+        // about the operation with a misleading one about the channel.
+        let _ = events
+            .send(SessionEvent::Warning(SessionWarning::Other {
+                detail: key.to_owned(),
+            }))
+            .await;
+    }
+    unsupported(operation)
+}
+
+/// Names a signal from a fixed table, never from what the server sent.
+///
+/// RFC 4254 §6.10 lists twelve signal names and then says a server may send
+/// any other name it likes, so `russh` models the field as
+/// `Sig::Custom(String)` — a string whose contents and length the far end
+/// chooses. `docs/security/threat-model.md` puts a hostile server in scope,
+/// and two things follow that the code here used to get wrong.
+///
+/// **The key stopped being a key.** `format!("ssh.exit_signal.{signal_name:?}")`
+/// renders `Custom("whatever the server wrote")` for that variant, quotation
+/// marks, escapes and all. The comment above the call claimed the opposite —
+/// that `Debug` renders the §6.10 constant "and nothing the server wrote" —
+/// which is true for the twelve named variants and false for the thirteenth.
+/// So a `SessionWarning::Other` detail, which a translator looks up and which
+/// the tab renders, could be arbitrary remote prose.
+///
+/// **And the allocation was sized by the far end.** The `format!` copied that
+/// string at whatever length it arrived. `russh` has already parsed and
+/// allocated it by the time it reaches here, so the ceiling that bounds the
+/// *first* copy is upstream and is not this crate's to place — what this
+/// removes is the second copy, made in an adapter that had no bound of its
+/// own. A cap on the second copy would never have bounded the first; a table
+/// with no copy in it at all is the version that does not need one.
+///
+/// Every result is one of these literals, so the catalogue has a finite set of
+/// keys and a server contributes no bytes to any of them. An unrecognised
+/// signal becomes `other`: the fact that the shell was killed is what the user
+/// needs, and the name the server invented for it is not worth the hole.
+const fn exit_signal_key(signal: &russh::Sig) -> &'static str {
+    use russh::Sig;
+    match signal {
+        Sig::ABRT => "ABRT",
+        Sig::ALRM => "ALRM",
+        Sig::FPE => "FPE",
+        Sig::HUP => "HUP",
+        Sig::ILL => "ILL",
+        Sig::INT => "INT",
+        Sig::KILL => "KILL",
+        Sig::PIPE => "PIPE",
+        Sig::QUIT => "QUIT",
+        Sig::SEGV => "SEGV",
+        Sig::TERM => "TERM",
+        Sig::USR1 => "USR1",
+        Sig::Custom(_) => "other",
+    }
 }
 
 /// What [`SshSession::clipboard`] will do with an operation.
@@ -319,8 +439,14 @@ enum ClipboardPlan {
     Paste(bytes::Bytes),
     /// Nothing to send, and nothing to report.
     Nothing,
-    /// Refused, naming the operation for the taxonomy.
-    Refuse(&'static str),
+    /// Refused: the operation for the taxonomy, and the catalogue key the user
+    /// is told about it under.
+    Refuse {
+        /// What was asked for, as `ProtocolError::Unsupported` reports it.
+        operation: &'static str,
+        /// The message-catalogue key the tab renders.
+        key: &'static str,
+    },
 }
 
 /// Decides what one clipboard operation means to a terminal.
@@ -332,14 +458,18 @@ fn clipboard_plan(op: ClipboardOp) -> ClipboardPlan {
         ClipboardOp::Offer(ClipboardData::Text(text)) => {
             ClipboardPlan::Paste(bytes::Bytes::from(text.into_bytes()))
         }
-        ClipboardOp::Offer(ClipboardData::Files(_)) => {
-            ClipboardPlan::Refuse("offering files to a terminal")
-        }
+        ClipboardOp::Offer(ClipboardData::Files(_)) => ClipboardPlan::Refuse {
+            operation: "offering files to a terminal",
+            key: WARNING_CLIPBOARD_UNSUPPORTED,
+        },
         // There is no channel for this: SSH has no clipboard protocol, and what
         // the remote "has selected" is a property of the emulator on this side
         // of the connection. `capabilities` reports `ClipboardSupport::None`
         // **because** of this line.
-        ClipboardOp::Request { .. } => ClipboardPlan::Refuse("reading the remote clipboard"),
+        ClipboardOp::Request { .. } => ClipboardPlan::Refuse {
+            operation: "reading the remote clipboard",
+            key: WARNING_CLIPBOARD_UNSUPPORTED,
+        },
         // Nothing crosses the wire, so there is nothing to fail at.
         ClipboardOp::Clear => ClipboardPlan::Nothing,
     }
@@ -387,14 +517,20 @@ impl Session for SshSession {
             // events belong to the framebuffer protocols, and translating one
             // into the other here would be a second, divergent implementation
             // of what the terminal emulator already does correctly.
-            InputEvent::Key { .. } => Err(unsupported("scancode input")),
-            InputEvent::Pointer { .. } => Err(unsupported("pointer input")),
+            InputEvent::Key { .. } => Err(self
+                .refuse("scancode input", WARNING_INPUT_UNSUPPORTED)
+                .await),
+            InputEvent::Pointer { .. } => Err(self
+                .refuse("pointer input", WARNING_INPUT_UNSUPPORTED)
+                .await),
         }
     }
 
     async fn clipboard(&mut self, op: ClipboardOp) -> Result<(), ProtocolError> {
         if !self.clipboard.permits(&op) {
-            return Err(unsupported("this clipboard operation"));
+            return Err(self
+                .refuse("this clipboard operation", WARNING_CLIPBOARD_POLICY)
+                .await);
         }
         match clipboard_plan(op) {
             ClipboardPlan::Paste(bytes) => self
@@ -403,7 +539,7 @@ impl Session for SshSession {
                 .await
                 .map_err(|error| map_russh(&error, "paste into the session")),
             ClipboardPlan::Nothing => Ok(()),
-            ClipboardPlan::Refuse(operation) => Err(unsupported(operation)),
+            ClipboardPlan::Refuse { operation, key } => Err(self.refuse(operation, key).await),
         }
     }
 
@@ -521,6 +657,12 @@ pub async fn run_ssh_session(
                     // An unsupported operation is the interface asking for
                     // something this protocol has no encoding for. It is worth
                     // reporting and not worth ending a working session over.
+                    //
+                    // This branch is no longer the *only* record of it. Every
+                    // refusal above goes through `SshSession::refuse`, which
+                    // puts a catalogue key on the event stream where the tab
+                    // can render it; a refusal that existed solely as this log
+                    // line reached nobody at all.
                     if matches!(error, ProtocolError::Unsupported { .. }) {
                         tracing::debug!("the interface asked for something SSH does not carry");
                     } else {
@@ -592,7 +734,7 @@ mod tests {
         // constants are what drifted.
         let reads_the_remote_clipboard = !matches!(
             clipboard_plan(ClipboardOp::Request { files: false }),
-            ClipboardPlan::Refuse(_)
+            ClipboardPlan::Refuse { .. }
         );
         let promises_to_read = matches!(
             capabilities().clipboard,
@@ -614,7 +756,7 @@ mod tests {
             clipboard_plan(ClipboardOp::Offer(ClipboardData::Files(vec![
                 "/etc/passwd".to_owned()
             ]))),
-            ClipboardPlan::Refuse(_)
+            ClipboardPlan::Refuse { .. }
         ));
         assert!(matches!(
             clipboard_plan(ClipboardOp::Clear),
@@ -646,6 +788,161 @@ mod tests {
                     "a diagnostic in this file mentions `{forbidden}`: {statement}"
                 );
             }
+        }
+    }
+
+    #[tokio::test]
+    async fn a_refusal_reaches_the_user_and_does_so_once() {
+        // The defect: every refusal in this file existed only as the returned
+        // `Err`, and `run_ssh_session` folded `ProtocolError::Unsupported` into
+        // a `tracing::debug!`. `SessionCommand` has no reply channel, so the
+        // caller that issued the operation was never told anything at all — a
+        // clipboard control that failed in the user's hand, silently.
+        //
+        // Reverted — `unsupported(operation)` with no send — this fails on the
+        // first assertion below rather than on the returned error, because the
+        // returned error was always right. That is precisely why the hole
+        // survived review.
+        let (events, mut rx) = remoter_proto::event_channel(8);
+        let mut announced = BTreeSet::new();
+
+        let error = announce_refusal(
+            &events,
+            &mut announced,
+            "reading the remote clipboard",
+            WARNING_CLIPBOARD_UNSUPPORTED,
+        )
+        .await;
+        assert!(matches!(error, ProtocolError::Unsupported { .. }));
+        assert_eq!(
+            rx.try_recv(),
+            Ok(SessionEvent::Warning(SessionWarning::Other {
+                detail: WARNING_CLIPBOARD_UNSUPPORTED.to_owned(),
+            })),
+            "a refusal the user is never told about is a control that does nothing"
+        );
+
+        // Once per key. A misrouted pointer event arrives as fast as a mouse
+        // moves, and the same warning at that rate is noise to be dismissed.
+        let _ = announce_refusal(
+            &events,
+            &mut announced,
+            "reading the remote clipboard",
+            WARNING_CLIPBOARD_UNSUPPORTED,
+        )
+        .await;
+        assert!(
+            rx.try_recv().is_err(),
+            "the warning repeated once per attempt"
+        );
+
+        // A different refusal is a different fact, and is said.
+        let _ = announce_refusal(
+            &events,
+            &mut announced,
+            "pointer input",
+            WARNING_INPUT_UNSUPPORTED,
+        )
+        .await;
+        assert_eq!(
+            rx.try_recv(),
+            Ok(SessionEvent::Warning(SessionWarning::Other {
+                detail: WARNING_INPUT_UNSUPPORTED.to_owned(),
+            }))
+        );
+    }
+
+    #[test]
+    fn every_refusal_in_this_file_is_announced() {
+        // The companion to the test above, and the part that survives someone
+        // adding a *new* refusal. `announce_refusal` is the only place in this
+        // file permitted to build a `ProtocolError::Unsupported`; anywhere
+        // else, `Err(unsupported(...))` would be a refusal that reaches the
+        // debug log and nobody else — the defect this round removed.
+        //
+        // The needle is assembled at run time so that this test's own source is
+        // not what it finds, and only the code above the test module is
+        // scanned.
+        const SOURCE: &str = include_str!("session.rs");
+        let body = SOURCE
+            .split(concat!("#[cfg", "(test)]"))
+            .next()
+            .unwrap_or(SOURCE);
+        assert!(
+            !body.contains(concat!("Err(unsup", "ported(")),
+            "a refusal in this file is raised without announcing itself; route it through `refuse`"
+        );
+        // And the announcing path really is still there, so that deleting it
+        // cannot make this test pass by vacuum.
+        assert!(body.contains("async fn announce_refusal"));
+    }
+
+    #[test]
+    fn an_exit_signal_key_never_carries_what_the_server_wrote() {
+        // The defect: the key was built with `format!("...{signal_name:?}")`.
+        // RFC 4254 §6.10 lets a server send a signal name outside its list, so
+        // `russh` models the field as `Sig::Custom(String)` — and `Debug`
+        // renders that variant as the server's own bytes. Two consequences:
+        // free-form remote prose inside a message-catalogue key, and an
+        // allocation whose length the far end picked, in an adapter that had
+        // no bound of its own. `docs/security/threat-model.md` puts a hostile
+        // server in scope.
+        //
+        // Reverted, this fails on the `Custom` case below: the key becomes
+        // `Custom("...")` with the server's text in it.
+        let hostile = russh::Sig::Custom("\u{1b}]0;pwned\u{7}".repeat(4096));
+        let key = exit_signal_key(&hostile);
+        assert_eq!(key, "other");
+
+        // Stated as the property rather than as one example: every key is one
+        // of a fixed set of literals, so a server contributes no byte to any
+        // of them, whatever it sends.
+        for signal in [
+            russh::Sig::ABRT,
+            russh::Sig::ALRM,
+            russh::Sig::FPE,
+            russh::Sig::HUP,
+            russh::Sig::ILL,
+            russh::Sig::INT,
+            russh::Sig::KILL,
+            russh::Sig::PIPE,
+            russh::Sig::QUIT,
+            russh::Sig::SEGV,
+            russh::Sig::TERM,
+            russh::Sig::USR1,
+            russh::Sig::Custom("SIGSOMETHING".to_owned()),
+        ] {
+            let key = exit_signal_key(&signal);
+            assert!(key.is_ascii(), "{key}");
+            assert!(!key.is_empty());
+            assert!(
+                key.chars()
+                    .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit())
+                    || key == "other",
+                "{key}"
+            );
+            let detail = format!("{WARNING_EXIT_SIGNAL_PREFIX}{key}.core");
+            assert!(
+                detail.len() < 32,
+                "a catalogue key is short by construction"
+            );
+        }
+    }
+
+    #[test]
+    fn the_refusal_catalogue_keys_are_stable_ascii_and_namespaced() {
+        // They are message-catalogue keys, not English: a translator looks them
+        // up, and a key that drifts is a string that silently falls back.
+        for key in [
+            WARNING_AGENT_FORWARDING,
+            WARNING_INPUT_UNSUPPORTED,
+            WARNING_CLIPBOARD_POLICY,
+            WARNING_CLIPBOARD_UNSUPPORTED,
+            WARNING_EXIT_SIGNAL_PREFIX,
+        ] {
+            assert!(key.is_ascii(), "{key}");
+            assert!(key.starts_with("ssh."), "{key}");
+            assert!(!key.contains(' '), "{key}");
         }
     }
 

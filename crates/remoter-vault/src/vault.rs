@@ -686,7 +686,7 @@ impl Vault {
         self.audit(
             AuditEvent::KdfUpgraded,
             AuditOutcome::Success,
-            Some(params.summary().as_str()),
+            Some(params.audit_note().as_str()),
         )?;
         self.save()?;
         Ok(true)

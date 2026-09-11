@@ -109,10 +109,12 @@ fn the_slot_list_describes_every_slot_the_settings_screen_shows() {
     assert!(password.created_at > 0);
     assert_eq!(password.last_used, None);
     assert!(password.requires_keyfile);
+    // The cost travels as numbers, not as a sentence: whoever displays it
+    // writes the line in the reader's language.
     assert!(
         password
-            .kdf_summary()
-            .is_some_and(|s| s.starts_with("Argon2id, ")),
+            .kdf_params
+            .is_some_and(|params| params.m_cost > 0 && params.t_cost > 0 && params.p_cost > 0),
         "a password slot must describe its cost"
     );
 
@@ -120,8 +122,7 @@ fn the_slot_list_describes_every_slot_the_settings_screen_shows() {
     assert_eq!(recovery.kind, SlotKind::Recovery);
     assert!(!recovery.requires_keyfile);
     assert_eq!(
-        recovery.kdf_summary(),
-        None,
+        recovery.kdf_params, None,
         "a recovery slot derives with HKDF and has no cost to show"
     );
 }

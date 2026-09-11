@@ -20,6 +20,17 @@
 //! `evilexe.txt`. [`safe_name`] separates what is displayed from what is sent
 //! back on the wire, and nothing in this module builds a path by trusting the
 //! path the server volunteered — see [`SftpBrowser::remove_tree`].
+//!
+//! **Nothing the server sends sizes an allocation without a ceiling.**
+//! `russh-sftp` reads a packet with `read_packet(stream, u32::MAX)` and then
+//! does `vec![0; length as usize]` on the length the *server* chose, and its
+//! `read_dir` accumulates a whole directory listing before the future
+//! resolves. Both allocations happen inside the library, so the bound has to
+//! sit between the channel and the library: see [`gate`], which is this
+//! adapter's equivalent of `remoter-proto-vnc`'s gate and
+//! `remoter-proto-rdp`'s `MAX_PDU_BYTES`.
+
+pub mod gate;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -39,6 +50,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::connection::SshConnection;
 use crate::error::{map_russh, map_sftp};
+use crate::sftp::gate::{SftpGate, SftpGateShared};
 
 /// The SSH subsystem name (RFC 4254 §6.5, and `draft-ietf-secsh-filexfer`).
 pub const SUBSYSTEM: &str = "sftp";
@@ -120,6 +132,18 @@ pub const PROGRESS_INTERVAL_BYTES: u64 = 512 * 1024;
 /// folder. The threat model requires resource limits per session; this is the
 /// directory pane's. A quarter of a million entries is more than any real
 /// directory and small enough that the cap is reached long before memory is.
+///
+/// **This number is enforced twice, and the copy here is the second one.**
+/// [`bounded_listing`] applies it to the `Vec<DirectoryEntry>` this module
+/// builds, which can only happen once `read_dir` has already resolved — and
+/// `read_dir` resolves only after the library has accumulated the whole
+/// listing itself. A cap that runs there bounds the second copy and never the
+/// first, which is exactly the defect [`gate`] exists to close: the gate
+/// charges the same number against the `count` field of every `SSH_FXP_NAME`
+/// reply as it crosses the wire, so a server that streams entries until memory
+/// runs out is stopped while it is still streaming. Both are kept, because the
+/// one here is also what catches a listing that is legitimate on the wire and
+/// still too large to put in a pane.
 pub const MAX_DIRECTORY_ENTRIES: usize = 250_000;
 
 /// The most bytes of server-supplied text one directory listing may carry.
@@ -127,6 +151,12 @@ pub const MAX_DIRECTORY_ENTRIES: usize = 250_000;
 /// The count cap alone is not enough: entry names are server-chosen strings
 /// and a listing of a thousand entries with 64 KiB names each is the same
 /// attack by another route.
+///
+/// Bounds this module's copy of the listing, as
+/// [`MAX_DIRECTORY_ENTRIES`] does. The library's copy is bounded on the wire
+/// by [`gate::MAX_LISTING_WIRE_BYTES`], which is the larger number because a
+/// listing record carries a `longname` and an attribute block as well as the
+/// name.
 pub const MAX_DIRECTORY_BYTES: usize = 32 * 1024 * 1024;
 
 /// The failure a listing that exceeds either cap reports.
@@ -852,10 +882,19 @@ pub struct SftpBrowser {
     session: SftpSession,
     /// Kept so the SSH session outlives the subsystem channel.
     connection: Arc<SshConnection>,
+    /// The ceiling the library does not have. See [`gate`].
+    gate: Arc<SftpGateShared>,
 }
 
 impl SftpBrowser {
     /// Opens the SFTP subsystem on `connection`.
+    ///
+    /// The channel is **not** handed to `SftpSession::new` directly. It goes
+    /// through [`SftpGate`] first, because the library's read loop calls
+    /// `read_packet(stream, u32::MAX)` and then reserves a server-chosen
+    /// `u32` of memory before a payload byte has arrived. Nothing this
+    /// adapter can configure changes that; only something between the channel
+    /// and the library can.
     ///
     /// # Errors
     ///
@@ -868,12 +907,17 @@ impl SftpBrowser {
             .request_subsystem(true, SUBSYSTEM)
             .await
             .map_err(|error| map_russh(&error, "request the SFTP subsystem"))?;
-        let session = SftpSession::new(channel.into_stream())
-            .await
-            .map_err(|error| map_sftp(&error))?;
+        let (stream, gate) = SftpGate::new(channel.into_stream());
+        let session = SftpSession::new(stream).await.map_err(|error| {
+            gate.fault().map_or_else(
+                || map_sftp(&error),
+                |detail| ProtocolError::ProtocolViolation { detail },
+            )
+        })?;
         Ok(Self {
             session,
             connection,
+            gate,
         })
     }
 
@@ -883,12 +927,36 @@ impl SftpBrowser {
         &self.connection
     }
 
+    /// The failure to report for `error`.
+    ///
+    /// The gate refuses a stream by stopping it, and `russh-sftp` turns a
+    /// stopped stream into "the sender was dropped" on whatever request was in
+    /// flight. So a reason the gate recorded wins: it names the ceiling that
+    /// was crossed, which is the difference between a tab that says what
+    /// happened and one that says only that the connection went away.
+    fn sftp_error(&self, error: &russh_sftp::client::error::Error) -> ProtocolError {
+        self.gate.fault().map_or_else(
+            || map_sftp(error),
+            |detail| ProtocolError::ProtocolViolation { detail },
+        )
+    }
+
     /// Lists a directory.
     ///
-    /// Bounded on both sides of the click: `cancel` stops a listing the user
-    /// navigated away from, and [`MAX_DIRECTORY_ENTRIES`] /
-    /// [`MAX_DIRECTORY_BYTES`] stop a server that answers a `readdir` with
-    /// more than a directory could hold.
+    /// Bounded on three sides of one click. `cancel` stops a listing the user
+    /// navigated away from. The gate's budget — armed here, for exactly the
+    /// span of the `read_dir` round trip — stops a server that keeps answering
+    /// `SSH_FXP_READDIR` instead of saying EOF, and it does so while the
+    /// library is still accumulating rather than after. [`MAX_DIRECTORY_ENTRIES`]
+    /// and [`MAX_DIRECTORY_BYTES`] then bound the copy this module builds.
+    ///
+    /// The armed scope is what makes the wire budget a *per listing* budget:
+    /// without it, browsing a thousand directories would add up to one listing
+    /// that is too large, and a server would only have to wait to be refused.
+    ///
+    /// Exceeding any of them fails this listing with a diagnostic naming the
+    /// limit. None of them truncates: a short listing that does not say it is
+    /// short is a directory that looks emptier than it is.
     ///
     /// # Errors
     ///
@@ -901,12 +969,15 @@ impl SftpBrowser {
         path: &str,
         cancel: &CancellationToken,
     ) -> Result<Vec<DirectoryEntry>, ProtocolError> {
+        // Held for the whole call, because `read_dir` is one future that does
+        // every round trip and only then resolves.
+        let _listing = self.gate.begin_listing();
         bounded_listing(cancel, async {
             let entries = self
                 .session
                 .read_dir(path)
                 .await
-                .map_err(|error| map_sftp(&error))?;
+                .map_err(|error| self.sftp_error(&error))?;
             Ok(entries.map(|entry| {
                 DirectoryEntry::from_attributes(entry.file_name(), entry.path(), &entry.metadata())
             }))
@@ -923,7 +994,7 @@ impl SftpBrowser {
         self.session
             .canonicalize(path)
             .await
-            .map_err(|error| map_sftp(&error))
+            .map_err(|error| self.sftp_error(&error))
     }
 
     /// Reads one entry's metadata, following symbolic links.
@@ -936,7 +1007,7 @@ impl SftpBrowser {
             .session
             .metadata(path)
             .await
-            .map_err(|error| map_sftp(&error))?;
+            .map_err(|error| self.sftp_error(&error))?;
         Ok(DirectoryEntry::from_attributes(
             path.rsplit('/').next().unwrap_or(path).to_owned(),
             path.to_owned(),
@@ -959,7 +1030,7 @@ impl SftpBrowser {
             .session
             .symlink_metadata(path)
             .await
-            .map_err(|error| map_sftp(&error))?;
+            .map_err(|error| self.sftp_error(&error))?;
         Ok(DirectoryEntry::from_attributes(
             path.rsplit('/').next().unwrap_or(path).to_owned(),
             path.to_owned(),
@@ -976,7 +1047,7 @@ impl SftpBrowser {
         self.session
             .create_dir(path)
             .await
-            .map_err(|error| map_sftp(&error))
+            .map_err(|error| self.sftp_error(&error))
     }
 
     /// Removes an empty directory.
@@ -991,7 +1062,7 @@ impl SftpBrowser {
         self.session
             .remove_dir(path)
             .await
-            .map_err(|error| map_sftp(&error))
+            .map_err(|error| self.sftp_error(&error))
     }
 
     /// Removes a file.
@@ -1003,7 +1074,7 @@ impl SftpBrowser {
         self.session
             .remove_file(path)
             .await
-            .map_err(|error| map_sftp(&error))
+            .map_err(|error| self.sftp_error(&error))
     }
 
     /// Removes a directory and everything under it.
@@ -1137,7 +1208,7 @@ impl SftpBrowser {
         self.session
             .rename(from, to)
             .await
-            .map_err(|error| map_sftp(&error))
+            .map_err(|error| self.sftp_error(&error))
     }
 
     /// Changes an entry's POSIX mode bits.
@@ -1156,7 +1227,7 @@ impl SftpBrowser {
         self.session
             .set_metadata(path, attributes)
             .await
-            .map_err(|error| map_sftp(&error))
+            .map_err(|error| self.sftp_error(&error))
     }
 
     /// Creates a symbolic link at `path` pointing at `target`.
@@ -1168,7 +1239,7 @@ impl SftpBrowser {
         self.session
             .symlink(path, target)
             .await
-            .map_err(|error| map_sftp(&error))
+            .map_err(|error| self.sftp_error(&error))
     }
 
     /// Reads where a symbolic link points, without following it.
@@ -1180,7 +1251,7 @@ impl SftpBrowser {
         self.session
             .read_link(path)
             .await
-            .map_err(|error| map_sftp(&error))
+            .map_err(|error| self.sftp_error(&error))
     }
 
     /// Runs one transfer.
@@ -1245,7 +1316,7 @@ impl SftpBrowser {
             .session
             .open(request.remote.clone())
             .await
-            .map_err(|error| map_sftp(&error))?;
+            .map_err(|error| self.sftp_error(&error))?;
         if offset > 0 {
             remote
                 .seek(std::io::SeekFrom::Start(offset))
@@ -1345,7 +1416,7 @@ impl SftpBrowser {
             .session
             .open_with_flags(request.remote.clone(), flags)
             .await
-            .map_err(|error| map_sftp(&error))?;
+            .map_err(|error| self.sftp_error(&error))?;
         if offset > 0 {
             remote
                 .seek(std::io::SeekFrom::Start(offset))

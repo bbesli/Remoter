@@ -40,7 +40,7 @@
 //! dropping, so the tasks are already unwinding by the time the destructor
 //! runs, but it is belt and braces rather than the mechanism.
 
-use std::collections::VecDeque;
+use std::collections::{BTreeSet, VecDeque};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -68,6 +68,16 @@ pub const WARNING_CLIPBOARD_LOSSY: &str = "vnc.clipboard.substituted";
 pub const WARNING_CLIPBOARD_MANGLED: &str = "vnc.clipboard.inbound_mangled";
 /// The catalogue key for a pointer button RFB has no encoding for.
 pub const WARNING_BUTTON_DROPPED: &str = "vnc.pointer.button_unsupported";
+/// The catalogue key for a resize RFB gives this build no way to ask for.
+pub const WARNING_RESIZE_UNSUPPORTED: &str = "vnc.resize_unsupported";
+/// The catalogue key for input a framebuffer protocol cannot carry.
+pub const WARNING_INPUT_UNSUPPORTED: &str = "vnc.input_unsupported";
+/// The catalogue key for a paste refused because the session is view-only.
+pub const WARNING_CLIPBOARD_VIEW_ONLY: &str = "vnc.clipboard.view_only";
+/// The catalogue key for a clipboard operation the session's policy forbids.
+pub const WARNING_CLIPBOARD_POLICY: &str = "vnc.clipboard.policy_refused";
+/// The catalogue key for a clipboard operation RFB has no encoding for.
+pub const WARNING_CLIPBOARD_UNSUPPORTED: &str = "vnc.clipboard_unsupported";
 
 /// The most events buffered while the connect path waits for `ServerInit`.
 ///
@@ -113,6 +123,12 @@ pub struct VncSession {
     /// Whether the "this button has no RFB encoding" note has been logged. Once
     /// per session: a user holding the back button would otherwise fill a log.
     warned_about_button: bool,
+    /// The catalogue keys of refusals already announced on the event stream.
+    ///
+    /// One entry per kind of refusal, not per refusal: a tab being dragged
+    /// asks to resize once per frame, and the same warning once per frame is
+    /// noise a user learns to dismiss. See [`VncSession::refuse`].
+    refusals_announced: BTreeSet<&'static str>,
 }
 
 impl VncSession {
@@ -158,6 +174,7 @@ impl VncSession {
             gate,
             security,
             warned_about_button: false,
+            refusals_announced: BTreeSet::new(),
         }
     }
 
@@ -364,6 +381,38 @@ impl VncSession {
         self.events.send(SessionEvent::Warning(warning)).await
     }
 
+    /// Refuses an operation, and says so somewhere a user can see it.
+    ///
+    /// The defect this exists to stop coming back: a refusal that lived only
+    /// in the returned `Err`. `SessionCommand` carries no reply channel, so
+    /// nothing sends a command's result back to whoever issued it, and
+    /// [`run_vnc_session`] matched `ProtocolError::Unsupported` into a
+    /// `tracing::debug!` two hundred lines below this method. The view-only
+    /// clipboard refusal — added precisely so that a caller would *not*
+    /// believe a paste had crossed to the remote machine — was therefore
+    /// swallowed on exactly the path a paste takes. A refusal the user is
+    /// never told about is indistinguishable from a control that does nothing.
+    ///
+    /// The `Err` is still returned: a caller holding this session directly
+    /// gets the typed failure, and the loop still declines to end a working
+    /// desktop over it. What changes is that the event stream now carries the
+    /// same fact, once per `key` per session.
+    async fn refuse(&mut self, operation: &'static str, key: &'static str) -> ProtocolError {
+        if self.refusals_announced.insert(key) {
+            // Deliberately ignored. A closed event stream means the presenter
+            // is already gone and the loop is ending the session on its own
+            // account; turning this into `EventStreamClosed` would replace a
+            // true statement about the operation with a misleading one about
+            // the channel.
+            let _ = self
+                .warn(SessionWarning::Other {
+                    detail: key.to_owned(),
+                })
+                .await;
+        }
+        unsupported(operation)
+    }
+
     /// Sends one key transition (RFC 6143 §7.5.4).
     async fn send_key(
         &mut self,
@@ -482,8 +531,19 @@ impl Session for VncSession {
     /// nothing. [`crate::capabilities`] reports `resizable: false` for the same
     /// reason, so the interface scales the tab instead of offering a control
     /// that cannot work.
+    ///
+    /// The refusal is also **said out loud**, once per session, as
+    /// [`SessionWarning::Other`] carrying [`WARNING_RESIZE_UNSUPPORTED`] — see
+    /// [`VncSession::refuse`]. It used to travel no further than
+    /// [`run_vnc_session`]'s `tracing::debug!`, which is not a place a user
+    /// looks.
     async fn resize(&mut self, _cols: u16, _rows: u16) -> Result<(), ProtocolError> {
-        Err(unsupported("asking the server to resize its desktop"))
+        Err(self
+            .refuse(
+                "asking the server to resize its desktop",
+                WARNING_RESIZE_UNSUPPORTED,
+            )
+            .await)
     }
 
     async fn input(&mut self, input: InputEvent) -> Result<(), ProtocolError> {
@@ -508,7 +568,9 @@ impl Session for VncSession {
             // stream belongs to a terminal, and re-deriving key events from it
             // here would be a second, divergent implementation of what the
             // emulator already does.
-            InputEvent::Bytes(_) => Err(unsupported("byte-stream input")),
+            InputEvent::Bytes(_) => Err(self
+                .refuse("byte-stream input", WARNING_INPUT_UNSUPPORTED)
+                .await),
         }
     }
 
@@ -524,13 +586,24 @@ impl Session for VncSession {
         // `input` does with a held key, and deliberately: a paste is one
         // deliberate act, it happens at human speed so it cannot fill a log,
         // and a caller told `Ok` would believe the text had crossed.
+        //
+        // And the refusal now *travels*. It used to be raised here and dropped
+        // two hundred lines below, where the session loop folded every
+        // `Unsupported` into a `tracing::debug!` — so "refused, not silently
+        // dropped" described the return value and nothing the user could ever
+        // see. `refuse` puts it on the event stream as well.
         if self.view_only && reaches_the_remote(&op) {
-            return Err(unsupported(
-                "changing the remote clipboard of a view-only session",
-            ));
+            return Err(self
+                .refuse(
+                    "changing the remote clipboard of a view-only session",
+                    WARNING_CLIPBOARD_VIEW_ONLY,
+                )
+                .await);
         }
         if !self.clipboard.permits(&op) {
-            return Err(unsupported("this clipboard operation"));
+            return Err(self
+                .refuse("this clipboard operation", WARNING_CLIPBOARD_POLICY)
+                .await);
         }
         match op {
             ClipboardOp::Offer(ClipboardData::Text(text)) => {
@@ -550,9 +623,9 @@ impl Session for VncSession {
                     .map_err(|error| map_vnc(&error, "offer the clipboard to the server"))
             }
             // RFB carries text and nothing else (RFC 6143 §7.5.6, §7.6.4).
-            ClipboardOp::Offer(ClipboardData::Files(_)) => {
-                Err(unsupported("offering files over RFB"))
-            }
+            ClipboardOp::Offer(ClipboardData::Files(_)) => Err(self
+                .refuse("offering files over RFB", WARNING_CLIPBOARD_UNSUPPORTED)
+                .await),
             // The remote pushes its clipboard unasked, as `ServerCutText`;
             // there is no request in the protocol. The push is reported as a
             // `ClipboardOffer`, but the session contract has no event that
@@ -565,7 +638,12 @@ impl Session for VncSession {
             // of this arm. It used to report `Text`, which promised the
             // interface a control this line then refused, and the interface
             // drew it. A capability is a promise; the two now agree.
-            ClipboardOp::Request { .. } => Err(unsupported("reading the remote clipboard")),
+            ClipboardOp::Request { .. } => Err(self
+                .refuse(
+                    "reading the remote clipboard",
+                    WARNING_CLIPBOARD_UNSUPPORTED,
+                )
+                .await),
             // RFB has no way to withdraw an offer. Reporting a failure would
             // make a tab close report an error it cannot act on.
             ClipboardOp::Clear => Ok(()),
@@ -744,6 +822,12 @@ async fn drive(session: &mut VncSession, ctx: &mut SessionContext) -> CloseReaso
             // An unsupported operation is the interface asking for something
             // RFB has no encoding for — a resize, a clipboard read. It is worth
             // reporting and not worth ending a working desktop over.
+            //
+            // This branch is no longer the *only* record of it. Every refusal
+            // above goes through `VncSession::refuse`, which puts a catalogue
+            // key on the event stream where the tab can render it; a refusal
+            // that existed solely as this log line is what made the view-only
+            // clipboard guard invisible to the person it was protecting.
             if matches!(error, ProtocolError::Unsupported { .. }) {
                 tracing::debug!("the interface asked for something RFB does not carry");
             } else {
@@ -966,6 +1050,129 @@ mod tests {
         }
     }
 
+    /// Drains the sink for a `Warning` carrying `key`, until `PATIENCE` runs
+    /// out or the stream goes quiet.
+    async fn warning_arrived(
+        events: &mut tokio::sync::mpsc::Receiver<SessionEvent>,
+        key: &str,
+    ) -> bool {
+        let deadline = tokio::time::Instant::now() + PATIENCE;
+        loop {
+            let Ok(Some(event)) = tokio::time::timeout_at(deadline, events.recv()).await else {
+                return false;
+            };
+            if let SessionEvent::Warning(SessionWarning::Other { detail }) = event {
+                if detail == key {
+                    return true;
+                }
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn a_refused_paste_is_something_the_user_is_told_about() {
+        // The defect: the view-only clipboard refusal was raised here and
+        // swallowed two hundred lines below, where `drive` folds every
+        // `ProtocolError::Unsupported` into a `tracing::debug!`. Nothing
+        // carries a command's result back to its issuer — `SessionCommand` has
+        // no reply channel — so the guard that was reported as "refused, not
+        // silently dropped" was, on the path a paste actually takes, silently
+        // dropped.
+        //
+        // Reverted, this fails on the assertion below rather than on the
+        // `Err`: the return value was already right, and that is exactly why
+        // the hole survived a round of review.
+        let (mut session, _server, mut events) = connected(&[("view_only", "true")]).await;
+
+        let outcome = session
+            .clipboard(ClipboardOp::Offer(ClipboardData::Text("paste".to_owned())))
+            .await;
+        assert!(matches!(outcome, Err(ProtocolError::Unsupported { .. })));
+
+        assert!(
+            warning_arrived(&mut events, WARNING_CLIPBOARD_VIEW_ONLY).await,
+            "a refused paste must reach the tab, not only the debug log"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_refused_resize_is_announced_once_and_not_once_per_frame() {
+        // RFB gives this build no client-initiated resize at all, so the
+        // interface's every attempt is refused. The user has to be told; they
+        // must not be told sixty times a second while a window is dragged.
+        let (mut session, _server, mut events) = connected(&[]).await;
+
+        let first = session.resize(1600, 900).await;
+        assert!(matches!(first, Err(ProtocolError::Unsupported { .. })));
+        assert!(
+            warning_arrived(&mut events, WARNING_RESIZE_UNSUPPORTED).await,
+            "the first refusal is announced"
+        );
+
+        let again = session.resize(1280, 720).await;
+        assert!(matches!(again, Err(ProtocolError::Unsupported { .. })));
+        let repeated = tokio::time::timeout(SILENCE, events.recv()).await;
+        assert!(
+            repeated.is_err(),
+            "the warning repeated once per resize request"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_clipboard_operation_rfb_cannot_carry_is_announced_too() {
+        // `ClipboardOp::Request` has no RFB encoding — the server pushes, it is
+        // never asked — and the policy refuses it besides. Either way the
+        // interface is owed an answer it can render.
+        let (mut session, _server, mut events) = connected(&[]).await;
+
+        let outcome = session
+            .clipboard(ClipboardOp::Request { files: false })
+            .await;
+        assert!(matches!(outcome, Err(ProtocolError::Unsupported { .. })));
+        assert!(
+            warning_arrived(&mut events, WARNING_CLIPBOARD_UNSUPPORTED).await,
+            "a clipboard control that cannot work must say so"
+        );
+
+        // And a refusal that comes from the *policy* rather than from the
+        // protocol is announced under its own key, so the tab can tell the
+        // user which of the two it was. Files are off by default.
+        let outcome = session
+            .clipboard(ClipboardOp::Request { files: true })
+            .await;
+        assert!(matches!(outcome, Err(ProtocolError::Unsupported { .. })));
+        assert!(
+            warning_arrived(&mut events, WARNING_CLIPBOARD_POLICY).await,
+            "a policy refusal is the user's own setting, and worth naming as one"
+        );
+    }
+
+    #[test]
+    fn every_refusal_in_this_file_is_announced() {
+        // The part of this round's fix that survives someone adding a *new*
+        // refusal. `VncSession::refuse` is the only place in this file
+        // permitted to build a `ProtocolError::Unsupported`; anywhere else,
+        // `Err(unsupported(...))` would be a refusal that reaches the debug log
+        // in `drive` and nobody else — which is what made the view-only
+        // clipboard guard invisible to the person it protects.
+        //
+        // The needle is assembled at run time so that this test's own source is
+        // not what it finds, and only the code above the test module is
+        // scanned.
+        const SOURCE: &str = include_str!("session.rs");
+        let body = SOURCE
+            .split(concat!("#[cfg", "(test)]"))
+            .next()
+            .unwrap_or(SOURCE);
+        assert!(
+            !body.contains(concat!("Err(unsup", "ported(")),
+            "a refusal in this file is raised without announcing itself; route it through `refuse`"
+        );
+        // And the announcing path really is still there, so that deleting it
+        // cannot make this test pass by vacuum.
+        assert!(body.contains("async fn refuse"));
+    }
+
     #[test]
     fn the_catalogue_keys_are_stable_ascii_and_namespaced() {
         // They are message-catalogue keys, not English: a translator looks them
@@ -975,6 +1182,11 @@ mod tests {
             WARNING_CLIPBOARD_LOSSY,
             WARNING_CLIPBOARD_MANGLED,
             WARNING_BUTTON_DROPPED,
+            WARNING_RESIZE_UNSUPPORTED,
+            WARNING_INPUT_UNSUPPORTED,
+            WARNING_CLIPBOARD_VIEW_ONLY,
+            WARNING_CLIPBOARD_POLICY,
+            WARNING_CLIPBOARD_UNSUPPORTED,
         ] {
             assert!(key.is_ascii(), "{key}");
             assert!(key.starts_with("vnc."), "{key}");

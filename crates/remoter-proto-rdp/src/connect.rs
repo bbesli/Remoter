@@ -53,7 +53,7 @@ use zeroize::Zeroize as _;
 use crate::cert::CertificateChecker;
 use crate::credssp::{self, CredsspClient, Step};
 use crate::error::{handshake_failed, map_negotiation_failure, violation};
-use crate::framed::Framed;
+use crate::framed::{Framed, MAX_FASTPATH_REASSEMBLY_BYTES};
 use crate::prompt::PromptChannel;
 
 /// How long the whole sequence gets when the connection sets no timeout.
@@ -1361,10 +1361,13 @@ async fn refresh(
 
 /// The Client Confirm Active PDU's capability sets. MS-RDPBCGR §2.2.1.13.2.
 ///
-/// The server's own Multifragment Update capability is echoed back because
-/// §2.2.7.2.6 makes it the *server's* to choose; everything else is the
-/// client's declaration of what it can decode. Three of them decide what a
-/// modern Windows Server actually sends:
+/// The server's own Multifragment Update capability is echoed back, but never
+/// above [`MAX_FASTPATH_REASSEMBLY_BYTES`]: §2.2.7.2.6's `MaxRequestSize` is,
+/// on the client's side, the size of the buffer *this process* reassembles a
+/// fragmented Fast-Path Update into, so echoing the server's figure unaltered
+/// let the far end name it. Everything else here is the client's declaration of
+/// what it can decode. Three of them decide what a modern Windows Server
+/// actually sends:
 ///
 /// - **Surface Commands** (§2.2.7.2.9) with `SET_SURFACE_BITS` is what enables
 ///   the surface-bits path, which is how RemoteFX and the uncompressed 32bpp
@@ -1390,9 +1393,26 @@ fn client_confirm_active(
 
     // Only the server's multifragment capability survives; the rest of what it
     // sent is its side of the negotiation, not ours.
+    //
+    // It survives *clamped*, and that is not tidying. §2.2.7.2.6's
+    // `MaxRequestSize` is, for the client, the size of the buffer used to
+    // reassemble a fragmented Fast-Path Update — this process's buffer, in
+    // `ironrdp-session`'s `CompleteData`, not the server's. Echoing the
+    // server's number back unaltered therefore let the server choose how much
+    // memory this client would accumulate before it stopped, and `u32::MAX`
+    // says four gigabytes. The number that goes on the wire and the number
+    // `crate::framed::Reassembly` enforces are now the same one, which is what
+    // makes enforcing it honest: the server was told.
     let mut capabilities: Vec<CapabilitySet> = server_capabilities
         .into_iter()
-        .filter(|set| matches!(set, CapabilitySet::MultiFragmentUpdate(_)))
+        .filter_map(|set| match set {
+            CapabilitySet::MultiFragmentUpdate(update) => {
+                Some(CapabilitySet::MultiFragmentUpdate(MultifragmentUpdate {
+                    max_request_size: update.max_request_size.min(MAX_FASTPATH_REASSEMBLY_BYTES),
+                }))
+            }
+            _ => None,
+        })
         .collect();
 
     capabilities.extend([
@@ -1494,8 +1514,9 @@ fn client_confirm_active(
     {
         capabilities.push(CapabilitySet::MultiFragmentUpdate(MultifragmentUpdate {
             // Large enough that a full-screen RemoteFX frame is not
-            // fragmented; the buffer is the server's, not this process's.
-            max_request_size: 8 * 1024 * 1024,
+            // fragmented, and the buffer it describes is THIS process's — see
+            // the clamp above and `MAX_FASTPATH_REASSEMBLY_BYTES`.
+            max_request_size: MAX_FASTPATH_REASSEMBLY_BYTES,
         }));
     }
 
@@ -2611,9 +2632,56 @@ mod tests {
         assert!(cache.caches.iter().all(|entry| entry.entries == 0));
     }
 
+    /// The maximum request size this client ends up advertising, given what
+    /// the server suggested.
+    fn advertised_max_request_size(server_suggested: Option<u32>) -> u32 {
+        let server = server_suggested
+            .map(|max_request_size| {
+                CapabilitySet::MultiFragmentUpdate(rdp::capability_sets::MultifragmentUpdate {
+                    max_request_size,
+                })
+            })
+            .into_iter()
+            .collect();
+        client_confirm_active(server, DesktopSize::default())
+            .pdu
+            .capability_sets
+            .iter()
+            .find_map(|set| match set {
+                CapabilitySet::MultiFragmentUpdate(update) => Some(update.max_request_size),
+                _ => None,
+            })
+            .expect("a multifragment capability is always sent")
+    }
+
+    #[test]
+    fn a_multifragment_buffer_the_server_names_is_clamped_to_the_one_this_build_holds() {
+        // The defect this closes. §2.2.7.2.6's `MaxRequestSize` is, on the
+        // client's side, the size of the buffer used to reassemble a
+        // fragmented Fast-Path Update — `ironrdp-session`'s `CompleteData`,
+        // inside THIS process. Echoing the server's figure back unaltered
+        // handed the far end the number, and `u32::MAX` is four gigabytes of
+        // it. `crate::framed::Reassembly` enforces the clamped figure, so the
+        // two must be the same number or this client refuses what it invited.
+        assert_eq!(
+            advertised_max_request_size(Some(u32::MAX)),
+            MAX_FASTPATH_REASSEMBLY_BYTES
+        );
+        assert_eq!(
+            advertised_max_request_size(None),
+            MAX_FASTPATH_REASSEMBLY_BYTES,
+            "a server that sends no capability gets this build's own figure"
+        );
+        // And a modest suggestion is still the server's to make: clamping is a
+        // ceiling, not an override.
+        assert_eq!(advertised_max_request_size(Some(65_536)), 65_536);
+    }
+
     #[test]
     fn the_servers_multifragment_capability_is_echoed_and_not_overridden() {
-        // §2.2.7.2.6 makes the maximum request size the server's to choose.
+        // §2.2.7.2.6 leaves the maximum request size for the server to
+        // suggest; anything at or below this build's own reassembly buffer is
+        // taken as sent.
         let server = vec![CapabilitySet::MultiFragmentUpdate(
             rdp::capability_sets::MultifragmentUpdate {
                 max_request_size: 65_536,

@@ -55,7 +55,7 @@ use tokio_util::sync::CancellationToken;
 use crate::connect::{Connected, ConnectionConfig, DesktopSize};
 use crate::display::FrameEncoder;
 use crate::error::{map_io, unsupported, violation};
-use crate::framed::{Framed, rdp_pdu_length};
+use crate::framed::{Framed, Reassembly, rdp_pdu_length};
 use crate::input::InputEncoder;
 
 /// The largest desktop this build will allocate a framebuffer for.
@@ -200,6 +200,10 @@ pub struct RdpSession {
     /// frame is noise the user learns to ignore — which is the failure mode
     /// the warning exists to avoid.
     resize_refused: bool,
+    /// The ceiling on the buffers `ironrdp` grows across many PDUs. See
+    /// [`Reassembly`]: `crate::framed::MAX_PDU_BYTES` bounds one PDU and
+    /// nothing bounded the reassembly of many.
+    reassembly: Reassembly,
 }
 
 impl core::fmt::Debug for RdpSession {
@@ -248,6 +252,12 @@ impl RdpSession {
         // came off the wire.
         check_desktop(desktop)?;
 
+        // The channels the server actually joined, taken before the set is
+        // moved into the stage. `Reassembly` needs them to tell a chunk of a
+        // static virtual channel PDU — which `ironrdp-svc` accumulates without
+        // a ceiling — from I/O and message channel traffic, which it does not.
+        let reassembly = Reassembly::new(static_channels.channel_ids().collect::<Vec<_>>());
+
         let stage = ActiveStageBuilder {
             static_channels,
             user_channel_id,
@@ -283,6 +293,7 @@ impl RdpSession {
             user_channel_id,
             cancel: CancellationToken::new(),
             resize_refused: false,
+            reassembly,
         })
     }
 
@@ -404,6 +415,19 @@ impl RdpSession {
             .first()
             .and_then(|header| Action::from_fp_output_header(*header).ok())
             .ok_or_else(|| violation("the server sent a PDU with no recognisable action"))?;
+
+        // Before the frame is handed on, and that is the whole point. Both
+        // buffers this bounds belong to `ironrdp`, not to this crate:
+        // `CompleteData::fragmented_data` for fast-path fragments and
+        // `ChunkProcessor::chunked_pdu` for static virtual channel chunks. Both
+        // grew without a ceiling and without a declared total, so a server that
+        // sent `First` and then `Next` for ever — or chunks that never set
+        // `CHANNEL_FLAG_LAST` — grew them until the allocator gave up, which
+        // aborts the process rather than failing the tab. A ceiling applied
+        // after `process` returns would bound this crate's copy of a buffer the
+        // library had already materialised, which is no bound at all. See
+        // [`Reassembly`].
+        self.reassembly.inspect(action, frame)?;
 
         let outputs = self
             .stage
@@ -1002,6 +1026,8 @@ mod tests {
     const IO_CHANNEL: u16 = 1003;
     const USER_CHANNEL: u16 = 1004;
     const MESSAGE_CHANNEL: u16 = 1005;
+    /// The id the server gives `drdynvc` in these tests.
+    const SVC_CHANNEL: u16 = 1006;
     const SHARE_ID: u32 = 0x0003_ea03;
 
     /// How many bytes [`DripTransport`] accepts before stalling.
@@ -1180,6 +1206,34 @@ mod tests {
                 width: 64,
                 height: 64,
             },
+            StaticChannelSet::new(),
+        )
+        .expect("64x64 is inside every bound this module has")
+    }
+
+    /// A session whose `drdynvc` channel the server has joined, which is what
+    /// puts `ironrdp-svc`'s chunk reassembly on the path.
+    fn attached_on_channel(
+        transport: DripTransport,
+    ) -> (
+        RdpSession,
+        SessionContext,
+        tokio::sync::mpsc::Sender<SessionCommand>,
+        tokio::sync::mpsc::Receiver<SessionEvent>,
+    ) {
+        let mut channels = crate::connect::static_channels();
+        let type_id = channels
+            .type_ids()
+            .next()
+            .expect("drdynvc is the one channel this build requests");
+        channels.attach_channel_id(type_id, SVC_CHANNEL);
+        attached_at(
+            transport,
+            DesktopSize {
+                width: 64,
+                height: 64,
+            },
+            channels,
         )
         .expect("64x64 is inside every bound this module has")
     }
@@ -1189,6 +1243,7 @@ mod tests {
     fn attached_at(
         transport: DripTransport,
         desktop: DesktopSize,
+        static_channels: StaticChannelSet,
     ) -> Result<
         (
             RdpSession,
@@ -1204,7 +1259,7 @@ mod tests {
             user_channel_id: USER_CHANNEL,
             message_channel_id: Some(MESSAGE_CHANNEL),
             share_id: SHARE_ID,
-            static_channels: StaticChannelSet::new(),
+            static_channels,
             desktop,
         };
         let (events, event_rx) = event_channel(32);
@@ -1440,6 +1495,7 @@ mod tests {
                 width: u16::MAX,
                 height: u16::MAX,
             },
+            StaticChannelSet::new(),
         );
         let Err(error) = outcome else {
             panic!("a 17 GiB framebuffer was allocated from a number the server chose");
@@ -1464,6 +1520,7 @@ mod tests {
                 width: 1024,
                 height: 0,
             },
+            StaticChannelSet::new(),
         );
         assert!(matches!(
             outcome,
@@ -1628,6 +1685,211 @@ mod tests {
         assert!(
             again.is_err(),
             "the warning repeated once per resize request"
+        );
+    }
+
+    #[test]
+    fn nothing_in_this_session_logs_what_the_user_typed() {
+        // The same guard the VNC and SSH sessions carry, and it was missing
+        // from the adapter with the most input-handling code of the three.
+        // CLAUDE.md §0.2, applied to input: a log line naming a key is
+        // keystroke material at rest, and there is no exception for one key at
+        // a time. RDP's input encoding lives in `crate::input`, but the
+        // diagnostics *about* it live here — `input` below logs when an event
+        // cannot be encoded, which is exactly the line someone adds the
+        // offending scancode to while debugging.
+        //
+        // The needles are assembled at run time so that this test's own source
+        // is not what it finds, and only the code above the test module is
+        // scanned.
+        const SOURCE: &str = include_str!("session.rs");
+        let body = SOURCE
+            .split(concat!("#[cfg", "(test)]"))
+            .next()
+            .unwrap_or(SOURCE);
+        for (at, _) in body.match_indices(concat!("tracing", "::")) {
+            let rest = &body[at..];
+            let statement = &rest[..rest.find(';').unwrap_or(rest.len())];
+            for forbidden in ["scancode", "keysym", "keycode", "keystroke"] {
+                assert!(
+                    !statement.contains(forbidden),
+                    "a diagnostic in this file mentions `{forbidden}`: {statement}"
+                );
+            }
+        }
+    }
+
+    /// One fast-path server update PDU (MS-RDPBCGR §2.2.9.1.2) carrying a
+    /// single update structure with the given fragmentation field.
+    ///
+    /// The payload is never decoded by `ironrdp-session` for `First` and
+    /// `Next` — it is accumulated and nothing more — which is exactly the
+    /// property that made the reassembly unbounded.
+    fn fast_path_update(
+        fragmentation: ironrdp::pdu::fast_path::Fragmentation,
+        payload: &[u8],
+    ) -> Vec<u8> {
+        use ironrdp::pdu::fast_path::{
+            EncryptionFlags, FastPathHeader, FastPathUpdatePdu, UpdateCode,
+        };
+
+        let update = FastPathUpdatePdu {
+            fragmentation,
+            update_code: UpdateCode::SurfaceCommands,
+            compression_flags: None,
+            compression_type: None,
+            data: payload,
+        };
+        let body = encode_vec(&update).unwrap();
+        let header = FastPathHeader::new(EncryptionFlags::empty(), body.len());
+        let mut frame = encode_vec(&header).unwrap();
+        frame.extend_from_slice(&body);
+        frame
+    }
+
+    /// One chunk of a static virtual channel PDU (§3.1.5.2.2) on
+    /// [`SVC_CHANNEL`], inside the MCS Send Data Indication it travels in.
+    fn channel_chunk(
+        declared: u32,
+        flags: ironrdp::pdu::rdp::vc::ChannelControlFlags,
+        payload: &[u8],
+    ) -> Vec<u8> {
+        use ironrdp::pdu::rdp::vc::ChannelPduHeader;
+
+        let mut user_data = encode_vec(&ChannelPduHeader {
+            length: declared,
+            flags,
+        })
+        .unwrap();
+        user_data.extend_from_slice(payload);
+        encode_vec(&X224(mcs::SendDataIndication {
+            initiator_id: SERVER_INITIATOR,
+            channel_id: SVC_CHANNEL,
+            user_data: std::borrow::Cow::Owned(user_data),
+        }))
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn a_fast_path_reassembly_that_never_ends_is_refused_on_the_path_a_server_uses() {
+        // The HIGH defect, on the real path. `process_frame` hands every
+        // fast-path PDU to `ActiveStage`, and `CompleteData::append_data`
+        // extends `fragmented_data` for every `Fragmentation::Next` with no
+        // declared total and no ceiling. `framed.rs`'s MAX_PDU_BYTES bounds
+        // one PDU; nothing bounded the reassembly of many, so a server that
+        // sends First and then Next for ever grows that `Vec` until the
+        // allocator gives up — and an allocation failure aborts rather than
+        // unwinding, so ADR-0011 does not contain it to one tab.
+        //
+        // Without the ceiling every call below returns `Ok` and the loop runs
+        // out rather than the session ending; what a real server does instead
+        // of stopping at 32 MiB is keep going.
+        use ironrdp::pdu::fast_path::Fragmentation;
+
+        let (mut session, _ctx, _commands, _events) = attached(DripTransport::new(Vec::new()));
+        let payload = vec![0xa5_u8; 16 * 1024];
+
+        session
+            .process_frame(&fast_path_update(Fragmentation::First, &payload))
+            .await
+            .unwrap();
+
+        let mut refused = None;
+        for _ in 0..2048 {
+            if let Err(error) = session
+                .process_frame(&fast_path_update(Fragmentation::Next, &payload))
+                .await
+            {
+                refused = Some(error);
+                break;
+            }
+        }
+        let Some(error) = refused else {
+            panic!("the server grew the reassembly buffer past 32 MiB unopposed");
+        };
+        assert!(
+            matches!(error, ProtocolError::ProtocolViolation { .. }),
+            "{error:?}"
+        );
+        assert!(error.to_string().contains("reassembly buffer"), "{error}");
+        // A clean per-session failure with a stage and a card, not an abort.
+        assert_eq!(error.stage(), remoter_proto::Stage::Run);
+    }
+
+    #[tokio::test]
+    async fn an_ordinary_run_of_fast_path_updates_is_not_refused_for_its_length() {
+        // The other half of the bound, and the one a careless guard breaks: a
+        // session carries far more than eight megabytes of graphics over its
+        // life. Only what is *reassembled* counts, and an unfragmented update
+        // reassembles nothing.
+        use ironrdp::pdu::fast_path::Fragmentation;
+
+        let (mut session, _ctx, _commands, _events) = attached(DripTransport::new(Vec::new()));
+        let payload = vec![0u8; 16 * 1024];
+        for _ in 0..1024 {
+            session
+                .process_frame(&fast_path_update(Fragmentation::Single, &payload))
+                .await
+                .expect("16 MiB of ordinary updates is a few seconds of a busy desktop");
+        }
+    }
+
+    #[tokio::test]
+    async fn a_virtual_channel_pdu_that_never_ends_is_refused_on_the_path_a_server_uses() {
+        // The same shape one layer over: `ironrdp-svc`'s
+        // `ChunkProcessor::dechunkify` extends `chunked_pdu` for every chunk
+        // lacking CHANNEL_FLAG_LAST and never reads the declared total at all.
+        // `drdynvc` is registered on every session, so the path is open on
+        // every session.
+        use ironrdp::pdu::rdp::vc::ChannelControlFlags;
+
+        let (mut session, _ctx, _commands, _events) =
+            attached_on_channel(DripTransport::new(Vec::new()));
+        let payload = vec![0u8; 16_000];
+        let declared = u32::try_from(payload.len()).unwrap();
+
+        let mut refused = None;
+        for _ in 0..512 {
+            let frame = channel_chunk(declared, ChannelControlFlags::empty(), &payload);
+            if let Err(error) = session.process_frame(&frame).await {
+                refused = Some(error);
+                break;
+            }
+        }
+        let Some(error) = refused else {
+            panic!("the server grew the chunk buffer past eight megabytes unopposed");
+        };
+        assert!(
+            matches!(error, ProtocolError::ProtocolViolation { .. }),
+            "{error:?}"
+        );
+        assert!(
+            error.to_string().contains("more virtual channel chunks"),
+            "{error}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_virtual_channel_pdu_declaring_an_absurd_total_is_refused_at_once() {
+        // The declared total is the thing `dechunkify` ignores; refusing it on
+        // the first chunk is the difference between a four-gigabyte
+        // accumulation and an immediate diagnostic.
+        use ironrdp::pdu::rdp::vc::ChannelControlFlags;
+
+        let (mut session, _ctx, _commands, _events) =
+            attached_on_channel(DripTransport::new(Vec::new()));
+        let frame = channel_chunk(u32::MAX, ChannelControlFlags::FLAG_FIRST, &[0u8; 16]);
+        let error = session
+            .process_frame(&frame)
+            .await
+            .expect_err("a four-gigabyte virtual channel PDU was accepted");
+        assert!(
+            matches!(error, ProtocolError::ProtocolViolation { .. }),
+            "{error:?}"
+        );
+        assert!(
+            error.to_string().contains("larger than this build"),
+            "{error}"
         );
     }
 

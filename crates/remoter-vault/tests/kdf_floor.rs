@@ -37,7 +37,7 @@ fn a_vault_at_the_floor_parameters_creates_and_opens() {
     let info = Vault::probe(&path).unwrap();
     assert_eq!(info.slots[0].kdf_params, Some(floor));
     assert_eq!(
-        info.slots[0].kdf_params.unwrap().summary(),
+        info.slots[0].kdf_params.unwrap().audit_note(),
         "Argon2id, 256 MiB, 3 passes, 4 lanes"
     );
 
