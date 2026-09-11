@@ -341,6 +341,32 @@ describe("who gets the keystroke", () => {
     show();
     expect(screen.getByText(/click the screen to type into it/i)).toBeInTheDocument();
   });
+
+  it("retires the hint once the user has done it", async () => {
+    // "Click the screen to type into it" is orientation, not a control: it
+    // answers one question, once. Left on screen for the rest of the session it
+    // is a permanent row of chrome telling the user to do something they have
+    // already done — and every row of chrome here is height the remote desktop
+    // does not get.
+    show();
+    const element = screenElement();
+    act(() => {
+      element.focus();
+    });
+    expect(screen.queryByText(/click the screen to type into it/i)).toBeNull();
+
+    act(() => {
+      element.blur();
+    });
+    await delivered();
+    expect(screen.queryByText(/click the screen to type into it/i)).toBeNull();
+    // The other half of the rule is untouched: while the screen has the
+    // keyboard it still says so, and still says how to get a shortcut back.
+    act(() => {
+      element.focus();
+    });
+    expect(screen.getByText(/keys go to the remote screen/i)).toBeInTheDocument();
+  });
 });
 
 describe("the combinations the local machine takes first", () => {

@@ -50,13 +50,20 @@
   overflow: hidden;
 }
 
-/* The positioned box every session host anchors to. The hosts are
-   `position: absolute; inset: 0`, so this has to be the containing block
-   rather than `.session` — otherwise a docked pane would shrink the column and
-   the terminal would keep drawing over it. */
+/* The session and its own chrome, as a column.
+
+   `SessionSurface` puts a strip in here above the positioned stack — the
+   warnings a session raised, a refused keystroke — so this is a flex column
+   rather than a bare positioned box. `position: relative` stays all the same:
+   the placeholder and the failure notices below are `position: absolute;
+   inset: 0` and anchor to it, and so does the empty-state content passed in as
+   `empty`. */
 .sessionPrimary {
   flex: 1 1 auto;
   min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
   position: relative;
   overflow: hidden;
 }

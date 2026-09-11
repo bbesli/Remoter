@@ -10,6 +10,25 @@
   background: var(--bg-terminal);
   overflow: hidden;
 
+  /* A column, and that is the whole fix for the defect this file shipped.
+
+     A remote desktop uses all four of its edges and all four corners: Windows
+     puts its taskbar along one and its window controls in another, macOS has a
+     menu bar and a dock, a Linux panel can be anywhere. There is no safe corner
+     to float our own controls in — the previous version put the send-keys and
+     scale buttons over the top inline-end corner, which is exactly where a
+     maximised window's minimise/maximise/close buttons are, and the desktop
+     size over the bottom inline-start corner, which is exactly where the Start
+     button is. Both were unreachable.
+
+     So the chrome is not over the picture, it is above it: the toolbar and the
+     notices are flex items with their own height, and the stage gets what is
+     left. Nothing overlaps, at any window size, in either direction, and in
+     full screen — where the picture is largest and the temptation to float was
+     strongest — the toolbar simply keeps its row. */
+  display: flex;
+  flex-direction: column;
+
   --fg-default: #e6e8ea;
   --fg-strong: #c8ced4;
   --fg-muted: #9aa1a9;
@@ -40,8 +59,9 @@
    must not move that edge. surfaces.ts pins it on the canvas too; neither one
    alone survives a change to the other file. */
 .stage {
-  position: absolute;
-  inset: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
   display: grid;
   place-items: center;
   overflow: auto;
@@ -65,13 +85,30 @@
   box-shadow: inset 0 0 0 2px var(--warning);
 }
 
-.topBar {
-  position: absolute;
-  inset-block-start: var(--space-2);
-  inset-inline-end: var(--space-2);
-  z-index: 2;
+/* The tab's own toolbar, between the tab strip and the picture.
+
+   It is a row of the application's chrome, not an overlay: it has height, the
+   stage below it is shorter by exactly that much, and a `fit` or `smart` scale
+   recomputes against the smaller viewport on its own because the stage is what
+   `useViewport` measures. Wraps rather than scrolls — a narrow window puts the
+   scale controls on a second line instead of hiding them behind an overflow
+   nobody finds. */
+.toolbar {
+  flex: none;
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  background: var(--bg-surface);
+  border-block-end: 1px solid var(--border-default);
+}
+
+/* Pushes what follows to the inline end. A flex spacer rather than
+   `margin-inline-start: auto`, so the row still collapses sensibly when it
+   wraps. */
+.spacer {
+  flex: 1 1 auto;
 }
 
 .controls {
@@ -82,7 +119,6 @@
   background: var(--bg-surface);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-1);
 }
 
 .option {
@@ -116,16 +152,23 @@
   background: var(--accent);
 }
 
+/* Anything the surface has to say in a sentence rather than on a chip.
+
+   Also in flow, under the toolbar and above the stage, for the same reason: a
+   "waiting for the first frame" panel floating over the top inline-start corner
+   sat on the remote desktop's own menu bar. Bounded, because a server can
+   produce several of these at once and the picture is the point. */
 .notices {
-  position: absolute;
-  inset-block-start: var(--space-2);
-  inset-inline-start: var(--space-2);
-  z-index: 2;
+  flex: none;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: stretch;
   gap: var(--space-2);
-  max-width: min(34rem, calc(100% - var(--space-8)));
+  padding: var(--space-2);
+  max-height: 30vh;
+  overflow-y: auto;
+  background: var(--bg-surface);
+  border-block-end: 1px solid var(--border-default);
 }
 
 /* The standing statement that a view-only session sends nothing to the far
@@ -163,48 +206,37 @@
   text-wrap: pretty;
 }
 
+/* A chip in the toolbar, not a panel: it is true of every session for its first
+   moment, and a block that appeared and vanished would move the stage's height
+   twice at connect. */
 .waiting {
   margin: 0;
   padding: var(--space-1) var(--space-3);
   font-size: var(--text-xs);
   color: var(--fg-muted);
-  background: var(--bg-surface);
+  background: var(--bg-inset);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
 }
 
-.bottomBar {
-  position: absolute;
-  inset-block-end: var(--space-2);
-  inset-inline-start: var(--space-2);
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-1) var(--space-3);
-  background: var(--bg-surface);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-  font-size: var(--text-xs);
-  color: var(--fg-muted);
-}
+/* Which keys this screen is taking, at the inline end of the toolbar.
 
-.meta {
-  font-family: var(--font-mono);
-  font-variant-ligatures: none;
-}
-
-/* Which keys this screen is taking, in the strip along the bottom beside the
-   desktop size. Quiet: it is a standing statement, not a warning, and it is
-   read once and then ignored by anyone who already knows the rule. */
+   The desktop size that used to sit beside it is gone from here entirely: the
+   status bar below the session already shows it, so the overlay was covering
+   the Start button to repeat a figure that was on screen anyway. One place for
+   one fact. */
 .capture {
+  font-size: var(--text-xs);
   color: var(--fg-subtle);
+  text-wrap: pretty;
 }
 
 .cursorChip {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
 }
 
 /* The pointer shape at its own size, with no smoothing: a 16px cursor

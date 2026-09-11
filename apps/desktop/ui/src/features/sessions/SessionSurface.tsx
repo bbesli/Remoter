@@ -11,6 +11,25 @@
  * The overlays belong to the active tab only. A host key question on a
  * background tab still holds that session suspended — the tab's status dot says
  * so, and switching to it brings the dialog up.
+ *
+ * # The area is two rows, not one stack
+ *
+ * `.chrome` is a strip in the flow — this session's warnings, and a refused
+ * keystroke — and `.stack` under it is the positioned box every session host
+ * fills. Nothing in the chrome is drawn over a session.
+ *
+ * That split is the fix for a shipped defect. A remote desktop uses all four of
+ * its edges and all four corners: Windows puts its taskbar along one and a
+ * maximised window's controls in another, macOS has a menu bar and a dock, a
+ * Linux panel can be anywhere. These notices floated over those corners, and
+ * the one at the bottom inline-start made the Start button unreachable. Chrome
+ * that has height cannot cover anything; chrome that floats always covers
+ * something.
+ *
+ * The overlays inside `.stack` are the exception, deliberately. The connect
+ * panel, the host key question, the prompt and the ended notice are each a
+ * blocking question about the session — covering it is the point — and none of
+ * them is present while a session is simply running.
  */
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -157,116 +176,127 @@ export function SessionSurface({ empty }: { empty: ReactNode }) {
   const connecting = active !== undefined && isConnecting(active.phase);
   const promptId = active?.hostKey?.promptId ?? 0;
 
+  // What the chrome strip has to show. Checked before it is drawn, so a session
+  // with nothing to report does not grow an empty bordered row above it — which
+  // matters most for a terminal, whose surface shares this tree and has no
+  // remote edges to protect in the first place.
+  const inputError = active?.inputError ?? null;
+  const warned = active !== undefined && active.warnings.length > 0;
+  const hasChrome = inputError !== null || warned;
+
   return (
     <>
-      {order.map((tabId) => {
-        const tab = byId[tabId];
-        // Which surface a session gets follows from the core's own
-        // `capabilities.kind`, never from the protocol name: a plugin protocol
-        // that reports `framebuffer` gets the canvas, and nothing here has to
-        // learn a list of protocol strings. The kind is not known until
-        // `ready`, and until then the connect panel is over the area anyway.
-        if (tab !== undefined && tab.opened?.capabilities.kind === "framebuffer") {
-          return <FramebufferHost key={tabId} record={tab} active={tabId === activeTabId} />;
-        }
-        // An `sftp` connection opens a session of its own — same pipeline, same
-        // host key check, same credential — and the core names it
-        // `file_transfer`. Its tab is the file manager; there is no shell
-        // behind it to draw. Before this branch existed such a tab got a
-        // terminal that could never print a byte, which is how a finished file
-        // manager shipped as a black rectangle.
-        if (tab !== undefined && tab.opened?.capabilities.kind === "file_transfer") {
-          return (
-            <FileSessionHost
-              key={tabId}
-              sessionId={tab.sessionId}
-              name={tab.name}
-              active={tabId === activeTabId}
+      {hasChrome && active !== undefined && (
+        <div className={s.chrome}>
+          {inputError !== null && (
+            <FailureNotice
+              failure={inputError}
+              title={t("surface.inputRefused")}
+              tone="warning"
             />
-          );
-        }
-        return (
-          <TerminalHost
-            key={tabId}
-            tabId={tabId}
-            name={tab?.name ?? tabId}
-            active={tabId === activeTabId}
-          />
-        );
-      })}
-
-      {/* Only over a live terminal: searching the scrollback of a tab that is
-          showing a failure notice would be searching an empty buffer, and
-          neither a framebuffer nor a file session has scrollback to search at
-          all. Stated as "is a terminal" rather than "is not a framebuffer",
-          so a third kind cannot arrive on the terminal's side of the test by
-          default — which is exactly how the file session got a terminal. */}
-      {finding &&
-        active !== undefined &&
-        active.phase === "running" &&
-        active.opened?.capabilities.kind === "terminal" && (
-          <FindBar tabId={active.tabId} onClose={() => setFinding(false)} />
-        )}
-
-      {/* Everything the session warned about, over the session. Terminal and
-          graphical alike: an SSH login banner and a VNC security type land in
-          the same place. */}
-      {active !== undefined && <SessionWarnings record={active} />}
-
-      {active !== undefined && active.inputError !== null && (
-        <div className={s.inputBar}>
-          <FailureNotice
-            failure={active.inputError}
-            title={t("surface.inputRefused")}
-            tone="warning"
-          />
+          )}
+          {/* Everything the session warned about. Terminal and graphical alike:
+              an SSH login banner and a VNC security type land in the same
+              place. */}
+          {warned && <SessionWarnings record={active} />}
         </div>
       )}
 
-      {active !== undefined && connecting && active.hostKey === null && (
-        <ConnectProgress
-          record={active}
-          cancelling={cancelling === active.tabId}
-          onCancel={() => {
-            setCancelling(active.tabId);
-            void cancelConnect(active.tabId).finally(() => setCancelling(null));
-          }}
-        />
-      )}
-
-      {/* The certificate question inside this is the one an RDP session against
-          a default Windows host stops at, and `PromptPanel` is where it is
-          answered. Guarded on `hostKey === null` for the same reason the
-          connect panel is: two blocking decisions on one tab would stack, and
-          the host key one is the earlier of the two. */}
-      {active !== undefined && active.prompt !== null && active.hostKey === null && (
-        <PromptPanel record={active} />
-      )}
-
-      {active !== undefined && (active.phase === "failed" || active.phase === "closed") && (
-        <EndedPanel record={active} />
-      )}
-
-      {active !== undefined && active.hostKey !== null && (
-        <HostKeyDialog
-          prompt={active.hostKey}
-          sessionName={active.name}
-          busy={active.hostKeyBusy}
-          failure={active.hostKeyError}
-          // Three decisions, passed through as the core defines them. There is
-          // no accept path for a changed key: the dialog does not draw the
-          // button, and the core would refuse it if it did.
-          onAccept={() =>
-            void decideHostKey(active.tabId, { decision: "accept", promptId })
+      <div className={s.stack}>
+        {order.map((tabId) => {
+          const tab = byId[tabId];
+          // Which surface a session gets follows from the core's own
+          // `capabilities.kind`, never from the protocol name: a plugin protocol
+          // that reports `framebuffer` gets the canvas, and nothing here has to
+          // learn a list of protocol strings. The kind is not known until
+          // `ready`, and until then the connect panel is over the area anyway.
+          if (tab !== undefined && tab.opened?.capabilities.kind === "framebuffer") {
+            return <FramebufferHost key={tabId} record={tab} active={tabId === activeTabId} />;
           }
-          onReplace={(confirmation) =>
-            void decideHostKey(active.tabId, { decision: "replace", promptId, confirmation })
+          // An `sftp` connection opens a session of its own — same pipeline, same
+          // host key check, same credential — and the core names it
+          // `file_transfer`. Its tab is the file manager; there is no shell
+          // behind it to draw. Before this branch existed such a tab got a
+          // terminal that could never print a byte, which is how a finished file
+          // manager shipped as a black rectangle.
+          if (tab !== undefined && tab.opened?.capabilities.kind === "file_transfer") {
+            return (
+              <FileSessionHost
+                key={tabId}
+                sessionId={tab.sessionId}
+                name={tab.name}
+                active={tabId === activeTabId}
+              />
+            );
           }
-          onReject={() =>
-            void decideHostKey(active.tabId, { decision: "reject", promptId })
-          }
-        />
-      )}
+          return (
+            <TerminalHost
+              key={tabId}
+              tabId={tabId}
+              name={tab?.name ?? tabId}
+              active={tabId === activeTabId}
+            />
+          );
+        })}
+
+        {/* Only over a live terminal: searching the scrollback of a tab that is
+            showing a failure notice would be searching an empty buffer, and
+            neither a framebuffer nor a file session has scrollback to search at
+            all. Stated as "is a terminal" rather than "is not a framebuffer",
+            so a third kind cannot arrive on the terminal's side of the test by
+            default — which is exactly how the file session got a terminal. */}
+        {finding &&
+          active !== undefined &&
+          active.phase === "running" &&
+          active.opened?.capabilities.kind === "terminal" && (
+            <FindBar tabId={active.tabId} onClose={() => setFinding(false)} />
+          )}
+
+        {active !== undefined && connecting && active.hostKey === null && (
+          <ConnectProgress
+            record={active}
+            cancelling={cancelling === active.tabId}
+            onCancel={() => {
+              setCancelling(active.tabId);
+              void cancelConnect(active.tabId).finally(() => setCancelling(null));
+            }}
+          />
+        )}
+
+        {/* The certificate question inside this is the one an RDP session against
+            a default Windows host stops at, and `PromptPanel` is where it is
+            answered. Guarded on `hostKey === null` for the same reason the
+            connect panel is: two blocking decisions on one tab would stack, and
+            the host key one is the earlier of the two. */}
+        {active !== undefined && active.prompt !== null && active.hostKey === null && (
+          <PromptPanel record={active} />
+        )}
+
+        {active !== undefined && (active.phase === "failed" || active.phase === "closed") && (
+          <EndedPanel record={active} />
+        )}
+
+        {active !== undefined && active.hostKey !== null && (
+          <HostKeyDialog
+            prompt={active.hostKey}
+            sessionName={active.name}
+            busy={active.hostKeyBusy}
+            failure={active.hostKeyError}
+            // Three decisions, passed through as the core defines them. There is
+            // no accept path for a changed key: the dialog does not draw the
+            // button, and the core would refuse it if it did.
+            onAccept={() =>
+              void decideHostKey(active.tabId, { decision: "accept", promptId })
+            }
+            onReplace={(confirmation) =>
+              void decideHostKey(active.tabId, { decision: "replace", promptId, confirmation })
+            }
+            onReject={() =>
+              void decideHostKey(active.tabId, { decision: "reject", promptId })
+            }
+          />
+        )}
+      </div>
     </>
   );
 }

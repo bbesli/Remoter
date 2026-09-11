@@ -18,6 +18,12 @@ guessing.
    proportional to their risk.
 5. **Nothing is colour-only.** Every state that colour communicates also has a
    shape, an icon or a label.
+6. **Nothing of ours is drawn over a remote desktop.** A remote desktop uses all
+   four of its edges and all four of its corners: Windows puts a taskbar along
+   one edge and a maximised window's minimise, maximise and close buttons in a
+   corner, macOS has a menu bar and a dock, a Linux desktop can put a panel
+   anywhere. There is no safe place to float our own chrome over someone else's
+   screen, so no place is used. See **Chrome around a session** below.
 
 ## Tokens
 
@@ -148,8 +154,8 @@ nothing.
 | Dialogs | Focus-trapped, escape-dismissible, with a clear primary action |
 | Toasts | Non-blocking; never used for anything the user must act on |
 | Progress | Determinate wherever a total is known; always cancellable |
-| Framebuffer surface | The canvas an RDP or VNC session is seen on, with the scaling controls over it and the desktop size under it |
-| Warning strip | Everything a session warned about, over the session |
+| Framebuffer surface | The canvas an RDP or VNC session is seen on, with its toolbar in a row above it — never over it |
+| Warning strip | Everything a session warned about, as a count in the session's chrome that opens the list above the session |
 | File manager | Two panes and a transfer queue, attached to a session rather than to a node |
 
 ### The warning strip
@@ -161,10 +167,14 @@ to a routable address, a server that refused the channel smart resize needs.
 Three rules decide how they are drawn, and each one exists because the
 alternative is a warning nobody reads.
 
-**They sit over the session, not beside it.** A warning in a panel the user has
-to open has not been shown. The strip is an overlay at the inline start of the
-session area, terminal and graphical alike, so an SSH banner and a VNC security
-type land in the same place.
+**They are always visible, and never over the session.** A warning in a panel
+the user has to go and find has not been shown — so a count sits permanently in
+the session's chrome, above the picture, terminal and graphical alike, and an
+SSH banner and a VNC security type land in the same place. It opens the list in
+the same strip, which pushes the session down rather than covering it. The strip
+used to be an overlay at the bottom inline start of the session area; that is
+the Start button on a remote Windows desktop, and principle 6 is what replaced
+it.
 
 **A `danger` warning cannot be collapsed.** The set folds to a single line once
 it has been read — a bell that rang and a clipboard that was transcoded are not
@@ -174,10 +184,41 @@ worth a permanent panel — but "this session is not authenticated" does not fol
 raises something nobody has written copy for should look unfinished rather than
 silent, so the key is drawn where the sentence would be.
 
-The strip redefines the ground tokens for itself. The session area is dark in
-every theme, and a callout that inherited the light theme's near-black text
-would be unreadable on it — this is the one sanctioned reason to redefine a
-semantic colour token locally rather than reach for a literal.
+The strip no longer redefines the ground tokens. It is chrome beside the session
+rather than a callout on the dark terminal ground, so it takes the window's own
+theme. Anything that *is* drawn on that ground — the connect panel, the host key
+question, the ended notice — still redefines them, because the ground is dark in
+every theme and a callout inheriting the light theme's near-black text would be
+unreadable on it. That is the one sanctioned reason to redefine a semantic
+colour token locally rather than reach for a literal.
+
+### Chrome around a session
+
+Principle 6 in practice. Everything the application has to say about a session
+is a row in the flow, with a height of its own, between the tab strip and the
+picture:
+
+- the **session chrome strip** — the warning count and its list, and the notice
+  that a keystroke was refused — drawn only when it has something in it, so a
+  quiet terminal grows no empty row;
+- the **framebuffer toolbar** — the Ctrl+Alt+Del and Alt+Tab buttons, which
+  exist because the local machine takes those chords first, the scale controls,
+  the view-only badge, and one line of keyboard orientation that retires itself
+  after the first click;
+- the **notices** a graphical session raises in a sentence rather than on a chip
+  — waiting for a first frame, a dropped frame, an unreadable one.
+
+The desktop size is **not** among them: the status bar under the session already
+carries it, and one fact belongs in one place.
+
+Three exceptions may cover a session, and all three are blocking questions about
+it rather than chrome: the connect panel, the host key dialog and the prompt, and
+the ended-session notice. None is present while a session is simply running.
+
+`features/sessions/layout.test.tsx` asserts the rule against the computed
+layout — no element inside the session area is `absolute`, `fixed` or `sticky`
+except the session host itself — so a control floated back over the picture
+fails the build rather than reaching a user.
 
 ### The file manager
 

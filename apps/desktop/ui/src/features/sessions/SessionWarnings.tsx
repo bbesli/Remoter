@@ -10,9 +10,14 @@
  *
  * Three rules decide how they are drawn.
  *
- * **They sit over the session, not beside it.** A warning in a panel the user
- * has to open is a warning nobody reads. This is the same position the
- * refused-keystroke notice takes.
+ * **They sit in the session's chrome, above the picture — never on it.** They
+ * used to float at the bottom inline-start of the session area, which is the
+ * Start button on a remote Windows desktop and the taskbar on a maximised one.
+ * A remote desktop uses all four of its edges, so there is nowhere over the
+ * picture that is safe. What replaces the overlay is a count, always visible in
+ * the chrome, which opens the list in the flow above the session: noticeable,
+ * one click from the whole text, and covering nothing. Hiding them silently was
+ * never the alternative.
  *
  * **A `danger` one cannot be collapsed.** The set folds to a single line once
  * it is read — a bell that rang and a clipboard that was transcoded are not

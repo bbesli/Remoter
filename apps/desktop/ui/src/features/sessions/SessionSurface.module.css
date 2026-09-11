@@ -231,11 +231,36 @@
 /* The remote-text block that used to live here moved to
    PromptPanel.module.css with the panel that drew it. */
 
-/* A refused keystroke does not take the session area; it sits above the
-   terminal, which is still connected and still producing output. */
-.inputBar {
-  position: absolute;
-  inset-inline: var(--space-4);
-  inset-block-start: var(--space-4);
-  z-index: 3;
+/* The session's own chrome, between the tab strip and the picture.
+
+   In the flow, with height of its own, and that is the whole point: a refused
+   keystroke and a session warning used to float over the session area, and over
+   a remote desktop there is no corner to float in — Windows puts its taskbar
+   along one edge and a maximised window's controls in a corner, macOS has a
+   menu bar and a dock, a Linux panel can be anywhere. Chrome that has height
+   cannot cover anything.
+
+   Drawn only when it has something in it, so a session with nothing to report
+   — every terminal, most of the time — does not grow an empty strip. It takes
+   the window's theme rather than the dark terminal tokens: it is beside the
+   session now, not on it. */
+.chrome {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-surface);
+  border-block-end: 1px solid var(--border-default);
+}
+
+/* The positioned box the session hosts fill. They are `position: absolute;
+   inset: 0`, so this — not the chrome above it — is what they are measured
+   against. */
+.stack {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  position: relative;
 }

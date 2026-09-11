@@ -172,7 +172,7 @@
   },
 
   "surface": {
-    "_comment_": "The session area itself and the notices that cover it.",
+    "_comment_": "The session area itself, and the notices that sit above it in the chrome rather than over it.",
     "_comment_terminalLabel": "The accessible name of one tab's terminal. Not visible.",
     "terminalLabel": "طرفية {name}",
     "_comment_failedTitle": "Over the core's own failure message, which follows underneath and is not translated here.",
@@ -262,10 +262,12 @@
       "_comment_": "The screen an RDP or VNC session is seen on, and driven from. Keys and clicks go to the remote host while this screen has focus, so the strings under input describe a live rule the user has to be able to act on, not decoration. RDP and VNC are protocol names and are never translated.",
       "_comment_label": "The accessible name of the remote screen. Not visible. {name} is the connection's name, from the vault: user data, in any script.",
       "label": "الشاشة البعيدة لـ {name}",
+      "_comment_toolbarLabel": "Names the tab's toolbar for a screen reader — the row of controls between the tab strip and the remote screen, where the send-key and scale buttons live. Not visible. The controls are there, and not over the picture, because a remote desktop uses all four of its own edges.",
+      "toolbarLabel": "أدوات التحكم بالشاشة البعيدة",
 
       "input": {
-        "_comment_": "The keyboard and pointer of a live graphical session. clickToType and capturing occupy the same slot in the strip along the bottom and are read one after the other by the same person: the first says how to start, the second says what changed once they did.",
-        "_comment_clickToType": "Shown while the remote screen does not have keyboard focus. It is an instruction, not a warning: clicking the screen is what sends keys to it.",
+        "_comment_": "The keyboard and pointer of a live graphical session. clickToType and capturing occupy the same slot at the inline end of the tab's toolbar, above the picture, and are read one after the other by the same person: the first says how to start, the second says what changed once they did. Neither is ever drawn over the remote screen — a remote desktop uses all four of its own edges, so there is nowhere on it that is free.",
+        "_comment_clickToType": "Shown while the remote screen does not have keyboard focus, and only until the first time it is clicked. It is an instruction, not a warning: clicking the screen is what sends keys to it, and once that has been done it has nothing left to say.",
         "clickToType": "انقر الشاشة لتكتب فيها",
         "_comment_capturing": "Shown while it does have focus. IMPORTANT: say both halves — that the keys are the remote host's now, and how to reach Remoter's own shortcuts anyway. A user who cannot find the way back reads the application as hung. {prefix} is the terminal prefix as the user has it bound, e.g. Ctrl+Alt, and is never translated.",
         "capturing": "المفاتيح تذهب إلى الشاشة البعيدة. اضغط {prefix} أولًا لاختصارات Remoter نفسها.",
@@ -295,10 +297,6 @@
       "_comment_noContext": "This window could not create the drawing surface at all. A real failure and worded as one, because the alternative is a black rectangle with no explanation.",
       "noContext": "تعذّر على هذه النافذة إنشاء سطح رسم، فلا يمكن عرض الشاشة البعيدة. قد ينفع إغلاق التبويب وفتحه من جديد، والإبلاغ عن ذلك أنفع.",
 
-      "_comment_desktop": "In the strip along the bottom. {size} is the remote desktop in pixels, e.g. 1920×1080.",
-      "desktop": "الشاشة البعيدة {size}",
-      "_comment_desktopUnknown": "The same slot before any frame has said how large the desktop is.",
-      "desktopUnknown": "الحجم غير معروف بعد",
 
       "_comment_pointerShape": "Label beside a small picture of the pointer the remote host has set. Shown only where that shape cannot become this window's own cursor — on a view-only session, whose remote pointer is not where the local one is, and on a shape too large for a cursor. It is worth showing: an hourglass means the far end is busy.",
       "pointerShape": "شكل المؤشر",
@@ -345,7 +343,7 @@
   },
 
   "warning": {
-    "_comment_": "What a session warned about, shown over the session itself. SECURITY-CRITICAL IN PART: vncSecurityNone, vncCleartextRoutable and rdpNlaDisabled each describe a session that is not protecting something the user is likely to assume is protected. Translate the consequence, not just the fact. VNC, RFB, RDP and the algorithm names are protocol vocabulary and are never translated.",
+    "_comment_": "What a session warned about, shown in the session's own chrome above the picture — never over it, because a remote desktop uses all four of its edges. A count is always visible and opens the rest. SECURITY-CRITICAL IN PART: vncSecurityNone, vncCleartextRoutable and rdpNlaDisabled each describe a session that is not protecting something the user is likely to assume is protected. Translate the consequence, not just the fact. VNC, RFB, RDP and the algorithm names are protocol vocabulary and are never translated.",
     "_comment_count": "The one-line summary above the set. English says '1 notice' and '2 notices' alike; other languages do not.",
     "count": "{count, plural, zero {لا إشعارات من هذه الجلسة} one {إشعار واحد من هذه الجلسة} two {إشعاران من هذه الجلسة} few {# إشعارات من هذه الجلسة} many {# إشعارًا من هذه الجلسة} other {# إشعار من هذه الجلسة}}",
     "_comment_hide": "Verb, on the control that folds the set away. It is only offered when none of them is severe.",

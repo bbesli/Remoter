@@ -46,6 +46,26 @@
  * Two combinations can never be captured, because the local machine takes them
  * first: Alt+Tab and Ctrl+Alt+Delete. They are also the two people ask for by
  * name, so they are buttons — see `chordFor` in `keymap.ts`.
+ *
+ * # Where the chrome goes
+ *
+ * **Nothing of ours is drawn over the picture.** A remote desktop uses all four
+ * of its edges and all four corners — Windows puts a taskbar along one and the
+ * minimise/maximise/close buttons in another, macOS has a menu bar and a dock,
+ * a Linux panel can be anywhere — so there is no safe place to float a control
+ * over someone else's screen. This shipped as a defect: the send-keys and scale
+ * buttons floated over the top inline-end corner, on top of a maximised remote
+ * window's own controls, and the desktop size and keyboard hint floated over
+ * the bottom inline-start corner, on top of the Start button.
+ *
+ * So the host is a flex column: a toolbar row, then any notices, then the
+ * stage. Each has its own height and the picture gets the rest. `.stage` is
+ * what `useViewport` measures, so `fit` and `smart` follow the smaller
+ * viewport with no extra bookkeeping.
+ *
+ * The desktop size is not here at all any more. The status bar under the
+ * session already shows it — see `SessionStatus` — so the overlay was covering
+ * the Start button to repeat a figure that was on screen anyway.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -61,9 +81,8 @@ import {
   resolveShortcuts,
   useKeyboardSettings,
 } from "@/hooks/keyboard";
-import { isolate, useLocale, useT } from "@/i18n";
+import { isolate, useT } from "@/i18n";
 import { asFailure, ipc } from "@/lib/ipc";
-import { formatSize } from "./format";
 import { frameDecodeKey } from "./frames";
 import { buttonsFrom, chordFor, keyInputFrom, wheelFrom, type KeyInput } from "./keymap";
 import { requestDesktopSize } from "./manager";
@@ -459,11 +478,19 @@ function useFramebufferInput(target: InputTarget) {
 
 export function FramebufferHost({ record, active }: { record: SessionRecord; active: boolean }) {
   const t = useT("sessions");
-  const { code: locale } = useLocale();
   const tabId = record.tabId;
   const ref = useRef<HTMLDivElement>(null);
   const viewport = useViewport(ref);
   const [focused, setFocused] = useState(false);
+  /**
+   * Whether this screen has ever had the keyboard.
+   *
+   * "Click the screen to type into it" is orientation, not a control: it
+   * answers one question once. Kept on screen for the rest of the session it
+   * would be a permanent line of chrome saying something the user has already
+   * done — so it is shown until the first focus and never again on this tab.
+   */
+  const [everFocused, setEverFocused] = useState(false);
 
   useEffect(() => {
     const container = ref.current;
@@ -681,12 +708,132 @@ export function FramebufferHost({ record, active }: { record: SessionRecord; act
     canvas.style.cursor = cursorCss ?? "";
   }, [cursorCss, tabId]);
 
+  /**
+   * The one line of orientation about the keyboard, or nothing.
+   *
+   * Three states, not two. While the screen has focus it says so and says how
+   * to reach Remoter's own shortcuts anyway — a user who cannot find the way
+   * back reads the application as hung. Before the first click it says how to
+   * start. Afterwards it says nothing: the instruction has been followed, and
+   * repeating it for the rest of the session is chrome that earns no row.
+   */
+  const keyboardHint = !live
+    ? null
+    : focused
+      ? t("surface.framebuffer.input.capturing", { prefix: prefixLabel })
+      : everFocused
+        ? null
+        : t("surface.framebuffer.input.clickToType");
+
+  /**
+   * Whether the sentence-length notices have anything to say.
+   *
+   * Checked here so the block is not drawn as an empty bordered strip above the
+   * picture. "Waiting for the first frame" is deliberately not one of them: it
+   * is true of every session for its first moment, and a strip that appeared
+   * and vanished would change the stage's height twice at connect — which on a
+   * smart-resize session is two desktop renegotiations at the far end. It is a
+   * chip in the toolbar, whose height does not move.
+   */
+  const hasNotices = viewOnly || unavailable || status.stale || status.decodeError !== null;
+
   return (
     <div
       className={active ? s.host : [s.host, s.hidden].join(" ")}
       aria-hidden={active ? undefined : true}
       data-tab={tabId}
     >
+      {/* The toolbar and the notices come FIRST in the flow and the stage last,
+          which is the fix: they are rows above the picture rather than boxes
+          floating on it. Nothing here is positioned. */}
+      {active && (
+        <div
+          className={s.toolbar}
+          role="group"
+          aria-label={t("surface.framebuffer.toolbarLabel")}
+        >
+          {live && (
+            <div
+              className={s.controls}
+              role="group"
+              aria-label={t("surface.framebuffer.input.sendKeys")}
+            >
+              <button
+                type="button"
+                className={s.option}
+                title={t("surface.framebuffer.input.ctrlAltDelHelp")}
+                onClick={() => sendFromButton(CTRL_ALT_DEL)}
+              >
+                {t("surface.framebuffer.input.ctrlAltDel")}
+              </button>
+              <button
+                type="button"
+                className={s.option}
+                title={t("surface.framebuffer.input.altTabHelp")}
+                onClick={() => sendFromButton(ALT_TAB)}
+              >
+                {t("surface.framebuffer.input.altTab")}
+              </button>
+            </div>
+          )}
+
+          <ScaleControls record={record} />
+
+          {viewOnly && (
+            <Badge tone="warning" title={t("surface.framebuffer.viewOnlyHelp")}>
+              <Icon name="shield" size={12} />
+              {t("surface.framebuffer.viewOnly")}
+            </Badge>
+          )}
+
+          {cursorUrl !== null && status.cursor !== null && (
+            <span className={s.cursorChip} title={t("surface.framebuffer.pointerShapeHelp")}>
+              <img
+                className={s.cursorImage}
+                src={cursorUrl}
+                alt=""
+                width={status.cursor.width}
+                height={status.cursor.height}
+              />
+              {t("surface.framebuffer.pointerShape")}
+            </span>
+          )}
+
+          {!hasPixels && !unavailable && (
+            <span className={s.waiting}>{t("surface.framebuffer.awaitingFirstFrame")}</span>
+          )}
+
+          <span className={s.spacer} />
+
+          {keyboardHint !== null && <span className={s.capture}>{keyboardHint}</span>}
+        </div>
+      )}
+
+      {active && hasNotices && (
+        <div className={s.notices}>
+          {viewOnly && (
+            <p className={s.inputNotice}>
+              <Icon name="alert" size={13} />
+              <span>{t("surface.framebuffer.viewOnlyNotice")}</span>
+            </p>
+          )}
+
+          {unavailable && <p className={s.problem}>{t("surface.framebuffer.noContext")}</p>}
+
+          {status.stale && (
+            <p className={s.problem} role="status">
+              {t("surface.framebuffer.stale")}
+            </p>
+          )}
+
+          {status.decodeError !== null && (
+            <p className={s.problem} role="status">
+              {t(frameDecodeKey(status.decodeError))}
+            </p>
+          )}
+        </div>
+      )}
+
       <div
         ref={ref}
         className={s.stage}
@@ -707,7 +854,14 @@ export function FramebufferHost({ record, active }: { record: SessionRecord; act
         // The WebView's own menu would cover the remote screen, and a right
         // click is the far end's: it opens the remote menu instead.
         onContextMenu={live ? (event) => event.preventDefault() : undefined}
-        onFocus={live ? () => setFocused(true) : undefined}
+        onFocus={
+          live
+            ? () => {
+                setFocused(true);
+                setEverFocused(true);
+              }
+            : undefined
+        }
         onBlur={
           live
             ? () => {
@@ -717,103 +871,6 @@ export function FramebufferHost({ record, active }: { record: SessionRecord; act
             : undefined
         }
       />
-
-      {active && (
-        <>
-          <div className={s.topBar}>
-            {live && (
-              <div
-                className={s.controls}
-                role="group"
-                aria-label={t("surface.framebuffer.input.sendKeys")}
-              >
-                <button
-                  type="button"
-                  className={s.option}
-                  title={t("surface.framebuffer.input.ctrlAltDelHelp")}
-                  onClick={() => sendFromButton(CTRL_ALT_DEL)}
-                >
-                  {t("surface.framebuffer.input.ctrlAltDel")}
-                </button>
-                <button
-                  type="button"
-                  className={s.option}
-                  title={t("surface.framebuffer.input.altTabHelp")}
-                  onClick={() => sendFromButton(ALT_TAB)}
-                >
-                  {t("surface.framebuffer.input.altTab")}
-                </button>
-              </div>
-            )}
-            <ScaleControls record={record} />
-          </div>
-
-          <div className={s.notices}>
-            {viewOnly && (
-              <Badge tone="warning" title={t("surface.framebuffer.viewOnlyHelp")}>
-                <Icon name="shield" size={12} />
-                {t("surface.framebuffer.viewOnly")}
-              </Badge>
-            )}
-
-            {viewOnly && (
-              <p className={s.inputNotice}>
-                <Icon name="alert" size={13} />
-                <span>{t("surface.framebuffer.viewOnlyNotice")}</span>
-              </p>
-            )}
-
-            {unavailable && (
-              <p className={s.problem}>{t("surface.framebuffer.noContext")}</p>
-            )}
-
-            {status.stale && (
-              <p className={s.problem} role="status">
-                {t("surface.framebuffer.stale")}
-              </p>
-            )}
-
-            {status.decodeError !== null && (
-              <p className={s.problem} role="status">
-                {t(frameDecodeKey(status.decodeError))}
-              </p>
-            )}
-
-            {!hasPixels && !unavailable && (
-              <p className={s.waiting}>{t("surface.framebuffer.awaitingFirstFrame")}</p>
-            )}
-          </div>
-
-          <div className={s.bottomBar}>
-            <span className={s.meta}>
-              {hasPixels
-                ? t("surface.framebuffer.desktop", {
-                    size: formatSize(locale, status.width, status.height),
-                  })
-                : t("surface.framebuffer.desktopUnknown")}
-            </span>
-            {live && (
-              <span className={s.capture}>
-                {focused
-                  ? t("surface.framebuffer.input.capturing", { prefix: prefixLabel })
-                  : t("surface.framebuffer.input.clickToType")}
-              </span>
-            )}
-            {cursorUrl !== null && status.cursor !== null && (
-              <span className={s.cursorChip} title={t("surface.framebuffer.pointerShapeHelp")}>
-                <img
-                  className={s.cursorImage}
-                  src={cursorUrl}
-                  alt=""
-                  width={status.cursor.width}
-                  height={status.cursor.height}
-                />
-                {t("surface.framebuffer.pointerShape")}
-              </span>
-            )}
-          </div>
-        </>
-      )}
     </div>
   );
 }

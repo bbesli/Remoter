@@ -1,38 +1,34 @@
-/* Over the session, at the inline start, under the framebuffer's own controls.
-   It shares the ground-token redefinition every overlay on the session area
-   needs: the ground is dark in every theme, and a callout that inherited the
-   light theme's near-black text would be unreadable on it. */
+/* The warnings, in the session's chrome rather than on the session.
+
+   They used to float at the bottom inline-start of the session area, which on
+   a remote desktop is the Start button and on a maximised window is the
+   taskbar. A remote desktop uses all four of its edges, so there is no corner
+   to float in — see FramebufferHost.module.css. This is a block in the flow
+   above the picture: it has height, the picture is shorter by that much, and
+   it covers nothing.
+
+   It no longer redefines the dark ground tokens either. It is not on the
+   terminal ground any more; it is application chrome, and it takes the theme
+   the rest of the window has. */
 .bar {
-  position: absolute;
-  inset-inline-start: var(--space-4);
-  inset-block-end: var(--space-8);
-  z-index: 3;
-  width: min(30rem, calc(100% - var(--space-8)));
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-
-  --fg-default: #e6e8ea;
-  --fg-strong: #c8ced4;
-  --fg-muted: #9aa1a9;
-  --fg-subtle: #8a929a;
-  --bg-surface: #1c1e22;
-  --bg-elevated: #23262b;
-  --bg-inset: #101114;
-  --border-default: #2a2e34;
-  --border-strong: #3a4048;
+  min-width: 0;
 }
 
+/* The count, and the control that opens the rest.
+
+   The count is the part that is always visible. Moving the warnings out of the
+   picture must not turn into hiding them: a number in the chrome saying how
+   many there are is noticeable without covering anything, and it is what the
+   toggle below opens. */
 .head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  padding: var(--space-1) var(--space-3);
-  background: var(--bg-surface);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-1);
+  min-width: 0;
 }
 
 .summary {
@@ -80,7 +76,9 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  max-height: 40vh;
+  /* Bounded: a server can send a page of banner, and this is chrome above the
+     picture — it must not push the session out of the window. */
+  max-height: 30vh;
   overflow-y: auto;
 }
 

@@ -49,6 +49,14 @@ screen of their own:
 A docked pane belongs to its tab and keeps running while another tab is in
 front: it holds a transfer queue, and a tab switch must not cancel a copy.
 
+Between the tab strip and the session content sit the rows of chrome that belong
+to the session — the warning count, a refused keystroke, and for a graphical
+session its own toolbar: Ctrl+Alt+Del, Alt+Tab and the scale controls. They are
+rows, not overlays, and that is a rule rather than a preference: **a remote
+desktop uses all four of its edges and all four of its corners**, so nothing of
+ours is drawn on top of one. `docs/ui/design-system.md` gives the reasoning and
+the three blocking questions that are allowed to cover a session.
+
 ## Screens
 
 | Screen | Purpose |
