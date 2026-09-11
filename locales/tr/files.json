@@ -1,0 +1,285 @@
+{
+  "_comment_file": "The SFTP file manager: a remote directory browser, a local side driven by the system file picker, a transfer queue, and the dialogs that create, rename and delete. Almost every value this screen shows comes from a machine the user does not control — file names, owner names, group names, paths — so several strings below tell the reader that a name has been escaped and why. Those sentences are marked SECURITY-CRITICAL and must not be softened into 'this name looks unusual'. Protocol names (SSH, SFTP), POSIX mode strings (drwxr-xr-x) and paths are never translated.",
+
+  "header": {
+    "_comment_title": "The screen's name. A plural noun, not a verb.",
+    "title": "Dosyalar",
+    "_comment_on": "Names the host the remote pane is browsing. {name} is the connection's own name from the vault, wrapped in a bidi isolate at the call site.",
+    "on": "{name} üzerinde",
+    "_comment_close": "Puts the pane away again. Only on a pane docked under a session that also has a shell — a file session's own tab is closed by closing the tab, and shows no such control. The word is also the tooltip and the accessible name, so it says what closes rather than only 'Close'.",
+    "close": "Dosya bölmesini kapat"
+  },
+
+  "host": {
+    "_comment_label": "The accessible name of the tab area an SFTP session fills, so a screen reader moving between tabs is told which host's files these are. {name} is the connection's own name, wrapped in a bidi isolate at the call site.",
+    "label": "{name} üzerindeki dosyalar"
+  },
+
+  "pane": {
+    "_comment_opening": "While the file pane is being attached. Shown as a spinner's label and read aloud.",
+    "opening": "Dosya bölmesi açılıyor…",
+    "_comment_openFailed": "The heading over the core's failure. The sentence and the suggested actions come from the errors catalogue, keyed by the failure's code.",
+    "openFailed": "Dosya bölmesi açılamadı",
+    "_comment_notConnectedTitle": "An SFTP tab that is still connecting, or one whose session has ended. A file pane is a channel on an authenticated connection; before there is one there is nothing to browse, and an empty browser would read as an empty server.",
+    "notConnectedTitle": "Henüz bağlanılmadı",
+    "notConnectedBody": "Dosya bölmesi, bu bağlantının kimlik doğrulaması tamamlanır tamamlanmaz açılır. İkinci bir bağlantı kurmaz, o bağlantının üzerinde çalışır.",
+
+    "remote": {
+      "_comment_title": "The heading of the remote half of the browser. {name} is the connection's name.",
+      "title": "Uzak",
+      "empty": "Bu klasör boş.",
+      "loading": "Klasör okunuyor…",
+      "_comment_tooMany": "HONESTY. The core will hand over a folder of a quarter of a million entries rather than pretend it is empty, but the listing is not virtualised yet and drawing that many rows would freeze the window. {shown} is how many are being drawn, {total} how many there are. Do not soften this into 'showing some results' — the number is the point, and so is the way out.",
+      "tooMany": "Bu klasörde {total} öğe var ve Remoter ilk {shown} tanesini çiziyor. Geri kalanını görmek için filtreyle daraltın.",
+      "_comment_listFailed": "Heading over the core's failure for a directory listing. A listing can fail because the folder is larger than the cap the core enforces; the catalogue sentence for that code names the limit, which is why this heading does not try to.",
+      "listFailed": "O klasör okunamadı"
+    },
+
+    "local": {
+      "_comment_title": "The heading of the local half of the browser.",
+      "title": "Bu bilgisayar",
+      "_comment_noBrowserTitle": "SECURITY-ADJACENT HONESTY. This build has no command that lists the local filesystem, so the local pane cannot show a folder's contents the way the remote one does. Saying so is the point: an empty pane with column headings reads as a bug or as an empty disk. Do not soften this into 'coming soon' and do not imply the files are unreadable — the system picker reads them perfectly well.",
+      "noBrowserTitle": "Bu bölme dosyalarınızı listelemez",
+      "noBrowserBody": "Remoter'ın kendi dizinlerinizi okuyan bir komutu henüz yok; bu yüzden yerel taraf, sisteminizin dosya seçicisi üzerinden çalışır. İndirilecek bir klasör seçin ya da gönderilecek dosyaları seçin.",
+      "_comment_folderLabel": "The label of the chosen download destination.",
+      "folderLabel": "İndirme klasörü",
+      "noFolder": "Henüz klasör seçilmedi.",
+      "chooseFolder": "Klasör seç",
+      "changeFolder": "Klasörü değiştir",
+      "chooseFiles": "Gönderilecek dosyaları seç",
+      "_comment_staged": "The heading over files the user picked but has not sent yet. ICU plural.",
+      "staged": "{count, plural, =0 {Hiçbir şey seçilmedi} one {Göndermeye hazır # dosya} other {Göndermeye hazır # dosya}}",
+      "clearStaged": "Listeyi temizle",
+      "_comment_remove": "Removes one file from that list. The accessible name; {name} is a local path.",
+      "remove": "{name} dosyasını listeden çıkar",
+      "_comment_pickerFailed": "The system picker refused to open. Every other route into this screen still works, so this is an inconvenience rather than a dead end — but it must be said, because a button that opens nothing reads as broken.",
+      "pickerFailed": "Sisteminizin dosya seçicisi açılmadı. Hiçbir şey gönderilmedi, hiçbir şey indirilmedi."
+    }
+  },
+
+  "nav": {
+    "home": "Başlangıç klasörüne git",
+    "up": "Bir üstteki klasöre git",
+    "refresh": "Bu klasörü yeniden oku",
+    "_comment_pathLabel": "The accessible name of the editable path field. Paths are never translated.",
+    "pathLabel": "Klasör yolu",
+    "go": "Git",
+    "_comment_breadcrumb": "The accessible name of the trail of folders above the listing.",
+    "breadcrumb": "Bunun üstündeki klasörler",
+    "_comment_atRoot": "The title of the control that goes up, when there is nowhere above to go.",
+    "atRoot": "Burası dosya sisteminin en üstü"
+  },
+
+  "columns": {
+    "_comment_": "The listing's column headings. Each is also a sort control, so each is a short noun.",
+    "name": "Ad",
+    "size": "Boyut",
+    "modified": "Değiştirilme",
+    "permissions": "İzinler",
+    "owner": "Sahibi"
+  },
+
+  "sort": {
+    "_comment_": "Announced on the column header that is currently sorting. 'A to Z' is deliberately about order and not about the alphabet — the collation follows the reader's language, and several languages this ships in do not use A or Z.",
+    "ascending": "Baştan sona sıralandı. Ters çevirmek için yeniden seçin.",
+    "descending": "Sondan başa sıralandı. Ters çevirmek için yeniden seçin.",
+    "inactive": "Bu sütuna göre sırala",
+    "_comment_foldersFirst": "A toggle. Folders above files is what every file manager does, and turning it off is occasionally what a user wants.",
+    "foldersFirst": "Önce klasörler"
+  },
+
+  "filter": {
+    "_comment_label": "The accessible name of the box that narrows the listing.",
+    "label": "Bu klasörü filtrele",
+    "placeholder": "Ada göre filtrele",
+    "clear": "Filtreyi temizle",
+    "_comment_matches": "How much of the folder is showing. ICU plural on the number of rows that matched.",
+    "matches": "{count, plural, =0 {Eşleşen ad yok} one {{total} addan # tanesi} other {{total} addan # tanesi}}",
+    "none": "Bu klasörde yazdığınızla eşleşen bir ad yok.",
+    "_comment_note": "Explains why filtering here does not fold letters the way search elsewhere in Remoter does. A file name is a string a machine chose; folding it under Turkish rules turns a capital I in a machine name into a letter that is not in it. See docs/features/i18n.md.",
+    "note": "Adlar, sunucunun yazdığı biçimde birebir eşleştirilir; yalnızca büyük ve küçük harf farkı göz ardı edilir."
+  },
+
+  "kind": {
+    "_comment_": "What a row is. Used as the accessible name of the row's icon, so the reader is told 'folder' rather than hearing nothing.",
+    "file": "Dosya",
+    "directory": "Klasör",
+    "symlink": "Sembolik bağlantı",
+    "other": "Özel dosya"
+  },
+
+  "value": {
+    "_comment_unknown": "Stands in for a field the server did not report — a size, a timestamp, an owner. Not 'none' and not a dash: the value exists on the server, it was simply not sent.",
+    "unknown": "Bildirilmedi"
+  },
+
+  "risk": {
+    "_comment_": "SECURITY-CRITICAL. A file name may carry characters that make it read as something it is not: a right-to-left override can make report.exe draw itself as report.pdf, a control character can cut a row short, a zero-width character can make two different files look identical. Remoter shows such a name escaped, keeps the row visible, and marks it. Do not soften 'disguise' into 'look unusual', and do not imply the file is malicious — it may be perfectly ordinary and simply named strangely.",
+    "badge": "Aldatıcı ad",
+    "_comment_explain": "The tooltip on that badge. {reasons} is a list of the sentences below, joined with Intl.ListFormat.",
+    "explain": "Bu ad, gizli karakterleri açık yazılmış olarak gösteriliyor; böylece dosyanın ne olduğunu gizleyemiyor. {reasons}",
+    "control": "İçinde bir denetim karakteri var.",
+    "bidi": "İçinde okuma yönünü ters çeviren bir karakter var.",
+    "invisible": "İçinde hiç yer kaplamayan bir karakter var.",
+    "separator": "Bu, tek bir dosya adı değil.",
+    "_comment_separatorNote": "Shown instead of the row's actions when the name is not a single path component. The core refuses to build a path from it, so there is nothing to offer.",
+    "separatorNote": "Remoter bu öğeyi açmaz, taşımaz ve silmez: sunucu, tek bir dosya adı olmayan bir ad gönderdi; bir klasördeki tıklamanın başka bir klasöre dokunması böyle sağlanır."
+  },
+
+  "action": {
+    "newFolder": "Yeni klasör",
+    "rename": "Yeniden adlandır",
+    "delete": "Sil",
+    "_comment_download": "Verb, imperative: copy the chosen remote entries to this computer.",
+    "download": "İndir",
+    "_comment_upload": "Verb, imperative: copy the chosen local files to the server.",
+    "upload": "Gönder",
+    "_comment_selected": "How many rows are chosen. ICU plural.",
+    "selected": "{count, plural, =0 {Seçili bir şey yok} one {# seçili} other {# seçili}}",
+    "_comment_filesOnly": "HONESTY. On a folder row's disabled checkbox. Expanding a folder into one transfer per file is a walk on the source side that is not built, so folders cannot be queued at all — rather than appearing to queue and quietly moving nothing.",
+    "filesOnly": "Bu sürümde yalnızca dosyalar aktarılabilir.",
+    "selectAll": "Bu klasördeki her şeyi seç",
+    "clearSelection": "Seçimi temizle"
+  },
+
+  "drop": {
+    "_comment_": "The overlay shown while something is being dragged over a pane.",
+    "toRemote": "Sunucuya göndermek için buraya bırakın",
+    "toLocal": "İndirmek için buraya bırakın",
+    "_comment_needFolder": "Shown instead, when a download is dragged in and no destination folder has been chosen. A drop that silently picked a folder would be a drop that wrote somewhere the user did not choose.",
+    "needFolder": "Önce bir indirme klasörü seçin",
+    "_comment_noOsFiles": "HONESTY. Dragging a file in from the desktop cannot work here: a browser drop gives Remoter the file's contents, not its path on disk, and the transfer engine sends a path. Say what does work.",
+    "noOsFiles": "Masaüstünüzden sürüklenip getirilen dosyalar gönderilemez: Remoter'ın dosyanın yoluna gereksinimi var, bırakma işlemi ise onu taşımaz. Bunun yerine Gönderilecek dosyaları seç düğmesini kullanın."
+  },
+
+  "newFolder": {
+    "title": "Yeni klasör",
+    "label": "Klasör adı",
+    "_comment_in": "Says where it will be created. {path} is a remote path, isolated at the call site.",
+    "in": "{path} içinde",
+    "create": "Klasörü oluştur"
+  },
+
+  "rename": {
+    "_comment_title": "{name} is the escaped display form of the entry being renamed.",
+    "title": "{name} öğesini yeniden adlandır",
+    "label": "Yeni ad",
+    "apply": "Yeniden adlandır",
+    "_comment_escapedWarning": "SECURITY-CRITICAL. Shown when the entry's current name carries hidden characters. The field is pre-filled with the escaped form, which is NOT the name on the server — typing over it renames the file to whatever was typed, which is usually what the user wants, but they must know the two differ.",
+    "escapedWarning": "Şu anki ad gizli karakterler içeriyor ve burada açık yazılmış olarak gösteriliyor. Ne yazarsanız tam olarak yazdığınız gibi kullanılır."
+  },
+
+  "name": {
+    "_comment_": "Why a typed name was refused, shown under the field. Each states the rule, not the mechanism.",
+    "empty": "Bir ad yazın.",
+    "_comment_separator": "The slash is the path separator on every SFTP server, whatever the server runs on.",
+    "separator": "Bir ad eğik çizgi içeremez.",
+    "dots": "Bir ad yalnızca bir nokta ya da iki nokta olamaz.",
+    "control": "Bir ad denetim karakteri içeremez.",
+    "unchanged": "Adı zaten bu."
+  },
+
+  "delete": {
+    "_comment_title": "{name} is the escaped display form.",
+    "title": "{name} silinsin mi?",
+    "_comment_permanent": "SECURITY-CRITICAL. There is no trash on the far side and no undo anywhere. Do not soften 'cannot be undone' into a hedge; it is literally true.",
+    "permanent": "Bu işlem onu sunucudan kaldırır. Karşı tarafta geri çıkarabileceğiniz bir çöp kutusu yok ve bu geri alınamaz.",
+    "_comment_scanning": "A recursive delete counts what it is about to remove before it removes anything. This is that count running.",
+    "scanning": "İçinde ne olduğuna bakılıyor…",
+    "_comment_summary": "What the removal will take. Two ICU plurals in one sentence, because the counts are independent.",
+    "summary": "{files, plural, one {# dosya} other {# dosya}} ve {folders, plural, one {# klasör} other {# klasör}} kaldırılacak.",
+    "_comment_sample": "Heading over the first few paths, so the user can recognise what they are pointing at.",
+    "sample": "Örneğin:",
+    "_comment_more": "Follows that sample. ICU plural.",
+    "more": "{count, plural, one {ve # tane daha} other {ve # tane daha}}",
+    "_comment_truncated": "The preview stops at its own limit. It says so rather than implying the count is the whole of it — a removal that turns out to be ten times bigger than the number on the confirmation is the failure this dialog exists to prevent.",
+    "truncated": "Bu klasörün altında {limit} öğeden fazlası var. Yukarıdaki sayı yalnızca bakılabilenleri gösterir; bu klasörün altındaki her şey kaldırılacak.",
+    "_comment_links": "A real guarantee from the engine, not a reassurance: the walk unlinks a symbolic link rather than descending into it, so a link into a home directory cannot turn a folder delete into a much larger one.",
+    "links": "Sembolik bağlantılar izlenmez, yalnızca kendileri kaldırılır. İşaret ettikleri şeye dokunulmaz.",
+    "_comment_scanFailed": "Heading over the core's failure when the preview itself could not be read. The removal is not offered, because a removal whose extent is unknown is exactly what this dialog refuses to do.",
+    "scanFailed": "İçinde ne olduğu okunamadı",
+    "scanFailedNote": "Hiçbir şey kaldırılmadı. İçinde ne olduğunu bilmeden Remoter silmeyi önermez.",
+    "_comment_confirm": "The confirming button. Names the act, not 'OK'.",
+    "confirm": "Sil",
+    "confirmTree": "İçindeki her şeyi sil",
+    "_comment_emptyDirHint": "Shown when a folder with contents was chosen without the recursive option. SFTP refuses to remove a folder that is not empty, and the core says so by name.",
+    "emptyDirHint": "Bir klasörün tek başına kaldırılabilmesi için önce boş olması gerekir.",
+    "running": "Kaldırılıyor…",
+
+    "report": {
+      "_comment_": "What the removal actually did. The core reports rather than returning nothing, because a walk that is interrupted leaves the tree half-removed and 'done' would be a lie.",
+      "complete": "Kaldırılanlar: {files, plural, =0 {dosya yok} one {# dosya} other {# dosya}}, {folders, plural, =0 {klasör yok} one {# klasör} other {# klasör}}.",
+      "_comment_partial": "Some of it is still there. This is the sentence the report exists for.",
+      "partial": "Bir bölümü hâlâ yerinde duruyor. Kaldırılanlar: {files, plural, =0 {dosya yok} one {# dosya} other {# dosya}}, {folders, plural, =0 {klasör yok} one {# klasör} other {# klasör}}.",
+      "cancelled": "İşlemi yarısında durdurdunuz.",
+      "limitReached": "Remoter'ın tek bir silme işleminin dokunabileceği miktar için koyduğu sınırda durdu.",
+      "_comment_failures": "Heading over the list of what could not be removed. Each row carries a path and the sentence for its failure code from the errors catalogue.",
+      "failures": "Şunlar kaldırılmadı:"
+    }
+  },
+
+  "queue": {
+    "_comment_": "The transfer queue. Every entry has its own progress and its own cancel, and the list outlives leaving the screen — a two-gigabyte copy with no progress cannot be told from a hang.",
+    "title": "Aktarımlar",
+    "_comment_active": "ICU plural on how many transfers are still moving or waiting.",
+    "active": "{count, plural, =0 {Süren bir şey yok} one {# tanesi sürüyor} other {# tanesi sürüyor}}",
+    "empty": "Bu bölmede henüz hiçbir şey aktarılmadı.",
+    "cancelAll": "Hepsini durdur",
+    "_comment_showFinished": "A local toggle. Finished entries are kept on purpose so the history of what happened stays readable; this only hides them from view.",
+    "showFinished": "Bitenleri göster",
+    "_comment_directionUpload": "Read aloud as the row's first fact, and drawn as a short label.",
+    "directionUpload": "Gönderiliyor",
+    "directionDownload": "İndiriliyor",
+    "_comment_toLocal": "The destination line under a row's name. {path} is escaped and isolated at the call site.",
+    "toLocal": "şuraya: {path}",
+    "toRemote": "şuraya: {path}",
+
+    "state": {
+      "queued": "Bekliyor",
+      "running": "Aktarılıyor",
+      "completed": "Bitti",
+      "cancelled": "Durduruldu",
+      "failed": "Başarısız"
+    },
+
+    "_comment_progress": "{done} and {total} are byte counts already formatted for the reader's locale. The pair is deliberate: a percentage alone tells you nothing about whether it is worth waiting for.",
+    "progress": "{total} boyutunun {done} kadarı",
+    "_comment_progressUnknown": "The server did not report a size. Common on a growing file and on some servers for every file.",
+    "progressUnknown": "Şu ana kadar {done} — toplam boyut bildirilmedi",
+    "completedBytes": "{bytes} aktarıldı",
+
+    "cancel": "Bu aktarımı durdur",
+    "_comment_retry": "Queues a fresh transfer from this one's request. The finished entry stays where it is, so what happened stays readable.",
+    "retry": "Yeniden dene",
+    "_comment_failedTitle": "Heading over the core's failure for one transfer.",
+    "failedTitle": "Bu aktarım başarısız oldu",
+
+    "_comment_resumeToggle": "The control that asks for an interrupted transfer to be continued rather than started over. Off by default, and the sentence under it says why.",
+    "resumeToggle": "Yarıda kalan aktarımları kaldığı yerden sürdür",
+    "_comment_resumeExplain": "SECURITY-ADJACENT HONESTY. There is no checksum: SFTP has no standard way to ask a server for one. A resumed transfer trusts that what is already on disk is the beginning of the same file. Do not soften this into 'resume is safe'.",
+    "resumeExplain": "Kaldığı yerden sürdürülen bir aktarım, diskte hâlihazırda duranın aynı dosyanın başlangıcı olduğuna güvenir. Bunu denetleyen hiçbir şey yok; bu yüzden yarım dosyanın bu kopyalamadan geldiğini bilmiyorsanız bunu kapalı bırakın.",
+
+    "resume": {
+      "_comment_": "What the transfer decided about continuing, composed here from the facts the core reported rather than printed from the core's own sentence. {offset} is a formatted byte count.",
+      "continued": "{offset} konumundan sürdürüldü.",
+      "_comment_declinedDownloadNotShorter": "A resume was asked for and refused. The core refuses more often than a user expects, and a bar that quietly restarted would be a bar that lied. Four sentences rather than one with a placeholder, because 'local' and 'remote' swap places with the direction and several languages inflect around them.",
+      "declinedDownloadNotShorter": "Baştan başlandı: bu bilgisayardaki dosya, sunucudakinden kısa değil; sürdürmek onu bozabilirdi.",
+      "declinedUploadNotShorter": "Baştan başlandı: sunucudaki dosya, bu bilgisayardakinden kısa değil; sürdürmek onu bozabilirdi.",
+      "declinedDownloadUnknownSize": "Baştan başlandı: sunucu dosyanın boyutunu bildirmedi; bu yüzden güvenilecek bir konum yoktu.",
+      "declinedUploadUnknownSize": "Baştan başlandı: bu bilgisayardaki dosyanın boyutu okunamadı; bu yüzden güvenilecek bir konum yoktu."
+    },
+
+    "_comment_enqueueFailed": "Heading over the core's failure when a batch was refused. The batch is resolved before any of it is queued, so nothing has started.",
+    "enqueueFailed": "Hiçbir şey kuyruğa alınmadı",
+    "enqueueFailedNote": "Yığının tamamı, hiçbir parçası başlamadan önce denetlendi; bu yüzden çalışan bir aktarım yok."
+  },
+
+  "transferTo": {
+    "_comment_needFolder": "Blocks a download with no destination. A download that chose its own folder would be a download that wrote somewhere the user did not choose.",
+    "needFolder": "İndirmek için bu bilgisayarda bir klasör seçin.",
+    "_comment_needFiles": "Blocks a send with nothing staged.",
+    "needFiles": "Bu bilgisayarda gönderilecek dosyaları seçin.",
+    "_comment_needSelection": "Blocks a download with no rows chosen.",
+    "needSelection": "Uzak klasörde indirilecek bir şey seçin."
+  }
+}

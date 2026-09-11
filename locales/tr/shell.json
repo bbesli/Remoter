@@ -31,7 +31,15 @@
     "sidebarHide": "Bağlantı ağacını gizle",
     "noSessions": "Açık oturum yok — başlatmak için bir bağlantıya çift tıklayın",
     "_comment_inspector": "Ctrl-free: F4 is a bare function key and is written as-is in every language.",
-    "inspector": "Etkin değerler · F4"
+    "inspector": "Etkin değerler · F4",
+    "_comment_filesOpen": "The control that opens a file pane under the session in front. The four 'filesNo…' / 'filesNot…' sentences are the reasons it is doing nothing, one per reason: a disabled control has to say WHY, and 'unavailable' is not a reason. A file pane is one more channel on a connection that has already authenticated, never a second sign-in, which is why three of the four are about the session rather than about the pane.",
+    "filesOpen": "Bu oturumdaki dosyalara gözat",
+    "filesClose": "Dosya bölmesini kapat",
+    "filesNoSession": "Dosyalara gözatmak için açık bir oturum gerekir. Bir oturum başlatmak için bir bağlantıya çift tıklayın.",
+    "filesNotRunning": "Bu oturum bağlı değil; bu yüzden üzerinden gözatılacak bir bağlantı yok.",
+    "_comment_filesNoFileChannel": "SSH and SFTP are never translated. Names the reason rather than saying the button is unavailable.",
+    "filesNoFileChannel": "Bu oturum dosya taşımaz. SFTP, SSH üzerinde çalışır; bir RDP ya da VNC oturumunda dosya kanalı yoktur.",
+    "filesIsFileSession": "Bu sekme zaten bir dosya oturumu."
   },
 
   "statusBar": {

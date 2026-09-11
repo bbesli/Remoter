@@ -31,7 +31,15 @@
     "sidebarHide": "Ocultar a árvore de conexões",
     "noSessions": "Nenhuma sessão aberta — dê um duplo clique em uma conexão para iniciar uma",
     "_comment_inspector": "Ctrl-free: F4 is a bare function key and is written as-is in every language.",
-    "inspector": "Valores efetivos · F4"
+    "inspector": "Valores efetivos · F4",
+    "_comment_filesOpen": "The control that opens a file pane under the session in front. The four 'filesNo…' / 'filesNot…' sentences are the reasons it is doing nothing, one per reason: a disabled control has to say WHY, and 'unavailable' is not a reason. A file pane is one more channel on a connection that has already authenticated, never a second sign-in, which is why three of the four are about the session rather than about the pane.",
+    "filesOpen": "Navegar pelos arquivos desta sessão",
+    "filesClose": "Fechar o painel de arquivos",
+    "filesNoSession": "Navegar pelos arquivos exige uma sessão aberta. Dê um duplo clique em uma conexão para iniciar uma.",
+    "filesNotRunning": "Esta sessão não está conectada, então não há conexão sobre a qual navegar.",
+    "_comment_filesNoFileChannel": "SSH and SFTP are never translated. Names the reason rather than saying the button is unavailable.",
+    "filesNoFileChannel": "Esta sessão não leva arquivos. O SFTP roda sobre SSH; uma sessão RDP ou VNC não tem canal de arquivos.",
+    "filesIsFileSession": "Esta aba já é uma sessão de arquivos."
   },
 
   "statusBar": {
@@ -64,6 +72,7 @@
     "notAConnection": "Pastas não têm valores efetivos próprios.",
     "notAConnectionBody": "O que uma pasta define aparece nas conexões abaixo dela, como origem de um valor herdado.",
     "resolving": "Resolvendo",
+
     "failed": "Não foi possível resolver esta conexão",
     "retry": "Resolver de novo",
     "notAsked": "Os valores efetivos não foram solicitados",

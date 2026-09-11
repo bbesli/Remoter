@@ -299,7 +299,7 @@
     "unsupported-format": {
       "message": "Bu anahtar, bu yapının saklamadığı bir biçimde. Hiçbir şey yazılmadı.",
       "actions": [
-        "Şununla dönüştür: `ssh-keygen -p -m PKCS8 -f <file>`",
+        "Şununla dönüştür: `ssh-keygen -p -m PKCS8 -f '<file>'`",
         "Bunun yerine platformun SSH aracısını kullan"
       ]
     },

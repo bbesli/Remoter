@@ -299,7 +299,7 @@
     "unsupported-format": {
       "message": "هذا المفتاح بتنسيق لا تخزّنه هذه النسخة. لم يُكتب شيء.",
       "actions": [
-        "تحويله بالأمر `ssh-keygen -p -m PKCS8 -f <file>`",
+        "تحويله بالأمر `ssh-keygen -p -m PKCS8 -f '<file>'`",
         "استخدام وكيل SSH الخاص بالنظام بدلًا من ذلك"
       ]
     },

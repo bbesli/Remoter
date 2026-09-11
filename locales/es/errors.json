@@ -299,7 +299,7 @@
     "unsupported-format": {
       "message": "Esa clave está en un formato que esta compilación no almacena. No se ha escrito nada.",
       "actions": [
-        "Convertirla con `ssh-keygen -p -m PKCS8 -f <file>`",
+        "Convertirla con `ssh-keygen -p -m PKCS8 -f '<file>'`",
         "Usar en su lugar el agente SSH de la plataforma"
       ]
     },

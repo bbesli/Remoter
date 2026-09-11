@@ -299,7 +299,7 @@
     "unsupported-format": {
       "message": "That key is in a format this build does not store. Nothing was written.",
       "actions": [
-        "Convert it with `ssh-keygen -p -m PKCS8 -f <file>`",
+        "Convert it with `ssh-keygen -p -m PKCS8 -f '<file>'`",
         "Use the platform SSH agent instead"
       ]
     },

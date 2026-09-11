@@ -299,7 +299,7 @@
     "unsupported-format": {
       "message": "该密钥的格式是此版本不会存储的。未写入任何内容。",
       "actions": [
-        "用 `ssh-keygen -p -m PKCS8 -f <file>` 转换",
+        "用 `ssh-keygen -p -m PKCS8 -f '<file>'` 转换",
         "改用平台的 SSH 代理"
       ]
     },

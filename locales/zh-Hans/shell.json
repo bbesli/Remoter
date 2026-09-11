@@ -31,7 +31,15 @@
     "sidebarHide": "隐藏连接树",
     "noSessions": "没有打开的会话——双击一个连接即可开始",
     "_comment_inspector": "Ctrl-free: F4 is a bare function key and is written as-is in every language.",
-    "inspector": "生效值 · F4"
+    "inspector": "生效值 · F4",
+    "_comment_filesOpen": "The control that opens a file pane under the session in front. The four 'filesNo…' / 'filesNot…' sentences are the reasons it is doing nothing, one per reason: a disabled control has to say WHY, and 'unavailable' is not a reason. A file pane is one more channel on a connection that has already authenticated, never a second sign-in, which is why three of the four are about the session rather than about the pane.",
+    "filesOpen": "在此会话上浏览文件",
+    "filesClose": "关闭文件面板",
+    "filesNoSession": "浏览文件需要一个打开的会话。双击一个连接即可开一个。",
+    "filesNotRunning": "此会话没有连上，因此没有可供浏览的连接。",
+    "_comment_filesNoFileChannel": "SSH and SFTP are never translated. Names the reason rather than saying the button is unavailable.",
+    "filesNoFileChannel": "此会话不承载文件。SFTP 跑在 SSH 之上；RDP 或 VNC 会话没有文件通道。",
+    "filesIsFileSession": "此标签页本身就是文件会话。"
   },
 
   "statusBar": {

@@ -31,7 +31,15 @@
     "sidebarHide": "Скрыть дерево подключений",
     "noSessions": "Открытых сеансов нет — дважды щёлкните подключение, чтобы начать",
     "_comment_inspector": "Ctrl-free: F4 is a bare function key and is written as-is in every language.",
-    "inspector": "Действующие значения · F4"
+    "inspector": "Действующие значения · F4",
+    "_comment_filesOpen": "The control that opens a file pane under the session in front. The four 'filesNo…' / 'filesNot…' sentences are the reasons it is doing nothing, one per reason: a disabled control has to say WHY, and 'unavailable' is not a reason. A file pane is one more channel on a connection that has already authenticated, never a second sign-in, which is why three of the four are about the session rather than about the pane.",
+    "filesOpen": "Просмотреть файлы в этом сеансе",
+    "filesClose": "Закрыть панель файлов",
+    "filesNoSession": "Для просмотра файлов нужен открытый сеанс. Дважды щёлкните подключение, чтобы начать.",
+    "filesNotRunning": "Этот сеанс не подключён, поэтому нет подключения, по которому можно было бы смотреть файлы.",
+    "_comment_filesNoFileChannel": "SSH and SFTP are never translated. Names the reason rather than saying the button is unavailable.",
+    "filesNoFileChannel": "Этот сеанс файлы не переносит. SFTP работает поверх SSH, а у сеанса RDP или VNC файлового канала нет.",
+    "filesIsFileSession": "Эта вкладка и есть файловый сеанс."
   },
 
   "statusBar": {

@@ -94,7 +94,6 @@
         "credit": "Remoter — die Palette, die die kontrastreichen Oberflächendesigns verwenden"
       }
     },
-
     "_comment_paletteLabel": "The accessible name of one palette's radio button: the palette's name, then who made it. Both values come from the palettes block above. The dash is a separator, not a word — use whatever separates a title from its attribution in your language.",
     "paletteLabel": "{name} — {credit}",
 

@@ -31,7 +31,15 @@
     "sidebarHide": "Ocultar el árbol de conexiones",
     "noSessions": "No hay sesiones abiertas: haga doble clic en una conexión para abrir una",
     "_comment_inspector": "Ctrl-free: F4 is a bare function key and is written as-is in every language.",
-    "inspector": "Valores efectivos · F4"
+    "inspector": "Valores efectivos · F4",
+    "_comment_filesOpen": "The control that opens a file pane under the session in front. The four 'filesNo…' / 'filesNot…' sentences are the reasons it is doing nothing, one per reason: a disabled control has to say WHY, and 'unavailable' is not a reason. A file pane is one more channel on a connection that has already authenticated, never a second sign-in, which is why three of the four are about the session rather than about the pane.",
+    "filesOpen": "Explorar archivos en esta sesión",
+    "filesClose": "Cerrar el panel de archivos",
+    "filesNoSession": "Para explorar archivos hace falta una sesión abierta. Haga doble clic en una conexión para abrir una.",
+    "filesNotRunning": "Esta sesión no está conectada, así que no hay ninguna conexión sobre la que explorar.",
+    "_comment_filesNoFileChannel": "SSH and SFTP are never translated. Names the reason rather than saying the button is unavailable.",
+    "filesNoFileChannel": "Esta sesión no transporta archivos. SFTP funciona sobre SSH; una sesión RDP o VNC no tiene canal de archivos.",
+    "filesIsFileSession": "Esta pestaña ya es una sesión de archivos."
   },
 
   "statusBar": {

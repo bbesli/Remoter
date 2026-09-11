@@ -245,17 +245,37 @@ export function applyTerminalAppearance(next: TerminalAppearance): void {
     entry.term.options.theme = theme;
     if (fontFamily !== "") entry.term.options.fontFamily = fontFamily;
     entry.term.options.fontSize = fontSize;
-    // The new palette reaches the background immediately and the text only
-    // after the cached glyphs are dropped. Without this a re-themed terminal
-    // shows the new background behind the old palette's foreground, which is
-    // the one combination nobody chose and the one most likely to be
-    // unreadable.
+    // Three steps, because assigning the theme is demonstrably not enough.
+    //
+    // The background moves on its own: the WebGL addon's rectangle renderer
+    // subscribes to the colour change and repaints from it. The TEXT does not,
+    // and the owner reported twice that a new palette arrived as its
+    // background behind the previous palette's foreground — the one
+    // combination nobody chose and the one most likely to be unreadable.
+    //
+    // A test against a real `Terminal` proves every one of the sixteen ANSI
+    // entries reaches `options.theme`, so the gap is between the option and
+    // the glyphs on screen: cached glyphs are keyed by colour, and a redraw
+    // only touches rows something has marked dirty — which a theme change does
+    // not do. So: drop the cached glyphs, then damage every row so they are
+    // drawn again.
+    //
+    // Failures are reported rather than swallowed. An earlier version of this
+    // caught and discarded them, which would have hidden the addon refusing
+    // the call as effectively as not making it.
+    if (entry.webgl !== null) {
+      try {
+        entry.webgl.clearTextureAtlas();
+      } catch (error) {
+        // Not fatal: the DOM renderer reads the theme directly and needs no
+        // atlas, so the refresh below still repaints correctly.
+        console.error("the terminal's glyph cache refused to clear", error);
+      }
+    }
     try {
-      entry.webgl?.clearTextureAtlas();
-    } catch {
-      // A context that died between the null check and the call. The addon's
-      // own loss handler puts the terminal back on the DOM renderer, which
-      // reads the theme directly and needs no atlas.
+      entry.term.refresh(0, Math.max(0, entry.term.rows - 1));
+    } catch (error) {
+      console.error("the terminal refused to repaint after a palette change", error);
     }
     try {
       entry.fit.fit();

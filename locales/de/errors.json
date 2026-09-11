@@ -299,7 +299,7 @@
     "unsupported-format": {
       "message": "Dieser Schlüssel liegt in einem Format vor, das dieser Build nicht speichert. Es wurde nichts geschrieben.",
       "actions": [
-        "Mit `ssh-keygen -p -m PKCS8 -f <file>` umwandeln",
+        "Mit `ssh-keygen -p -m PKCS8 -f '<file>'` umwandeln",
         "Stattdessen den SSH-Agenten der Plattform verwenden"
       ]
     },

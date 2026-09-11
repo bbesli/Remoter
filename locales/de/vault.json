@@ -9,7 +9,7 @@
   "kdf": {
     "_comment_": "Argon2id key derivation takes about a second by design. Shown beside the spinner on every screen that derives a key — creating a vault, unlocking one, adding or rotating a key slot. It is an explanation of a security property, not an apology for a slow program: do not turn 'deliberately slow' into 'this may take a moment'.",
     "slow": "Die Schlüsselableitung ist absichtlich langsam. Genau dieser Aufwand macht es teuer, eine gestohlene Tresordatei anzugreifen.",
-    "_comment_slowWithSummary": "{summary} is the cost this vault was written with, e.g. 'Argon2id, 256 MiB, t=3'. It is produced by the core and is never translated.",
+    "_comment_slowWithSummary": "{summary} is the cost this vault was written with, e.g. 'Argon2id, 256 MiB, t=3, p=4'. It is notation, not words: the function's name, a memory figure with its unit, and Argon2's own parameter letters. The interface composes it from numbers the core sends, and none of it is translated.",
     "slowWithSummary": "Die Schlüsselableitung ist absichtlich langsam – {summary}. Genau dieser Aufwand macht es teuer, eine gestohlene Tresordatei anzugreifen."
   },
 
@@ -275,7 +275,7 @@
       "vault": "Tresor: {path}",
       "_comment_created": "{date} is the day the vault was created, formatted for the locale.",
       "created": "Angelegt: {date}",
-      "_comment_protection": "{summary} is the key-derivation cost, e.g. 'Argon2id, 256 MiB, t=3'. Produced by the core and never translated.",
+      "_comment_protection": "{summary} is the key-derivation cost, e.g. 'Argon2id, 256 MiB, t=3, p=4'. Notation rather than words — see kdf.slowWithSummary — and never translated. The line is left off the sheet entirely when there is no cost to name.",
       "protection": "Schutz: {summary}",
       "_comment_warning": "SECURITY-CRITICAL. The two warning strings above, joined for the sheet. Keep them identical to what is on screen.",
       "warning": "{title} {body}"

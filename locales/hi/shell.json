@@ -31,7 +31,15 @@
     "sidebarHide": "कनेक्शन ट्री छिपाएँ",
     "noSessions": "कोई सेशन खुला नहीं है — शुरू करने के लिए किसी कनेक्शन पर डबल-क्लिक करें",
     "_comment_inspector": "Ctrl-free: F4 is a bare function key and is written as-is in every language.",
-    "inspector": "प्रभावी मान · F4"
+    "inspector": "प्रभावी मान · F4",
+    "_comment_filesOpen": "The control that opens a file pane under the session in front. The four 'filesNo…' / 'filesNot…' sentences are the reasons it is doing nothing, one per reason: a disabled control has to say WHY, and 'unavailable' is not a reason. A file pane is one more channel on a connection that has already authenticated, never a second sign-in, which is why three of the four are about the session rather than about the pane.",
+    "filesOpen": "इस सेशन पर फ़ाइलें ब्राउज़ करें",
+    "filesClose": "फ़ाइल पैनल बंद करें",
+    "filesNoSession": "फ़ाइलें ब्राउज़ करने के लिए कोई सेशन खुला होना ज़रूरी है। सेशन शुरू करने के लिए किसी कनेक्शन पर डबल-क्लिक करें।",
+    "filesNotRunning": "यह सेशन कनेक्टेड नहीं है, इसलिए ब्राउज़ करने के लिए कोई कनेक्शन ही नहीं है।",
+    "_comment_filesNoFileChannel": "SSH and SFTP are never translated. Names the reason rather than saying the button is unavailable.",
+    "filesNoFileChannel": "यह सेशन फ़ाइलें नहीं ले जाता। SFTP, SSH के ऊपर चलता है; RDP या VNC सेशन में फ़ाइलों का कोई channel होता ही नहीं।",
+    "filesIsFileSession": "यह टैब पहले से ही एक फ़ाइल सेशन है।"
   },
 
   "statusBar": {

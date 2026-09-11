@@ -31,7 +31,15 @@
     "sidebarHide": "إخفاء شجرة الاتصالات",
     "noSessions": "لا توجد جلسات مفتوحة — انقر نقرًا مزدوجًا على اتصال لبدء واحدة",
     "_comment_inspector": "Ctrl-free: F4 is a bare function key and is written as-is in every language.",
-    "inspector": "القيم الفعلية · F4"
+    "inspector": "القيم الفعلية · F4",
+    "_comment_filesOpen": "The control that opens a file pane under the session in front. The four 'filesNo…' / 'filesNot…' sentences are the reasons it is doing nothing, one per reason: a disabled control has to say WHY, and 'unavailable' is not a reason. A file pane is one more channel on a connection that has already authenticated, never a second sign-in, which is why three of the four are about the session rather than about the pane.",
+    "filesOpen": "تصفّح ملفات هذه الجلسة",
+    "filesClose": "إغلاق لوحة الملفات",
+    "filesNoSession": "تصفّح الملفات يحتاج إلى جلسة مفتوحة. انقر نقرًا مزدوجًا على اتصال لبدء واحدة.",
+    "filesNotRunning": "هذه الجلسة غير متصلة، فلا يوجد اتصال يُتصفَّح عبره.",
+    "_comment_filesNoFileChannel": "SSH and SFTP are never translated. Names the reason rather than saying the button is unavailable.",
+    "filesNoFileChannel": "هذه الجلسة لا تحمل ملفات. يعمل SFTP فوق SSH، وجلسة RDP أو VNC لا قناة ملفات فيها.",
+    "filesIsFileSession": "هذا التبويب جلسة ملفات بالفعل."
   },
 
   "statusBar": {
