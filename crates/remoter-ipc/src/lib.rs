@@ -23,6 +23,7 @@ mod live_tests;
 mod lock_watch;
 mod recents;
 mod session;
+mod sftp;
 mod state;
 #[cfg(test)]
 mod test_support;
@@ -34,6 +35,10 @@ pub use error::IpcError;
 pub use session::{
     CapabilitiesDto, HostKeyDecisionDto, HostKeyPromptDto, ProgressDto, PromptDto,
     SessionFailureDto, SessionMessageDto, SessionOpenedDto, SessionSummaryDto, TrustedHostKeyDto,
+};
+pub use sftp::{
+    DirectoryEntryDto, NameRisksDto, SftpDeleteFailureDto, SftpDeleteReportDto, SftpPaneDto,
+    TransferRequestDto, TransferStartDto, TransferStateDto, TransferStatusDto,
 };
 pub use state::AppState;
 pub use tunnel::{TunnelDto, TunnelSpecDto};
@@ -103,6 +108,23 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         session::session_close,
         session::session_list,
         session::host_key_decide,
+        // --- sftp ---
+        sftp::sftp_open,
+        sftp::sftp_close,
+        sftp::sftp_list,
+        sftp::sftp_stat,
+        sftp::sftp_canonicalize,
+        sftp::sftp_read_link,
+        sftp::sftp_mkdir,
+        sftp::sftp_rename,
+        sftp::sftp_delete,
+        sftp::sftp_set_permissions,
+        sftp::sftp_symlink,
+        sftp::sftp_enqueue,
+        sftp::sftp_transfers,
+        sftp::sftp_transfer_cancel,
+        sftp::sftp_transfer_cancel_all,
+        sftp::sftp_transfer_retry,
         // --- tunnels ---
         tunnel::tunnel_open,
         tunnel::tunnel_close,

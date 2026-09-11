@@ -5,8 +5,16 @@
 //!
 //! ```text
 //! scripts/dev-sshd.sh start
-//! cargo test -p remoter-ipc --features integration-tests
+//! cargo test -p remoter-ipc --features integration-tests -- --test-threads=4
 //! ```
+//!
+//! **The thread cap is not optional.** `sshd`'s default `MaxStartups` is
+//! `10:30:100`: past ten *unauthenticated* connections at once it starts
+//! dropping them, and a dropped connection arrives here as a session that
+//! failed before it could ask anything — which reads exactly like a real
+//! defect. The suite opens one connection per test and the default harness runs
+//! every test at once, so it sits right on the limit. Raising `MaxStartups` in
+//! `scripts/dev-sshd.sh` would fix it at the other end.
 //!
 //! The server is the user-mode `sshd` that `scripts/dev-sshd.sh` runs on
 //! 127.0.0.1:2222 as the current account, with public key authentication only.
@@ -23,6 +31,11 @@
     clippy::panic,
     reason = "test code, per the workspace convention"
 )]
+#![allow(
+    clippy::print_stderr,
+    reason = "a live test that hangs has to be able to say where it got to, and a test binary \
+              installs no tracing subscriber"
+)]
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -38,6 +51,12 @@ use crate::session::{
     HostKeyDecisionDto, SessionMessageDto, SessionOpenedDto, host_key_decide_impl,
     session_close_impl, session_input_impl, session_list_impl, session_open_impl,
     session_resize_impl,
+};
+use crate::sftp::{
+    SftpPaneDto, TransferRequestDto, TransferStateDto, TransferStatusDto, sftp_close_impl,
+    sftp_delete_impl, sftp_enqueue_impl, sftp_list_impl, sftp_mkdir_impl, sftp_open_impl,
+    sftp_rename_impl, sftp_set_permissions_impl, sftp_stat_impl, sftp_transfer_cancel_impl,
+    sftp_transfer_retry_impl, sftp_transfers_impl,
 };
 use crate::state::AppState;
 use crate::test_support::{Scratch, open_vault};
@@ -69,6 +88,10 @@ struct Fixture {
 }
 
 fn fixture(key_path: &str, passphrase: Option<&str>) -> Fixture {
+    fixture_for("ssh", key_path, passphrase)
+}
+
+fn fixture_for(protocol: &str, key_path: &str, passphrase: Option<&str>) -> Fixture {
     let scratch = Scratch::new();
     let Some(state) = open_vault(&scratch) else {
         panic!("the fixture vault could not be created");
@@ -101,7 +124,7 @@ fn fixture(key_path: &str, passphrase: Option<&str>) -> Fixture {
             parent_id: None,
             kind: String::from("connection"),
             name: String::from("dev sshd"),
-            protocol: Some(String::from("ssh")),
+            protocol: Some(String::from(protocol)),
             host: Some(String::from(HOST)),
             port: Some(PORT),
             username: None,
@@ -683,4 +706,724 @@ async fn a_changed_host_key_is_a_hard_failure_with_its_own_path() {
     session_close_impl(&fixture.state, third.session_id)
         .await
         .expect("closing should succeed");
+}
+
+// ================================================================== SFTP ==
+//
+// The development server serves *this* account, so the "remote" filesystem is
+// this machine's. That is what makes these assertions possible: a transfer can
+// be checked byte for byte, and a name a hostile server would send can be
+// created with `std::fs` and then read back over the wire.
+
+/// Somewhere on the far side to work in, removed when the test ends.
+fn remote_dir() -> (Scratch, String) {
+    let scratch = Scratch::new();
+    let path = scratch.join("tree");
+    std::fs::create_dir_all(&path).expect("the remote working directory should be created");
+    let text = path.to_str().expect("a UTF-8 path").to_owned();
+    (scratch, text)
+}
+
+/// A session with a file pane already open on it.
+async fn open_pane(fixture: &Fixture) -> (SessionOpenedDto, SftpPaneDto, Arc<Mutex<Collected>>) {
+    let (opened, collected) = open_accepting(&fixture.state, &fixture.node_id).await;
+    let opened = match opened {
+        Ok(opened) => opened,
+        Err(error) => panic!(
+            "the session did not open: {} — {}",
+            error.code, error.message
+        ),
+    };
+    let pane = match sftp_open_impl(&fixture.state, opened.session_id).await {
+        Ok(pane) => pane,
+        Err(error) => panic!(
+            "the file pane did not open: {} — {}",
+            error.code, error.message
+        ),
+    };
+    (opened, pane, collected)
+}
+
+/// Waits for a transfer to reach a terminal state.
+async fn await_transfer(state: &Arc<AppState>, pane: u64, id: u64) -> TransferStatusDto {
+    for _ in 0..600 {
+        let listed = sftp_transfers_impl(state, pane).expect("the queue should be readable");
+        let found = listed
+            .into_iter()
+            .find(|status| status.transfer_id == id)
+            .expect("the transfer should be in the queue");
+        if !matches!(
+            found.state,
+            TransferStateDto::Queued | TransferStateDto::Running { .. }
+        ) {
+            return found;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    panic!("transfer {id} never finished");
+}
+
+fn download(remote: &str, local: &str, resume: bool) -> TransferRequestDto {
+    TransferRequestDto {
+        direction: String::from("download"),
+        remote: remote.to_owned(),
+        local: Some(local.to_owned()),
+        local_directory: None,
+        resume,
+    }
+}
+
+/// Browsing: the whole set of things a file manager does to a directory, on
+/// the connection a shell is already using.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_file_pane_browses_on_the_connection_the_shell_is_already_using() {
+    let fixture = fixture(KEY, None);
+    let (opened, pane, _collected) = open_pane(&fixture).await;
+    let (_scratch, root) = remote_dir();
+
+    assert!(!pane.home.is_empty(), "the server named no home directory");
+    assert_eq!(pane.session_id, opened.session_id);
+
+    // No second session: the pane is a channel on the one that is open.
+    assert_eq!(session_list_impl(&fixture.state).unwrap().len(), 1);
+
+    let made = format!("{root}/reports");
+    sftp_mkdir_impl(&fixture.state, pane.pane_id, made.clone())
+        .await
+        .expect("the directory should be created");
+
+    let listed = sftp_list_impl(&fixture.state, pane.pane_id, root.clone())
+        .await
+        .expect("the directory should list");
+    assert_eq!(listed.len(), 1);
+    assert_eq!(listed[0].name, "reports");
+    assert_eq!(listed[0].display_name, "reports");
+    assert_eq!(listed[0].kind, "directory");
+    assert!(listed[0].risks.clean());
+    // The ownership and permission columns a file manager shows.
+    assert!(
+        listed[0]
+            .mode
+            .as_deref()
+            .unwrap_or_default()
+            .starts_with('d')
+    );
+    assert!(listed[0].uid.is_some(), "no owner was reported");
+    assert!(listed[0].gid.is_some(), "no group was reported");
+
+    sftp_set_permissions_impl(&fixture.state, pane.pane_id, made.clone(), 0o700)
+        .await
+        .expect("the mode should be settable");
+    let stat = sftp_stat_impl(&fixture.state, pane.pane_id, made.clone())
+        .await
+        .expect("the directory should stat");
+    assert_eq!(stat.mode.as_deref(), Some("drwx------"));
+    assert_eq!(stat.permissions.map(|mode| mode & 0o777), Some(0o700));
+
+    let moved = format!("{root}/archive");
+    sftp_rename_impl(&fixture.state, pane.pane_id, made, moved.clone())
+        .await
+        .expect("the rename should succeed");
+    assert!(std::path::Path::new(&moved).is_dir());
+
+    let report = sftp_delete_impl(&fixture.state, pane.pane_id, moved.clone(), false)
+        .await
+        .expect("an empty directory should be removable");
+    assert!(report.complete);
+    assert_eq!(report.directories_removed, 1);
+    assert!(!std::path::Path::new(&moved).exists());
+
+    sftp_close_impl(&fixture.state, pane.pane_id)
+        .await
+        .expect("the pane should close");
+    session_close_impl(&fixture.state, opened.session_id)
+        .await
+        .expect("closing should succeed");
+}
+
+/// An `sftp` connection opens a session of its own: same pipeline, same host
+/// key check, same credential — a file tab rather than a shell.
+#[tokio::test(flavor = "multi_thread")]
+async fn an_sftp_connection_opens_a_file_session_of_its_own() {
+    let fixture = fixture_for("sftp", KEY, None);
+    let (opened, _collected) = open_accepting(&fixture.state, &fixture.node_id).await;
+    let opened = match opened {
+        Ok(opened) => opened,
+        Err(error) => panic!(
+            "the SFTP session did not open: {} — {}",
+            error.code, error.message
+        ),
+    };
+
+    assert_eq!(opened.protocol, "sftp");
+    assert_eq!(opened.auth_method, "publickey");
+    assert_eq!(opened.capabilities.kind, "file_transfer");
+    assert!(!opened.capabilities.resizable, "a file pane has no grid");
+    assert_eq!(opened.capabilities.clipboard, "none");
+    assert!(opened.capabilities.file_transfer);
+
+    // It is an ordinary session: in the list, against the cap, closed by the
+    // same supervisor as everything else.
+    let listed = session_list_impl(&fixture.state).unwrap();
+    assert_eq!(listed.len(), 1);
+    assert_eq!(listed[0].protocol, "sftp");
+    assert_eq!(listed[0].state, "running");
+    assert_eq!(listed[0].capabilities.kind, "file_transfer");
+
+    let pane = sftp_open_impl(&fixture.state, opened.session_id)
+        .await
+        .expect("a file session should open a pane");
+    let (_scratch, root) = remote_dir();
+    assert!(
+        sftp_list_impl(&fixture.state, pane.pane_id, root)
+            .await
+            .expect("the pane should browse")
+            .is_empty()
+    );
+
+    // Closing the session takes its panes with it: a pane on a connection that
+    // has gone has nothing to browse.
+    session_close_impl(&fixture.state, opened.session_id)
+        .await
+        .expect("closing should succeed");
+    assert_eq!(
+        sftp_list_impl(&fixture.state, pane.pane_id, String::from("/"))
+            .await
+            .err()
+            .map(|e| e.code),
+        Some(String::from("sftp.no-such-pane"))
+    );
+}
+
+/// A transfer in both directions, byte for byte, with the progress a 2 GB
+/// transfer would be indistinguishable from a hang without.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_transfer_moves_every_byte_and_reports_progress_as_it_goes() {
+    let fixture = fixture(KEY, None);
+    let (opened, pane, collected) = open_pane(&fixture).await;
+    let (_remote_scratch, root) = remote_dir();
+    let local_scratch = Scratch::new();
+
+    // Big enough to cross `PROGRESS_INTERVAL_BYTES` several times; the bytes
+    // vary so a transfer that repeated a block would not go unnoticed.
+    let source: Vec<u8> = (0..1_500_000u32).map(|i| (i % 251) as u8).collect();
+    let local_source = local_scratch.join("payload.bin");
+    std::fs::write(&local_source, &source).expect("the local file should be written");
+    let remote_target = format!("{root}/payload.bin");
+
+    let ids = sftp_enqueue_impl(
+        &fixture.state,
+        pane.pane_id,
+        vec![TransferRequestDto {
+            direction: String::from("upload"),
+            remote: remote_target.clone(),
+            local: Some(local_source.display().to_string()),
+            local_directory: None,
+            resume: false,
+        }],
+    )
+    .expect("the upload should queue");
+    let status = await_transfer(&fixture.state, pane.pane_id, ids[0]).await;
+    match status.state {
+        TransferStateDto::Completed { bytes } => assert_eq!(bytes, source.len() as u64),
+        other => panic!("the upload did not complete: {other:?}"),
+    }
+    assert_eq!(
+        std::fs::read(&remote_target).expect("the uploaded file should exist"),
+        source,
+        "a transfer may not drop or reorder a byte"
+    );
+
+    // Progress arrived on the session's own channel, which is what a bar is
+    // driven by; `sftp_transfers` is for reconciliation, not for polling.
+    let progress: Vec<_> = collected
+        .lock()
+        .control
+        .iter()
+        .filter_map(|message| match message {
+            SessionMessageDto::Progress(update) => Some(update.clone()),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        progress.len() >= 2,
+        "a 1.5 MB transfer reported no progress: {progress:?}"
+    );
+    assert!(progress.iter().all(|p| p.operation == "sftp.upload"));
+    assert_eq!(progress.last().map(|p| p.done), Some(source.len() as u64));
+
+    // And back the other way, into a folder — where the file name comes from
+    // `local_name_for` rather than from anything the server said.
+    let into = local_scratch.join("incoming");
+    std::fs::create_dir_all(&into).expect("the download folder should be created");
+    let ids = sftp_enqueue_impl(
+        &fixture.state,
+        pane.pane_id,
+        vec![TransferRequestDto {
+            direction: String::from("download"),
+            remote: remote_target,
+            local: None,
+            local_directory: Some(into.display().to_string()),
+            resume: false,
+        }],
+    )
+    .expect("the download should queue");
+    let status = await_transfer(&fixture.state, pane.pane_id, ids[0]).await;
+    assert!(
+        matches!(status.state, TransferStateDto::Completed { .. }),
+        "the download did not complete: {:?}",
+        status.state
+    );
+    assert_eq!(status.local, into.join("payload.bin").display().to_string());
+    assert_eq!(
+        std::fs::read(into.join("payload.bin")).expect("the downloaded file should exist"),
+        source
+    );
+
+    sftp_close_impl(&fixture.state, pane.pane_id).await.unwrap();
+    session_close_impl(&fixture.state, opened.session_id)
+        .await
+        .unwrap();
+}
+
+/// Resume, which is the reason a queue is worth having — and the refusal,
+/// which is why it is worth saying out loud when it does not happen.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_resume_continues_a_partial_file_and_says_so_when_it_will_not() {
+    let fixture = fixture(KEY, None);
+    let (opened, pane, _collected) = open_pane(&fixture).await;
+    let (_remote_scratch, root) = remote_dir();
+    let local_scratch = Scratch::new();
+
+    let source: Vec<u8> = (0..900_000u32).map(|i| (i % 253) as u8).collect();
+    let remote_path = format!("{root}/archive.bin");
+    std::fs::write(&remote_path, &source).expect("the remote file should be written");
+
+    // A download that was interrupted: the first 400 000 bytes are on disk.
+    let partial = local_scratch.join("archive.bin");
+    std::fs::write(&partial, &source[..400_000]).expect("the partial file should be written");
+
+    let ids = sftp_enqueue_impl(
+        &fixture.state,
+        pane.pane_id,
+        vec![download(&remote_path, &partial.display().to_string(), true)],
+    )
+    .expect("the resume should queue");
+    let status = await_transfer(&fixture.state, pane.pane_id, ids[0]).await;
+    assert!(
+        matches!(status.state, TransferStateDto::Completed { .. }),
+        "the resumed download did not complete: {:?}",
+        status.state
+    );
+    let start = status
+        .start
+        .expect("a started transfer reports what it decided");
+    assert_eq!(start.resume_from, 400_000, "the resume started over");
+    assert!(!start.resume_declined);
+    assert!(start.note.is_none());
+    assert_eq!(
+        std::fs::read(&partial).expect("the resumed file should exist"),
+        source,
+        "a resume must not corrupt the file it continues"
+    );
+
+    // Now the file is already whole. `resume_offset` refuses anything that is
+    // not strictly shorter, and the refusal is a sentence the user can act on
+    // rather than a bar that silently restarts.
+    let ids = sftp_enqueue_impl(
+        &fixture.state,
+        pane.pane_id,
+        vec![download(&remote_path, &partial.display().to_string(), true)],
+    )
+    .expect("the second attempt should queue");
+    let status = await_transfer(&fixture.state, pane.pane_id, ids[0]).await;
+    let start = status
+        .start
+        .expect("a started transfer reports what it decided");
+    assert_eq!(start.resume_from, 0);
+    assert!(start.resume_declined, "the refusal was not reported");
+    let note = start.note.expect("a refused resume must say why");
+    assert!(note.contains("not shorter"), "{note}");
+    // And it started over rather than appending, so the file is still right.
+    assert_eq!(std::fs::read(&partial).unwrap(), source);
+
+    sftp_close_impl(&fixture.state, pane.pane_id).await.unwrap();
+    session_close_impl(&fixture.state, opened.session_id)
+        .await
+        .unwrap();
+}
+
+/// A queue of several, each stopped on its own — and a retry, which queues a
+/// new transfer rather than resurrecting a finished one.
+#[tokio::test(flavor = "multi_thread")]
+async fn transfers_are_cancellable_one_at_a_time_and_retryable_afterwards() {
+    let fixture = fixture(KEY, None);
+    let (opened, pane, _collected) = open_pane(&fixture).await;
+    let (_remote_scratch, root) = remote_dir();
+    let local_scratch = Scratch::new();
+
+    // Large enough that it cannot finish before the cancellation lands: at
+    // 32 KiB a round trip this is more than a thousand of them, and the first
+    // progress report arrives after the first 512 KiB.
+    let source: Vec<u8> = (0..48u32 * 1024 * 1024).map(|i| (i % 251) as u8).collect();
+    let remote_path = format!("{root}/big.bin");
+    std::fs::write(&remote_path, &source).expect("the remote file should be written");
+
+    let destination = local_scratch.join("big.bin");
+    let queued_destination = local_scratch.join("never.bin");
+    let ids = sftp_enqueue_impl(
+        &fixture.state,
+        pane.pane_id,
+        vec![
+            download(&remote_path, &destination.display().to_string(), false),
+            download(
+                &remote_path,
+                &queued_destination.display().to_string(),
+                false,
+            ),
+        ],
+    )
+    .expect("both should queue");
+    assert_eq!(ids.len(), 2);
+
+    // Stop the second one while it is still waiting for a slot: it must never
+    // start at all.
+    sftp_transfer_cancel_impl(&fixture.state, pane.pane_id, ids[1])
+        .expect("a queued transfer should be cancellable");
+
+    // Stop the first one while it is genuinely moving bytes.
+    let mut moving = false;
+    for _ in 0..2_000 {
+        let listed = sftp_transfers_impl(&fixture.state, pane.pane_id).unwrap();
+        let first = listed
+            .iter()
+            .find(|status| status.transfer_id == ids[0])
+            .expect("the transfer should be in the queue");
+        if let TransferStateDto::Running { done, .. } = first.state
+            && done > 0
+        {
+            moving = true;
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(1)).await;
+    }
+    assert!(moving, "the download never reported moving a byte");
+    sftp_transfer_cancel_impl(&fixture.state, pane.pane_id, ids[0])
+        .expect("a running transfer should be cancellable");
+
+    let stopped = await_transfer(&fixture.state, pane.pane_id, ids[0]).await;
+    assert!(
+        matches!(stopped.state, TransferStateDto::Cancelled),
+        "the running transfer was not stopped: {:?}",
+        stopped.state
+    );
+    let written = std::fs::metadata(&destination)
+        .map(|meta| meta.len())
+        .unwrap_or(0);
+    assert!(
+        written < source.len() as u64,
+        "a cancelled transfer finished anyway"
+    );
+    // What was written stays on disk: its length is what makes a resume
+    // possible.
+    assert!(written > 0, "the partial file was thrown away");
+    assert!(
+        !queued_destination.exists(),
+        "a transfer cancelled while queued still ran"
+    );
+
+    // A retry is a new transfer. The old row stays exactly as it was, so the
+    // history of what happened stays readable.
+    let retried = sftp_transfer_retry_impl(&fixture.state, pane.pane_id, ids[1])
+        .expect("a cancelled transfer should be retryable");
+    assert!(!ids.contains(&retried));
+    let finished = await_transfer(&fixture.state, pane.pane_id, retried).await;
+    assert!(
+        matches!(finished.state, TransferStateDto::Completed { .. }),
+        "the retry did not complete: {:?}",
+        finished.state
+    );
+    assert_eq!(std::fs::read(&queued_destination).unwrap(), source);
+    assert!(matches!(
+        sftp_transfers_impl(&fixture.state, pane.pane_id)
+            .unwrap()
+            .into_iter()
+            .find(|status| status.transfer_id == ids[1])
+            .map(|status| status.state),
+        Some(TransferStateDto::Cancelled)
+    ));
+
+    sftp_close_impl(&fixture.state, pane.pane_id).await.unwrap();
+    session_close_impl(&fixture.state, opened.session_id)
+        .await
+        .unwrap();
+}
+
+/// The names a hostile server sends, over a real wire.
+///
+/// Every one of these is a legal POSIX file name, which is the point: the pane
+/// has to show them without being fooled by them, and still address the exact
+/// file the user clicked on.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_hostile_file_name_is_shown_safely_and_still_addresses_the_right_file() {
+    let fixture = fixture(KEY, None);
+    let (opened, pane, _collected) = open_pane(&fixture).await;
+    let (_remote_scratch, root) = remote_dir();
+    let local_scratch = Scratch::new();
+
+    // A right-to-left override, which renders this `.exe` as `annexe.txt`.
+    let trojan = "annex\u{202E}txt.exe";
+    // A control byte, which truncates a log line and moves a terminal cursor.
+    let noisy = "notes\u{0007}\u{001B}[2K.txt";
+    std::fs::write(format!("{root}/{trojan}"), b"payload").expect("the trojan name should write");
+    std::fs::write(format!("{root}/{noisy}"), b"noise").expect("the noisy name should write");
+
+    let listed = sftp_list_impl(&fixture.state, pane.pane_id, root.clone())
+        .await
+        .expect("the directory should list");
+    assert_eq!(listed.len(), 2);
+
+    let shown = listed
+        .iter()
+        .find(|entry| entry.name == trojan)
+        .expect("the raw name must survive the round trip exactly");
+    assert!(shown.risks.bidi, "the override was not noticed");
+    assert!(!shown.risks.clean());
+    assert!(
+        !shown.display_name.contains('\u{202E}'),
+        "the override reached the display: {:?}",
+        shown.display_name
+    );
+    assert!(!shown.display_path.contains('\u{202E}'));
+
+    let noisy_row = listed
+        .iter()
+        .find(|entry| entry.name == noisy)
+        .expect("the raw name must survive the round trip exactly");
+    assert!(noisy_row.risks.control);
+    assert!(!noisy_row.display_name.contains('\u{001B}'));
+    assert!(!noisy_row.display_name.contains('\u{0007}'));
+
+    // The raw name still addresses the file, which is the other half of the
+    // rule: the display form is never used to reach anything.
+    assert_eq!(
+        sftp_stat_impl(&fixture.state, pane.pane_id, shown.path.clone())
+            .await
+            .expect("the file the user clicked on should stat")
+            .size,
+        Some(7)
+    );
+
+    // Downloading it into a folder puts it inside that folder and nowhere
+    // else, under the name the server chose.
+    let into = local_scratch.join("incoming");
+    std::fs::create_dir_all(&into).expect("the folder should be created");
+    let ids = sftp_enqueue_impl(
+        &fixture.state,
+        pane.pane_id,
+        vec![TransferRequestDto {
+            direction: String::from("download"),
+            remote: shown.path.clone(),
+            local: None,
+            local_directory: Some(into.display().to_string()),
+            resume: false,
+        }],
+    )
+    .expect("the download should queue");
+    let status = await_transfer(&fixture.state, pane.pane_id, ids[0]).await;
+    assert!(
+        matches!(status.state, TransferStateDto::Completed { .. }),
+        "{:?}",
+        status.state
+    );
+    assert_eq!(status.local, into.join(trojan).display().to_string());
+    assert!(
+        status.local.starts_with(&into.display().to_string()),
+        "the download escaped the folder it was pointed at: {}",
+        status.local
+    );
+    assert!(!status.remote_display.contains('\u{202E}'));
+
+    sftp_close_impl(&fixture.state, pane.pane_id).await.unwrap();
+    session_close_impl(&fixture.state, opened.session_id)
+        .await
+        .unwrap();
+}
+
+/// Removing a tree: what was removed, what was not, and what was deliberately
+/// not followed.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_recursive_delete_reports_what_it_removed_and_does_not_follow_links() {
+    let fixture = fixture(KEY, None);
+    let (opened, pane, _collected) = open_pane(&fixture).await;
+    let (scratch, root) = remote_dir();
+
+    // Something outside the tree, which a walk that followed the link below
+    // would destroy.
+    let outside = scratch.join("outside.txt");
+    std::fs::write(&outside, b"untouched").expect("the outside file should write");
+
+    std::fs::create_dir_all(format!("{root}/sub/deep")).expect("the tree should be created");
+    std::fs::write(format!("{root}/a.txt"), b"a").unwrap();
+    std::fs::write(format!("{root}/sub/b.txt"), b"b").unwrap();
+    std::fs::write(format!("{root}/sub/deep/c.txt"), b"c").unwrap();
+    std::os::unix::fs::symlink(&outside, format!("{root}/link")).expect("the link should be made");
+
+    // Not recursive first: §6.11 says a directory has to be empty, and the
+    // message has to say that rather than reporting a permission problem.
+    let refused = sftp_delete_impl(&fixture.state, pane.pane_id, root.clone(), false).await;
+    assert_eq!(
+        refused.err().map(|error| error.code),
+        Some(String::from("sftp.directory-not-empty"))
+    );
+
+    let report = sftp_delete_impl(&fixture.state, pane.pane_id, root.clone(), true)
+        .await
+        .expect("the tree should be removable");
+    assert!(report.complete, "left behind: {:?}", report.failures);
+    assert!(!report.cancelled);
+    assert!(!report.limit_reached);
+    // Three files and the link, which is unlinked rather than followed.
+    assert_eq!(report.files_removed, 4);
+    assert_eq!(report.directories_removed, 3);
+    assert!(!std::path::Path::new(&root).exists());
+    assert!(
+        outside.exists(),
+        "the walk followed a symbolic link out of the tree"
+    );
+
+    sftp_close_impl(&fixture.state, pane.pane_id).await.unwrap();
+    session_close_impl(&fixture.state, opened.session_id)
+        .await
+        .unwrap();
+}
+
+/// A queue of several, all on the one SFTP session.
+///
+/// `TransferQueue::concurrency` is what makes a queue of small files usable on
+/// a high-latency link, and it means two transfers share one subsystem channel
+/// — the case where a request identifier mixed up between them would show as a
+/// file with somebody else's bytes in it.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_queue_of_several_transfers_arrives_intact() {
+    let fixture = fixture(KEY, None);
+    let (opened, pane, _collected) = open_pane(&fixture).await;
+    let (_remote_scratch, root) = remote_dir();
+    let local_scratch = Scratch::new();
+
+    // Distinguishable contents: a file that received another transfer's bytes
+    // would not compare equal.
+    let payloads: Vec<Vec<u8>> = (0..6u32)
+        .map(|n| (0..300_000u32).map(|i| ((i + n * 7) % 251) as u8).collect())
+        .collect();
+
+    let mut requests = Vec::new();
+    for (index, payload) in payloads.iter().enumerate() {
+        let source = local_scratch.join(&format!("send-{index}.bin"));
+        std::fs::write(&source, payload).expect("the local file should be written");
+        requests.push(TransferRequestDto {
+            direction: String::from("upload"),
+            remote: format!("{root}/sent-{index}.bin"),
+            local: Some(source.display().to_string()),
+            local_directory: None,
+            resume: false,
+        });
+    }
+
+    let ids =
+        sftp_enqueue_impl(&fixture.state, pane.pane_id, requests).expect("the batch should queue");
+    assert_eq!(ids.len(), payloads.len());
+    for id in &ids {
+        let status = await_transfer(&fixture.state, pane.pane_id, *id).await;
+        assert!(
+            matches!(status.state, TransferStateDto::Completed { .. }),
+            "transfer {id} did not complete: {:?}",
+            status.state
+        );
+    }
+
+    for (index, payload) in payloads.iter().enumerate() {
+        assert_eq!(
+            std::fs::read(format!("{root}/sent-{index}.bin")).expect("the file should exist"),
+            *payload,
+            "file {index} did not arrive intact"
+        );
+    }
+
+    sftp_close_impl(&fixture.state, pane.pane_id).await.unwrap();
+    session_close_impl(&fixture.state, opened.session_id)
+        .await
+        .unwrap();
+}
+
+/// Closing a pane stops what it was doing, and does not wait for a 48 MB
+/// download to finish to do it.
+#[tokio::test(flavor = "multi_thread")]
+async fn closing_a_pane_stops_a_transfer_that_is_in_flight() {
+    let fixture = fixture(KEY, None);
+    let (opened, pane, _collected) = open_pane(&fixture).await;
+    let (_remote_scratch, root) = remote_dir();
+    let local_scratch = Scratch::new();
+
+    let source: Vec<u8> = (0..48u32 * 1024 * 1024).map(|i| (i % 251) as u8).collect();
+    let remote_path = format!("{root}/big.bin");
+    std::fs::write(&remote_path, &source).expect("the remote file should be written");
+    let destination = local_scratch.join("big.bin");
+
+    let ids = sftp_enqueue_impl(
+        &fixture.state,
+        pane.pane_id,
+        vec![download(
+            &remote_path,
+            &destination.display().to_string(),
+            false,
+        )],
+    )
+    .expect("the download should queue");
+
+    let mut moving = false;
+    for _ in 0..2_000 {
+        let listed = sftp_transfers_impl(&fixture.state, pane.pane_id).unwrap();
+        if let Some(TransferStateDto::Running { done, .. }) =
+            listed.first().map(|status| status.state.clone())
+            && done > 0
+        {
+            moving = true;
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(1)).await;
+    }
+    assert!(moving, "the download never reported moving a byte");
+
+    // "The pane is closed" and "nothing is still writing to disk" are the same
+    // moment, and it arrives well inside the grace period rather than when the
+    // file happens to finish.
+    let closing = std::time::Instant::now();
+    sftp_close_impl(&fixture.state, pane.pane_id)
+        .await
+        .expect("the pane should close");
+    let took = closing.elapsed();
+    assert!(
+        took < Duration::from_secs(5),
+        "closing the pane waited for the transfer: {took:?}"
+    );
+
+    let written = std::fs::metadata(&destination)
+        .map(|meta| meta.len())
+        .unwrap_or(0);
+    assert!(
+        written < source.len() as u64,
+        "the transfer ran on after its pane was closed"
+    );
+    assert_eq!(
+        sftp_transfers_impl(&fixture.state, pane.pane_id)
+            .err()
+            .map(|error| error.code),
+        Some(String::from("sftp.no-such-pane"))
+    );
+    assert_eq!(ids.len(), 1);
+
+    session_close_impl(&fixture.state, opened.session_id)
+        .await
+        .unwrap();
 }

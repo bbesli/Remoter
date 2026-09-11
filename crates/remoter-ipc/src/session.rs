@@ -58,6 +58,7 @@ use remoter_proto_ssh::protocol::{
     SETTING_COMPRESSION, SETTING_ENVIRONMENT, SETTING_EXEC_COMMAND, SETTING_INITIAL_COMMAND,
     SETTING_ROWS, SETTING_TERMINAL_TYPE,
 };
+use remoter_proto_ssh::sftp::{SFTP_ID, capabilities as sftp_capabilities, run_sftp_session};
 use remoter_proto_ssh::{
     AlgorithmPolicy, DEFAULT_COLUMNS, DEFAULT_HANDSHAKE_TIMEOUT, DEFAULT_ROWS, DEFAULT_TERM,
     PromptChannel, SSH_ID, SshConnection, SshConnectionConfig, SshHopDialer, SshSession,
@@ -323,7 +324,7 @@ type SessionParts = (
 );
 
 /// One registered session, from this layer's side.
-struct SessionEntry {
+pub(crate) struct SessionEntry {
     /// Behind an `Arc` so a command can clone it out of the registry and await
     /// on it with the lock released. A session task wanting the same lock while
     /// the interface holds it across an await is the deadlock this avoids.
@@ -337,10 +338,26 @@ struct SessionEntry {
     host_keys: Arc<Mutex<BTreeMap<u64, HostKeyQuestion>>>,
     node: NodeId,
     name: String,
+    /// `ssh` or `sftp`. Stored rather than assumed: the session list used to
+    /// say `ssh` for everything, which was true until it was not.
+    protocol: String,
+    /// What the adapter reported, so the interface can show a file pane's
+    /// controls for a file pane and a terminal's for a terminal.
+    capabilities: remoter_proto::Capabilities,
     target: String,
     username: String,
     started_at_ms: i64,
     connected: bool,
+    /// The authenticated SSH connection, once there is one.
+    ///
+    /// Held so a file pane can open a subsystem channel on the connection the
+    /// tab is already using (RFC 4254 §6.5) rather than handshaking and
+    /// authenticating a second time. `None` until the session establishes.
+    connection: Option<Arc<SshConnection>>,
+    /// A clone of the session's own event sink, so a transfer's progress
+    /// reaches the tab over the channel the tab already subscribes to instead
+    /// of being polled for.
+    events: Option<EventSink>,
     /// The `sessions` row this session opened in the vault's audit log, closed
     /// when the session ends.
     audit_id: Option<Uuid>,
@@ -355,7 +372,10 @@ pub(crate) struct SessionHub {
     supervisor: SessionSupervisor,
     sessions: Mutex<BTreeMap<u64, SessionEntry>>,
     pub(crate) tunnels: Mutex<BTreeMap<u64, crate::tunnel::TunnelEntry>>,
+    /// File panes, each on the connection of the session it names.
+    pub(crate) panes: Mutex<BTreeMap<u64, crate::sftp::PaneEntry>>,
     next_tunnel: AtomicU64,
+    next_pane: AtomicU64,
     /// Set while the vault is locked and its policy is `freeze_input`.
     frozen: AtomicBool,
 }
@@ -376,7 +396,9 @@ impl SessionHub {
             supervisor: SessionSupervisor::new(SupervisorConfig::default()),
             sessions: Mutex::new(BTreeMap::new()),
             tunnels: Mutex::new(BTreeMap::new()),
+            panes: Mutex::new(BTreeMap::new()),
             next_tunnel: AtomicU64::new(1),
+            next_pane: AtomicU64::new(1),
             frozen: AtomicBool::new(false),
         }
     }
@@ -387,6 +409,50 @@ impl SessionHub {
 
     pub(crate) fn next_tunnel_id(&self) -> u64 {
         self.next_tunnel.fetch_add(1, Ordering::Relaxed)
+    }
+
+    pub(crate) fn next_pane_id(&self) -> u64 {
+        self.next_pane.fetch_add(1, Ordering::Relaxed)
+    }
+
+    /// What a file pane needs to attach to a session: the connection it will
+    /// open a subsystem channel on, the sink its progress travels over, and a
+    /// token that is a child of the session's own.
+    ///
+    /// Cloned out under the lock and returned, so the caller never holds the
+    /// registry lock while it talks to the server.
+    pub(crate) fn attach_parts(
+        &self,
+        session_id: u64,
+    ) -> Option<(
+        Arc<SshConnection>,
+        EventSink,
+        tokio_util::sync::CancellationToken,
+    )> {
+        let sessions = self.sessions.lock();
+        let entry = sessions.get(&session_id)?;
+        let connection = entry.connection.clone()?;
+        let events = entry.events.clone()?;
+        Some((
+            connection,
+            events,
+            entry.handle.cancellation_token().child_token(),
+        ))
+    }
+
+    /// Takes every pane opened on one session, so the caller can stop them.
+    ///
+    /// Removed from the registry rather than merely cancelled: a pane whose
+    /// session has ended has nothing left to browse, and leaving its row in
+    /// place would let the interface keep asking.
+    pub(crate) fn take_panes_for(&self, session_id: u64) -> Vec<crate::sftp::PaneEntry> {
+        let mut panes = self.panes.lock();
+        let ids: Vec<u64> = panes
+            .iter()
+            .filter(|(_, pane)| pane.session_id() == session_id)
+            .map(|(id, _)| *id)
+            .collect();
+        ids.iter().filter_map(|id| panes.remove(id)).collect()
     }
 
     pub(crate) fn is_frozen(&self) -> bool {
@@ -442,9 +508,11 @@ impl SessionHub {
         self.sessions.lock().remove(&id);
     }
 
-    fn mark_connected(&self, id: u64) {
+    fn mark_connected(&self, id: u64, established: &Established) {
         if let Some(entry) = self.sessions.lock().get_mut(&id) {
             entry.connected = true;
+            entry.connection = Some(Arc::clone(&established.connection));
+            entry.events = Some(established.events.clone());
         }
     }
 
@@ -504,11 +572,12 @@ impl SessionHub {
                     session_id: *id,
                     node_id: entry.node.as_uuid().to_string(),
                     name: entry.name.clone(),
-                    protocol: String::from(SSH_ID),
+                    protocol: entry.protocol.clone(),
                     target: entry.target.clone(),
                     username: entry.username.clone(),
                     capabilities: capabilities_dto(
-                        &info.map_or_else(ssh_capabilities, |i| i.capabilities.clone()),
+                        &info
+                            .map_or_else(|| entry.capabilities.clone(), |i| i.capabilities.clone()),
                     ),
                     started_at_ms: entry.started_at_ms,
                     state: state.to_owned(),
@@ -586,15 +655,22 @@ fn plan_connection(
         .effective_connection(node)
         .map_err(|err| IpcError::from_core(&err))?;
 
-    if config.protocol.as_str() != SSH_ID {
+    // The gate on what this build can open. `ssh` is a shell; `sftp` is the
+    // same connection with a file pane on it instead — same handshake, same
+    // host key check, same credential, which is why both are here and why
+    // neither costs the other anything. `rdp` and `vnc` are refused by name:
+    // their adapters exist as skeletons and wiring them is the next piece of
+    // work, and a session that half-opened would be worse than one that says
+    // plainly it cannot.
+    if !matches!(config.protocol.as_str(), SSH_ID | SFTP_ID) {
         return Err(IpcError::new(
             "session.protocol-unsupported",
             format!(
-                "`{name}` is a `{}` connection, and this build only opens SSH sessions.",
+                "`{name}` is a `{}` connection, and this build opens SSH and SFTP sessions only.",
                 config.protocol.as_str()
             ),
         )
-        .with_actions(["Open its settings", "Use an SSH connection"]));
+        .with_actions(["Open its settings", "Use an SSH or SFTP connection"]));
     }
 
     let target = connection_target(&config).map_err(|err| ipc_error(&err))?;
@@ -791,7 +867,16 @@ pub(crate) async fn session_open_impl(
 
     let (answers_tx, prompts) = PromptChannel::new();
     let host_keys = Arc::new(Mutex::new(BTreeMap::new()));
-    let capabilities = ssh_capabilities();
+    // Read from the adapter rather than assumed: a file pane is not resizable
+    // and has no clipboard, and the interface decides which controls to show
+    // from this rather than from the protocol's name.
+    let file_session = plan.config.protocol.as_str() == SFTP_ID;
+    let capabilities = if file_session {
+        sftp_capabilities()
+    } else {
+        ssh_capabilities()
+    };
+    let protocol_wire = plan.config.protocol.as_str().to_owned();
 
     let spec = SessionSpec {
         node,
@@ -837,6 +922,7 @@ pub(crate) async fn session_open_impl(
                 &chain,
                 Arc::clone(&body_prompts),
                 body_trust,
+                file_session,
             )
             .await;
 
@@ -844,8 +930,8 @@ pub(crate) async fn session_open_impl(
             // it every `Secret` buffer it held, which is what zeroizes them.
             drop(credentials);
 
-            let session = match outcome {
-                Ok(session) => session,
+            let connected = match outcome {
+                Ok(connected) => connected,
                 Err(error) => {
                     let _ = ready_tx.send(Err(ipc_error(&error)));
                     return Err(error);
@@ -853,11 +939,19 @@ pub(crate) async fn session_open_impl(
             };
 
             let _ = ready_tx.send(Ok(Established {
-                auth_method: session.connection().auth().method.as_str().to_owned(),
+                auth_method: connected.connection.auth().method.as_str().to_owned(),
+                connection: Arc::clone(&connected.connection),
+                // A clone of the session's own sink. A file pane's progress
+                // must arrive on the channel the tab already subscribes to,
+                // and this is the only place a clone of it can be taken.
+                events: events.clone(),
             }));
 
             // ── 8 · Run ───────────────────────────────────────────────────
-            run_ssh_session(session, ctx).await
+            match connected.shell {
+                Some(shell) => run_ssh_session(shell, ctx).await,
+                None => run_sftp_session(connected.connection, ctx).await,
+            }
         })
         .map_err(|err| ipc_error(&err))?;
 
@@ -876,10 +970,14 @@ pub(crate) async fn session_open_impl(
             host_keys: Arc::clone(&host_keys),
             node,
             name: name.clone(),
+            protocol: protocol_wire.clone(),
+            capabilities: capabilities.clone(),
             target: target.to_string(),
             username: username.clone(),
             started_at_ms,
             connected: false,
+            connection: None,
+            events: None,
             audit_id: None,
         },
     );
@@ -922,7 +1020,7 @@ pub(crate) async fn session_open_impl(
         }
     };
 
-    hub.mark_connected(id);
+    hub.mark_connected(id, &established);
 
     // ── 9 · Terminate, the first half ──────────────────────────────────────
     // The session row is opened now and closed by the event forwarder, so the
@@ -936,7 +1034,7 @@ pub(crate) async fn session_open_impl(
             Ok(vault) => vault
                 .session_start(
                     Some(*node.as_uuid()),
-                    SSH_ID,
+                    &protocol_wire,
                     &target.to_string(),
                     Some(&username),
                 )
@@ -952,7 +1050,7 @@ pub(crate) async fn session_open_impl(
         session_id: id,
         node_id: node.as_uuid().to_string(),
         name,
-        protocol: String::from(SSH_ID),
+        protocol: protocol_wire,
         target: target.to_string(),
         username,
         auth_method: established.auth_method,
@@ -971,6 +1069,24 @@ pub(crate) async fn session_open_impl(
 /// What the body reports back once authentication has succeeded.
 struct Established {
     auth_method: String,
+    /// The authenticated connection, so a file pane can open a subsystem
+    /// channel on it instead of authenticating again.
+    connection: Arc<SshConnection>,
+    /// A clone of the session's sink, so a pane's progress travels to the tab
+    /// over the channel the tab already reads.
+    events: EventSink,
+}
+
+/// What stages 4 to 6 produced.
+struct Connected {
+    /// The authenticated connection. Shared, because a shell, a file pane and
+    /// a forward are all channels on the one connection.
+    connection: Arc<SshConnection>,
+    /// The shell or `exec` channel, for a terminal session. `None` for a file
+    /// session, which opens its channels per pane rather than at connect time
+    /// — a file tab that opened the subsystem here and then failed to open a
+    /// pane would have spent a channel on nothing.
+    shell: Option<SshSession>,
 }
 
 /// Stages 4, 5 and 6: the chain, the handshake, the credentials.
@@ -986,7 +1102,8 @@ async fn connect(
     chain: &GatewayChainPlan,
     prompts: Arc<PromptChannel>,
     trust: Arc<dyn TrustStore>,
-) -> Result<SshSession, ProtocolError> {
+    file_session: bool,
+) -> Result<Connected, ProtocolError> {
     // ── 4 · Transport ──────────────────────────────────────────────────────
     let entry = TcpDialer;
     let dialer =
@@ -1036,14 +1153,28 @@ async fn connect(
     .await?;
 
     // ── 7 · Attach, the protocol's half ────────────────────────────────────
-    let terminal = terminal_settings(&schema, config, agent_forwarding)?;
     let established = Arc::new(established);
-    match schema.string(&config.settings, SETTING_EXEC_COMMAND) {
-        Some(command) if !command.trim().is_empty() => {
-            SshSession::open_exec(established, command, &terminal, events.clone()).await
-        }
-        _ => SshSession::open_shell(established, &terminal, events.clone()).await,
+    if file_session {
+        // No `pty-req`, no shell, and no subsystem yet: a file tab's channels
+        // belong to its panes, which are opened by `sftp_open`.
+        return Ok(Connected {
+            connection: established,
+            shell: None,
+        });
     }
+
+    let terminal = terminal_settings(&schema, config, agent_forwarding)?;
+    let shell = match schema.string(&config.settings, SETTING_EXEC_COMMAND) {
+        Some(command) if !command.trim().is_empty() => {
+            SshSession::open_exec(Arc::clone(&established), command, &terminal, events.clone())
+                .await?
+        }
+        _ => SshSession::open_shell(Arc::clone(&established), &terminal, events.clone()).await?,
+    };
+    Ok(Connected {
+        connection: established,
+        shell: Some(shell),
+    })
 }
 
 /// The terminal the `pty-req` asks for.
@@ -1196,6 +1327,13 @@ pub(crate) async fn session_close_impl(state: &AppState, session_id: u64) -> Res
     let hub = state.sessions();
     if hub.sessions.lock().get(&session_id).is_none() {
         return Err(no_such_session());
+    }
+    // Before the supervisor is asked to close: a transfer in flight is stopped
+    // and awaited here, so this command returns only once nothing is writing.
+    // The event forwarder does the same on its way out — whichever gets there
+    // first takes the panes, and the other finds none.
+    for pane in hub.take_panes_for(session_id) {
+        pane.stop().await;
     }
     let outcome = hub
         .supervisor()
@@ -1360,7 +1498,14 @@ async fn forward_events(
                         operation: update.operation,
                         done: update.done,
                         total: update.total,
-                        detail: update.detail,
+                        // The one field of a progress event whose text the far
+                        // end chooses: for a transfer it is the remote path.
+                        // Escaped here rather than trusted to the interface,
+                        // because it is the only place that knows it is remote.
+                        detail: update
+                            .detail
+                            .as_deref()
+                            .map(crate::sftp::escape_remote_text),
                     }),
                 );
             }
@@ -1384,6 +1529,14 @@ async fn forward_events(
     }
 
     // ── 9 · Terminate ──────────────────────────────────────────────────────
+    // The file panes on this session first, and awaited rather than merely
+    // cancelled: "the session is over" and "nothing is still writing to disk"
+    // have to be the same moment. A drain task left running would hold a file
+    // handle and a channel on a connection that has gone.
+    for pane in hub.take_panes_for(id) {
+        pane.stop().await;
+    }
+
     // The session is over, however it ended. Deregistering here rather than in
     // `session_close` alone is what keeps a tab the server hung up on out of
     // the session list.
@@ -1847,7 +2000,7 @@ fn message_for(error: &ProtocolError) -> (String, String) {
 /// Plain sentences rather than catalogue keys because [`IpcError::actions`] is a
 /// list of sentences everywhere else in this crate, and diverging on one
 /// command would give the interface two things to render.
-fn action_text(action: NextAction) -> String {
+pub(crate) fn action_text(action: NextAction) -> String {
     match action {
         NextAction::OpenSettings => "Open this connection's settings",
         NextAction::EditGatewayChain => "Edit the gateway chain",
@@ -2021,6 +2174,10 @@ mod tests {
                 host_keys: Arc::clone(&host_keys),
                 node: NodeId::new(),
                 name: String::from("db-01"),
+                protocol: String::from(SSH_ID),
+                capabilities: ssh_capabilities(),
+                connection: None,
+                events: None,
                 target: String::from("127.0.0.1:2222"),
                 username: String::from("ada"),
                 started_at_ms: 0,
@@ -2127,6 +2284,10 @@ mod tests {
                 host_keys: Arc::new(Mutex::new(BTreeMap::new())),
                 node: NodeId::new(),
                 name: String::from("web-01"),
+                protocol: String::from(SSH_ID),
+                capabilities: ssh_capabilities(),
+                connection: None,
+                events: None,
                 target: String::from("127.0.0.1:2222"),
                 username: String::from("ada"),
                 started_at_ms: 0,
@@ -2434,6 +2595,10 @@ mod tests {
                 host_keys: Arc::new(Mutex::new(BTreeMap::new())),
                 node: NodeId::new(),
                 name: String::from("doomed"),
+                protocol: String::from(SSH_ID),
+                capabilities: ssh_capabilities(),
+                connection: None,
+                events: None,
                 target: String::from("127.0.0.1:2222"),
                 username: String::from("ada"),
                 started_at_ms: 0,
