@@ -157,7 +157,7 @@ impl RdpProtocol {
         )
         .await?;
 
-        Ok(RdpSession::attach(connected, events, session, target))
+        RdpSession::attach(connected, events, session, target)
     }
 
     /// Turns a resolved connection into the sequence's configuration.

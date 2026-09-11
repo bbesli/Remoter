@@ -19,22 +19,84 @@ jobs:
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
+      # `--locked` on every cargo invocation in this file, deliberately. Three
+      # of the four vulnerabilities closed in this change — RUSTSEC-2026-0009
+      # and the two quick-xml ones reached through tauri — are fixed by versions
+      # that live in Cargo.lock and cannot currently be re-derived from the
+      # manifests, because the workspace understates its `rust-version` and the
+      # MSRV-aware resolver vetoes them (see the note on that line in the root
+      # Cargo.toml). Without `--locked`, CI silently re-resolves and could test
+      # a different, older graph than the one committed and audited. With it,
+      # a lock that no longer matches the manifests is a build failure that says
+      # so.
       - name: System dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev \
             libayatana-appindicator3-dev librsvg2-dev libudev-dev
+      # The two loops below are driven by lists that `cargo metadata` produces,
+      # and this step is where those lists are produced — on its own, so that a
+      # failure to produce them is a failure.
+      #
+      # They used to be built inline, in the shape
+      # `cargo metadata | python3 | while read`. A shell pipeline reports the
+      # status of its LAST command, which was the `while`. Break the producer —
+      # a cargo error, a metadata schema change, a typo in the python — and zero
+      # lines reach the loop, the body never runs, and the step goes green
+      # having checked nothing. That was measured, not guessed: with the
+      # producer stubbed out to fail, the old pipeline printed a cargo error and
+      # a python traceback and still exited 0. A step that cannot fail is worse
+      # than no step, because it is evidence of a check that never ran, so the
+      # lists are built here with `pipefail` and asserted non-empty before
+      # anything is allowed to iterate over them.
+      - name: Enumerate workspace packages and features
+        run: |
+          set -euo pipefail
+          cargo metadata --locked --no-deps --format-version 1 > "$RUNNER_TEMP/metadata.json"
+          python3 -c '
+          import json, pathlib, sys
+
+          meta = json.loads(pathlib.Path(sys.argv[1]).read_text())
+          packages = sorted(p["name"] for p in meta["packages"])
+          features = sorted(
+              p["name"] + " " + f
+              for p in meta["packages"]
+              for f in p["features"]
+              if f != "default"
+          )
+          pathlib.Path(sys.argv[2]).write_text("".join(n + "\n" for n in packages))
+          pathlib.Path(sys.argv[3]).write_text("".join(n + "\n" for n in features))
+          ' "$RUNNER_TEMP/metadata.json" "$RUNNER_TEMP/packages.txt" "$RUNNER_TEMP/features.txt"
+          # An empty list is not "nothing to check", it is a broken producer.
+          if [ ! -s "$RUNNER_TEMP/packages.txt" ]; then
+            echo "::error::cargo metadata listed no workspace packages; the enumeration is broken, not the workspace"
+            exit 1
+          fi
+          # Deliberately fatal rather than a no-op. If the workspace genuinely
+          # loses its last optional feature, delete the step that consumes this
+          # list — do not let it pass over an empty file, which is how the
+          # hand-written version of that step went three features stale.
+          if [ ! -s "$RUNNER_TEMP/features.txt" ]; then
+            echo "::error::cargo metadata listed no non-default features; either the enumeration is broken or the feature-gated step below has nothing left to guard"
+            exit 1
+          fi
+          echo "Packages:"; cat "$RUNNER_TEMP/packages.txt"
+          echo "Features:"; cat "$RUNNER_TEMP/features.txt"
       # `--all-targets` unions in the dev-dependencies' features, so a crate can
       # be missing a feature its own library needs and still look fine. Only a
       # build without test targets — the release build — catches it. That is
       # exactly how remoter-proto-ssh shipped without tokio's "fs".
+      #
+      # Reading the list from a file rather than a pipe also means the loop runs
+      # in this shell, not a subshell, so `set -e` on a failed `cargo check`
+      # ends the step instead of the subshell.
       - name: Each crate on its own, without test targets
         run: |
-          for crate in $(cargo metadata --no-deps --format-version 1 \
-                          | python3 -c 'import json,sys; print(" ".join(p["name"] for p in json.load(sys.stdin)["packages"]))'); do
+          set -euo pipefail
+          while read -r crate; do
             echo "--- $crate"
-            cargo check -p "$crate" || exit 1
-          done
+            cargo check --locked -p "$crate"
+          done < "$RUNNER_TEMP/packages.txt"
       # A target nothing builds drifts. `live_server.rs` sat behind
       # `integration-tests` and stopped compiling when SftpBrowser::list gained
       # a cancellation token — invisible to every default build, and to
@@ -48,19 +110,18 @@ jobs:
       # and nothing has to remember to update this file.
       - name: Feature-gated targets still compile
         run: |
-          cargo metadata --no-deps --format-version 1 \
-            | python3 -c 'import json,sys; print("\n".join(p["name"] + " " + f for p in json.load(sys.stdin)["packages"] for f in sorted(p["features"]) if f != "default"))' \
-            | while read -r pkg feat; do
-                echo "--- $pkg --features $feat"
-                cargo check -p "$pkg" --features "$feat" --all-targets || exit 1
-              done
+          set -euo pipefail
+          while read -r pkg feat; do
+            echo "--- $pkg --features $feat"
+            cargo check --locked -p "$pkg" --features "$feat" --all-targets
+          done < "$RUNNER_TEMP/features.txt"
       - run: cargo fmt --all --check
       # `-- -D warnings` spelled out rather than left to the workflow-level
       # RUSTFLAGS: CLAUDE.md §4 states this exact command as the contract, and a
       # step whose name claims it denies warnings should not depend on an env
       # var three screens away that a future edit could drop.
-      - run: cargo clippy --workspace --all-targets -- -D warnings
-      - run: cargo test --workspace
+      - run: cargo clippy --locked --workspace --all-targets -- -D warnings
+      - run: cargo test --locked --workspace
 
   frontend:
     name: Frontend
@@ -97,10 +158,69 @@ jobs:
       # crate turns that record red, nobody can tell from the job list whether
       # the licence policy still holds. The build fails either way.
       - name: Licences, bans and sources
-        run: cargo deny check licenses bans sources
+        run: cargo deny --locked check licenses bans sources
       - name: Security advisories
-        run: cargo deny check advisories
-      - run: cargo audit
+        run: cargo deny --locked check advisories
+      # Every advisory tolerated in deny.toml carries a `# REVIEW-BY: <date>
+      # <id>` line. cargo-deny 0.20 accepts only `id` and `reason` in an ignore
+      # entry — there is no native expiry — so the date is enforced here.
+      # Without this the exception is permanent in everything but intention,
+      # which is the state the rsa advisory was found in.
+      - name: Advisory exceptions must expire
+        run: |
+          set -euo pipefail
+          python3 -c '
+          import datetime, pathlib, re, sys, tomllib
+
+          text = pathlib.Path("deny.toml").read_text()
+          # `.get`, not `[...]`: an empty or absent ignore list is a real
+          # state (every exception closed), and it is not a hole either —
+          # cargo-deny is what fails on an un-ignored advisory, this step
+          # only polices the ones deny.toml tolerates.
+          ignored = tomllib.loads(text).get("advisories", {}).get("ignore", [])
+          ids = {e["id"] if isinstance(e, dict) else e for e in ignored}
+          marked = {
+              m.group(2): datetime.date.fromisoformat(m.group(1))
+              for m in re.finditer(r"#\s*REVIEW-BY:\s*(\d{4}-\d{2}-\d{2})\s+(\S+)", text)
+          }
+
+          problems = []
+          for advisory in sorted(ids - marked.keys()):
+              problems.append(advisory + " is ignored with no # REVIEW-BY: line")
+          for advisory in sorted(marked.keys() - ids):
+              problems.append(advisory + " has a # REVIEW-BY: line but is not ignored; delete the stale marker")
+          today = datetime.date.today()
+          for advisory in sorted(ids & marked.keys()):
+              if marked[advisory] < today:
+                  problems.append(
+                      advisory + " was tolerated until " + marked[advisory].isoformat()
+                      + ". Re-read the reasoning in deny.toml: either the upstream fix exists now and the entry goes, or the exposure was re-argued and the date moves."
+                  )
+          for p in problems:
+              print("::error::" + p)
+          print("Advisory exceptions checked: " + (", ".join(sorted(ids)) or "none"))
+          sys.exit(1 if problems else 0)
+          '
+      # cargo-audit reads the same RUSTSEC database as cargo-deny but not
+      # deny.toml, so without this it would fail on the exceptions deny.toml
+      # argues for and the job would be red forever. The ignore list is read out
+      # of deny.toml rather than written down a second time: two lists drift,
+      # and the one that drifts is always the one nobody is reading.
+      - name: Security advisories (cargo audit)
+        run: |
+          set -euo pipefail
+          mapfile -t ignores < <(python3 -c '
+          import pathlib, tomllib
+          ignored = tomllib.loads(pathlib.Path("deny.toml").read_text()).get("advisories", {}).get("ignore", [])
+          for e in ignored:
+              print(e["id"] if isinstance(e, dict) else e)
+          ')
+          args=()
+          for id in ${ignores[@]+"${ignores[@]}"}; do
+            echo "ignoring $id, per deny.toml"
+            args+=(--ignore "$id")
+          done
+          cargo audit ${args[@]+"${args[@]}"}
       # deny.toml has to run `wildcards = "warn"` because every workspace path
       # dependency counts as a wildcard and cargo-deny's `allow-wildcard-paths`
       # exemption only applies to crates marked `publish = false`. This keeps the
@@ -109,8 +229,21 @@ jobs:
       # unlike the cargo-deny check, it does not fire on path dependencies.
       - name: No wildcard registry dependencies
         run: |
-          if grep -rn --include=Cargo.toml --exclude-dir=target --exclude-dir=node_modules \
-               -E '^[[:space:]]*[A-Za-z0-9_-]+[[:space:]]*=[[:space:]]*"\*"|version[[:space:]]*=[[:space:]]*"\*"' . ; then
+          set -uo pipefail
+          # grep exits 0 for "found", 1 for "not found" and 2 for "I failed".
+          # Written as `if grep ...; then`, the failure case reads as the clean
+          # case: a bad pattern or an unreadable tree would report success.
+          # Separating the statuses is the difference between a check and a
+          # decoration.
+          status=0
+          matches="$(grep -rn --include=Cargo.toml --exclude-dir=target --exclude-dir=node_modules \
+               -E '^[[:space:]]*[A-Za-z0-9_-]+[[:space:]]*=[[:space:]]*"\*"|version[[:space:]]*=[[:space:]]*"\*"' .)" || status=$?
+          if [ "$status" -gt 1 ]; then
+            echo "::error::grep failed with status $status; the wildcard scan did not run"
+            exit 1
+          fi
+          if [ -n "$matches" ]; then
+            echo "$matches"
             echo "::error::a dependency is pinned to \"*\"; give it a real version requirement"
             exit 1
           fi
@@ -147,6 +280,7 @@ jobs:
       # platform revokes the exception on that platform just as thoroughly.
       - name: No copyleft in the plugin ABI or SDK
         run: |
+          set -euo pipefail
           # Prints one `package|licence` line per dependency a plugin author
           # could not link permissively: no licence declared at all (a crate that
           # declares none is indistinguishable from one that declares a hostile
@@ -157,9 +291,24 @@ jobs:
           # "GPL" condemns it, and a check that cries wolf on a crate anyone can
           # take under MIT is a check the next person switches off. Only an
           # expression with no permissive arm left is a breach.
+          #
+          # `cargo tree | python3` is a pipeline, and a pipeline reports its
+          # last command. A `cargo tree` that failed — a renamed crate, a
+          # resolver error — would send nothing into python, python would print
+          # nothing, and the caller would read "no copyleft found". The
+          # remoter-ipc control below catches a detector that is broken
+          # everywhere, but not one that fails for a single `-p` argument, which
+          # is precisely the argument that matters here. So check the producer.
           scan() {
-            cargo tree -p "$1" --edges normal --target all --prefix none \
-                       --format '{p}|{l}' \
+            local tree
+            tree="$(cargo tree --locked -p "$1" --edges normal --target all --prefix none \
+                               --format '{p}|{l}')" \
+              || { echo "::error::cargo tree failed for $1; the copyleft scan did not run" >&2; return 1; }
+            if [ -z "$tree" ]; then
+              echo "::error::cargo tree printed nothing for $1; the copyleft scan did not run" >&2
+              return 1
+            fi
+            printf '%s\n' "$tree" \
               | python3 -c 'import re,sys; pat = re.compile(r"(?:^|[^A-Za-z])(?:A|L)?GPL|SSPL|BUSL|CC-BY-NC|Commons-Clause|Proprietary", re.I); ok = lambda lic: bool(lic.strip()) and any(not pat.search(arm) for arm in re.split(r"\s+OR\s+", lic)); rows = sorted({re.sub(r"\s*\(\*\)$", "", l.strip()) for l in sys.stdin if l.strip()}); print("\n".join(r for r in rows if not ok(r.rpartition("|")[2])))'
           }
 
@@ -187,6 +336,30 @@ jobs:
 
           # The exception also rests on these two crates' own licence field. A
           # clean dependency tree under a GPL-3.0 ABI crate protects nobody.
-          cargo metadata --no-deps --format-version 1 \
-            | python3 -c 'import json,sys; bad = [p["name"] + " is licensed " + str(p.get("license")) + ", not Apache-2.0 OR MIT" for p in json.load(sys.stdin)["packages"] if p["name"] in ("remoter-plugin-abi", "remoter-plugin-sdk") and p.get("license") != "Apache-2.0 OR MIT"]; print("\n".join(bad)); sys.exit(1 if bad else 0)'
+          #
+          # The `seen` assertion is not padding. The filter below says "every
+          # package NAMED remoter-plugin-abi or remoter-plugin-sdk must be
+          # Apache-2.0 OR MIT", and a filter over an empty match set is
+          # satisfied: rename either crate, drop it from the workspace, or break
+          # cargo metadata, and the check passes while guarding nothing.
+          # Written under RUNNER_TEMP rather than into the checkout, so the
+          # job leaves the working tree exactly as it found it.
+          cargo metadata --locked --no-deps --format-version 1 > "$RUNNER_TEMP/plugin-metadata.json"
+          python3 -c '
+          import json, pathlib, sys
+
+          wanted = {"remoter-plugin-abi", "remoter-plugin-sdk"}
+          packages = json.loads(pathlib.Path(sys.argv[1]).read_text())["packages"]
+          seen = {p["name"] for p in packages} & wanted
+          bad = [
+              p["name"] + " is licensed " + str(p.get("license")) + ", not Apache-2.0 OR MIT"
+              for p in packages
+              if p["name"] in wanted and p.get("license") != "Apache-2.0 OR MIT"
+          ]
+          for missing in sorted(wanted - seen):
+              bad.append(missing + " is not in the workspace metadata, so its licence was never checked")
+          for b in bad:
+              print("::error::" + b)
+          sys.exit(1 if bad else 0)
+          ' "$RUNNER_TEMP/plugin-metadata.json"
           echo "Plugin ABI licence boundary intact."

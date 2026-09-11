@@ -374,9 +374,16 @@ impl VncSession {
         let Some(keysym) = rfb_keysym(scancode, keysym) else {
             // A dead key mid-composition, or a key RFB cannot name. Dropping it
             // is the documented outcome; the composed character arrives as its
-            // own event a keystroke later. The scancode is logged and the
-            // keysym never is — a keysym *is* the character typed.
-            tracing::debug!(scancode, "a key with no RFB keysym was dropped");
+            // own event a keystroke later.
+            //
+            // The scancode is **not** logged. It used to be, on the reasoning
+            // that a keysym is the character typed and a scancode is not — but
+            // a scancode names the physical key that was pressed, which is
+            // keystroke material in a log file either way. CLAUDE.md §0.2 makes
+            // no exception for one key at a time, and a user composing a
+            // passphrase with dead keys would leave a trail of them.
+            // The message names no field: see the test at the foot of this file.
+            tracing::debug!("a key RFB has no name for was dropped");
             return Ok(());
         };
         self.client
@@ -443,6 +450,23 @@ impl VncSession {
     }
 }
 
+/// Whether an operation puts bytes on the wire that change the far end.
+///
+/// The question a view-only session has to ask of everything it is handed, and
+/// it is asked of the *operation* rather than of the message, because the two
+/// arms that send nothing send nothing for reasons that could change.
+const fn reaches_the_remote(op: &ClipboardOp) -> bool {
+    match op {
+        // RFC 6143 §7.5.6 `ClientCutText`: it replaces the server's selection,
+        // which is a write to the remote machine by any reading.
+        ClipboardOp::Offer(_) => true,
+        // A request has no RFB encoding at all — the remote pushes its
+        // clipboard unasked — and clearing has none either. Neither produces a
+        // byte, so neither is a change a view-only session has to refuse.
+        ClipboardOp::Request { .. } | ClipboardOp::Clear => false,
+    }
+}
+
 #[async_trait]
 impl Session for VncSession {
     /// RFB has no client-initiated resize that this build can send.
@@ -489,6 +513,22 @@ impl Session for VncSession {
     }
 
     async fn clipboard(&mut self, op: ClipboardOp) -> Result<(), ProtocolError> {
+        // View only has to mean the session changes nothing at the far end, not
+        // merely that the keyboard is quiet. `ClientCutText` (RFC 6143 §7.5.6)
+        // *replaces* the server's selection, so a paste modifies the remote
+        // machine as surely as a keystroke does — and the flag used to gate
+        // `input` and nothing else, so a session someone opened read-only on
+        // purpose could still write to it.
+        //
+        // Refused rather than silently dropped, which is the opposite of what
+        // `input` does with a held key, and deliberately: a paste is one
+        // deliberate act, it happens at human speed so it cannot fill a log,
+        // and a caller told `Ok` would believe the text had crossed.
+        if self.view_only && reaches_the_remote(&op) {
+            return Err(unsupported(
+                "changing the remote clipboard of a view-only session",
+            ));
+        }
         if !self.clipboard.permits(&op) {
             return Err(unsupported("this clipboard operation"));
         }
@@ -722,6 +762,209 @@ async fn drive(session: &mut VncSession, ctx: &mut SessionContext) -> CloseReaso
 )]
 mod tests {
     use super::*;
+
+    use std::collections::BTreeMap;
+    use std::time::Duration;
+
+    use remoter_core::{
+        EffectiveConnection, GatewayChain, NodeId, ProtocolId, Provenance, ReconnectPolicy,
+        RecordingPolicy, Resolved,
+    };
+    use remoter_proto::{CredentialKind, CredentialProvider, KeyBorrow, event_channel};
+    use tokio_util::sync::CancellationToken;
+
+    use crate::protocol::VncProtocol;
+    use crate::testing::{RfbServer, Security, transport_pair};
+
+    /// No test may hang: a deadlock would otherwise be a CI job that never
+    /// finishes rather than a failure with a name.
+    const PATIENCE: Duration = Duration::from_secs(5);
+    /// How long a test waits to be sure nothing is coming.
+    const SILENCE: Duration = Duration::from_millis(250);
+
+    struct NoCredential;
+
+    impl CredentialProvider for NoCredential {
+        fn username(&self) -> Option<&str> {
+            None
+        }
+        fn kind(&self) -> CredentialKind {
+            CredentialKind::None
+        }
+        fn borrow_password(&self, _f: &mut dyn FnMut(&[u8])) -> bool {
+            false
+        }
+        fn borrow_private_key(&self, _f: &mut KeyBorrow<'_>) -> bool {
+            false
+        }
+    }
+
+    fn root<T>(value: T) -> Resolved<T> {
+        Resolved::new(value, Provenance::DefaultAtRoot)
+    }
+
+    /// A connection to loopback, so the clear-text warning is not raised and the
+    /// only bytes on the wire are the ones under test.
+    fn connection(settings: &[(&str, &str)]) -> EffectiveConnection {
+        EffectiveConnection {
+            node: NodeId::new(),
+            name: "desktop".to_owned(),
+            protocol: ProtocolId::new("vnc").unwrap(),
+            host: "127.0.0.1".to_owned(),
+            port: root(Some(5900)),
+            credential: root(None),
+            username: root(None),
+            credential_attached: false,
+            gateway: root(GatewayChain::direct()),
+            connect_timeout_ms: root(Some(5_000)),
+            keepalive_secs: root(None),
+            settings: settings
+                .iter()
+                .map(|(key, value)| ((*key).to_owned(), root((*value).to_owned())))
+                .collect::<BTreeMap<_, _>>(),
+            on_connect: root(Vec::new()),
+            on_disconnect: root(Vec::new()),
+            recording: root(RecordingPolicy::Never),
+            auto_reconnect: root(ReconnectPolicy::Never),
+            icon: root(None),
+            colour: root(None),
+        }
+    }
+
+    /// A connected session over an in-memory pipe, with the server end left for
+    /// the test to read. The receiver is returned because dropping it would
+    /// close the event stream under the session.
+    async fn connected(
+        settings: &[(&str, &str)],
+    ) -> (
+        VncSession,
+        RfbServer,
+        tokio::sync::mpsc::Receiver<SessionEvent>,
+    ) {
+        let (transport, server) = transport_pair(HostPort::new("127.0.0.1", 5900).unwrap());
+        let script = tokio::spawn(async move {
+            let mut server = server;
+            server
+                .handshake(Security::None)
+                .await
+                .expect("the scripted handshake must complete");
+            server
+                .initialise(64, 32)
+                .await
+                .expect("the scripted ServerInit must complete");
+            server
+        });
+
+        let (sink, events) = event_channel(256);
+        let protocol = VncProtocol::new().unwrap();
+        let session = tokio::time::timeout(
+            PATIENCE,
+            protocol.connect_session(
+                Box::new(transport),
+                &connection(settings),
+                &NoCredential,
+                sink,
+                CancellationToken::new(),
+            ),
+        )
+        .await
+        .expect("the handshake must not hang")
+        .expect("a server offering None authentication connects");
+
+        let server = script.await.expect("the server script must finish");
+        (session, server, events)
+    }
+
+    #[tokio::test]
+    async fn a_view_only_session_puts_no_clipboard_on_the_wire() {
+        // The defect: `view_only` gated `input` and nothing else, so
+        // `ClientCutText` (RFC 6143 §7.5.6) still reached the server — and that
+        // message *replaces* the remote selection. Someone who opened a session
+        // read-only, deliberately, was modifying the remote machine.
+        let (mut session, mut server, _events) = connected(&[("view_only", "true")]).await;
+
+        let outcome = session
+            .clipboard(ClipboardOp::Offer(ClipboardData::Text("paste".to_owned())))
+            .await;
+
+        // Nothing is written, so the read must time out rather than return.
+        let read = tokio::time::timeout(SILENCE, server.read_exact(1)).await;
+        assert!(
+            read.is_err(),
+            "not one byte may cross from a view-only session"
+        );
+        // And the caller is told, rather than being left believing the paste
+        // arrived at a machine it never reached.
+        assert!(
+            matches!(outcome, Err(ProtocolError::Unsupported { .. })),
+            "the refusal is reported, not swallowed"
+        );
+    }
+
+    #[tokio::test]
+    async fn an_ordinary_session_still_pastes_into_the_remote_clipboard() {
+        // The control for the test above: it proves the harness can see a
+        // `ClientCutText` when there is one, so the silence it asserts is the
+        // fix working rather than the test looking in the wrong place.
+        let (mut session, mut server, _events) = connected(&[("view_only", "false")]).await;
+
+        session
+            .clipboard(ClipboardOp::Offer(ClipboardData::Text("paste".to_owned())))
+            .await
+            .expect("an ordinary session pastes");
+
+        let header = tokio::time::timeout(PATIENCE, server.read_exact(8))
+            .await
+            .expect("the cut text must reach the wire")
+            .unwrap();
+        assert_eq!(header[0], 6, "ClientCutText is client message type 6");
+        assert_eq!(
+            u32::from_be_bytes([header[4], header[5], header[6], header[7]]),
+            5,
+            "five characters of Latin-1"
+        );
+    }
+
+    #[test]
+    fn a_request_and_a_clear_are_not_things_a_view_only_session_has_to_refuse() {
+        // Neither produces a byte: RFB has no clipboard request — the server
+        // pushes — and no way to withdraw an offer. Refusing them under
+        // `view_only` would report a failure for something that never happened.
+        assert!(reaches_the_remote(&ClipboardOp::Offer(
+            ClipboardData::Text(String::new())
+        )));
+        assert!(reaches_the_remote(&ClipboardOp::Offer(
+            ClipboardData::Files(Vec::new())
+        )));
+        assert!(!reaches_the_remote(&ClipboardOp::Request { files: false }));
+        assert!(!reaches_the_remote(&ClipboardOp::Clear));
+    }
+
+    #[test]
+    fn nothing_in_this_session_logs_what_the_user_typed() {
+        // The defect: a dropped key was logged with its scancode. A scancode
+        // names the physical key that was pressed — keystroke material in a log
+        // file — and CLAUDE.md §0.2 makes no exception for one key at a time.
+        //
+        // The needles are assembled at run time so that this test's own source
+        // is not what it finds, and only the code above the test module is
+        // scanned.
+        const SOURCE: &str = include_str!("session.rs");
+        let body = SOURCE
+            .split(concat!("#[cfg", "(test)]"))
+            .next()
+            .unwrap_or(SOURCE);
+        for (at, _) in body.match_indices(concat!("tracing", "::")) {
+            let rest = &body[at..];
+            let statement = &rest[..rest.find(';').unwrap_or(rest.len())];
+            for forbidden in ["scancode", "keysym", "keycode", "keystroke"] {
+                assert!(
+                    !statement.contains(forbidden),
+                    "a diagnostic in this file mentions `{forbidden}`: {statement}"
+                );
+            }
+        }
+    }
 
     #[test]
     fn the_catalogue_keys_are_stable_ascii_and_namespaced() {

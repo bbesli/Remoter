@@ -161,6 +161,11 @@ impl GateShared {
     /// rule while the server is still writing, and the next tick then sends a
     /// second request. Counting the message boundary is the fix, and the gate
     /// is the only place in this crate that can see one.
+    ///
+    /// The boundary is the last rectangle's last *byte*, not its header: a
+    /// header still has a payload behind it, and a count taken there runs one
+    /// payload ahead of the wire, which is what `opaque_run_finished` below
+    /// exists to prevent.
     #[must_use]
     pub fn updates_completed(&self) -> u64 {
         self.updates.load(Ordering::Relaxed)
@@ -254,6 +259,10 @@ struct ReadGate {
     /// `ServerInit`, revised by the DesktopSize pseudo-encoding (§7.8.2).
     surface: (u16, u16),
     rects_remaining: u16,
+    /// Whether the opaque run now in flight is the last rectangle's payload, so
+    /// that the `FramebufferUpdate` ends when the run does. See
+    /// [`ReadGate::opaque_run_finished`].
+    ends_update: bool,
     faulted: Option<GateFault>,
 }
 
@@ -333,6 +342,7 @@ impl GatedTransport {
                 attempted,
                 surface: (0, 0),
                 rects_remaining: 0,
+                ends_update: false,
                 faulted: None,
             },
         };
@@ -548,7 +558,21 @@ impl ReadGate {
         self.out.extend_from_slice(&self.scratch);
         self.opaque = payload;
         if self.rects_remaining == 0 {
-            self.finish_update(shared);
+            if self.opaque == 0 {
+                // Nothing follows the header — `LastRect`, `DesktopSize` — so
+                // the message really is over here.
+                self.finish_update(shared);
+            } else {
+                // It is not over yet. The last rectangle's *payload* still has
+                // to cross, and counting the update now would un-arm the
+                // session's "one outstanding request" rule one payload early —
+                // the same defect the counter was introduced to close, moved
+                // from the first rectangle to the last one's header. The count
+                // is what "the request was answered" is decided from, so it
+                // must not run ahead of the wire.
+                self.ends_update = true;
+                self.step = Step::MessageType;
+            }
         } else {
             self.step = Step::RectHeader;
         }
@@ -599,6 +623,18 @@ impl ReadGate {
     fn finish_update(&mut self, shared: &GateShared) {
         shared.updates.fetch_add(1, Ordering::Relaxed);
         self.step = Step::MessageType;
+    }
+
+    /// An opaque run has been handed over in full.
+    ///
+    /// If that run was the last rectangle's payload, *this* is where the
+    /// `FramebufferUpdate` (RFC 6143 §7.6.1) ends — the header that preceded it
+    /// was not the end of anything. Called from the read path, which is the only
+    /// place that knows when the last byte of a run has actually crossed.
+    fn opaque_run_finished(&mut self, shared: &GateShared) {
+        if std::mem::take(&mut self.ends_update) {
+            shared.updates.fetch_add(1, Ordering::Relaxed);
+        }
     }
 }
 
@@ -673,6 +709,9 @@ impl AsyncRead for GatedTransport {
                     ready!(Pin::new(&mut this.inner).poll_read(cx, buf))?;
                     let read = buf.filled().len() - before;
                     this.read.opaque -= u64::try_from(read).unwrap_or(0);
+                    if this.read.opaque == 0 {
+                        this.read.opaque_run_finished(&this.shared);
+                    }
                     return Poll::Ready(Ok(()));
                 }
                 // The run ends inside this buffer, so only its tail may be
@@ -692,6 +731,9 @@ impl AsyncRead for GatedTransport {
                 }
                 buf.put_slice(&this.read.tail[..read]);
                 this.read.opaque -= u64::try_from(read).unwrap_or(0);
+                if this.read.opaque == 0 {
+                    this.read.opaque_run_finished(&this.shared);
+                }
                 return Poll::Ready(Ok(()));
             }
 
@@ -1060,6 +1102,45 @@ mod tests {
             1,
             "two rectangles are one update, not two"
         );
+    }
+
+    #[tokio::test]
+    async fn an_update_is_not_counted_until_its_last_payload_has_crossed() {
+        // The defect: the counter advanced on the *last rectangle's header*,
+        // one payload before the `FramebufferUpdate` actually ended. The
+        // session decides "the request was answered" from this number
+        // (RFC 6143 §7.5.3), so an early count un-arms the one-outstanding-
+        // request rule while the server is still writing pixels — the same
+        // defect the counter exists to close, moved from the first rectangle to
+        // the last one's header.
+        let (mut gate, shared, mut server) = gated(RfbVersion::Rfb38, SecurityType::NONE);
+        ready(&mut gate, &mut server).await.unwrap();
+
+        let mut message = vec![0_u8, 0];
+        message.extend_from_slice(&1_u16.to_be_bytes());
+        message.extend_from_slice(&0_u16.to_be_bytes());
+        message.extend_from_slice(&0_u16.to_be_bytes());
+        message.extend_from_slice(&4_u16.to_be_bytes());
+        message.extend_from_slice(&4_u16.to_be_bytes());
+        message.extend_from_slice(&RfbEncoding::RAW.to_wire().to_be_bytes());
+        let pixels = [0x5a_u8; 4 * 4 * 4];
+
+        // The whole header, and half the pixels behind it.
+        server.write_all(&message).await.unwrap();
+        server.write_all(&pixels[..32]).await.unwrap();
+        let mut seen = vec![0_u8; 4 + 12 + 32];
+        gate.read_exact(&mut seen).await.unwrap();
+        assert_eq!(
+            shared.updates_completed(),
+            0,
+            "a rectangle header is not the end of the message it introduces"
+        );
+
+        // The rest of the pixels, and only now is the update answered.
+        server.write_all(&pixels[32..]).await.unwrap();
+        let mut rest = vec![0_u8; 32];
+        gate.read_exact(&mut rest).await.unwrap();
+        assert_eq!(shared.updates_completed(), 1);
     }
 
     #[tokio::test]

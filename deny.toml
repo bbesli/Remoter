@@ -149,8 +149,10 @@ wrappers = [
 [advisories]
 yanked = "deny"
 # Vulnerabilities stay at cargo-deny's default, which is "deny". Nothing below
-# relaxes that, and `ignore` stays empty: an advisory silenced here is an
-# advisory nobody reads again.
+# relaxes that, and every entry in `ignore` carries a `# REVIEW-BY:` line that
+# the "Advisory exceptions must expire" step in .github/workflows/ci.yml turns
+# into a build failure on the stated date. An advisory silenced here is an
+# advisory nobody reads again, unless something makes them read it.
 #
 # "workspace" narrows *unmaintained* advisories to crates this workspace chose
 # itself. The five that fire today — proc-macro-error and four `unic-*` crates —
@@ -160,7 +162,89 @@ yanked = "deny"
 # a check people learn to skip. An unmaintained crate we add on purpose still
 # fails, which is the case where the warning is actionable.
 unmaintained = "workspace"
-ignore = []
+
+# Three of the four vulnerabilities that were open here were fixed by taking a
+# newer dependency, not by an entry in this list:
+#
+#   RUSTSEC-2026-0194, RUSTSEC-2026-0195  quick-xml 0.38.4 -> 0.41
+#       Quadratic duplicate-attribute scanning and unbounded
+#       namespace-declaration allocation, both denial of service on hostile
+#       input. `remoter-import` is the crate that parses files handed over by
+#       someone else, so this was the worst place in the graph to carry a
+#       parser advisory. Requirement raised in the root Cargo.toml, which also
+#       took a one-line change in `remoter-import/src/xml.rs`: 0.41 deprecates
+#       `decode_and_unescape_value`, and `-D warnings` makes a deprecation a
+#       build failure. The replacement is the same call with the XML version
+#       spelled out.
+#   RUSTSEC-2026-0194, RUSTSEC-2026-0195  plist 1.8.0 -> 1.10.1
+#       The same two advisories again, on the *second* quick-xml in the graph:
+#       `plist`, under tauri, carried its own 0.38.4. Raising the workspace
+#       requirement does nothing for a version a dependency picks for itself;
+#       the crate that holds it has to move.
+#   RUSTSEC-2026-0009                     time 0.3.45 -> 0.3.55
+#       Stack exhaustion parsing RFC 2822 dates, reached through tauri.
+#
+# The last two are held in Cargo.lock rather than derivable from the manifests:
+# both plist 1.10 and time 0.3.55 declare `rust-version = "1.88.0"`, the v3
+# resolver is MSRV-aware, and this workspace still understates its floor as
+# 1.85 — so it had been vetoing those releases in silence. They were resolved
+# under a corrected floor and left in the lock; the note on `rust-version` in
+# the root Cargo.toml says why the floor itself is a separate change, CI passes
+# `--locked` so it tests that lock, and this check is the backstop if a
+# regenerated lock ever walks them back.
+#
+# What is left is one advisory with no fixed release in existence.
+#
+# REVIEW-BY: 2026-12-11  RUSTSEC-2023-0071
+ignore = [
+    # RUSTSEC-2023-0071, the "Marvin Attack": the `rsa` crate's private-key
+    # operation is not constant time, so timing observed over the network can
+    # leak the private key. It reaches this workspace as
+    # `rsa 0.10.0-rc.18` under `russh 0.63.1` and under `ssh-key 0.7.0-rc.11`.
+    #
+    # WHY IT IS NOT UPGRADED. There is nothing to upgrade to. The advisory
+    # records "No safe upgrade is available!" — no released `rsa` version is
+    # patched, the constant-time rewrite is still open upstream
+    # (RustCrypto/RSA#626). The version is not ours to pick either: russh's
+    # manifest says `rsa = "=0.10.0-rc.18"`, an exact pin, so no bump inside
+    # russh 0.63 moves it, and russh is a pinned major choice (CLAUDE.md §8).
+    #
+    # WHAT THE EXPOSURE IS FOR THIS APPLICATION. Remoter is an SSH client, and
+    # the reachable private-key path is narrower than the advisory's worst
+    # case:
+    #
+    #   * No RSA decryption happens anywhere. The Marvin attack's oracle is a
+    #     chosen-ciphertext decryption oracle; SSH-2 performs no RSA
+    #     decryption, and the key exchange list in
+    #     `crates/remoter-proto-ssh/src/algorithms.rs` is ML-KEM/X25519, plain
+    #     X25519 and finite-field DH — no RSA kex at any feature setting.
+    #     `ssh-key`'s RSA keypair constructs only a `pkcs1v15::SigningKey`.
+    #   * Host key verification is a public-key operation. No secret exponent
+    #     is involved, so the side channel does not exist on that path.
+    #   * What remains is signing the publickey authentication request with the
+    #     user's own RSA key (rsa-sha2-256/512, RFC 8332). A hostile server —
+    #     which `docs/security/threat-model.md` assumes — can influence the
+    #     signed session identifier and time the reply. That is a genuine
+    #     oracle, but a slow one: one signature per connection, each preceded
+    #     by a TCP connect and a full key exchange, against an attack that
+    #     needs a very large number of high-precision samples on one key.
+    #     Users with Ed25519 or ECDSA keys never touch this code at all.
+    #
+    # WHETHER IT CAN BE WORKED AROUND. Yes, at a cost we are not paying today:
+    # `russh`'s `rsa` feature is optional, and dropping it from
+    # `crates/remoter-proto-ssh/Cargo.toml` removes the crate from the graph
+    # outright. It also removes RSA public-key authentication, RSA host keys
+    # and PKCS#1/PKCS#8 RSA key import — all supported deliberately
+    # (`algorithms.rs`, `keyfmt.rs`), and all still common on real servers. An
+    # SSH client that cannot use an RSA key is not one people can use, so the
+    # trade is only worth making if the exposure grows or the fix never lands.
+    #
+    # ON REVIEW: check whether `rsa` has shipped the constant-time
+    # implementation and whether russh has taken it. If it has, delete this
+    # entry — do not extend the date without re-reading the two paragraphs
+    # above.
+    { id = "RUSTSEC-2023-0071", reason = "no patched `rsa` release exists; pinned exactly by russh 0.63. Reachable only when signing with a user's own RSA key — no RSA decryption and no RSA kex in this client. Removing russh's optional `rsa` feature is the workaround, at the cost of all RSA key support. Reviewed by 2026-12-11." },
+]
 
 [sources]
 unknown-registry = "deny"

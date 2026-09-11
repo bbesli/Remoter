@@ -19,6 +19,11 @@ remoter-core.workspace = true
 remoter-vault.workspace = true
 remoter-proto.workspace = true
 remoter-proto-ssh.workspace = true
+# The framebuffer adapters. `session_open` names every protocol it can open, so
+# it has to be able to name these two; without them here the gate could only
+# refuse them.
+remoter-proto-rdp.workspace = true
+remoter-proto-vnc.workspace = true
 remoter-import.workspace = true
 
 serde.workspace = true

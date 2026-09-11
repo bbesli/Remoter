@@ -17,6 +17,31 @@ members = [
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
+# THIS NUMBER IS WRONG AND IS KNOWINGLY LEFT WRONG FOR ONE MORE CHANGE.
+#
+# Nothing here has built on 1.85 since the RDP adapter landed: `ironrdp` 0.17
+# and every `ironrdp-*` crate under it declare `rust-version = "1.89"`, and
+# `keyring` 4.2 declares 1.88. `docs/development/verified-apis.md` already
+# recorded the gap and called the bump the honest fix.
+#
+# It is not only cosmetic, either. Resolver v3 is MSRV-aware: it refuses any
+# dependency version declaring a `rust-version` above this one, and *says
+# nothing* while doing it — `cargo update -p time` answered "Locking 0
+# packages" rather than naming a constraint. That is how `time` sat at the
+# vulnerable 0.3.45 (RUSTSEC-2026-0009) with 0.3.55 published: the fix declares
+# 1.88, so this line vetoed it. `time` is now at 0.3.55 in Cargo.lock, put
+# there under a corrected floor and left there — the lock is authoritative for
+# a build, and `cargo deny check advisories` in CI fails the moment a
+# regenerated lock walks it back.
+#
+# The bump was made, measured and reverted rather than shipped blind. Correcting
+# it to 1.89 un-gates clippy's MSRV-conditional lints, and they are not
+# theoretical: 10 `collapsible_if` (let chains, stable in 1.88) in
+# remoter-core, 2 `manual_is_multiple_of` in remoter-import, and 8
+# `chunks_exact`/`useless_vec` in remoter-proto-rdp and remoter-proto-vnc. With
+# `-D warnings` that is a red workspace in four crates, two of them under
+# active edit elsewhere. The bump belongs in its own change, with those fixes,
+# not smuggled in behind an advisory.
 rust-version = "1.85"
 authors = ["The Remoter contributors"]
 repository = "https://github.com/bbesli/Remoter"
@@ -53,7 +78,19 @@ serde_json = "1"
 ciborium = "0.2"
 uuid = { version = "1.26", features = ["v7", "serde"] }
 data-encoding = "2.11"
-quick-xml = "0.38"
+# 0.41 is the fix for RUSTSEC-2026-0194 (quadratic duplicate-attribute scan)
+# and RUSTSEC-2026-0195 (unbounded namespace-declaration allocation in
+# `NsReader`). Both are denial of service on hostile input, and `remoter-import`
+# parses exactly that — a confCons.xml handed over by someone else. Do not drop
+# below 0.41.
+#
+# 0.41 and not 0.42: 0.42 replaces the byte-slice comparisons this crate's
+# reader is written against with a `ByteStr` type, which is a rewrite of
+# `remoter-import/src/xml.rs`, not a version bump. `plist` (under tauri) pulls
+# 0.42 in on its own, so the graph carries two quick-xml copies until that
+# rewrite happens; `multiple-versions = "warn"` in deny.toml is what allows it.
+# Both copies are past the advisory, which is the property that mattered.
+quick-xml = "0.41"
 aes = "0.9"
 cbc = "0.2"
 pbkdf2 = "0.13"

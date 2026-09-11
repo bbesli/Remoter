@@ -198,7 +198,7 @@ async fn establish(
         events,
         remoter_proto::SessionId::from_raw(1),
         target.clone(),
-    );
+    )?;
     Ok((session, target))
 }
 

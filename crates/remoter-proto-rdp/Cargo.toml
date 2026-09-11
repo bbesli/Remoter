@@ -120,7 +120,11 @@ tracing.workspace = true
 zeroize.workspace = true
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["full"] }
+# `test-util` is what `#[tokio::test(start_paused = true)]` needs. One test
+# asserts how long a closing tab waits for a deactivation-reactivation
+# sequence; measured against a paused clock it is instant and deterministic,
+# and against a real one it would either take seconds or assert nothing.
+tokio = { workspace = true, features = ["full", "test-util"] }
 parking_lot.workspace = true
 
 [lints]

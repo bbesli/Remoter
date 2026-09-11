@@ -40,6 +40,16 @@
 //! what makes "the same trust model" a fact about the code and not a claim in a
 //! comment.
 //!
+//! They are also deliberately different *failures*. Every exit from the changed
+//! path is [`ProtocolError::HostKeyChanged`], never
+//! [`ProtocolError::CertificateUntrusted`] with
+//! [`CertificateProblem::Changed`]: the latter's first next action is
+//! [`NextAction::PinCertificate`](remoter_proto::NextAction::PinCertificate),
+//! which offers "trust it" as the remedy for a possible interception — and a
+//! pin recorded from that button would be the attacker's certificate, stored
+//! under the real host's name. The same correction is written out at length in
+//! `crate::credssp`.
+//!
 //! # Trust is per host, not per key algorithm
 //!
 //! The trust store is keyed on (host, algorithm), and this module always passes
@@ -339,10 +349,13 @@ impl CertificateChecker {
     /// # Errors
     ///
     /// [`ProtocolError::CertificateUntrusted`] when the user declines a first
-    /// use or when a pinned certificate was replaced and the replacement was
-    /// not confirmed; [`ProtocolError::ConfirmationMismatch`] when the typed
-    /// confirmation did not match; [`ProtocolError::TrustStore`] if the
-    /// decision could not be recorded.
+    /// use, or when a first use cannot be put to anyone;
+    /// [`ProtocolError::HostKeyChanged`] when a pinned certificate was
+    /// replaced and the replacement was not confirmed — including when there
+    /// is nobody to ask, which is the scripted-connect case;
+    /// [`ProtocolError::ConfirmationMismatch`] when the typed confirmation did
+    /// not match; [`ProtocolError::TrustStore`] if the decision could not be
+    /// recorded.
     pub async fn check(&self, offered: &OfferedCertificate) -> Result<(), ProtocolError> {
         // The trust store is asked FIRST, and `offered.anchored` is not
         // consulted until the answer is "nothing is stored for this host".
@@ -401,10 +414,27 @@ impl CertificateChecker {
                 // as evidence is the short circuit this arm is now reachable
                 // past.
                 let Some(prompts) = self.prompts.as_deref() else {
-                    return Err(certificate_untrusted(
-                        &self.host,
-                        CertificateProblem::Changed,
-                    ));
+                    // `changed.into_error()`, never `certificate_untrusted`
+                    // with `CertificateProblem::Changed`. The two render the
+                    // same sentence and offer opposite remedies:
+                    // `CertificateUntrusted`'s first next action is
+                    // `NextAction::PinCertificate`, so a *replaced* pin — the
+                    // one shape in this module that is a possible active
+                    // interception — put "trust it" at the top of the failure
+                    // card, one click from recording the attacker's
+                    // certificate under the real host's name
+                    // (`docs/security/threat-model.md`, T3).
+                    // `ProtocolError::HostKeyChanged` is the taxonomy's
+                    // man-in-the-middle failure: it names both fingerprints,
+                    // it is an identity failure so auto-reconnect will not
+                    // retry it, and its next actions are
+                    // `VerifyFingerprintOutOfBand` and `ContactAdministrator`
+                    // — no button that trusts anything. It is also what every
+                    // other exit from this arm already returns, what
+                    // `crate::credssp`'s `peer_impersonated` was corrected to,
+                    // and what `remoter-proto-ssh`'s host key path does for a
+                    // session that cannot ask.
+                    return Err(changed.into_error());
                 };
                 // A changed certificate is a possible man-in-the-middle, so
                 // the answer must be copied off the screen rather than be a
@@ -801,19 +831,83 @@ mod tests {
             .check(&offered(b"a certificate from a public authority", true))
             .await;
         assert!(
-            matches!(
-                outcome,
-                Err(ProtocolError::CertificateUntrusted {
-                    reason: CertificateProblem::Changed,
-                    ..
-                })
-            ),
+            matches!(outcome, Err(ProtocolError::HostKeyChanged { .. })),
             "{outcome:?}"
         );
         assert_eq!(
             trust.lookup(&host(), CERTIFICATE_ALGORITHM).unwrap().blob,
             b"the certificate from last week"
         );
+    }
+
+    /// The remedy, not merely the wording.
+    ///
+    /// A replaced pin used to be reported as `CertificateUntrusted` with
+    /// `CertificateProblem::Changed`, whose first next action is
+    /// `PinCertificate` — so the button offered for a possible interception
+    /// was "trust it", and pressing it would have recorded the attacker's
+    /// certificate under the real host's name. This asserts the failure card's
+    /// *actions*, which is the thing the user presses.
+    #[tokio::test]
+    async fn a_replaced_pin_never_offers_the_pin_button() {
+        let trust = Arc::new(Memory::default());
+        trust
+            .remember(
+                &host(),
+                &pinned(b"the certificate from last week".to_vec(), 0),
+            )
+            .unwrap();
+
+        // Both ways out of the changed path without a confirmed replacement:
+        // nobody to ask, and a dialog that was dismissed.
+        let (events, _rx) = event_channel(16);
+        let unattended = CertificateChecker::new(
+            host(),
+            Arc::clone(&trust) as Arc<dyn TrustStore>,
+            events,
+            None,
+        )
+        .check(&offered(b"a different certificate entirely", false))
+        .await
+        .expect_err("a replaced pin is never accepted in silence");
+
+        let (sender, prompts) = PromptChannel::new();
+        let (events, rx) = event_channel(16);
+        let checker = CertificateChecker::new(
+            host(),
+            Arc::clone(&trust) as Arc<dyn TrustStore>,
+            events,
+            Some(prompts),
+        );
+        let (dismissed, _) = with_answer(
+            checker,
+            sender,
+            rx,
+            offered(b"a different certificate entirely", false),
+            |_| None,
+        )
+        .await;
+        let dismissed = dismissed.expect_err("a dismissed dialog leaves the pin alone");
+
+        for error in [&unattended, &dismissed] {
+            assert!(
+                matches!(error, ProtocolError::HostKeyChanged { .. }),
+                "{error:?}"
+            );
+            let actions = error.next_actions();
+            assert!(
+                !actions.contains(&remoter_proto::NextAction::PinCertificate),
+                "a possible interception offered the pin button: {actions:?}"
+            );
+            assert_eq!(
+                actions.first(),
+                Some(&remoter_proto::NextAction::VerifyFingerprintOutOfBand),
+                "the first remedy must be to verify out of band"
+            );
+            // Auto-reconnect must not paper over it either.
+            assert!(!error.is_retryable());
+            assert!(error.involves_identity_failure());
+        }
     }
 
     #[tokio::test]

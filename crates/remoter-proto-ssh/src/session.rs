@@ -76,15 +76,31 @@ impl Default for TerminalSettings {
 }
 
 /// What this adapter can do. The interface reads it rather than hardcoding.
+///
+/// # `clipboard` is `None`, and that is a correction
+///
+/// It used to be `Text`, on the reasoning that a terminal's clipboard is text
+/// by definition. What that missed is the *direction*: `clipboard_plan` below
+/// refuses [`ClipboardOp::Request`] — "what does the remote have selected?" —
+/// because SSH has no clipboard protocol at all. RFC 4254 defines no channel
+/// request for one, and what the far end "has selected" is a property of the
+/// terminal emulator on *this* side of the connection.
+///
+/// So the capability promised the interface a control the session then refused,
+/// and the interface drew it: a clipboard button that fails in the user's hand.
+/// [`ClipboardSupport`] has three values — `None`, `Text`, `TextAndFiles` — and
+/// no way to say "one direction only", so of the two available answers `None`
+/// is the true one. Pasting *into* the session still works for a caller that
+/// sends [`ClipboardOp::Offer`]; what is withdrawn is the claim that the
+/// interface may also read back. This is the same correction the VNC adapter
+/// took for the same reason; the test at the foot of this file is what stops
+/// the promise and the behaviour drifting apart again.
 #[must_use]
 pub fn capabilities() -> Capabilities {
     Capabilities {
         kind: SessionKind::Terminal,
         resizable: true,
-        // Text only: a terminal's clipboard is text by definition, and
-        // `docs/security/transport-security.md` keeps file clipboard off
-        // everywhere.
-        clipboard: ClipboardSupport::Text,
+        clipboard: ClipboardSupport::None,
         // Through SFTP on the same connection; see `crate::sftp`.
         file_transfer: true,
         audio: false,
@@ -289,6 +305,46 @@ impl SshSession {
     }
 }
 
+/// What [`SshSession::clipboard`] will do with an operation.
+///
+/// Split out of the method so that the decision can be checked against
+/// [`capabilities`] without a channel, a server or a socket. A capability is a
+/// promise, and the only way to stop a promise drifting from the behaviour that
+/// keeps it is to put both within reach of one test.
+///
+/// There is deliberately no `Debug`: the `Paste` variant holds clipboard text,
+/// which is a password often enough that CLAUDE.md §0.2 applies to it.
+enum ClipboardPlan {
+    /// Write these bytes to the channel.
+    Paste(bytes::Bytes),
+    /// Nothing to send, and nothing to report.
+    Nothing,
+    /// Refused, naming the operation for the taxonomy.
+    Refuse(&'static str),
+}
+
+/// Decides what one clipboard operation means to a terminal.
+fn clipboard_plan(op: ClipboardOp) -> ClipboardPlan {
+    match op {
+        // Pasting into a terminal *is* writing bytes to it. Bracketed paste, if
+        // the remote asked for it, is the emulator's business: it is the thing
+        // that knows whether the application enabled it.
+        ClipboardOp::Offer(ClipboardData::Text(text)) => {
+            ClipboardPlan::Paste(bytes::Bytes::from(text.into_bytes()))
+        }
+        ClipboardOp::Offer(ClipboardData::Files(_)) => {
+            ClipboardPlan::Refuse("offering files to a terminal")
+        }
+        // There is no channel for this: SSH has no clipboard protocol, and what
+        // the remote "has selected" is a property of the emulator on this side
+        // of the connection. `capabilities` reports `ClipboardSupport::None`
+        // **because** of this line.
+        ClipboardOp::Request { .. } => ClipboardPlan::Refuse("reading the remote clipboard"),
+        // Nothing crosses the wire, so there is nothing to fail at.
+        ClipboardOp::Clear => ClipboardPlan::Nothing,
+    }
+}
+
 /// Sends the configured environment. Refusals are expected and ignored.
 ///
 /// RFC 4254 §6.4 lets a server accept or refuse each variable, and OpenSSH
@@ -340,23 +396,14 @@ impl Session for SshSession {
         if !self.clipboard.permits(&op) {
             return Err(unsupported("this clipboard operation"));
         }
-        match op {
-            // Pasting into a terminal *is* writing bytes to it. Bracketed
-            // paste, if the remote asked for it, is the emulator's business:
-            // it is the thing that knows whether the application enabled it.
-            ClipboardOp::Offer(ClipboardData::Text(text)) => self
+        match clipboard_plan(op) {
+            ClipboardPlan::Paste(bytes) => self
                 .write
-                .data_bytes(bytes::Bytes::from(text.into_bytes()))
+                .data_bytes(bytes)
                 .await
                 .map_err(|error| map_russh(&error, "paste into the session")),
-            ClipboardOp::Offer(ClipboardData::Files(_)) => {
-                Err(unsupported("offering files to a terminal"))
-            }
-            // There is no channel for this: SSH has no clipboard protocol, and
-            // what the remote "has selected" is a property of the emulator on
-            // this side of the connection.
-            ClipboardOp::Request { .. } => Err(unsupported("reading the remote clipboard")),
-            ClipboardOp::Clear => Ok(()),
+            ClipboardPlan::Nothing => Ok(()),
+            ClipboardPlan::Refuse(operation) => Err(unsupported(operation)),
         }
     }
 
@@ -519,17 +566,87 @@ mod tests {
 
     #[test]
     fn the_capabilities_match_the_protocol_matrix() {
-        // `docs/features/protocols.md`: a terminal that resizes, text
-        // clipboard, file transfer through SFTP, recordable as asciicast.
+        // `docs/features/protocols.md`: a terminal that resizes, file transfer
+        // through SFTP, recordable as asciicast. The clipboard entry is
+        // `None` — see `capabilities` and the test below.
         let capabilities = capabilities();
         assert_eq!(capabilities.kind, SessionKind::Terminal);
         assert!(capabilities.resizable);
-        assert_eq!(capabilities.clipboard, ClipboardSupport::Text);
+        assert_eq!(capabilities.clipboard, ClipboardSupport::None);
         assert!(capabilities.file_transfer);
         assert!(capabilities.recordable);
         assert!(!capabilities.audio);
         assert!(!capabilities.printing);
         assert!(!capabilities.multi_monitor);
+    }
+
+    #[test]
+    fn the_clipboard_capability_promises_only_what_the_session_honours() {
+        // The defect this pins, which stood in the adapter users open every
+        // day: `capabilities()` said `ClipboardSupport::Text` while the
+        // session answered `ClipboardOp::Request` with `Unsupported`. The
+        // interface reads the capability to decide which controls to draw, so
+        // the promise put a button on screen that could only fail.
+        //
+        // Written as the implication rather than as two constants, because two
+        // constants are what drifted.
+        let reads_the_remote_clipboard = !matches!(
+            clipboard_plan(ClipboardOp::Request { files: false }),
+            ClipboardPlan::Refuse(_)
+        );
+        let promises_to_read = matches!(
+            capabilities().clipboard,
+            ClipboardSupport::Text | ClipboardSupport::TextAndFiles
+        );
+        assert_eq!(
+            promises_to_read, reads_the_remote_clipboard,
+            "a capability that claims a clipboard the session refuses is a control that fails in the user's hand"
+        );
+
+        // And the direction that does work still does: pasting into a terminal
+        // is writing bytes to it, which is why the capability being `None` is
+        // a narrowing of the promise rather than a loss of function.
+        assert!(matches!(
+            clipboard_plan(ClipboardOp::Offer(ClipboardData::Text("ok".to_owned()))),
+            ClipboardPlan::Paste(_)
+        ));
+        assert!(matches!(
+            clipboard_plan(ClipboardOp::Offer(ClipboardData::Files(vec![
+                "/etc/passwd".to_owned()
+            ]))),
+            ClipboardPlan::Refuse(_)
+        ));
+        assert!(matches!(
+            clipboard_plan(ClipboardOp::Clear),
+            ClipboardPlan::Nothing
+        ));
+    }
+
+    #[test]
+    fn nothing_in_this_session_logs_what_the_user_typed() {
+        // CLAUDE.md §0.2, applied to input: a log line naming a key is
+        // keystroke material at rest, and there is no exception for one key at
+        // a time. A terminal's input is an opaque byte stream, so the rule here
+        // is that no diagnostic in this file may carry any of it.
+        //
+        // The needles are assembled at run time so that this test's own source
+        // is not what it finds, and only the code above the test module is
+        // scanned.
+        const SOURCE: &str = include_str!("session.rs");
+        let body = SOURCE
+            .split(concat!("#[cfg", "(test)]"))
+            .next()
+            .unwrap_or(SOURCE);
+        for (at, _) in body.match_indices(concat!("tracing", "::")) {
+            let rest = &body[at..];
+            let statement = &rest[..rest.find(';').unwrap_or(rest.len())];
+            for forbidden in ["scancode", "keysym", "keycode", "keystroke"] {
+                assert!(
+                    !statement.contains(forbidden),
+                    "a diagnostic in this file mentions `{forbidden}`: {statement}"
+                );
+            }
+        }
     }
 
     #[test]

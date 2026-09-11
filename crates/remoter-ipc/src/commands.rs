@@ -35,9 +35,10 @@ use zeroize::Zeroizing;
 
 use crate::dto::{
     AppSettingsDto, BackupDto, CreateNodeDto, CreateVaultRequestDto, CreateVaultResultDto,
-    CredentialInputDto, EffectiveConnectionDto, NodeDto, PasswordStrengthDto, PrivateKeyInfoDto,
-    RecentVaultDto, ResolvedFieldDto, SearchHitDto, ShortcutDto, SlotDto, UnlockRequestDto,
-    UpdateCheckDto, UpdateNodeDto, UpdateReleaseDto, VaultProbeDto, VaultStateDto,
+    CredentialInputDto, EffectiveConnectionDto, KdfParamsDto, NodeDto, PasswordStrengthDto,
+    PrivateKeyInfoDto, RecentVaultDto, ResolvedFieldDto, SearchHitDto, ShortcutDto, SlotDto,
+    UnlockRequestDto, UpdateCheckDto, UpdateNodeDto, UpdateReleaseDto, VaultProbeDto,
+    VaultStateDto,
 };
 use crate::error::IpcError;
 use crate::recents::{Recents, sync_provider, sync_warning};
@@ -239,7 +240,7 @@ pub(crate) fn vault_create_impl(
 
     let confirm_group_index =
         usize::try_from(uniform_below(u32::try_from(groups.len()).unwrap_or(1))?).unwrap_or(0);
-    let kdf_summary = kdf_summary(&vault.info());
+    let kdf = kdf_params(&vault.info());
     let slots = slot_kinds(&vault);
 
     let mut guard = state.lock();
@@ -250,7 +251,7 @@ pub(crate) fn vault_create_impl(
         path: path.display().to_string(),
         recovery_key_groups: groups.to_vec(),
         confirm_group_index,
-        kdf_summary,
+        kdf,
     })
 }
 
@@ -1414,12 +1415,14 @@ fn slot_kinds(vault: &Vault) -> Vec<String> {
         .collect()
 }
 
-/// The Argon2id summary of the password slot, for the creation summary screen.
-fn kdf_summary(info: &VaultInfo) -> String {
+/// What the password slot cost to derive, for the creation summary screen.
+///
+/// Numbers, not a sentence: the screen that shows this is translated and the
+/// core is not. See [`KdfParamsDto`].
+fn kdf_params(info: &VaultInfo) -> Option<KdfParamsDto> {
     info.slots
         .iter()
-        .find_map(|slot| slot.kdf_params.map(remoter_vault::KdfParams::summary))
-        .unwrap_or_else(|| String::from("Argon2id"))
+        .find_map(|slot| slot.kdf_params.map(KdfParamsDto::from))
 }
 
 fn probe_dto(path: &Path, info: VaultInfo, remembered_keyfile: Option<String>) -> VaultProbeDto {
@@ -1467,7 +1470,7 @@ pub(crate) fn slot_dto(slot: &SlotInfo) -> SlotDto {
         created_at: slot.created_at,
         last_used: slot.last_used,
         requires_keyfile: slot.requires_keyfile,
-        kdf_summary: slot.kdf_summary(),
+        kdf: slot.kdf_params.map(KdfParamsDto::from),
     }
 }
 
@@ -3830,6 +3833,12 @@ const WORDS: &[&str] = &[
 ];
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test code"
+)]
 mod tests {
     use super::*;
 
@@ -3952,7 +3961,14 @@ mod tests {
         let Ok(created) = created else { return };
         assert_eq!(created.recovery_key_groups.len(), 14);
         assert!(created.confirm_group_index < created.recovery_key_groups.len());
-        assert!(created.kdf_summary.contains("Argon2id"));
+        // The cost crosses as numbers; nothing about it is a sentence.
+        let kdf = created
+            .kdf
+            .as_ref()
+            .expect("a new vault has a password slot, so it has KDF parameters");
+        assert_eq!(kdf.algorithm, "Argon2id");
+        assert!(kdf.memory_kib >= 256 * 1024);
+        assert!(kdf.passes >= 3 && kdf.lanes >= 4);
         assert!(vault_path.is_file());
 
         let state_dto = vault_state_impl(&state).ok();

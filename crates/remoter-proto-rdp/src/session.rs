@@ -34,9 +34,11 @@
 //! what [`crate::display::FrameEncoder`]'s coalescer does, and it is why the
 //! loop arms a timer only when something is pending.
 
+use core::time::Duration;
 use std::time::Instant;
 
 use async_trait::async_trait;
+use ironrdp::displaycontrol::client::DisplayControlClient;
 use ironrdp::graphics::image_processing::PixelFormat as IronPixelFormat;
 use ironrdp::pdu::Action;
 use ironrdp::pdu::mcs;
@@ -46,7 +48,9 @@ use ironrdp::session::{ActiveStage, ActiveStageBuilder, ActiveStageOutput};
 use remoter_proto::{
     Capabilities, ClipboardOp, ClipboardSupport, CloseReason, EventSink, FailureReport, HostPort,
     InputEvent, ProtocolError, SessionContext, SessionEvent, SessionId, SessionKind,
+    SessionWarning,
 };
+use tokio_util::sync::CancellationToken;
 
 use crate::connect::{Connected, ConnectionConfig, DesktopSize};
 use crate::display::FrameEncoder;
@@ -54,7 +58,72 @@ use crate::error::{map_io, unsupported, violation};
 use crate::framed::{Framed, rdp_pdu_length};
 use crate::input::InputEncoder;
 
-/// What an RDP session can do.
+/// The largest desktop this build will allocate a framebuffer for.
+///
+/// **The size is the server's choice, not the client's.** MS-RDPBCGR
+/// §2.2.7.1.1's Bitmap capability set inside the Demand Active PDU carries the
+/// width and height the *server* settled on, and
+/// [`crate::connect::capabilities_exchange`] reads them straight off the wire;
+/// the requested size in the Client Core Data is only a suggestion. A hostile
+/// or compromised host (`docs/security/threat-model.md`) therefore picks the
+/// number that [`DecodedImage::new`] turns into `vec![0; width * height * 4]`,
+/// and both fields are `u16`: unbounded, that is a 17 GiB allocation.
+///
+/// An allocation failure **aborts**. It does not unwind, so ADR-0011's "a panic
+/// is one failed tab" does not contain it — the process goes, taking every
+/// other session and the unlocked vault with it. This is the same class the VNC
+/// adapter's gate was built to close (`remoter-proto-vnc/src/gate.rs`,
+/// ADR-0013), and the bound is set the same way: at the largest desktop that is
+/// *legitimate*, so that refusing anything above it refuses nothing real.
+///
+/// For RDP that number is fixed by the protocol rather than chosen. MS-RDPEDISP
+/// §2.2.2.2.1 caps a monitor the client may **ask** for at 8192x8192, and
+/// `crate::protocol`'s settings schema enforces exactly that on the width and
+/// height a user can type — so a user may configure 8192x8192 and a conforming
+/// server may grant it, and a tighter bound here would refuse a desktop this
+/// build itself requested. 8192x8192 is 256 MiB of framebuffer — a great deal,
+/// and one sixty-fourth of the 17 GiB `u16::MAX` squared asks for.
+pub const MAX_DESKTOP_PIXELS: u64 = 8192 * 8192;
+
+/// How long the deactivation-reactivation sequence gets.
+///
+/// [`crate::connect::DEFAULT_TIMEOUT`] — thirty seconds — is the budget for the
+/// *connection* sequence: a TLS handshake, CredSSP, licensing and the first
+/// capability exchange, over a link that has not yet proved it works. A
+/// reactivation is none of that. It is one Demand Active and one finalisation
+/// exchange on a connection that is already up and already authenticated.
+///
+/// It also sets a second, less obvious number. [`RdpSession::reactivate`] is
+/// the only thing [`run_rdp_session`] awaits that is not bounded by a single
+/// PDU, so this is the longest a *closing tab* can wait before its socket is
+/// released. Half a minute of that reads as a hang and is what a user reports
+/// as one; five seconds is several times longer than any server takes to answer
+/// with a PDU it has already decided to send.
+pub const REACTIVATION_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// The catalogue key surfaced when the server will not resize its desktop.
+pub const WARNING_RESIZE_UNAVAILABLE: &str = "rdp.display_control_unavailable";
+
+/// Refuses a desktop size this build will not allocate a framebuffer for.
+///
+/// Called on every path that sizes one from a server-chosen number: the first
+/// attach, and every reactivation. Failing here is one failed tab with a
+/// diagnostic; not failing here is an abort. See [`MAX_DESKTOP_PIXELS`].
+fn check_desktop(desktop: DesktopSize) -> Result<(), ProtocolError> {
+    if desktop.width == 0 || desktop.height == 0 {
+        return Err(violation(
+            "the server declared a desktop with no pixels in it",
+        ));
+    }
+    if u64::from(desktop.width) * u64::from(desktop.height) > MAX_DESKTOP_PIXELS {
+        return Err(violation(
+            "the server declared a desktop larger than this build will accept",
+        ));
+    }
+    Ok(())
+}
+
+/// What an RDP session can do, as the adapter offers it.
 ///
 /// The interface reads this rather than hardcoding "RDP has a clipboard
 /// button". Four of these are claims the implementation has not earned, and
@@ -71,12 +140,34 @@ use crate::input::InputEncoder;
 /// - `multi_monitor` needs a per-monitor framebuffer stream, which
 ///   `docs/architecture/rendering.md` defers until the presenter is chosen at
 ///   the end of v0.2 (ADR-0010).
+///
+/// # `resizable` here is an offer, not a fact
+///
+/// `remoter_proto::Protocol::capabilities` is asked before any connection
+/// exists, so this function cannot know whether *this* server will resize:
+/// resizing needs the Display Control channel (MS-RDPEDISP), which is a dynamic
+/// virtual channel the **server** opens, and an older Windows host or an `xrdp`
+/// never opens it. `true` is the right answer to "can this adapter resize";
+/// it is not an answer to "can this session resize", and it used to be read as
+/// one — so the tab drew a resize control, the refusal came back as
+/// `ProtocolError::Unsupported`, and the read loop swallowed it into a debug
+/// log. The control did nothing and said nothing.
+///
+/// What the server actually granted is [`RdpSession::granted_capabilities`],
+/// which can only be asked once the channel has had its chance to arrive; and a
+/// refusal now reaches the user as [`WARNING_RESIZE_UNAVAILABLE`] rather than
+/// as a log line. What is still missing is the plumbing that would let
+/// `remoter-ipc` replace the tab's stored capabilities with the granted ones
+/// mid-session — the session contract has no event shaped like a capability
+/// revision, and adding one is a change in `remoter-proto`, not here.
 #[must_use]
 pub const fn capabilities() -> Capabilities {
     Capabilities {
         kind: SessionKind::Framebuffer,
         // MS-RDPEDISP: the client asks the server to change its desktop size
-        // mid-session. This is "smart resize" in `rendering.md`.
+        // mid-session. This is "smart resize" in `rendering.md`. See the
+        // section above for why this is the adapter's offer and not a promise
+        // about any particular server.
         resizable: true,
         clipboard: ClipboardSupport::None,
         file_transfer: false,
@@ -100,6 +191,15 @@ pub struct RdpSession {
     desktop: DesktopSize,
     io_channel_id: u16,
     user_channel_id: u16,
+    /// The tab's token, once [`run_rdp_session`] is driving. A session driven
+    /// by something else holds a token nobody cancels, which is the behaviour
+    /// it had before this field existed.
+    cancel: CancellationToken,
+    /// Whether [`WARNING_RESIZE_UNAVAILABLE`] has already been sent. A tab
+    /// being dragged produces a resize request per frame, and a warning per
+    /// frame is noise the user learns to ignore — which is the failure mode
+    /// the warning exists to avoid.
+    resize_refused: bool,
 }
 
 impl core::fmt::Debug for RdpSession {
@@ -118,13 +218,20 @@ impl RdpSession {
     /// The session id is what the presenter demultiplexes frames by
     /// (`remoter_proto::FrameMessage`'s header carries it), so it is supplied
     /// here rather than defaulted: two tabs sharing an id quietly become one.
-    #[must_use]
+    ///
+    /// # Errors
+    ///
+    /// [`ProtocolError::ProtocolViolation`] if the server settled on a desktop
+    /// outside [`MAX_DESKTOP_PIXELS`]. Fallible for exactly that reason: the
+    /// framebuffer below is sized from a number the server chose, and the only
+    /// way to refuse an impossible one without aborting the process is to
+    /// refuse it *before* the allocation.
     pub fn attach(
         connected: Connected,
         events: EventSink,
         session: SessionId,
         target: HostPort,
-    ) -> Self {
+    ) -> Result<Self, ProtocolError> {
         let Connected {
             stream,
             io_channel_id,
@@ -134,6 +241,12 @@ impl RdpSession {
             static_channels,
             desktop,
         } = connected;
+
+        // Before anything is sized from it. `DecodedImage::new` below is
+        // `vec![0; width * height * 4]`, and `announce`'s keyframe copies the
+        // same surface out again — two allocations from a pair of numbers that
+        // came off the wire.
+        check_desktop(desktop)?;
 
         let stage = ActiveStageBuilder {
             static_channels,
@@ -156,7 +269,7 @@ impl RdpSession {
         // then a padding byte that is not alpha. See `crate::display`.
         let image = DecodedImage::new(IronPixelFormat::BgrX32, desktop.width, desktop.height);
 
-        Self {
+        Ok(Self {
             stream,
             stage,
             image,
@@ -168,7 +281,51 @@ impl RdpSession {
             desktop,
             io_channel_id,
             user_channel_id,
+            cancel: CancellationToken::new(),
+            resize_refused: false,
+        })
+    }
+
+    /// Adopts the tab's cancellation token.
+    ///
+    /// [`run_rdp_session`]'s `tokio::select!` already races it, which covers
+    /// everything the loop itself awaits. This copy is for the one thing the
+    /// loop cannot race: a deactivation-reactivation sequence, which runs to
+    /// completion inside [`RdpSession::process_frame`] because abandoning it
+    /// could leave a half-written Confirm Active on the stream. Holding the
+    /// token lets the sequence be declined at the one moment declining it is
+    /// free — before it has written anything.
+    pub fn watch_cancellation(&mut self, cancel: CancellationToken) {
+        self.cancel = cancel;
+    }
+
+    /// What this session can do, as *this server* settled it.
+    ///
+    /// [`capabilities()`] is the adapter's offer, made before any connection
+    /// exists. This is the same set with `resizable` replaced by whether the
+    /// Display Control channel (MS-RDPEDISP) is actually open, which is the
+    /// only thing that decides whether a resize request goes anywhere.
+    ///
+    /// The channel is opened by the server and arrives some time after the Font
+    /// Map PDU, so this answers "as of now" and can go from `false` to `true`
+    /// during the first seconds of a session. It never goes back.
+    pub fn granted_capabilities(&mut self) -> Capabilities {
+        Capabilities {
+            resizable: self.display_control_open(),
+            ..capabilities()
         }
+    }
+
+    /// Whether the Display Control channel is open and carrying an id.
+    ///
+    /// Both halves matter: the channel may be present in the set this client
+    /// asked for and not yet have been joined by the server, and
+    /// `ActiveStage::encode_resize` returns `None` in either case.
+    pub fn display_control_open(&mut self) -> bool {
+        self.stage
+            .get_dvc::<DisplayControlClient>()
+            .and_then(|channel| channel.channel_id())
+            .is_some()
     }
 
     /// The desktop size the server settled on.
@@ -337,6 +494,20 @@ impl RdpSession {
             // fundamental — most often its own desktop size — and the
             // capability exchange runs again on the same connection.
             ActiveStageOutput::DeactivateAll => {
+                if self.cancel.is_cancelled() {
+                    // The tab closed while this frame was being decoded.
+                    // Nothing of the sequence has been written yet, so this is
+                    // the one point at which declining it costs nothing: no
+                    // half-written Confirm Active, no reply owed. Starting it
+                    // anyway would hold the tab, its task and its socket for
+                    // the whole of `REACTIVATION_TIMEOUT` to rebuild a share
+                    // nobody will look at.
+                    tracing::debug!(
+                        target = %self.target,
+                        "the tab closed before the reactivation began; declining it"
+                    );
+                    return Ok(Some(CloseReason::ClosedByUser));
+                }
                 self.reactivate().await?;
             }
 
@@ -370,19 +541,27 @@ impl RdpSession {
     ///
     /// The sequence is **bounded**, and has to be:
     /// [`crate::connect::reactivate`] gives the whole exchange the
-    /// configuration's `timeout` — [`crate::connect::DEFAULT_TIMEOUT`], since
-    /// the configuration below is a fresh one — and caps how many Deactivate
-    /// All PDUs may precede the Demand Active
-    /// ([`crate::connect::MAX_DEACTIVATIONS`]). Neither bound existed here
-    /// once, and a server that sent a Deactivate All and then nothing held
-    /// this read loop — and with it the tab, its socket and its task — open
-    /// for as long as the connection stayed up. The bound lives in the reads
-    /// rather than around the whole call so that reaching it cannot drop a
-    /// half-written Confirm Active; see [`RdpSession::process_frame`].
+    /// configuration's `timeout` and caps how many Deactivate All PDUs may
+    /// precede the Demand Active ([`crate::connect::MAX_DEACTIVATIONS`]).
+    /// Neither bound existed here once, and a server that sent a Deactivate All
+    /// and then nothing held this read loop — and with it the tab, its socket
+    /// and its task — open for as long as the connection stayed up. The bound
+    /// lives in the reads rather than around the whole call so that reaching it
+    /// cannot drop a half-written Confirm Active; see
+    /// [`RdpSession::process_frame`].
+    ///
+    /// The budget is [`REACTIVATION_TIMEOUT`] and **not**
+    /// [`crate::connect::DEFAULT_TIMEOUT`], which is what a fresh
+    /// [`ConnectionConfig`] would carry. Thirty seconds is the connection
+    /// sequence's number, and this is the one call the read loop cannot
+    /// interrupt: a tab closed a moment after a Deactivate All arrived waited
+    /// out the whole of it before its socket was released, which is half a
+    /// minute of a window that will not go away.
     async fn reactivate(&mut self) -> Result<(), ProtocolError> {
         tracing::debug!(target = %self.target, "the server deactivated the share; reactivating");
         let config = ConnectionConfig {
             desktop: self.desktop,
+            timeout: REACTIVATION_TIMEOUT,
             ..ConnectionConfig::new(self.target.clone(), String::new())
         };
         let (share_id, desktop) = crate::connect::reactivate(
@@ -392,6 +571,11 @@ impl RdpSession {
             self.io_channel_id,
         )
         .await?;
+        // The new size is the server's choice too, and it lands in the same
+        // two allocations the first one did. See `MAX_DESKTOP_PIXELS`: a
+        // reactivation is a second, equally unbounded route to the abort, and
+        // one this adapter reaches *after* a session is already established.
+        check_desktop(desktop)?;
 
         self.stage.set_share_id(share_id);
         if desktop != self.desktop {
@@ -427,6 +611,13 @@ impl remoter_proto::Session for RdpSession {
     /// session keeps working at its original size, which is the honest outcome
     /// — the alternative is scaling in the presenter, and that is the
     /// presenter's decision.
+    ///
+    /// That refusal is also **said out loud**, once per session, as
+    /// [`SessionWarning::Other`] carrying [`WARNING_RESIZE_UNAVAILABLE`]. It
+    /// used to travel only as far as [`run_rdp_session`]'s
+    /// `tracing::debug!`, which is not a place a user looks: the tab drew a
+    /// resize control because [`capabilities()`] offers one, the control did
+    /// nothing, and nothing on screen explained why.
     async fn resize(&mut self, cols: u16, rows: u16) -> Result<(), ProtocolError> {
         // §2.2.2.2.1: at least 200, at most 8192, and the width must be even.
         // A request outside that is rejected by the server rather than
@@ -437,6 +628,27 @@ impl remoter_proto::Session for RdpSession {
         );
 
         let Some(encoded) = self.stage.encode_resize(width, height, None, None) else {
+            // MS-RDPEDISP is a dynamic virtual channel the *server* opens; an
+            // older Windows host and `xrdp` never do. Told once, because a tab
+            // being dragged asks per frame and a warning per frame is noise.
+            if !self.resize_refused {
+                self.resize_refused = true;
+                tracing::info!(
+                    target = %self.target,
+                    "this server did not open the Display Control channel; it cannot be resized"
+                );
+                // Ignored deliberately: a closed event stream means the
+                // presenter is already gone, and the loop ends the session on
+                // its own account. Failing the resize with
+                // `EventStreamClosed` would report the wrong thing about the
+                // wrong subject.
+                let _ = self
+                    .events
+                    .send(SessionEvent::Warning(SessionWarning::Other {
+                        detail: WARNING_RESIZE_UNAVAILABLE.to_owned(),
+                    }))
+                    .await;
+            }
             return Err(unsupported("resizing the remote desktop"));
         };
         let encoded = encoded.map_err(|error| {
@@ -613,6 +825,20 @@ enum Woken {
 /// reading, and it is the trade this shape is making on purpose: half a PDU on
 /// the wire is worse than one more PDU on the wire.
 ///
+/// # What a closing tab actually waits for
+///
+/// "One PDU" is true of every arm but one. A Deactivate All sends
+/// [`RdpSession::process_frame`] into the deactivation-reactivation sequence
+/// (MS-RDPBCGR §1.3.1.3), which is several PDUs and writes in the middle of
+/// them, so it cannot be abandoned part way without risking a truncated Confirm
+/// Active. Two things keep that from reading as a hang, and both are needed:
+/// the sequence is **declined outright** if the tab is already gone when the
+/// Deactivate All arrives — nothing has been written at that point — and once
+/// begun it is bounded by [`REACTIVATION_TIMEOUT`] rather than by the
+/// connection sequence's thirty seconds. Five seconds is the honest worst case;
+/// thirty was, and a tab that takes half a minute to close is reported as a
+/// hang because that is what it is.
+///
 /// # Errors
 ///
 /// Never returns an error for an ordinary end; a failure is reported as
@@ -622,6 +848,11 @@ pub async fn run_rdp_session(
     mut session: RdpSession,
     mut ctx: SessionContext,
 ) -> Result<CloseReason, ProtocolError> {
+    // The loop's `select!` races this token too; the session needs its own
+    // handle for the one stretch the select is not watching. See
+    // [`RdpSession::watch_cancellation`].
+    session.watch_cancellation(ctx.cancel.clone());
+
     if let Err(error) = session.announce().await {
         return Ok(CloseReason::Failed(FailureReport::from(&error)));
     }
@@ -691,6 +922,12 @@ pub async fn run_rdp_session(
                     // An unsupported operation is the interface asking for
                     // something this protocol has no encoding for. Worth
                     // reporting, not worth ending a working session over.
+                    //
+                    // This branch is no longer the *only* record of it: the
+                    // method that raised it says so on the event stream, where
+                    // the user can see it. A refusal that existed solely as
+                    // this log line is what left a resize control on the tab
+                    // doing nothing and explaining nothing.
                     if matches!(error, ProtocolError::Unsupported { .. }) {
                         tracing::debug!("the interface asked for something RDP does not carry");
                     } else {
@@ -937,10 +1174,30 @@ mod tests {
         tokio::sync::mpsc::Sender<SessionCommand>,
         tokio::sync::mpsc::Receiver<SessionEvent>,
     ) {
-        let desktop = DesktopSize {
-            width: 64,
-            height: 64,
-        };
+        attached_at(
+            transport,
+            DesktopSize {
+                width: 64,
+                height: 64,
+            },
+        )
+        .expect("64x64 is inside every bound this module has")
+    }
+
+    /// The same, for a desktop size the test chooses — including ones
+    /// [`check_desktop`] must refuse.
+    fn attached_at(
+        transport: DripTransport,
+        desktop: DesktopSize,
+    ) -> Result<
+        (
+            RdpSession,
+            SessionContext,
+            tokio::sync::mpsc::Sender<SessionCommand>,
+            tokio::sync::mpsc::Receiver<SessionEvent>,
+        ),
+        ProtocolError,
+    > {
         let connected = Connected {
             stream: Framed::new(Box::new(transport), target()),
             io_channel_id: IO_CHANNEL,
@@ -952,7 +1209,7 @@ mod tests {
         };
         let (events, event_rx) = event_channel(32);
         let session =
-            RdpSession::attach(connected, events.clone(), SessionId::from_raw(1), target());
+            RdpSession::attach(connected, events.clone(), SessionId::from_raw(1), target())?;
         let (tx, commands) = tokio::sync::mpsc::channel(4);
         let ctx = SessionContext {
             id: SessionId::from_raw(1),
@@ -960,7 +1217,91 @@ mod tests {
             events,
             commands,
         };
-        (session, ctx, tx, event_rx)
+        Ok((session, ctx, tx, event_rx))
+    }
+
+    /// Any Share Control PDU on the io channel, wrapped in the MCS Send Data
+    /// Indication every server-to-client PDU travels in.
+    fn share_control(pdu: ironrdp::pdu::rdp::headers::ShareControlPdu) -> Vec<u8> {
+        use ironrdp::pdu::rdp::headers::ShareControlHeader;
+        let user_data = encode_vec(&ShareControlHeader {
+            share_control_pdu: pdu,
+            pdu_source: SERVER_INITIATOR,
+            share_id: SHARE_ID,
+        })
+        .unwrap();
+        encode_vec(&X224(mcs::SendDataIndication {
+            initiator_id: SERVER_INITIATOR,
+            channel_id: IO_CHANNEL,
+            user_data: std::borrow::Cow::Owned(user_data),
+        }))
+        .unwrap()
+    }
+
+    /// A Share Data PDU inside one of those.
+    fn share_data(pdu: ironrdp::pdu::rdp::headers::ShareDataPdu) -> Vec<u8> {
+        use ironrdp::pdu::rdp::client_info::CompressionType;
+        use ironrdp::pdu::rdp::headers::{
+            CompressionFlags, ShareControlPdu, ShareDataHeader, StreamPriority,
+        };
+        share_control(ShareControlPdu::Data(ShareDataHeader {
+            share_data_pdu: pdu,
+            stream_priority: StreamPriority::Medium,
+            compression_flags: CompressionFlags::empty(),
+            compression_type: CompressionType::K8,
+        }))
+    }
+
+    /// A Server Deactivate All PDU (MS-RDPBCGR §2.2.3.1).
+    fn deactivate_all() -> Vec<u8> {
+        use ironrdp::pdu::rdp::headers::{ServerDeactivateAll, ShareControlPdu};
+        share_control(ShareControlPdu::ServerDeactivateAll(ServerDeactivateAll))
+    }
+
+    /// A Server Demand Active PDU (§2.2.1.13.1) declaring a desktop of
+    /// `width` by `height` — the number the reactivation takes its new
+    /// framebuffer size from.
+    fn demand_active(width: u16, height: u16) -> Vec<u8> {
+        use ironrdp::pdu::rdp::capability_sets::{
+            Bitmap, BitmapDrawingFlags, CapabilitySet, DemandActive, ServerDemandActive,
+        };
+        use ironrdp::pdu::rdp::headers::ShareControlPdu;
+        share_control(ShareControlPdu::ServerDemandActive(ServerDemandActive {
+            pdu: DemandActive {
+                source_descriptor: "RDP".to_owned(),
+                capability_sets: vec![CapabilitySet::Bitmap(Bitmap {
+                    pref_bits_per_pix: 32,
+                    desktop_width: width,
+                    desktop_height: height,
+                    desktop_resize_flag: true,
+                    drawing_flags: BitmapDrawingFlags::empty(),
+                })],
+            },
+        }))
+    }
+
+    /// The server's half of the finalization sequence (§2.2.1.15–2.2.1.19):
+    /// a Synchronize, two Controls, then the Font Map that ends it.
+    fn finalization() -> Vec<u8> {
+        use ironrdp::pdu::rdp::finalization_messages::{
+            ControlAction, ControlPdu, FontPdu, SynchronizePdu,
+        };
+        use ironrdp::pdu::rdp::headers::ShareDataPdu;
+        let mut script = share_data(ShareDataPdu::Synchronize(SynchronizePdu {
+            target_user_id: SERVER_INITIATOR,
+        }));
+        script.extend_from_slice(&share_data(ShareDataPdu::Control(ControlPdu {
+            action: ControlAction::Cooperate,
+            grant_id: 0,
+            control_id: 0,
+        })));
+        script.extend_from_slice(&share_data(ShareDataPdu::Control(ControlPdu {
+            action: ControlAction::GrantedControl,
+            grant_id: USER_CHANNEL,
+            control_id: u32::from(SERVER_INITIATOR),
+        })));
+        script.extend_from_slice(&share_data(ShareDataPdu::FontMap(FontPdu::default())));
+        script
     }
 
     #[tokio::test]
@@ -1081,6 +1422,212 @@ mod tests {
         assert_eq!(
             MonitorLayoutEntry::adjust_display_size(9000, 9000),
             (8192, 8192)
+        );
+    }
+
+    #[test]
+    fn a_desktop_larger_than_this_build_accepts_never_reaches_an_allocation() {
+        // The CRITICAL defect as an executable fact. The width and height come
+        // out of the server's Demand Active PDU, and `DecodedImage::new` turns
+        // them into `vec![0; width * height * 4]` — 17 GiB at `u16::MAX`
+        // squared. That allocation *aborts*; it does not unwind, so ADR-0011
+        // does not contain it to one tab, and it takes the unlocked vault with
+        // it. This is the same bound `remoter-proto-vnc`'s gate applies to
+        // `ServerInit`.
+        let outcome = attached_at(
+            DripTransport::new(Vec::new()),
+            DesktopSize {
+                width: u16::MAX,
+                height: u16::MAX,
+            },
+        );
+        let Err(error) = outcome else {
+            panic!("a 17 GiB framebuffer was allocated from a number the server chose");
+        };
+        assert!(matches!(error, ProtocolError::ProtocolViolation { .. }));
+        assert!(
+            error.to_string().contains("larger than this build"),
+            "{error}"
+        );
+        // A clean per-session failure, not an abort: it has a stage, a card
+        // and a remedy like any other.
+        assert_eq!(error.stage(), remoter_proto::Stage::Run);
+    }
+
+    #[test]
+    fn an_empty_desktop_is_refused_too() {
+        // Zero is not an allocation problem, it is a framebuffer nothing can
+        // be drawn into, and every rectangle against it is out of bounds.
+        let outcome = attached_at(
+            DripTransport::new(Vec::new()),
+            DesktopSize {
+                width: 1024,
+                height: 0,
+            },
+        );
+        assert!(matches!(
+            outcome,
+            Err(ProtocolError::ProtocolViolation { .. })
+        ));
+    }
+
+    #[test]
+    fn the_bound_admits_every_desktop_this_build_could_have_asked_for() {
+        // The bound is not a number picked to make a test pass. It is
+        // MS-RDPEDISP §2.2.2.2.1's ceiling on what the *client* may request,
+        // which `crate::protocol`'s settings schema also enforces on the width
+        // and height a user can type — so a desktop the user configured and
+        // the server granted must pass, and an 8K one certainly must.
+        for (width, height) in [(1024, 768), (7680, 4320), (8192, 8192)] {
+            assert!(
+                check_desktop(DesktopSize { width, height }).is_ok(),
+                "{width}x{height} is a desktop this build can ask for"
+            );
+        }
+        // And one pixel more is not.
+        for (width, height) in [(8192, 8193), (16384, 8192), (u16::MAX, u16::MAX)] {
+            assert!(
+                check_desktop(DesktopSize { width, height }).is_err(),
+                "{width}x{height} was accepted"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn a_reactivation_to_an_impossible_desktop_is_refused_before_the_framebuffer_is_rebuilt()
+    {
+        // The second route to the same abort, and the one the verifier's line
+        // number does not point at: a session that attached at a sane size can
+        // be told to grow at any time (§1.3.1.3), and the rebuild is the same
+        // `vec![0; width * height * 4]` in `DecodedImage::new`.
+        let mut script = demand_active(u16::MAX, u16::MAX);
+        script.extend_from_slice(&finalization());
+        let (mut session, _ctx, _commands, _events) = attached(DripTransport::new(vec![script]));
+
+        let error = tokio::time::timeout(
+            core::time::Duration::from_secs(10),
+            session.process_frame(&deactivate_all()),
+        )
+        .await
+        .expect("the reactivation did not complete")
+        .expect_err("a 17 GiB framebuffer was rebuilt from a number the server chose");
+        assert!(
+            matches!(error, ProtocolError::ProtocolViolation { .. }),
+            "{error:?}"
+        );
+        assert!(
+            error.to_string().contains("larger than this build"),
+            "{error}"
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_closing_tab_never_waits_the_connection_timeout_for_a_reactivation() {
+        // The defect: `reactivate` built a fresh `ConnectionConfig`, which
+        // carries `DEFAULT_TIMEOUT` — thirty seconds, the budget for a TLS
+        // handshake and CredSSP over a link that has not proved it works. A
+        // reactivation is neither, and it is the one thing the read loop
+        // cannot interrupt, so it was also the longest a tab could take to
+        // close. Time is paused, so this measures the bound rather than the
+        // machine.
+        let (session, ctx, _commands, _events) =
+            attached(DripTransport::new(vec![deactivate_all()]));
+        let started = tokio::time::Instant::now();
+        let reason = run_rdp_session(session, ctx).await.unwrap();
+        let waited = started.elapsed();
+
+        assert!(matches!(reason, CloseReason::Failed(_)), "{reason:?}");
+        assert!(
+            waited < crate::connect::DEFAULT_TIMEOUT,
+            "a closing tab waited {waited:?}, which is the connection sequence's budget"
+        );
+        assert!(
+            waited <= REACTIVATION_TIMEOUT + core::time::Duration::from_secs(1),
+            "the wait was {waited:?}, not the reactivation budget"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_tab_closed_mid_decode_does_not_start_a_reactivation_at_all() {
+        // The other half. Once the sequence has begun it must run to
+        // completion — abandoning it could leave a truncated Confirm Active on
+        // the stream — so the moment to decline it is before the first byte is
+        // written, which is exactly here.
+        let transport = DripTransport::new(Vec::new());
+        let written = transport.written();
+        let (mut session, ctx, _commands, _events) = attached(transport);
+        session.watch_cancellation(ctx.cancel.clone());
+        ctx.cancel.cancel();
+
+        let frame = deactivate_all();
+        let outcome = tokio::time::timeout(
+            core::time::Duration::from_secs(2),
+            session.process_frame(&frame),
+        )
+        .await
+        .expect("the reactivation was started for a tab that had already closed")
+        .unwrap();
+
+        assert_eq!(outcome, Some(CloseReason::ClosedByUser));
+        assert!(
+            written.lock().is_empty(),
+            "nothing of the sequence should have reached the wire"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_server_that_cannot_resize_says_so_instead_of_leaving_a_dead_control() {
+        // `capabilities()` offers `resizable: true` because the adapter can
+        // resize; whether this *server* can depends on a channel it opens
+        // itself. A session whose Display Control channel never arrived used
+        // to refuse the resize into a debug log, so the tab drew a control
+        // that did nothing and said nothing.
+        use remoter_proto::Session as _;
+
+        let (mut session, _ctx, _commands, mut events) = attached(DripTransport::new(Vec::new()));
+
+        assert!(
+            !session.display_control_open(),
+            "no server has joined the channel in this test"
+        );
+        assert!(
+            capabilities().resizable,
+            "the adapter still offers what it can do"
+        );
+        assert!(
+            !session.granted_capabilities().resizable,
+            "the session must report what the server granted, not what the adapter offers"
+        );
+
+        let error = session
+            .resize(1920, 1080)
+            .await
+            .expect_err("no Display Control channel, no resize");
+        assert!(matches!(error, ProtocolError::Unsupported { .. }));
+
+        // And the refusal reached the user, not only the log. `announce` was
+        // never called here, so the stream carries nothing else.
+        let event = tokio::time::timeout(core::time::Duration::from_secs(1), events.recv())
+            .await
+            .expect("the resize refusal was swallowed")
+            .expect("the event stream closed");
+        assert!(
+            matches!(
+                &event,
+                SessionEvent::Warning(SessionWarning::Other { detail })
+                    if detail == WARNING_RESIZE_UNAVAILABLE
+            ),
+            "{event:?}"
+        );
+
+        // Told once: a tab being dragged asks per frame, and a warning per
+        // frame is the noise a user learns to dismiss.
+        let _ = session.resize(1600, 900).await;
+        let again =
+            tokio::time::timeout(core::time::Duration::from_millis(200), events.recv()).await;
+        assert!(
+            again.is_err(),
+            "the warning repeated once per resize request"
         );
     }
 

@@ -430,17 +430,38 @@ impl VncProtocol {
             .string(settings, SETTING_RFB_VERSION)
             .and_then(RfbVersion::from_setting)
             .unwrap_or(RfbVersion::Rfb38);
-        let version_min = self
-            .schema
-            .string(settings, SETTING_RFB_VERSION_MIN)
-            .and_then(RfbVersion::from_setting)
-            .unwrap_or(RfbVersion::Rfb38);
+        // The floor, and the one setting that must not be read through the
+        // schema's default.
+        //
+        // `SettingsSchema::string` falls back to the schema's default, which is
+        // 3.8 — and that default arrived *after* connections were already
+        // stored. Every existing connection whose ceiling had been lowered to
+        // reach an old server would therefore have been given a floor above its
+        // own ceiling, and would have failed with `SettingInvalid` instead of
+        // connecting. A security floor is right; introducing one by breaking a
+        // stored configuration is not.
+        //
+        // So a connection that never stated a floor gets the default brought no
+        // higher than the ceiling it did state. One pinned to 3.3 speaks exactly
+        // 3.3: stricter than the floorless `min(ours, theirs)` this replaced,
+        // because the server can no longer move the conversation down, and it
+        // still connects. It is not silent either — `warn_about_security` puts
+        // the legacy-version line on screen for anything below 3.8.
+        let version_min = match stored_version(settings, SETTING_RFB_VERSION_MIN) {
+            Some(floor) => floor,
+            None => RfbVersion::Rfb38.min(version_max),
+        };
         if version_min > version_max {
-            // A floor above the ceiling admits nothing, and silently swapping
-            // them would turn a typo into a downgrade.
+            // Both were stated, and they contradict each other. A floor above
+            // the ceiling admits no version at all, and silently swapping them
+            // would turn a typo into a downgrade — so it is refused, and the
+            // refusal says which two values disagree and what to do about it
+            // rather than leaving the user to guess.
             return Err(ProtocolError::SettingInvalid {
                 key: SETTING_RFB_VERSION_MIN.to_owned(),
-                expected: "an RFB version no higher than `rfb_version`",
+                expected: "an RFB version no higher than `rfb_version`: a floor above the ceiling \
+                           admits no version at all, so either raise `rfb_version` or lower \
+                           `rfb_version_min` to it",
             });
         }
         Ok(VncSettings {
@@ -459,6 +480,21 @@ impl VncProtocol {
                 }),
         })
     }
+}
+
+/// The RFB version this connection *stored* under `key`, if it stored one.
+///
+/// Deliberately not [`SettingsSchema::string`], which falls back to the schema's
+/// default: the difference between "the user chose 3.8" and "this connection was
+/// created before the setting existed" is exactly what decides whether a stored
+/// configuration keeps working. See [`VncProtocol::settings`].
+fn stored_version(
+    settings: &BTreeMap<String, remoter_core::Resolved<String>>,
+    key: &str,
+) -> Option<RfbVersion> {
+    settings
+        .get(key)
+        .and_then(|resolved| RfbVersion::from_setting(&resolved.value))
 }
 
 /// Reads the password out of the provider, if there is one.
@@ -766,6 +802,36 @@ mod tests {
         }
     }
 
+    /// A resolved connection carrying exactly `settings` and nothing else.
+    fn connection(settings: &[(&str, &str)]) -> EffectiveConnection {
+        fn root<T>(value: T) -> remoter_core::Resolved<T> {
+            remoter_core::Resolved::new(value, remoter_core::Provenance::DefaultAtRoot)
+        }
+        EffectiveConnection {
+            node: remoter_core::NodeId::new(),
+            name: "desktop".to_owned(),
+            protocol: ProtocolId::new("vnc").unwrap(),
+            host: "127.0.0.1".to_owned(),
+            port: root(Some(5900)),
+            credential: root(None),
+            username: root(None),
+            credential_attached: false,
+            gateway: root(remoter_core::GatewayChain::direct()),
+            connect_timeout_ms: root(Some(5_000)),
+            keepalive_secs: root(None),
+            settings: settings
+                .iter()
+                .map(|(key, value)| ((*key).to_owned(), root((*value).to_owned())))
+                .collect::<BTreeMap<_, _>>(),
+            on_connect: root(Vec::new()),
+            on_disconnect: root(Vec::new()),
+            recording: root(remoter_core::RecordingPolicy::Never),
+            auto_reconnect: root(remoter_core::ReconnectPolicy::Never),
+            icon: root(None),
+            colour: root(None),
+        }
+    }
+
     fn settled(version: RfbVersion, security: SecurityType) -> Negotiated {
         Negotiated {
             version,
@@ -823,6 +889,72 @@ mod tests {
             .field(SETTING_RFB_VERSION_MIN)
             .expect("the floor is a setting");
         assert_eq!(floor.default.as_deref(), Some("3.8"));
+    }
+
+    #[test]
+    fn a_connection_stored_before_the_floor_existed_still_connects() {
+        // The defect: `rfb_version_min` defaults to 3.8, and reading it through
+        // the schema gave that default to every connection that predates the
+        // setting. One whose ceiling had been lowered to 3.3 to reach an old
+        // server was then handed a floor above its own ceiling and failed with
+        // `SettingInvalid` — a connection that worked yesterday, refused today,
+        // with an error about a setting the user never touched.
+        let protocol = VncProtocol::new().unwrap();
+        let settings = protocol
+            .settings(&connection(&[(SETTING_RFB_VERSION, "3.3")]))
+            .expect("a connection that lowered its ceiling still connects");
+        assert_eq!(settings.version_max, RfbVersion::Rfb33);
+        assert_eq!(
+            settings.version_min,
+            RfbVersion::Rfb33,
+            "an unstated floor follows the ceiling the user did state"
+        );
+    }
+
+    #[test]
+    fn the_floor_is_still_38_for_a_connection_that_lowered_nothing() {
+        // The other half: the accommodation above must not become a way for the
+        // floor to slip. With no ceiling stated, the default ceiling is 3.8 and
+        // so is the floor, which is what keeps a server from moving the
+        // conversation to 3.3 — the shape in which the *server* picks the
+        // security type.
+        let protocol = VncProtocol::new().unwrap();
+        let settings = protocol.settings(&connection(&[])).unwrap();
+        assert_eq!(settings.version_min, RfbVersion::Rfb38);
+        assert_eq!(settings.version_max, RfbVersion::Rfb38);
+
+        // And a floor the connection states for itself is still its own.
+        let stated = protocol
+            .settings(&connection(&[(SETTING_RFB_VERSION_MIN, "3.7")]))
+            .unwrap();
+        assert_eq!(stated.version_min, RfbVersion::Rfb37);
+    }
+
+    #[test]
+    fn a_stated_floor_above_a_stated_ceiling_is_refused_and_the_error_says_why() {
+        // Two values that contradict each other, both chosen deliberately.
+        // Refused rather than reconciled — silently swapping them would turn a
+        // typo into a downgrade — and the refusal has to be actionable, because
+        // the user is the only one who can resolve it.
+        let protocol = VncProtocol::new().unwrap();
+        let error = protocol
+            .settings(&connection(&[
+                (SETTING_RFB_VERSION, "3.3"),
+                (SETTING_RFB_VERSION_MIN, "3.8"),
+            ]))
+            .expect_err("a floor above the ceiling admits no version at all");
+        let ProtocolError::SettingInvalid { key, expected } = error else {
+            panic!("the contradiction is a setting error");
+        };
+        assert_eq!(key, SETTING_RFB_VERSION_MIN);
+        assert!(
+            expected.contains(SETTING_RFB_VERSION) && expected.contains(SETTING_RFB_VERSION_MIN),
+            "the message names both settings: {expected}"
+        );
+        assert!(
+            expected.contains("raise") || expected.contains("lower"),
+            "and says what to do about it: {expected}"
+        );
     }
 
     #[test]
