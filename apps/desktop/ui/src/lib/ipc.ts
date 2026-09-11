@@ -170,8 +170,32 @@ export interface Slot {
   lastUsed: number | null;
   /** True when this slot's password also requires a key file. */
   requiresKeyfile: boolean;
-  /** Argon2id parameters, for the password slot only. */
-  kdfSummary: string | null;
+  /** What this slot cost to derive. `null` for the kinds that use HKDF. */
+  kdf: KdfParams | null;
+}
+
+/**
+ * What a key slot cost to derive, as numbers.
+ *
+ * The core used to send one English sentence here — "Argon2id, 256 MiB, 3
+ * passes, 4 lanes" — and six translated screens printed it word for word. The
+ * parameters now cross as numbers and `kdfSummary` in
+ * `@/features/vault/kdf.ts` composes the line, so the digits follow the
+ * reader's numbering system and the memory carries a unit `Intl` wrote.
+ */
+export interface KdfParams {
+  /**
+   * The function's name, `"Argon2id"`. A proper name and never translated
+   * (docs/features/i18n.md); it comes from the core so that the interface is
+   * not the thing asserting which function ran.
+   */
+  algorithm: string;
+  /** Memory cost in kibibytes — Argon2's `m`. */
+  memoryKib: number;
+  /** Iterations — Argon2's `t`. */
+  passes: number;
+  /** Degree of parallelism — Argon2's `p`. */
+  lanes: number;
 }
 
 export interface Backup {
@@ -241,7 +265,12 @@ export interface CreateVaultResult {
   recoveryKeyGroups: string[];
   /** Which group the transcription check will ask the user to retype. */
   confirmGroupIndex: number;
-  kdfSummary: string;
+  /**
+   * What the new vault's password slot cost to derive. `null` only if it
+   * somehow has no password slot, in which case the sheet omits the line
+   * rather than printing half a sentence.
+   */
+  kdf: KdfParams | null;
 }
 
 export interface VaultState {
@@ -1421,6 +1450,198 @@ export interface Tunnel {
   running: boolean;
 }
 
+// ----------------------------------------------------------------- sftp ----
+
+/**
+ * The file manager's command surface, mirroring `crates/remoter-ipc/src/sftp.rs`.
+ *
+ * Two rules govern every type below, and both come from
+ * `docs/architecture/sftp-command-surface.md`:
+ *
+ * **Every string the server chose arrives twice.** The raw form is what goes
+ * back on the wire; the `display*` form is what a human reads. They are never
+ * interchanged — rendering the raw one lets a file called
+ * `annex` + U+202E + `txt.exe` draw itself as `annexexe.txt`, and addressing the
+ * escaped one asks the server for a path it never sent.
+ *
+ * **Progress is pushed, not polled.** A running transfer reports every 512 KiB
+ * through the session's own channel as a `progress` message. `listTransfers`
+ * is for the first paint and for reconciling after a tab switch.
+ */
+
+/** What is wrong with a name the far end chose. None of these hides the row. */
+export interface NameRisks {
+  /** Holds a control character: truncates a log line, rewrites a terminal row. */
+  control: boolean;
+  /** Holds a bidirectional override — Trojan Source (CVE-2021-42574) in a listing. */
+  bidi: boolean;
+  /** Holds a zero-width character, so two rows can look identical and not be. */
+  invisible: boolean;
+  /** Is not a single path component. The core refuses to build a path from it. */
+  separator: boolean;
+}
+
+/** A file pane, once it is attached to a session. */
+export interface SftpPane {
+  paneId: number;
+  /** The session it runs on. Closing that session closes this pane. */
+  sessionId: number;
+  /** The server's idea of where the user starts, canonicalised. Raw. */
+  home: string;
+  /** The same, escaped for display. */
+  homeDisplay: string;
+}
+
+/** What a directory entry is. `"other"` covers sockets, FIFOs and devices. */
+export type EntryKind = "file" | "directory" | "symlink" | "other";
+
+/**
+ * One row of the remote pane.
+ *
+ * `name` and `path` are what the interface sends back; `displayName` and
+ * `displayPath` are what it draws. A component that renders `name` is a defect,
+ * not a shortcut.
+ */
+export interface DirectoryEntry {
+  name: string;
+  displayName: string;
+  path: string;
+  displayPath: string;
+  /** A string rather than {@link EntryKind} would let a new kind crash a switch. */
+  kind: EntryKind;
+  size: number | null;
+  /** The POSIX mode bits, where the server reported them. */
+  permissions: number | null;
+  /** The same as `drwxr-xr-x`, rendered once by the core so every pane agrees. */
+  mode: string | null;
+  uid: number | null;
+  /** The owning user's name, already escaped: it is server-supplied text too. */
+  user: string | null;
+  gid: number | null;
+  /** The owning group's name, already escaped. */
+  group: string | null;
+  /** Last modification, in seconds since the Unix epoch. */
+  modified: number | null;
+  risks: NameRisks;
+}
+
+/** One thing a removal could not remove. */
+export interface SftpDeleteFailure {
+  /** Where it was, escaped for display. */
+  path: string;
+  /** The stable code from the failure taxonomy, for `errors.json`. */
+  code: string;
+  /** The core's English. Render the catalogue's sentence for `code` instead. */
+  message: string;
+}
+
+/**
+ * What a removal actually did.
+ *
+ * A file manager that says "done" after removing nine of twelve files has
+ * lied, which is why this is a report and not a bare `void`.
+ */
+export interface SftpDeleteReport {
+  filesRemoved: number;
+  directoriesRemoved: number;
+  failures: SftpDeleteFailure[];
+  /** True if the user stopped it part way through. */
+  cancelled: boolean;
+  /** True if it stopped at the walk's own limit rather than at the end. */
+  limitReached: boolean;
+  /** True only when everything asked for is gone. */
+  complete: boolean;
+}
+
+/** Which way a transfer moves. */
+export type TransferDirection = "upload" | "download";
+
+/**
+ * A transfer to queue.
+ *
+ * A download names its destination one of two ways and exactly one: `local` is
+ * a file path a save-as picker produced, `localDirectory` is a folder and the
+ * file name is then derived by the core from the remote path. Never join a
+ * server-supplied name onto a folder here — that is the one thing the command
+ * surface is most emphatic must not happen.
+ */
+export interface TransferRequest {
+  direction: TransferDirection;
+  /** The remote path, `/`-separated whatever the server runs on. */
+  remote: string;
+  local?: string | null;
+  /** Downloads only. The core derives the file name. */
+  localDirectory?: string | null;
+  /** Ask to continue rather than start over. Honoured only where it is safe. */
+  resume?: boolean;
+}
+
+/**
+ * What a transfer settled before it moved a byte.
+ *
+ * `note` is the core's English sentence and is **not** rendered: the interface
+ * composes its own from `resumeDeclined` and `total`, the same way a failure's
+ * sentence comes from the catalogue rather than from the core. It stays on the
+ * DTO as the fallback for a case the interface has not learned.
+ */
+export interface TransferStart {
+  resumeRequested: boolean;
+  /** Where it began. Zero unless a resume was honoured. */
+  resumeFrom: number;
+  /** The source's size, where the source reported one. */
+  total: number | null;
+  /** True when a resume was asked for and refused. */
+  resumeDeclined: boolean;
+  /** Not for rendering. See above. */
+  note: string | null;
+}
+
+/** Why a transfer ended badly. The shape `SessionFailure` has, minus nothing. */
+export interface TransferFailure {
+  code: string;
+  message: string;
+  detail: string | null;
+  actions: string[];
+  stage: SessionStage;
+  retryable: boolean;
+}
+
+/**
+ * Where a transfer has got to.
+ *
+ * `done` counts from the start of the file rather than from the start of this
+ * attempt, so a resumed bar does not jump back to zero.
+ */
+export type TransferState =
+  | { state: "queued" }
+  | { state: "running"; done: number; total: number | null }
+  | { state: "completed"; bytes: number }
+  | ({ state: "failed" } & TransferFailure)
+  | { state: "cancelled" };
+
+/** One row of the transfer list. */
+export type TransferStatus = {
+  transferId: number;
+  direction: TransferDirection;
+  /** The remote path, raw. What goes back on the wire. */
+  remote: string;
+  /** The same, escaped. What a row draws. */
+  remoteDisplay: string;
+  /**
+   * The local path as resolved when it was queued, raw — what a future
+   * "reveal in folder" would address, and for that reason never drawn.
+   */
+  local: string;
+  /**
+   * The same, escaped. A download into a folder takes its file name from the
+   * remote path, so this string is server-chosen too.
+   */
+  localDisplay: string;
+  resume: boolean;
+  /** What it settled before it began. `null` until it does. */
+  start: TransferStart | null;
+} & TransferState;
+
 // -------------------------------------------------------------- failure ----
 
 /**
@@ -1662,10 +1883,42 @@ export const ipc = {
    * only takes a binary body when it is the *whole* payload, and this command
    * also needs the session id. Keystrokes are a few bytes; a very large paste
    * pays for the encoding.
+   *
+   * **Terminal sessions only.** This is `InputEvent::Bytes`, which is the byte
+   * stream a PTY wants. A framebuffer protocol needs `InputEvent::Key` — a PS/2
+   * scancode, an X11 keysym, modifiers and lock states — or
+   * `InputEvent::Pointer`, and the RDP adapter drops a `Bytes` event while the
+   * VNC adapter refuses it outright. **No command on this surface constructs
+   * either**, so there is no way to send input to a graphical session in this
+   * build, and `features/sessions/FramebufferHost.tsx` says so on screen rather
+   * than capturing keystrokes that would go nowhere.
+   *
+   * The translation those commands will need is written and tested in
+   * `features/sessions/keymap.ts`; what is missing is the command that carries
+   * its output across this boundary.
    */
   sendInput: (sessionId: number, bytes: Uint8Array) =>
     invoke<void>("session_input", { sessionId, bytes: Array.from(bytes) }),
-  /** Tells the far end the tab changed size, in character cells. */
+  /**
+   * Tells the far end the tab changed size.
+   *
+   * **The unit depends on the session's kind, and the parameter names are the
+   * terminal's.** For a `terminal` session these are character cells. For a
+   * `framebuffer` session they are *pixels*, and this is "smart resize" in
+   * `docs/architecture/rendering.md`: the core turns it into MS-RDPEDISP for
+   * RDP and `SetDesktopSize` for VNC, which change the remote desktop itself
+   * rather than scaling a picture of it. Ask for physical pixels, not logical
+   * ones, so text on a HiDPI display is rendered sharp remotely instead of
+   * upscaled here.
+   *
+   * A server may refuse: `capabilities.resizable` says whether the channel that
+   * performs it is open, and an adapter that has to refuse raises a warning
+   * rather than failing the session. Do not offer a resize control on a session
+   * whose capabilities say it cannot be resized.
+   *
+   * Not subject to the input freeze. A window resized while the vault is locked
+   * still has to redraw at the right size.
+   */
   resizeSession: (sessionId: number, cols: number, rows: number) =>
     invoke<void>("session_resize", { sessionId, cols, rows }),
   /**
@@ -1704,4 +1957,99 @@ export const ipc = {
   closeTunnel: (tunnelId: number) => invoke<void>("tunnel_close", { tunnelId }),
   /** Every running forward, with its live counters. */
   listTunnels: () => invoke<Tunnel[]>("tunnel_list"),
+
+  // --- sftp: browsing ---
+  /**
+   * Attaches a file pane to a session that has already authenticated.
+   *
+   * One more channel on the connection the tab is using (RFC 4254 6.5) — no
+   * handshake, no host key check, no second authentication. Which is why it
+   * takes a session and not a node.
+   */
+  openPane: (sessionId: number) => invoke<SftpPane>("sftp_open", { sessionId }),
+  /**
+   * Closes a pane and waits for it to let go.
+   *
+   * Returns only once the drain task has finished, so "the pane is closed" and
+   * "nothing is still writing to disk" are the same moment. Always call it —
+   * a pane left open holds a channel and a file handle on the user's link.
+   */
+  closePane: (paneId: number) => invoke<void>("sftp_close", { paneId }),
+  /**
+   * Lists a directory. Cancels whatever this pane was listing before.
+   *
+   * A rejection may name a listing cap (250 000 entries, 32 MiB) rather than a
+   * permission problem. Show which limit was hit; an empty pane is a lie.
+   */
+  listDirectory: (paneId: number, path: string) =>
+    invoke<DirectoryEntry[]>("sftp_list", { paneId, path }),
+  /** One entry's metadata, following symbolic links. */
+  statPath: (paneId: number, path: string) =>
+    invoke<DirectoryEntry>("sftp_stat", { paneId, path }),
+  /** Resolves a path to the absolute one the server means by it. */
+  canonicalizePath: (paneId: number, path: string) =>
+    invoke<string>("sftp_canonicalize", { paneId, path }),
+  /** Reads where a symbolic link points, without following it. */
+  readLink: (paneId: number, path: string) =>
+    invoke<string>("sftp_read_link", { paneId, path }),
+  /** Creates a directory. */
+  makeDirectory: (paneId: number, path: string) =>
+    invoke<void>("sftp_mkdir", { paneId, path }),
+  /**
+   * Renames or moves an entry.
+   *
+   * `SSH_FXP_RENAME` fails across filesystems on most servers, and the core
+   * says so by name rather than reporting a permission problem the user does
+   * not have.
+   */
+  renamePath: (paneId: number, from: string, to: string) =>
+    invoke<void>("sftp_rename", { paneId, from, to }),
+  /**
+   * Removes an entry, or a whole tree.
+   *
+   * The walk does not follow symbolic links — a link to a directory is
+   * unlinked, not descended. It reports what it managed rather than returning
+   * nothing, because an interrupted walk leaves the tree half-removed.
+   */
+  deletePath: (paneId: number, path: string, recursive: boolean) =>
+    invoke<SftpDeleteReport>("sftp_delete", { paneId, path, recursive }),
+  /** Changes an entry's POSIX mode bits. At most `0o7777`. */
+  setPermissions: (paneId: number, path: string, mode: number) =>
+    invoke<void>("sftp_set_permissions", { paneId, path, mode }),
+  /** Creates a symbolic link at `path` pointing at `target`. */
+  createSymlink: (paneId: number, path: string, target: string) =>
+    invoke<void>("sftp_symlink", { paneId, path, target }),
+
+  // --- sftp: transfers ---
+  /**
+   * Queues transfers, returning the new ids in the order given.
+   *
+   * The batch is resolved before any of it is queued: forty requests with one
+   * bad path refuse as a batch rather than starting twenty and then
+   * complaining. Nothing here waits for a byte to move.
+   */
+  enqueueTransfers: (paneId: number, requests: TransferRequest[]) =>
+    invoke<number[]>("sftp_enqueue", { paneId, requests }),
+  /**
+   * Every transfer this pane knows about, in the order they were queued.
+   *
+   * For the first paint and for reconciliation after a tab switch.
+   */
+  listTransfers: (paneId: number) => invoke<TransferStatus[]>("sftp_transfers", { paneId }),
+  /**
+   * Stops one transfer. What has already been written stays on disk, which is
+   * what makes a later resume possible.
+   */
+  cancelTransfer: (paneId: number, transferId: number) =>
+    invoke<void>("sftp_transfer_cancel", { paneId, transferId }),
+  /** Stops every transfer on this pane. */
+  cancelAllTransfers: (paneId: number) => invoke<void>("sftp_transfer_cancel_all", { paneId }),
+  /**
+   * Queues a fresh transfer from a finished one's request, returning the new id.
+   *
+   * It does not resurrect the old entry: a terminal state stays terminal, so
+   * the history of what happened stays readable.
+   */
+  retryTransfer: (paneId: number, transferId: number) =>
+    invoke<number>("sftp_transfer_retry", { paneId, transferId }),
 } as const;

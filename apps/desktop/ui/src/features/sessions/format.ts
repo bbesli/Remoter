@@ -18,6 +18,14 @@
  * `d`, `h`, `m` and `s` are abbreviations of day, hour, minute and second, and
  * those are English. Unit *symbols* — `B`, `kB`, `MB`, `ms` — are neither: they
  * are standardised and are not translated in any language, so they stay here.
+ *
+ * **There is no clock here.** `hh:mm:ss` — a recording clock, a stage timer —
+ * is `formatClock(locale, seconds)` from `@/i18n`, which takes the locale and
+ * puts the digits through `Intl` so a reader whose language has its own
+ * numerals gets them. This file used to carry a second one that took no locale
+ * and padded the digits by hand with `String.padStart`, which is how the same
+ * duration reads in Arabic-Indic numerals in the footer and in Latin ones in a
+ * session. Convert the milliseconds at the call site: `ms / 1000`.
  */
 
 import { formatNumber } from "@/i18n";
@@ -84,17 +92,6 @@ export function formatUptime(t: TFunction<"sessions">, locale: string, ms: numbe
     return t("duration.minutesSeconds", { minutes: n(minutes), seconds: n(seconds) });
   }
   return t("duration.seconds", { seconds: n(seconds) });
-}
-
-/** `hh:mm:ss`, for a recording clock or a stage timer that must not jump. */
-export function formatClock(ms: number): string {
-  const totalSeconds = Math.max(0, Math.floor((Number.isFinite(ms) ? ms : 0) / 1000));
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  const mm = String(minutes).padStart(2, "0");
-  const ss = String(seconds).padStart(2, "0");
-  return hours > 0 ? `${String(hours)}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 
 /**

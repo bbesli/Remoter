@@ -43,6 +43,11 @@ export const NAMESPACES = [
   "settings",
   "connections",
   "sessions",
+  // The SFTP file manager. Its own namespace rather than a corner of
+  // `sessions`, for the reason the table in docs/features/i18n.md gives: one
+  // namespace per directory under `src/features/`, and a dual-pane browser
+  // with a transfer queue is a screen rather than a tab's worth of copy.
+  "files",
   "vault",
   "vaultsettings",
   "audit",

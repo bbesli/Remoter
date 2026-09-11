@@ -66,7 +66,7 @@ function slot(index: number, kind: SlotKind, over: Partial<Slot> = {}): Slot {
     createdAt: 1_741_737_600,
     lastUsed: null,
     requiresKeyfile: false,
-    kdfSummary: null,
+    kdf: null,
     ...over,
   };
 }
@@ -249,13 +249,20 @@ describe("rotationRefusals", () => {
 });
 
 describe("slotDetail", () => {
-  it("says a password slot needs its key file, and carries the Argon2id summary", () => {
+  it("says a password slot needs its key file, and carries the derivation cost", () => {
     const line = slotDetail(
-      slot(0, "password", { requiresKeyfile: true, kdfSummary: "Argon2id, 256 MiB, t=3" }),
+      slot(0, "password", {
+        requiresKeyfile: true,
+        // The numbers the core sends; the line is composed from them here.
+        kdf: { algorithm: "Argon2id", memoryKib: 262_144, passes: 3, lanes: 4 },
+      }),
       copy,
     );
     expect(line).toContain("Needs its key file too");
-    expect(line).toContain("Argon2id, 256 MiB, t=3");
+    // The space before the unit is U+00A0, written as an escape: `formatBytes`
+    // puts a non-breaking space there so a narrow column cannot wrap "256"
+    // onto one line and "MiB" onto the next.
+    expect(line).toContain("Argon2id, 256\u00A0MiB, t=3, p=4");
     expect(line).toContain("Never used");
   });
 });

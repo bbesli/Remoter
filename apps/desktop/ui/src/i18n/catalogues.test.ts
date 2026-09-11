@@ -10,11 +10,12 @@
 import { describe, expect, it } from "vitest";
 import { IntlMessageFormat } from "intl-messageformat";
 
+import type { Catalogue } from "./catalogues";
 import {
   ENGLISH_CATALOGUES,
   SHIPPED_NAMESPACES,
-  availableLocales,
-  isLocaleAvailable,
+  completeLocales,
+  localeIsComplete,
 } from "./catalogues";
 import { NAMESPACES, SOURCE_LOCALE, SUPPORTED_LOCALES } from "./locales";
 
@@ -147,79 +148,116 @@ describe("translator comments", () => {
  * whoever is in a hurry.
  *
  * So this globs `locales/` a second time, independently of `catalogues.ts`, and
- * the assertions below are about the *rule*: available means "every namespace
- * English ships is present", for whichever languages that happens to be today.
- * `import.meta.glob` without `eager` returns loaders, so this costs a list of
- * paths and reads no files.
+ * the assertions below are about the *rule*: complete means "every message
+ * English ships is translated", for whichever languages that happens to be
+ * today.
+ *
+ * It reads the files, because that is now what the rule is about. Presence of
+ * a namespace file was the old test and the defect: a half-translated
+ * catalogue passed it, and the language was offered as finished while strings
+ * inside it fell back to English one by one.
  */
-const ON_DISK: ReadonlyMap<string, ReadonlySet<string>> = (() => {
-  const out = new Map<string, Set<string>>();
-  for (const path of Object.keys(import.meta.glob("../../../../../locales/*/*.json"))) {
+const ON_DISK: ReadonlyMap<string, ReadonlyMap<string, Catalogue>> = (() => {
+  const out = new Map<string, Map<string, Catalogue>>();
+  const files = import.meta.glob<Catalogue>("../../../../../locales/*/*.json", {
+    eager: true,
+    import: "default",
+  });
+  for (const [path, catalogue] of Object.entries(files)) {
     const match = /\/locales\/([^/]+)\/([^/]+)\.json$/.exec(path);
     const locale = match?.[1];
     const namespace = match?.[2];
     if (locale === undefined || namespace === undefined) continue;
-    const seen = out.get(locale) ?? new Set<string>();
-    seen.add(namespace);
+    const seen = out.get(locale) ?? new Map<string, Catalogue>();
+    seen.set(namespace, catalogue);
     out.set(locale, seen);
   }
   return out;
 })();
 
-/** Does this locale's directory hold every namespace English ships? */
+/** Every message key in a catalogue, translator comments excluded. */
+function messageKeysOf(catalogue: Catalogue | undefined): ReadonlySet<string> {
+  if (catalogue === undefined) return new Set();
+  return new Set(leaves(catalogue).map(([key]) => key).filter((key) => !isComment(key)));
+}
+
+/** Does this locale translate every message English ships? */
 function isCompleteOnDisk(code: string): boolean {
-  const seen = ON_DISK.get(code);
-  return seen !== undefined && SHIPPED_NAMESPACES.every((ns) => seen.has(ns));
+  if (code === SOURCE_LOCALE) return true;
+  const theirs = ON_DISK.get(code);
+  if (theirs === undefined) return false;
+  return SHIPPED_NAMESPACES.every((ns) => {
+    const translated = messageKeysOf(theirs.get(ns));
+    for (const key of messageKeysOf(ENGLISH_CATALOGUES[ns])) {
+      if (!translated.has(key)) return false;
+    }
+    return true;
+  });
 }
 
 describe("locale availability", () => {
-  it("is measured from the directory, not declared", () => {
-    // The bug this replaces: a hardcoded `available: false` on nine languages,
-    // which would have kept saying "Not yet available" after the catalogues
-    // landed. The assertion is the rule rather than the answer — a catalogue
-    // arriving or a namespace being added to English moves both sides of this
-    // comparison together, and nobody has to come back and edit it.
+  it("is measured from the catalogues, not declared", async () => {
+    // The bug this replaces twice over: a hardcoded `available: false` on nine
+    // languages, and then a check that counted files rather than messages. The
+    // assertion is the rule rather than the answer — a translation landing, or
+    // a key being added to English, moves both sides of this comparison
+    // together and nobody has to come back and edit it.
     for (const locale of SUPPORTED_LOCALES) {
-      expect(isLocaleAvailable(locale.code), locale.code).toBe(isCompleteOnDisk(locale.code));
+      expect(await localeIsComplete(locale.code), locale.code).toBe(
+        isCompleteOnDisk(locale.code),
+      );
     }
   });
 
-  it("offers English whatever else is translated", () => {
+  it("offers English whatever else is translated", async () => {
     // Not a measurement: English is the source and the fallback for every
     // other language, so it is selectable even if `locales/en/` were empty.
-    expect(isLocaleAvailable(SOURCE_LOCALE)).toBe(true);
-    expect(availableLocales()).toContain(SOURCE_LOCALE);
+    expect(await localeIsComplete(SOURCE_LOCALE)).toBe(true);
+    expect(await completeLocales()).toContain(SOURCE_LOCALE);
   });
 
-  it("offers every language whose catalogues are all present", () => {
+  it("offers every language that translates every message", async () => {
     const complete = SUPPORTED_LOCALES.map((l) => l.code).filter(isCompleteOnDisk);
     // Guards against the whole check passing vacuously if the glob above ever
     // stops matching: there is always at least English.
     expect(complete.length).toBeGreaterThan(0);
+    const offered = await completeLocales();
     for (const code of complete) {
-      expect(availableLocales(), code).toContain(code);
+      expect(offered, code).toContain(code);
     }
   });
 
-  it("refuses a language that is short of even one namespace", () => {
-    // The state every language is in while it is being translated. Half a
-    // catalogue is not a choice: picking it would leave most of the interface
-    // in English, which is the failure the Language screen used to have.
+  it("refuses a language that is short of even one message", async () => {
+    // The state every language is in while it is being translated, including
+    // the day a key is added to English. Half a catalogue is not a choice:
+    // picking it leaves part of the interface in English, which is the failure
+    // the Language screen used to have in a different costume.
+    const offered = await completeLocales();
     for (const code of ON_DISK.keys()) {
       if (code === SOURCE_LOCALE || isCompleteOnDisk(code)) continue;
-      expect(isLocaleAvailable(code), code).toBe(false);
-      expect(availableLocales(), code).not.toContain(code);
+      expect(await localeIsComplete(code), code).toBe(false);
+      expect(offered, code).not.toContain(code);
     }
   });
 
-  it("refuses a locale with no directory at all", () => {
-    expect(isLocaleAvailable("xx-YY")).toBe(false);
-    expect(availableLocales()).not.toContain("xx-YY");
+  it("refuses a language whose directory is missing a whole namespace", async () => {
+    // The old test, kept: it is still a refusal, now reached by the cheap
+    // path that short-circuits before any file is read.
+    for (const [code, namespaces] of ON_DISK) {
+      if (code === SOURCE_LOCALE) continue;
+      if (SHIPPED_NAMESPACES.every((ns) => namespaces.has(ns))) continue;
+      expect(await localeIsComplete(code), code).toBe(false);
+    }
   });
 
-  it("never offers a language the registry does not list", () => {
+  it("refuses a locale with no directory at all", async () => {
+    expect(await localeIsComplete("xx-YY")).toBe(false);
+    expect(await completeLocales()).not.toContain("xx-YY");
+  });
+
+  it("never offers a language the registry does not list", async () => {
     const registered = SUPPORTED_LOCALES.map((l) => l.code);
-    for (const code of availableLocales()) {
+    for (const code of await completeLocales()) {
       expect(registered, code).toContain(code);
     }
   });

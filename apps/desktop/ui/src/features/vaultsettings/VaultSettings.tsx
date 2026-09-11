@@ -135,12 +135,10 @@ export function VaultSettings() {
   const vaultPath = vaultState.data?.path ?? "";
 
   /**
-   * The Argon2id summary a recovery key sheet is printed with. Taken from a
+   * The key-derivation cost a recovery key sheet is printed with. Taken from a
    * password slot because that is the only slot kind that has one.
    */
-  const kdfSummary =
-    loadedSlots?.slots.find((slot) => slot.kdfSummary !== null && slot.kdfSummary !== "")
-      ?.kdfSummary ?? null;
+  const kdf = loadedSlots?.slots.find((slot) => slot.kdf !== null)?.kdf ?? null;
 
   const sectionProps = {
     onSave: (field: VaultSettingsField, patch: VaultSettingsPatch) => save.mutate({ field, patch }),
@@ -262,7 +260,7 @@ export function VaultSettings() {
             <KeySlotsSection
               vaultSlots={loadedSlots}
               vaultPath={vaultPath}
-              kdfSummary={kdfSummary}
+              kdf={kdf}
             />
           )}
 

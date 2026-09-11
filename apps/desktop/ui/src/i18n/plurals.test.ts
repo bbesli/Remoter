@@ -39,7 +39,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { IntlMessageFormat } from "intl-messageformat";
 
-import { isLocaleAvailable } from "./catalogues";
 import { initI18n } from "./instance";
 import { SOURCE_LOCALE, SUPPORTED_LOCALES, type Namespace } from "./locales";
 
@@ -326,19 +325,22 @@ describe("every plural in every catalogue", () => {
 // ---------------------------------------------- completeness, by key -------
 
 /**
- * A language the picker offers must be complete in keys, not only in files.
+ * A language that ships must be complete in keys, not only in files.
  *
- * `isLocaleAvailable` gates on the presence of namespace *files*, which is the
- * only question it can answer synchronously without loading all ninety
- * catalogues before the first paint — see the note on it in `catalogues.ts`.
- * The consequence is that a namespace which exists but is missing keys still
- * counts as available, and those keys then fall back to English one by one.
- * That is the right runtime behaviour (English beats a blank) and a bad place
- * to leave the only check: seventeen palette keys were added to English alone
- * and rendered English inside a Turkish interface, with nothing failing.
+ * The product now measures this too — `localeIsComplete` in `catalogues.ts`
+ * reads the catalogues and compares their keys against English's, so a
+ * half-translated language is not offered on the Language screen. That is the
+ * right runtime behaviour and the wrong place to leave the *only* check: at
+ * runtime an untranslated key is a silent fallback to English, and the
+ * language simply drops off a list nobody was looking at. Seventeen palette
+ * keys were added to English alone and rendered English inside a Turkish
+ * interface, with nothing failing anywhere.
  *
- * So completeness is enforced here, where it costs nothing at runtime and where
- * the answer is a red build rather than a language quietly going half-English.
+ * So completeness is enforced here as well, where the answer is a red build
+ * rather than a language quietly leaving the picker. This one is stricter than
+ * the runtime check on purpose: it holds translator comments to the same
+ * standard, because a comment that exists only in English is a comment the
+ * next translator cannot see.
  */
 describe("catalogue completeness", () => {
   const TRANSLATIONS = LOCALES.filter((locale) => locale !== SOURCE_LOCALE);
@@ -355,11 +357,19 @@ describe("catalogue completeness", () => {
     expect(ENGLISH_NAMESPACES.length).toBeGreaterThan(5);
   });
 
+  /** Has this language been started at all, in the sense of having files? */
+  function hasEveryNamespaceFile(locale: string): boolean {
+    const theirs = CATALOGUES.get(locale);
+    return theirs !== undefined && ENGLISH_NAMESPACES.every((ns) => theirs.has(ns));
+  }
+
   it.each(TRANSLATIONS)("%s has every key English ships", (locale) => {
-    // Only languages the picker actually offers are held to this. One that is
-    // still missing whole namespaces is a translation in progress and is
-    // already refused by `isLocaleAvailable`; failing it twice says nothing new.
-    if (!isLocaleAvailable(locale)) return;
+    // A language still missing whole namespace *files* is a translation in
+    // progress; listing each of its keys says nothing the missing file does
+    // not. Anything past that point is held to every key — including one the
+    // runtime check would now quietly drop the language over, which is the
+    // failure this test exists to make loud.
+    if (!hasEveryNamespaceFile(locale)) return;
 
     const missing: string[] = [];
     for (const namespace of ENGLISH_NAMESPACES) {

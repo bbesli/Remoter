@@ -35,8 +35,8 @@ import { IntlMessageFormat } from "intl-messageformat";
 import {
   ENGLISH_CATALOGUES,
   SHIPPED_NAMESPACES,
-  isLocaleAvailable,
   loadCatalogue,
+  localeIsComplete,
   type Catalogue,
 } from "./catalogues";
 import {
@@ -195,14 +195,19 @@ export function i18n(): I18n {
 /**
  * Switch language at runtime.
  *
- * Refuses a language with no catalogues rather than switching to one and
- * showing English: a setting that appears to take effect and does not is the
- * failure this whole layer exists to remove. The caller decides what to say
- * about a refusal; it returns the language actually in force.
+ * Refuses an incomplete language rather than switching to one and showing
+ * English through the gaps: a setting that appears to take effect and only
+ * half does is the failure this whole layer exists to remove. The caller
+ * decides what to say about a refusal; it returns the language actually in
+ * force.
+ *
+ * "Incomplete" is measured by key coverage, which means reading that
+ * language's catalogues — no extra cost here, because the next line loads
+ * exactly those files, and the answer is cached for the rest of the session.
  */
 export async function setLanguage(code: string): Promise<string> {
   const instance = i18n();
-  if (!isLocaleAvailable(code)) return instance.language;
+  if (!(await localeIsComplete(code))) return instance.language;
   await instance.changeLanguage(code);
   return instance.language;
 }

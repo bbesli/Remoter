@@ -29,7 +29,7 @@ const recoverySlot: Slot = {
   createdAt: 1_741_737_600,
   lastUsed: null,
   requiresKeyfile: false,
-  kdfSummary: null,
+  kdf: null,
 };
 
 const passwordSlot: Slot = {
@@ -39,7 +39,9 @@ const passwordSlot: Slot = {
   createdAt: 1_741_737_600,
   lastUsed: 1_757_462_400,
   requiresKeyfile: true,
-  kdfSummary: "Argon2id, 256 MiB, t=3",
+  // What the core actually sends: the cost as numbers. 262 144 KiB is the
+  // 256 MiB floor in `KdfParams::FLOOR_M_COST`.
+  kdf: { algorithm: "Argon2id", memoryKib: 262_144, passes: 3, lanes: 4 },
 };
 
 function setup(props: Partial<Parameters<typeof RemoveSlotDialog>[0]> = {}) {

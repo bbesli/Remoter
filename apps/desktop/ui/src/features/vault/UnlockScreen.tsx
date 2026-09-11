@@ -45,10 +45,11 @@ import { Mark } from "@/components/Mark";
 import { TextInput } from "@/components/TextInput";
 import { formatBytes, i18n, isolate, isolateLtr, useLocale, useT } from "@/i18n";
 import { asFailure, ipc } from "@/lib/ipc";
-import type { Backup, IpcFailure, Slot, SlotKind, UnlockRequest } from "@/lib/ipc";
+import type { Backup, IpcFailure, KdfParams, Slot, SlotKind, UnlockRequest } from "@/lib/ipc";
 import { qk } from "@/lib/queryKeys";
 import { useApp } from "@/stores/app";
 
+import { kdfSummary } from "./kdf";
 import { folderOf, keyfileFilters, keyfileRefusal } from "./keyfile";
 import { formatStamp, splitPath } from "./VaultPicker";
 import s from "./UnlockScreen.module.css";
@@ -67,10 +68,12 @@ import s from "./UnlockScreen.module.css";
  * from the shared instance rather than through `useT()`; see the header of
  * `keyfile.ts`, which requests the namespace for exactly this reason.
  */
-export function kdfNote(summary: string | null): string {
+export function kdfNote(locale: string, kdf: KdfParams | null): string {
   const t = i18n().getFixedT(null, "vault");
-  // The summary is the core's own "Argon2id, 256 MiB, t=3" — machine text that
-  // reads left to right whatever the interface language is.
+  const summary = kdfSummary(locale, kdf);
+  // `kdfSummary` composes notation — a name, a byte figure, `t=` and `p=` —
+  // which reads left to right whatever the interface language is, so it is
+  // isolated before it goes into a sentence that may not.
   return summary === null
     ? t("kdf.slow")
     : t("kdf.slowWithSummary", { summary: isolateLtr(summary) });
@@ -134,6 +137,7 @@ function canUse(slot: Slot): boolean {
 export function UnlockScreen({ path }: { path: string }) {
   const t = useT("vault");
   const tCommon = useT("common");
+  const { code: locale } = useLocale();
   const go = useApp((state) => state.go);
 
   const probe = useQuery({
@@ -529,7 +533,7 @@ export function UnlockScreen({ path }: { path: string }) {
                 <div className={s.busyStrip}>
                   <BusyStatus
                     label={t("unlock.derivingStage")}
-                    note={kdfNote(active?.kdfSummary ?? null)}
+                    note={kdfNote(locale, active?.kdf ?? null)}
                     size={16}
                   />
                 </div>
@@ -605,6 +609,9 @@ function SlotCard({
   children: ReactNode;
 }) {
   const t = useT("vault");
+  const { code: locale } = useLocale();
+  // Notation, composed here rather than shipped from the core; see `kdf.ts`.
+  const summary = kdfSummary(locale, slot.kdf);
   const usable = canUse(slot);
   const classes = [s.card, active ? s.cardActive : "", usable ? "" : s.cardDisabled]
     .filter(Boolean)
@@ -624,8 +631,8 @@ function SlotCard({
       <span className={s.fastest}>{t("unlock.fido2Fastest")}</span>
     ) : slot.kind === "recovery" ? (
       <span className={s.rightMeta}>{t("unlock.recoveryLastResort")}</span>
-    ) : slot.kind === "password" && slot.kdfSummary !== null ? (
-      <span className={s.chip}>{isolateLtr(slot.kdfSummary)}</span>
+    ) : slot.kind === "password" && summary !== null ? (
+      <span className={s.chip}>{isolateLtr(summary)}</span>
     ) : null;
 
   return (

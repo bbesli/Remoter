@@ -13,7 +13,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { equalsIgnoringCase, foldForSearch, foldInvariant } from "./fold";
+import { compareInLocale, equalsIgnoringCase, foldForSearch, foldInvariant } from "./fold";
 
 /** Does a haystack match a needle, folded the way a search box folds them? */
 function finds(haystack: string, needle: string, locale: string): boolean {
@@ -162,5 +162,38 @@ describe("equalsIgnoringCase", () => {
 
   it("survives a language tag this runtime has never heard of", () => {
     expect(() => equalsIgnoringCase("a", "A", "this is not a tag")).not.toThrow();
+  });
+});
+
+/**
+ * Ordering, which is the same question as folding and was guarded by nothing.
+ *
+ * `localeCompare` with no locale reads the *operating system's* language, not
+ * the one the interface is in, so a list of names came out in a different
+ * order on two machines running the same build in the same language. Nothing
+ * in the interface made that visible, and nothing in the documentation
+ * forbade it until this was found.
+ */
+describe("compareInLocale", () => {
+  it("sorts Turkish by the Turkish alphabet", () => {
+    // The dotless i is a letter of its own in Turkish and sorts before the
+    // dotted one, so "ısı" comes first. Elsewhere they are one letter and the
+    // decision falls to the second character, which puts "inek" first.
+    expect(compareInLocale("ısı", "inek", "tr")).toBeLessThan(0);
+    expect(compareInLocale("ısı", "inek", "en")).toBeGreaterThan(0);
+  });
+
+  it("sorts Swedish and German umlauts differently, as those languages do", () => {
+    // German files "ä" beside "a"; Swedish files it after "z".
+    expect(compareInLocale("ä", "z", "de")).toBeLessThan(0);
+    expect(compareInLocale("ä", "z", "sv")).toBeGreaterThan(0);
+  });
+
+  it("puts identical strings in neither order", () => {
+    expect(compareInLocale("web-01", "web-01", "tr")).toBe(0);
+  });
+
+  it("survives a language tag this runtime has never heard of", () => {
+    expect(() => compareInLocale("a", "b", "this is not a tag")).not.toThrow();
   });
 });

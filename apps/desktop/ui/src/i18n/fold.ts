@@ -156,6 +156,53 @@ function collatorFor(locale: string): Intl.Collator {
 }
 
 /**
+ * A collator for *ordering*, per language, built once.
+ *
+ * Separate from the matching collator above because the two jobs want
+ * different tailorings, and `Intl` says so: `usage: "sort"` is the collation a
+ * language sorts a list with, `usage: "search"` the one it matches with. They
+ * differ in several languages.
+ *
+ * `sensitivity: "variant"` keeps every distinction — case, accent, width —
+ * because this is deciding the order of a list a person reads, where "a" and
+ * "A" landing in an arbitrary order relative to each other looks like a bug.
+ */
+const SORT_OPTIONS: Intl.CollatorOptions = { usage: "sort", sensitivity: "variant" };
+const SORTERS = new Map<string, Intl.Collator>();
+
+/**
+ * Order two strings the way the reader's language orders them.
+ *
+ * Use this anywhere a list of names, labels, paths or tags is sorted for
+ * display. It is the counterpart of {@link foldForSearch}: the same rule that
+ * says a Turkish reader's `I` is not an `i` also says that Turkish sorts
+ * `ı` before `i`, and that Swedish puts `ä` after `z` while German
+ * puts it beside `a`.
+ *
+ * **`String.prototype.localeCompare(other)` with no locale is the bug this
+ * replaces.** It does not read the language the interface is in; it reads the
+ * one the *operating system* is set to. The connection tree was therefore
+ * ordered by the host machine, which means the same vault, in the same chosen
+ * language, came out in a different order on a colleague's laptop — and in
+ * Turkish, `"İstanbul".localeCompare("Izmir")` is negative by default and
+ * positive under `tr`. Nothing in the interface made that visible, and
+ * `docs/features/i18n.md` had no rule about collation until this was found.
+ *
+ * There is no invariant counterpart, deliberately. Ordering is a presentation
+ * choice and always belongs to the reader; the identifiers that must be folded
+ * invariantly ({@link foldInvariant}) are *compared*, never sorted for show.
+ */
+export function compareInLocale(a: string, b: string, locale: string): number {
+  const tag = usableLocale(locale);
+  let collator = SORTERS.get(tag);
+  if (collator === undefined) {
+    collator = new Intl.Collator(tag, SORT_OPTIONS);
+    SORTERS.set(tag, collator);
+  }
+  return collator.compare(a, b);
+}
+
+/**
  * Whether two strings are the same word, ignoring case, in one language.
  *
  * This is the comparison docs/features/i18n.md prescribes, with the language

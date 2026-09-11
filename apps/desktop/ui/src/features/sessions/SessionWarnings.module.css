@@ -1,0 +1,121 @@
+/* Over the session, at the inline start, under the framebuffer's own controls.
+   It shares the ground-token redefinition every overlay on the session area
+   needs: the ground is dark in every theme, and a callout that inherited the
+   light theme's near-black text would be unreadable on it. */
+.bar {
+  position: absolute;
+  inset-inline-start: var(--space-4);
+  inset-block-end: var(--space-8);
+  z-index: 3;
+  width: min(30rem, calc(100% - var(--space-8)));
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+
+  --fg-default: #e6e8ea;
+  --fg-strong: #c8ced4;
+  --fg-muted: #9aa1a9;
+  --fg-subtle: #8a929a;
+  --bg-surface: #1c1e22;
+  --bg-elevated: #23262b;
+  --bg-inset: #101114;
+  --border-default: #2a2e34;
+  --border-strong: #3a4048;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-1) var(--space-3);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-1);
+}
+
+.summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+}
+
+.summary[data-tone="danger"] {
+  color: var(--danger-text);
+}
+
+.summary[data-tone="warning"] {
+  color: var(--warning);
+}
+
+.summary[data-tone="info"] {
+  color: var(--info-text);
+}
+
+.toggle {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: var(--text-xs);
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.toggle:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.text {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  text-wrap: pretty;
+}
+
+.unnamed {
+  margin: var(--space-1) 0 0;
+  font-family: var(--font-mono);
+  font-variant-ligatures: none;
+  font-size: var(--text-xs);
+  color: var(--fg-subtle);
+  overflow-wrap: anywhere;
+}
+
+/* A login banner or message of the day: remote, untrusted, and shown verbatim
+   so its own line breaks survive. Bounded, because a server may send a page of
+   it and this notice must not take the session area. */
+.remoteText {
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2);
+  font-family: var(--font-mono);
+  font-variant-ligatures: none;
+  font-size: var(--text-xs);
+  color: var(--fg-strong);
+  background: var(--bg-inset);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 10rem;
+  overflow-y: auto;
+  user-select: text;
+}

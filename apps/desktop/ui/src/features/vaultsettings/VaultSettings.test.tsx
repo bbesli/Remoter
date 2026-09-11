@@ -45,7 +45,10 @@ const password: Slot = {
   createdAt: 1_741_737_600,
   lastUsed: 1_757_462_400,
   requiresKeyfile: true,
-  kdfSummary: "Argon2id, 256 MiB, t=3",
+  // The shape the core sends. It used to be an English sentence here and a
+  // different English sentence in the core, and this file asserted on the one
+  // nobody ever saw.
+  kdf: { algorithm: "Argon2id", memoryKib: 262_144, passes: 3, lanes: 4 },
 };
 
 const recovery: Slot = {
@@ -55,7 +58,7 @@ const recovery: Slot = {
   createdAt: 1_741_737_600,
   lastUsed: null,
   requiresKeyfile: false,
-  kdfSummary: null,
+  kdf: null,
 };
 
 const state: VaultState = {
@@ -90,7 +93,7 @@ describe("VaultSettings", () => {
     });
   });
 
-  it("lists each slot with its kind, its Argon2id summary and when it was last used", async () => {
+  it("lists each slot with its kind, its derivation cost and when it was last used", async () => {
     vaultSlots.mockResolvedValue({ slots: [password, recovery], openedWith: 0, backupCount: 3 });
     view(<VaultSettings />);
 
@@ -100,7 +103,11 @@ describe("VaultSettings", () => {
     expect(
       await screen.findByText("Master password", { normalizer: withoutBidi }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Argon2id, 256 MiB, t=3/)).toBeInTheDocument();
+    // Composed on this side from the numbers above, not printed from a
+    // sentence the core wrote: name, memory, and Argon2's own `t=`/`p=`.
+    expect(
+      screen.getByText(/Argon2id, 256 MiB, t=3, p=4/, { normalizer: withoutBidi }),
+    ).toBeInTheDocument();
     expect(screen.getByText(/Needs its key file too/)).toBeInTheDocument();
     // An unused recovery key is the slot most likely to be lost, so it says so.
     expect(screen.getAllByText(/Never used/).length).toBeGreaterThan(0);

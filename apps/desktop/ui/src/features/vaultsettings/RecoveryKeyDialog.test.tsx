@@ -43,7 +43,7 @@ function setup() {
     <RecoveryKeyDialog
       recoveryKey={key}
       vaultPath="/home/alex/vaults/acme.rvault"
-      kdfSummary="Argon2id, 256 MiB, t=3"
+      kdf={{ algorithm: "Argon2id", memoryKib: 262_144, passes: 3, lanes: 4 }}
       onDone={onDone}
     />,
   );

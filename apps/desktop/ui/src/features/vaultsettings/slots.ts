@@ -30,6 +30,7 @@
 import type { TFunction } from "i18next";
 
 import type { IconName } from "@/components/Icon";
+import { kdfSummary } from "@/features/vault/kdf";
 import { equalsIgnoringCase, formatDate, isolate } from "@/i18n";
 import type { Slot, SlotKind } from "@/lib/ipc";
 
@@ -111,9 +112,13 @@ export function slotDetail(slot: Slot, copy: SlotCopy): string {
   if (slot.kind === "password") {
     parts.push(copy.t(slot.requiresKeyfile ? "slot.withKeyfile" : "slot.noKeyfile"));
   }
-  // The KDF summary is the core's own notation — "Argon2id, 256 MiB, t=3" —
-  // and is never translated, for the reason SSH and RDP are not.
-  if (slot.kdfSummary !== null && slot.kdfSummary !== "") parts.push(slot.kdfSummary);
+  // Notation composed from the numbers the core sends — a function name, a
+  // byte figure and Argon2's own `t=` and `p=`. None of it is a word, which is
+  // what lets it stand in a translated line untranslated; the English sentence
+  // the core used to send here was not that, and printed "3 passes, 4 lanes"
+  // into nine other languages. See `@/features/vault/kdf.ts`.
+  const kdf = kdfSummary(copy.locale, slot.kdf);
+  if (kdf !== null) parts.push(kdf);
   parts.push(copy.t("slot.added", { day: formatDay(copy.locale, slot.createdAt) }));
   parts.push(describeLastUsed(slot.lastUsed, copy));
   return parts.join(copy.tCommon("punctuation.factSeparator"));

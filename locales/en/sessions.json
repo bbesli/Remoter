@@ -215,7 +215,130 @@
     "_comment_reconnectNotice": "Written into the terminal's own scrollback at the point the old session stopped, between two horizontal rules that this string does not include. The scrollback is kept across a reconnect, so without this mark the new session's first output reads as a continuation of the old one. Lower case, one or two words: it is a marker, not a sentence.",
     "reconnectNotice": "reconnecting",
     "_comment_inputRefused": "Over the core's message when a keystroke was not delivered — a frozen session, most often. Says what did not happen rather than 'an error occurred'.",
-    "inputRefused": "The last keystroke did not reach the server"
+    "inputRefused": "The last keystroke did not reach the server",
+
+    "framebuffer": {
+      "_comment_": "The screen an RDP or VNC session is seen on. READ inputUnavailable AND inputUnavailableWhy TOGETHER BEFORE TRANSLATING EITHER: they are the interface admitting a limit, and a translation that softens them leaves a user typing a command into a window that looks live and is not. RDP and VNC are protocol names and are never translated.",
+      "_comment_label": "The accessible name of the remote screen. Not visible. {name} is the connection's name, from the vault: user data, in any script.",
+      "label": "Remote screen for {name}",
+
+      "_comment_inputUnavailable": "SECURITY-RELEVANT. The heading of the standing notice over every graphical session. A statement of fact in the present tense. Not 'input may not work' and not 'read-only mode': nothing this user types or clicks leaves this machine.",
+      "inputUnavailable": "Nothing you type or click reaches this desktop.",
+      "_comment_inputUnavailableWhy": "The sentence after it. It says the screen is live so the user does not read the whole surface as frozen, and it says why input is not, so the limit reads as a missing piece of this build rather than as a broken connection.",
+      "inputUnavailableWhy": "The picture is live and updates as the remote screen changes, but this build has no way to send keyboard or pointer events to a graphical session.",
+
+      "_comment_viewOnly": "Badge on a session whose saved settings say view-only. Lower case, two words, the shortest true label. Distinct from inputUnavailable above: that one is what this build cannot do, this one is what the connection was configured to do.",
+      "viewOnly": "view only",
+      "_comment_viewOnlyHelp": "Tooltip on that badge.",
+      "viewOnlyHelp": "This connection is saved as view-only, so the core refuses to send anything to the remote host on it.",
+
+      "_comment_stale": "Shown when the sequence counter skipped, which means the core dropped a frame under load and part of the picture is older than the remote screen. Says what is wrong with what is on screen, and that it repairs itself.",
+      "stale": "A frame was dropped, so part of this picture may be out of date. It is repaired at the next full refresh.",
+      "_comment_awaitingFirstFrame": "Before the first frame has arrived. The session is connected; there is simply nothing to draw yet.",
+      "awaitingFirstFrame": "Waiting for the first frame…",
+      "_comment_noContext": "This window could not create the drawing surface at all. A real failure and worded as one, because the alternative is a black rectangle with no explanation.",
+      "noContext": "This window could not create a drawing surface, so the remote screen cannot be shown. Closing and reopening the tab may work; reporting it is more useful.",
+
+      "_comment_desktop": "In the strip along the bottom. {size} is the remote desktop in pixels, e.g. 1920×1080.",
+      "desktop": "{size} remote",
+      "_comment_desktopUnknown": "The same slot before any frame has said how large the desktop is.",
+      "desktopUnknown": "size not yet known",
+
+      "_comment_pointerShape": "Label beside a small picture of the pointer the remote host has set. It is shown rather than used as the mouse cursor because this build sends no pointer movement, so the remote pointer is not where the local one is. It is worth showing: an hourglass means the far end is busy.",
+      "pointerShape": "pointer shape",
+      "_comment_pointerShapeHelp": "Tooltip on it.",
+      "pointerShapeHelp": "The pointer shape the remote host has set. It is not used as your mouse cursor, because pointer movement is not sent to this session.",
+
+      "scale": {
+        "_comment_": "How the remote screen is fitted into the tab. Each label is a control and each Help is its tooltip. Keep the labels short — they sit in a row of four to six.",
+        "_comment_label": "Names the group of controls for a screen reader.",
+        "label": "Scale the remote screen",
+        "_comment_smart": "Verb-less label. Only offered when the server opened the channel that performs it, so it is never a button that does nothing.",
+        "smart": "Smart",
+        "_comment_smartHelp": "Tooltip. Say that the remote desktop itself changes size, not the picture of it — that is the difference from Fit.",
+        "smartHelp": "Ask the remote host to make its desktop the size of this tab. The picture stays sharp because nothing is scaled.",
+        "fit": "Fit",
+        "_comment_fitHelp": "Tooltip. 'never enlarged' matters: a desktop smaller than the tab is left at its own size rather than blown up.",
+        "fitHelp": "Scale the whole desktop down to the tab, keeping its proportions. A desktop smaller than the tab is never enlarged.",
+        "_comment_actual": "1:1 is a ratio and is written the same way in most languages; if yours writes ratios differently, use that form.",
+        "actual": "1:1",
+        "_comment_actualHelp": "Tooltip. Says what you gain and what it costs.",
+        "actualHelp": "One remote pixel per screen pixel, scrolling if the desktop is larger than the tab.",
+        "_comment_zoom": "The name of the mode, used where the mode has to be named rather than picked. The buttons themselves are zoomStep.",
+        "zoom": "Zoom",
+        "_comment_zoomStep": "On each magnification button. {factor} is 2, 3 or 4. The multiplication sign is notation, not a word.",
+        "zoomStep": "{factor, number}×",
+        "_comment_zoomHelp": "Tooltip on the magnification buttons. The reason for whole numbers only is worth keeping: a fractional zoom blurs text that was drawn for a pixel grid.",
+        "zoomHelp": "Magnify by a whole number of pixels, so small text stays sharp. Fractional magnification would blur it."
+      }
+    }
+  },
+
+  "framebuffer": {
+    "_comment_": "What the interface says when a frame from the core could not be read. Each of these means the byte stream is not the shape the format defines, which is a defect rather than a network condition — so each says plainly that the picture may be wrong, and none of them blames the user or the server.",
+    "decode": {
+      "_comment_": "One sentence per failure. They are shown over the session, so they are short. Keep them distinguishable from each other: which one appears is the first thing a bug report needs.",
+      "shortHeader": "A frame arrived too short to read. The picture may be out of date.",
+      "shortDescriptors": "A frame's table of regions was cut short. The picture may be out of date.",
+      "unknownEncoding": "A frame used a compression this build does not know. The picture may be out of date.",
+      "unknownFormat": "A frame used a pixel layout this build does not know. The picture may be out of date.",
+      "payloadMismatch": "A frame's contents did not match the size it declared. The picture may be out of date.",
+      "unknownMessage": "A frame of an unknown kind arrived and was ignored.",
+      "cursorShape": "A pointer shape arrived in a form this build could not read."
+    }
+  },
+
+  "warning": {
+    "_comment_": "What a session warned about, shown over the session itself. SECURITY-CRITICAL IN PART: vncSecurityNone, vncCleartextRoutable and rdpNlaDisabled each describe a session that is not protecting something the user is likely to assume is protected. Translate the consequence, not just the fact. VNC, RFB, RDP and the algorithm names are protocol vocabulary and are never translated.",
+    "_comment_count": "The one-line summary above the set. English says '1 notice' and '2 notices' alike; other languages do not.",
+    "count": "{count, plural, one {# notice from this session} other {# notices from this session}}",
+    "_comment_hide": "Verb, on the control that folds the set away. It is only offered when none of them is severe.",
+    "hide": "Hide",
+    "show": "Show",
+    "_comment_unnamedDetail": "Shown under a warning this build has no sentence for. {key} is the core's own identifier for it, printed as itself so a bug report can name it. Do not translate the key.",
+    "unnamedDetail": "Reported as: {key}",
+
+    "kind": {
+      "_comment_": "The fallbacks, used when the core names a warning without a detail this build recognises.",
+      "_comment_unencryptedTransport": "SECURITY-CRITICAL. Something about this session is travelling in the clear and the core did not say which part.",
+      "unencryptedTransport": "Part of this session is travelling unencrypted. Anyone between this machine and the remote host can read it.",
+      "_comment_weakAlgorithm": "{algorithm} is the algorithm's name as it appeared on the wire, from the far end. Never translated.",
+      "weakAlgorithm": "This session negotiated {algorithm}, which is weaker than the algorithms Remoter would have preferred.",
+      "_comment_recordingStarted": "Sent before anything is written, which is where a recording notice belongs.",
+      "recordingStarted": "This session is being recorded.",
+      "_comment_outputThrottled": "Diagnostic, not a failure: nothing is lost, the far end is being made to wait.",
+      "outputThrottled": "The remote host is sending faster than this window can take it, so it is being made to wait. Nothing is lost.",
+      "_comment_banner": "Introduces the server's own login banner, which follows verbatim in its own block. Untrusted text: it is never part of this sentence.",
+      "banner": "The server showed a message when the session opened:",
+      "_comment_other": "A warning this build has no sentence for. The core's own identifier follows underneath.",
+      "other": "The session reported something this build has no wording for."
+    },
+
+    "detail": {
+      "_comment_": "The named warnings the protocol adapters actually raise. Each maps to a constant in crates/remoter-proto-vnc or crates/remoter-proto-rdp, so the set is finite and closed.",
+      "_comment_vncCleartextLoopback": "RFB with no encryption, to this machine. The least serious of the three: nothing leaves the machine.",
+      "vncCleartextLoopback": "This VNC session is unencrypted, but it does not leave this machine.",
+      "_comment_vncCleartextPrivateNetwork": "The middle case: it leaves the machine, onto a network the user may or may not control.",
+      "vncCleartextPrivateNetwork": "This VNC session is unencrypted and is crossing the local network. Anything on that network can read what is on the screen and what is typed.",
+      "_comment_vncCleartextRoutable": "SECURITY-CRITICAL. Unencrypted RFB to an address on the public internet. Do not soften this one.",
+      "vncCleartextRoutable": "This VNC session is unencrypted and is crossing the public internet. Everything on the screen, and everything typed, can be read in transit. Tunnel it through SSH instead.",
+      "_comment_vncSecurityNone": "SECURITY-CRITICAL. The server asked for no authentication at all and the connection was made anyway.",
+      "vncSecurityNone": "This VNC server asked for no authentication at all, so nothing proved who was connecting. Anyone who can reach the port can open the same screen.",
+      "_comment_vncVersionLegacy": "The RFB version floor was lowered deliberately; say so rather than implying a fault.",
+      "vncVersionLegacy": "This server speaks an RFB version older than the one the specification documents.",
+      "_comment_vncPasswordTruncated": "VNC's own authentication uses at most eight characters of a password, silently. The user's longer password is not being used in full.",
+      "vncPasswordTruncated": "VNC authentication uses only the first eight characters of a password. The rest of yours was not used.",
+      "vncBell": "The remote host rang its bell.",
+      "_comment_vncClipboardSubstituted": "RFB carries clipboard text in Latin-1 only, so anything outside it cannot be sent as it was written.",
+      "vncClipboardSubstituted": "Some characters could not be sent to the remote clipboard and were replaced. VNC carries Latin-1 text only.",
+      "vncClipboardMangled": "The remote clipboard contained characters VNC cannot carry, so what arrived is not exactly what was copied.",
+      "_comment_vncButtonUnsupported": "RFB has no way to carry the back and forward buttons on a mouse, so a press of one goes nowhere.",
+      "vncButtonUnsupported": "VNC cannot carry the extra mouse buttons, so the back and forward buttons do nothing in this session.",
+      "_comment_rdpNlaDisabled": "SECURITY-CRITICAL. Without Network Level Authentication the credentials go to whatever answered the port, before anything has proved it is the right machine. Network Level Authentication is Microsoft's name for the mechanism; keep it, and keep NLA if your language uses the abbreviation.",
+      "rdpNlaDisabled": "This RDP connection has Network Level Authentication turned off, so the credentials are sent to whatever answered the port before it has proved what it is.",
+      "_comment_rdpDisplayControlUnavailable": "Not a security matter: the server did not open the channel that lets the desktop be resized. It explains why Smart does nothing on this server.",
+      "rdpDisplayControlUnavailable": "This server did not open the channel that resizes its desktop, so the size of this tab cannot change it. Fit or 1:1 will still show the whole screen."
+    }
   },
 
   "find": {

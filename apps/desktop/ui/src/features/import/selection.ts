@@ -16,7 +16,7 @@
  *     dropped and the child goes with it, whatever the tick said.
  */
 
-import { foldForSearch } from "@/i18n";
+import { compareInLocale, foldForSearch, foldInvariant } from "@/i18n";
 import type { ImportNode } from "@/lib/ipc";
 
 export interface ImportTreeIndex {
@@ -47,6 +47,9 @@ export interface IncludedCounts {
 /**
  * Indexes a preview's nodes into the shape the tree is drawn from.
  *
+ * `locale` is the reader's language, and it is here for the sibling ordering
+ * alone: a tree is drawn in the order a person reads names in.
+ *
  * Two hostile-input guards, because this data came out of a file someone else
  * wrote:
  *
@@ -57,7 +60,7 @@ export interface IncludedCounts {
  *   - a parent cycle is broken at the first node already seen, so a crafted
  *     file cannot hang the interface in a walk that never ends.
  */
-export function indexNodes(nodes: readonly ImportNode[]): ImportTreeIndex {
+export function indexNodes(nodes: readonly ImportNode[], locale: string): ImportTreeIndex {
   const byId = new Map<string, ImportNode>();
   for (const node of nodes) byId.set(node.id, node);
 
@@ -69,7 +72,11 @@ export function indexNodes(nodes: readonly ImportNode[]): ImportTreeIndex {
     else bucket.push(node);
   }
   for (const bucket of children.values()) {
-    bucket.sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+    // The order this preview is drawn in, so it is the reader's collation and
+    // not the host operating system's. Bare `localeCompare` reads the latter,
+    // which put the same file's rows in a different order on two machines
+    // running the same build in the same language.
+    bucket.sort((a, b) => a.sortOrder - b.sortOrder || compareInLocale(a.name, b.name, locale));
   }
 
   const order: string[] = [];
@@ -227,6 +234,10 @@ export function excludedRoots(index: ImportTreeIndex, excluded: ReadonlySet<stri
  * written on them, because English folds capital I to a dotted i and Turkish
  * does not. The file being imported is very often a colleague's export, in the
  * colleague's own language, so this is the screen where it bites first.
+ *
+ * It applies to the *name*. A hostname is not a word in anyone's language, and
+ * folding one in Turkish breaks it in the other direction — which is what the
+ * code below used to do while its own comment said the value was ASCII.
  */
 export function matchingIds(
   index: ImportTreeIndex,
@@ -236,18 +247,25 @@ export function matchingIds(
   const needle = foldForSearch(query.trim(), locale);
   if (needle === "") return null;
 
+  // The query is folded twice because the row is two kinds of text, and the
+  // needle has to meet each of them folded the same way it was.
+  const identifierNeedle = foldInvariant(query.trim());
+
   const visible = new Set<string>();
   for (const id of index.order) {
     const node = index.byId.get(id);
     if (node === undefined) continue;
-    // The protocol is never translated (docs/features/i18n.md), but it folds
-    // with the rest: it is ASCII, and one fold over the joined line is what
-    // lets a query span a name and a host.
-    const haystack = foldForSearch(
-      [node.name, node.host ?? "", node.username ?? "", node.protocol ?? ""].join(" "),
-      locale,
+    // The name is a word somebody wrote, in whatever language they wrote it,
+    // and it folds in the reader's. The host, the account and the protocol are
+    // identifiers on a remote system: they fold invariantly, which is what the
+    // old comment here claimed ("it is ASCII") while doing the opposite. A
+    // hostname folded under Turkish rules turns `VDI-GW` into `vdı-gw`, and
+    // the reader who types `vdi` is then told the file contains no such host.
+    const words = foldForSearch(node.name, locale);
+    const identifiers = foldInvariant(
+      [node.host ?? "", node.username ?? "", node.protocol ?? ""].join(" "),
     );
-    if (!haystack.includes(needle)) continue;
+    if (!words.includes(needle) && !identifiers.includes(identifierNeedle)) continue;
     visible.add(id);
     for (const ancestor of index.ancestors.get(id) ?? []) visible.add(ancestor);
     for (const child of index.descendants.get(id) ?? []) visible.add(child);

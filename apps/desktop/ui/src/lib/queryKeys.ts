@@ -46,7 +46,44 @@ export const qk = {
   sessions: () => ["sessions"] as const,
   /** Every running forward, with its live counters. */
   tunnels: () => ["tunnels"] as const,
+
+  /**
+   * Everything one SFTP file pane owns.
+   *
+   * A prefix of the two below, so closing a pane or acting on it invalidates
+   * the listing and the transfer list together. The pane id is part of every
+   * key because two panes on two hosts show two different `/home/deploy`.
+   */
+  sftpPane: (paneId: number) => ["sftp", paneId] as const,
+  /**
+   * One directory as that pane sees it.
+   *
+   * The path is the raw, server-supplied one — the same string that goes back
+   * on the wire — and never the escaped display form, which would key two
+   * genuinely different directories to one entry.
+   */
+  sftpListing: (paneId: number, path: string) => ["sftp", paneId, "listing", path] as const,
+  /**
+   * The pane's transfer list.
+   *
+   * For the first paint and for reconciling after a tab switch. A running
+   * transfer's progress does not come from here; see
+   * `features/files/queue.ts`.
+   */
+  sftpTransfers: (paneId: number) => ["sftp", paneId, "transfers"] as const,
 } as const;
+
+/**
+ * Invalidates everything a change inside one file pane can affect.
+ *
+ * A rename shows up in the listing, a delete shows up in the listing, and a
+ * queued transfer shows up in the transfer list — and a caller that picks one
+ * of the two is how the tree's stale-inspector bug above happened, one layer
+ * down.
+ */
+export async function invalidatePane(client: QueryClient, paneId: number): Promise<void> {
+  await client.invalidateQueries({ queryKey: qk.sftpPane(paneId) });
+}
 
 /**
  * Invalidates everything a change to the tree can affect.

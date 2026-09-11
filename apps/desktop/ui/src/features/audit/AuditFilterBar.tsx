@@ -15,7 +15,7 @@ import clsx from "clsx";
 import { Button } from "@/components/Button";
 import { Icon } from "@/components/Icon";
 import { Skeleton } from "@/components/Busy";
-import { isolate, isolateLtr, useT } from "@/i18n";
+import { compareInLocale, isolate, isolateLtr, useLocale, useT } from "@/i18n";
 import type { AuditFilters, TreeNode } from "@/lib/ipc";
 
 import { categoryLabel, outcomeLabel, type AuditT } from "./format";
@@ -41,12 +41,16 @@ interface AuditFilterBarProps {
 
 export function AuditFilterBar({ value, onChange, available, nodes, total }: AuditFilterBarProps) {
   const t = useT("audit");
+  const { code: locale } = useLocale();
 
   const nodeOptions = (nodes ?? [])
     // A separator concerns nothing and is never the subject of an audit row.
     .filter((node) => node.kind !== "separator")
     .slice()
-    .sort((a, b) => a.name.localeCompare(b.name));
+    // The reader's collation, not the operating system's: this is a list of
+    // names a person scans for one they recognise, and bare `localeCompare`
+    // orders it by whatever language the machine happens to be set to.
+    .sort((a, b) => compareInLocale(a.name, b.name, locale));
 
   return (
     <div className={s.bar} role="group" aria-label={t("filters.region")}>

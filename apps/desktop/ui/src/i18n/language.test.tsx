@@ -12,7 +12,7 @@ import { act, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { applyDocumentLanguage, i18n, setLanguage } from "./instance";
-import { isLocaleAvailable, availableLocales } from "./catalogues";
+import { localeIsComplete, completeLocales } from "./catalogues";
 import { SOURCE_LOCALE, localeDirection, SUPPORTED_LOCALES } from "./locales";
 import { useT } from "./useT";
 
@@ -28,10 +28,16 @@ const instance = i18n();
  * refused"; it is "a language you can actually read is selectable and one you
  * cannot is not", and that is what is asserted below.
  */
-const TRANSLATED: readonly string[] = availableLocales().filter((code) => code !== SOURCE_LOCALE);
+// Top-level await: completeness is measured by reading the catalogues, which
+// is a dynamic import, and the two lists below decide what the whole file
+// asserts. Awaiting here keeps them declarations rather than state a
+// `beforeAll` fills in.
+const COMPLETE: readonly string[] = await completeLocales();
+
+const TRANSLATED: readonly string[] = COMPLETE.filter((code) => code !== SOURCE_LOCALE);
 
 const UNTRANSLATED: readonly string[] = [
-  ...SUPPORTED_LOCALES.map((locale) => locale.code).filter((code) => !isLocaleAvailable(code)),
+  ...SUPPORTED_LOCALES.map((locale) => locale.code).filter((code) => !COMPLETE.includes(code)),
   // Always present, so the refusal is still exercised on the day every shipped
   // language is complete: a tag the registry has never heard of has no
   // catalogue by definition. It is also the realistic case — a settings file
@@ -134,8 +140,9 @@ describe("switching language", () => {
     expect(instance.language).toBe(SOURCE_LOCALE);
   });
 
-  it("treats English as available whatever else is", () => {
-    expect(availableLocales()).toContain(SOURCE_LOCALE);
+  it("treats English as available whatever else is", async () => {
+    expect(await completeLocales()).toContain(SOURCE_LOCALE);
+    expect(await localeIsComplete(SOURCE_LOCALE)).toBe(true);
   });
 });
 

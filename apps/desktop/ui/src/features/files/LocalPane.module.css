@@ -1,0 +1,155 @@
+/*
+ * The local pane.
+ *
+ * Deliberately not a grid of five columns. This pane has a folder and a list of
+ * chosen files, and nothing else — the build has no command that reads a size,
+ * a mode or an owner from this machine. Drawing the remote pane's columns with
+ * nothing under them would be the interface claiming a capability it does not
+ * have; the callout at the top of the pane says what it does instead.
+ */
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: 0;
+  padding: var(--space-3);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  flex: none;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--fg-default);
+}
+
+.destination {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  background: var(--bg-inset);
+  border-radius: var(--radius-sm);
+}
+
+.label {
+  flex: none;
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+}
+
+.path {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--fg-default);
+  /* A path runs left to right whatever the interface direction is, and
+     `isolateLtr` marks it so; this keeps the ellipsis on the end the reader
+     expects. */
+  direction: ltr;
+  text-align: start;
+}
+
+.none {
+  flex: 1 1 auto;
+  font-size: var(--text-xs);
+  font-style: italic;
+  color: var(--fg-subtle);
+}
+
+.tools {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.spacer {
+  flex: 1 1 auto;
+}
+
+.counts {
+  flex: none;
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-canvas);
+}
+
+.item {
+  display: grid;
+  grid-template-columns: auto minmax(6rem, 1fr) minmax(0, 2fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  color: var(--fg-muted);
+}
+
+.item:hover {
+  background: var(--bg-inset);
+}
+
+.itemName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--fg-default);
+  direction: ltr;
+  text-align: start;
+}
+
+.itemPath {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-xs);
+  color: var(--fg-subtle);
+  direction: ltr;
+  text-align: start;
+}
+
+/* As in the remote pane: the hint appears only while a drag is over this one,
+   and says what is missing rather than letting the drop fail after the fact. */
+.dropHint {
+  flex: none;
+  margin: 0;
+  padding: var(--space-2);
+  text-align: center;
+  font-size: var(--text-sm);
+  color: var(--fg-on-accent);
+  background: var(--accent);
+  border-radius: var(--radius-sm);
+}

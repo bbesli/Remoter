@@ -32,7 +32,7 @@ import { FailureNotice } from "@/components/FailureNotice";
 import { Field } from "@/components/Field";
 import { TextInput } from "@/components/TextInput";
 import { kdfNote } from "@/features/vault/UnlockScreen";
-import { isolate, useT } from "@/i18n";
+import { isolate, useLocale, useT } from "@/i18n";
 import type { IpcFailure, RotateMasterKey, RotationOutcome, Slot } from "@/lib/ipc";
 
 import { Dialog } from "./Dialog";
@@ -66,6 +66,7 @@ export function RotateMasterKeyDialog({
 }: RotateMasterKeyDialogProps) {
   const t = useT("vaultsettings");
   const tCommon = useT("common");
+  const { code: locale } = useLocale();
   const [credentials, setCredentials] = useState<Record<number, Credential>>({});
   const [drops, setDrops] = useState<readonly number[]>([]);
 
@@ -232,7 +233,7 @@ export function RotateMasterKeyDialog({
 
       {busy && (
         <div className={s.busy}>
-          <BusyStatus label={t("rotateMaster.stage")} note={kdfNote(null)} size={16} />
+          <BusyStatus label={t("rotateMaster.stage")} note={kdfNote(locale, null)} size={16} />
         </div>
       )}
 

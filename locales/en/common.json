@@ -185,7 +185,7 @@
     "chainSeparator": " → ",
     "_comment_listSeparator": "Only for lists the interface builds itself. Prose lists go through Intl.ListFormat, which knows that English says 'a, b and c' and German says 'a, b und c'.",
     "listSeparator": ", ",
-    "_comment_factSeparator": "Joins short facts on one line that are not a prose list: 'Password only · Argon2id, 256 MiB, t=3 · Added 3 Mar 2025'. A locale whose readers expect a different glyph may change it; the spaces around it are part of the separator. Not flipped for right-to-left — a middot has no direction.",
+    "_comment_factSeparator": "Joins short facts on one line that are not a prose list: 'Password only · Argon2id, 256 MiB, t=3, p=4 · Added 3 Mar 2025'. A locale whose readers expect a different glyph may change it; the spaces around it are part of the separator. Not flipped for right-to-left — a middot has no direction.",
     "factSeparator": " · "
   }
 }

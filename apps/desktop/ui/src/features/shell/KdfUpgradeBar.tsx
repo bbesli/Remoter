@@ -33,7 +33,7 @@ import { FailureNotice } from "@/components/FailureNotice";
 import { Field } from "@/components/Field";
 import { Icon } from "@/components/Icon";
 import { TextInput } from "@/components/TextInput";
-import { useT } from "@/i18n";
+import { useLocale, useT } from "@/i18n";
 import { asFailure, ipc } from "@/lib/ipc";
 import type { VaultState } from "@/lib/ipc";
 import { qk } from "@/lib/queryKeys";
@@ -47,6 +47,7 @@ import s from "./KdfUpgradeBar.module.css";
 export function KdfUpgradeBar({ vault }: { vault: VaultState | undefined }) {
   const t = useT("shell");
   const tCommon = useT("common");
+  const { code: locale } = useLocale();
   const queryClient = useQueryClient();
 
   const [expanded, setExpanded] = useState(false);
@@ -76,9 +77,9 @@ export function KdfUpgradeBar({ vault }: { vault: VaultState | undefined }) {
   const needsKeyfile = passwordSlots.some((slot) => slot.requiresKeyfile);
   const keyfilePath = keyfileChoice ?? probe.data?.rememberedKeyfile ?? null;
   const keyfileRefused = keyfileRefusal(keyfilePath ?? "", path ?? "");
-  // The summary of the slot being replaced, so the wait is explained in the
-  // same words the unlock screen used a moment ago.
-  const summary = passwordSlots.find((slot) => slot.kdfSummary !== null)?.kdfSummary ?? null;
+  // The cost of the slot being replaced, so the wait is explained in the same
+  // words the unlock screen used a moment ago.
+  const replacedKdf = passwordSlots.find((slot) => slot.kdf !== null)?.kdf ?? null;
 
   const upgrade = useMutation({
     // No mutation variables: the request carries the password, and mutation
@@ -268,7 +269,7 @@ export function KdfUpgradeBar({ vault }: { vault: VaultState | undefined }) {
       {/* Argon2id runs again here, so the wait is the same wait the unlock
           screen just explained — in the same words, from the same function. */}
       {upgrade.isPending && (
-        <BusyStatus label={t("kdfUpgrade.workingStage")} note={kdfNote(summary)} size={16} />
+        <BusyStatus label={t("kdfUpgrade.workingStage")} note={kdfNote(locale, replacedKdf)} size={16} />
       )}
 
       <div className={s.actions}>

@@ -257,10 +257,23 @@ impl KdfParams {
         }
     }
 
-    /// A one-line description for the interface, e.g. `"Argon2id, 512 MiB, 3
-    /// passes, 4 lanes"`.
+    /// A one-line description **for the audit log**, e.g. `"Argon2id, 512 MiB,
+    /// 3 passes, 4 lanes"`.
+    ///
+    /// English on purpose, and named for its one caller so that it cannot
+    /// quietly become the interface's text again. `docs/features/i18n.md` puts
+    /// exported audit entries in the same class as a Rust `Display` and an
+    /// `IpcError`'s `detail`: diagnostics, read by whoever is debugging and by
+    /// tooling, and therefore not translated.
+    ///
+    /// It is *not* what a screen shows. This used to be `summary()`, it
+    /// crossed the IPC boundary as a `String`, and six otherwise-translated
+    /// screens printed it verbatim — "passes" and "lanes" are English words,
+    /// not notation, and no catalogue could ever reach them. The interface now
+    /// receives [`m_cost`](Self::m_cost), [`t_cost`](Self::t_cost) and
+    /// [`p_cost`](Self::p_cost) as numbers and composes its own line.
     #[must_use]
-    pub fn summary(self) -> String {
+    pub fn audit_note(self) -> String {
         format!(
             "Argon2id, {} MiB, {} passes, {} lanes",
             self.m_cost / 1024,
@@ -408,17 +421,10 @@ pub struct SlotInfo {
     pub kdf_params: Option<KdfParams>,
 }
 
-impl SlotInfo {
-    /// The one-line key derivation summary the settings screen shows beside a
-    /// slot, e.g. `"Argon2id, 256 MiB, 3 passes, 4 lanes"`.
-    ///
-    /// `None` for the kinds that derive their key with HKDF instead, which have
-    /// no cost to describe.
-    #[must_use]
-    pub fn kdf_summary(&self) -> Option<String> {
-        self.kdf_params.map(KdfParams::summary)
-    }
-}
+// There is deliberately no `SlotInfo::kdf_summary()`. A slot describes its cost
+// with [`SlotInfo::kdf_params`] — three numbers and a version — and whoever
+// displays them writes the sentence in the reader's language. The method that
+// used to be here returned an English one, and every screen printed it.
 
 /// The CBOR header.
 ///

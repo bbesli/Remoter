@@ -26,7 +26,7 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/Button";
 import { RecoveryKeyPanel } from "@/features/vault/RecoveryKeyScreen";
 import { useT } from "@/i18n";
-import type { CreateVaultResult, RecoveryKey } from "@/lib/ipc";
+import type { CreateVaultResult, KdfParams, RecoveryKey } from "@/lib/ipc";
 
 import { Dialog } from "./Dialog";
 import s from "./RecoveryKeyDialog.module.css";
@@ -35,8 +35,8 @@ interface RecoveryKeyDialogProps {
   recoveryKey: RecoveryKey;
   /** Printed on the paper sheet, so the page says which vault it opens. */
   vaultPath: string;
-  /** The vault's Argon2id summary, for the same sheet. */
-  kdfSummary: string | null;
+  /** What the vault's password slot cost to derive, for the same sheet. */
+  kdf: KdfParams | null;
   /** Set when more than one key is being handed over, as after a rotation. */
   sequence?: { position: number; total: number } | undefined;
   onDone: () => void;
@@ -45,7 +45,7 @@ interface RecoveryKeyDialogProps {
 export function RecoveryKeyDialog({
   recoveryKey,
   vaultPath,
-  kdfSummary,
+  kdf,
   sequence,
   onDone,
 }: RecoveryKeyDialogProps) {
@@ -57,9 +57,9 @@ export function RecoveryKeyDialog({
       path: vaultPath,
       recoveryKeyGroups: recoveryKey.recoveryKeyGroups,
       confirmGroupIndex: recoveryKey.confirmGroupIndex,
-      kdfSummary: kdfSummary ?? "",
+      kdf,
     }),
-    [vaultPath, recoveryKey, kdfSummary],
+    [vaultPath, recoveryKey, kdf],
   );
 
   const last = sequence === undefined || sequence.position === sequence.total;

@@ -25,10 +25,19 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { EffectiveConnection, PrivateKeyInfo, ResolvedField, TreeNode } from "@/lib/ipc";
+import type {
+  EffectiveConnection,
+  PrivateKeyInfo,
+  ResolvedField,
+  TreeNode,
+} from "@/lib/ipc";
 import { withoutBidi } from "@/test/bidi";
 
-import { ConnectionEditor, useConnectionEditor, type EditorTarget } from "./ConnectionEditor";
+import {
+  ConnectionEditor,
+  useConnectionEditor,
+  type EditorTarget,
+} from "./ConnectionEditor";
 
 // Hoisted with the `vi.mock` calls below, which run before the imports above.
 const { ipcMock, dialogOpen } = vi.hoisted(() => ({
@@ -88,7 +97,9 @@ function node(over: Partial<TreeNode> & { id: string }): TreeNode {
   };
 }
 
-function field(over: Partial<ResolvedField> & { field: string }): ResolvedField {
+function field(
+  over: Partial<ResolvedField> & { field: string },
+): ResolvedField {
   return {
     value: null,
     origin: "own",
@@ -125,7 +136,11 @@ function renderEditor(target: EditorTarget) {
   );
 }
 
-const NEW_CONNECTION: EditorTarget = { mode: "create", parentId: null, kind: "connection" };
+const NEW_CONNECTION: EditorTarget = {
+  mode: "create",
+  parentId: null,
+  kind: "connection",
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -168,7 +183,9 @@ describe("a username and a password on a connection", () => {
   beforeEach(() => {
     ipcMock.listNodes.mockResolvedValue([connection]);
     ipcMock.resolveNode.mockResolvedValue(
-      resolved({ fields: [field({ field: "host", value: "web-01.example.net" })] }),
+      resolved({
+        fields: [field({ field: "host", value: "web-01.example.net" })],
+      }),
     );
   });
 
@@ -206,7 +223,10 @@ describe("a username and a password on a connection", () => {
     await user.click(screen.getByRole("button", { name: "Create" }));
 
     await waitFor(() => expect(ipcMock.createNode).toHaveBeenCalledTimes(1));
-    const input = ipcMock.createNode.mock.calls[0]?.[0] as Record<string, unknown>;
+    const input = ipcMock.createNode.mock.calls[0]?.[0] as Record<
+      string,
+      unknown
+    >;
     expect(input["kind"]).toBe("connection");
     expect(input["username"]).toBe("ada");
     expect(input["password"]).toBe("hunter2");
@@ -279,9 +299,13 @@ describe("a connection whose credential comes from a folder", () => {
     // screen wrapped in a bidi isolate. `withoutBidi` takes the invisible
     // characters back out; without it these queries fail for a reason nothing
     // in the output shows. See src/test/bidi.ts.
-    expect(await screen.findByText("svc-deploy", { normalizer: withoutBidi })).toBeInTheDocument();
     expect(
-      screen.getByText("inherited from Datacentre EU-West", { normalizer: withoutBidi }),
+      await screen.findByText("svc-deploy", { normalizer: withoutBidi }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("inherited from Datacentre EU-West", {
+        normalizer: withoutBidi,
+      }),
     ).toBeInTheDocument();
     // No control to type into: what is on screen belongs to the folder.
     expect(screen.queryByLabelText("Username")).not.toBeInTheDocument();
@@ -291,14 +315,19 @@ describe("a connection whose credential comes from a folder", () => {
     const user = userEvent.setup();
     renderEditor({ mode: "edit", nodeId: "conn-1" });
 
-    await user.click(await screen.findByRole("button", { name: "Override here" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Override here" }),
+    );
 
     // The line that says the choice has a consequence — quiet, and at the
     // moment it becomes true rather than after the fact.
     expect(
-      await screen.findByText(/Datacentre EU-West keeps the credential it has/, {
-        normalizer: withoutBidi,
-      }),
+      await screen.findByText(
+        /Datacentre EU-West keeps the credential it has/,
+        {
+          normalizer: withoutBidi,
+        },
+      ),
     ).toBeInTheDocument();
 
     const username = screen.getByLabelText("Username");
@@ -309,7 +338,9 @@ describe("a connection whose credential comes from a folder", () => {
     await waitFor(() => expect(ipcMock.updateNode).toHaveBeenCalledTimes(1));
     // The edit names the connection and nothing else. The folder's credential
     // is not written, not renamed and not pointed at.
-    expect(ipcMock.updateNode).toHaveBeenCalledWith("conn-1", { username: "ada" });
+    expect(ipcMock.updateNode).toHaveBeenCalledWith("conn-1", {
+      username: "ada",
+    });
     expect(ipcMock.createNode).not.toHaveBeenCalled();
     expect(nodesTouched()).toEqual(["conn-1"]);
   });
@@ -320,8 +351,12 @@ describe("a connection whose credential comes from a folder", () => {
 
     // Override, then change your mind: nothing of this connection's own was
     // ever saved, so there is nothing for the core to undo.
-    await user.click(await screen.findByRole("button", { name: "Override here" }));
-    await user.click(screen.getByRole("button", { name: /Revert to inherited/ }));
+    await user.click(
+      await screen.findByRole("button", { name: "Override here" }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: /Revert to inherited/ }),
+    );
 
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
   });
@@ -356,7 +391,12 @@ describe("a connection with a login of its own", () => {
             overrides: "svc-deploy",
             sourceName: "Datacentre EU-West",
           }),
-          field({ field: "username", value: "ada", origin: "own", overrides: "svc-deploy" }),
+          field({
+            field: "username",
+            value: "ada",
+            origin: "own",
+            overrides: "svc-deploy",
+          }),
         ],
       }),
     );
@@ -374,14 +414,18 @@ describe("a connection with a login of its own", () => {
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(ipcMock.updateNode).toHaveBeenCalledTimes(1));
-    expect(ipcMock.updateNode).toHaveBeenCalledWith("conn-1", { username: "ada.lovelace" });
+    expect(ipcMock.updateNode).toHaveBeenCalledWith("conn-1", {
+      username: "ada.lovelace",
+    });
   });
 
   it("reverts to the inherited credential as one instruction", async () => {
     const user = userEvent.setup();
     renderEditor({ mode: "edit", nodeId: "conn-1" });
 
-    await user.click(await screen.findByRole("button", { name: /Revert to inherited/ }));
+    await user.click(
+      await screen.findByRole("button", { name: /Revert to inherited/ }),
+    );
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(ipcMock.updateNode).toHaveBeenCalledTimes(1));
@@ -424,7 +468,9 @@ describe("a shared credential", () => {
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(ipcMock.updateNode).toHaveBeenCalledTimes(1));
-    expect(ipcMock.updateNode).toHaveBeenCalledWith("cred-1", { username: "svc-build" });
+    expect(ipcMock.updateNode).toHaveBeenCalledWith("cred-1", {
+      username: "svc-build",
+    });
     // A credential inherits nothing, so nothing here may be reset to inherited.
     expect(ipcMock.resolveNode).not.toHaveBeenCalled();
   });
@@ -439,7 +485,9 @@ describe("private key authentication", () => {
     await user.click(screen.getByRole("radio", { name: /Private key/ }));
     await user.click(screen.getByRole("button", { name: "Create" }));
 
-    expect(await screen.findByText(/Choose the private key file/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/Choose the private key file/),
+    ).toBeInTheDocument();
     expect(ipcMock.createNode).not.toHaveBeenCalled();
   });
 
@@ -469,7 +517,9 @@ describe("private key authentication", () => {
     expect(passphrase).toHaveAttribute("type", "password");
 
     await user.click(screen.getByRole("button", { name: "Create" }));
-    expect(await screen.findByText(/protected by a passphrase/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/protected by a passphrase/),
+    ).toBeInTheDocument();
     expect(ipcMock.createNode).not.toHaveBeenCalled();
   });
 
@@ -482,12 +532,18 @@ describe("private key authentication", () => {
     await fillIdentity(user);
     await user.click(screen.getByRole("radio", { name: /Private key/ }));
     await user.click(screen.getByRole("button", { name: "Choose a key file" }));
-    await user.type(await screen.findByLabelText("Key passphrase"), "correct horse");
+    await user.type(
+      await screen.findByLabelText("Key passphrase"),
+      "correct horse",
+    );
     await user.click(screen.getByRole("button", { name: "Create" }));
 
     await waitFor(() => expect(ipcMock.createNode).toHaveBeenCalledTimes(1));
 
-    const input = ipcMock.createNode.mock.calls[0]?.[0] as Record<string, unknown>;
+    const input = ipcMock.createNode.mock.calls[0]?.[0] as Record<
+      string,
+      unknown
+    >;
     expect(input["kind"]).toBe("connection");
     expect(input["credential"]).toEqual({
       kind: "privateKey",
@@ -510,8 +566,14 @@ describe("agent authentication", () => {
     await user.click(screen.getByRole("button", { name: "Create" }));
 
     await waitFor(() => expect(ipcMock.createNode).toHaveBeenCalledTimes(1));
-    const input = ipcMock.createNode.mock.calls[0]?.[0] as Record<string, unknown>;
-    expect(input["credential"]).toEqual({ kind: "agent", commentFilter: "ada@laptop" });
+    const input = ipcMock.createNode.mock.calls[0]?.[0] as Record<
+      string,
+      unknown
+    >;
+    expect(input["credential"]).toEqual({
+      kind: "agent",
+      commentFilter: "ada@laptop",
+    });
     expect(input["password"]).toBeNull();
   });
 });
@@ -533,7 +595,9 @@ describe("a connection that already has a key", () => {
 
   beforeEach(() => {
     ipcMock.listNodes.mockResolvedValue([connection]);
-    ipcMock.resolveNode.mockResolvedValue(resolved({ credentialAttached: true }));
+    ipcMock.resolveNode.mockResolvedValue(
+      resolved({ credentialAttached: true }),
+    );
   });
 
   it("opens on the method the credential uses and leaves the stored key alone", async () => {
@@ -552,7 +616,9 @@ describe("a connection that already has a key", () => {
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(ipcMock.updateNode).toHaveBeenCalledTimes(1));
-    expect(ipcMock.updateNode).toHaveBeenCalledWith("conn-1", { name: "web-02" });
+    expect(ipcMock.updateNode).toHaveBeenCalledWith("conn-1", {
+      name: "web-02",
+    });
   });
 
   it("refuses to switch to a password without one, rather than silently keeping the key", async () => {
@@ -562,7 +628,161 @@ describe("a connection that already has a key", () => {
     await user.click(await screen.findByRole("radio", { name: /^Password/ }));
     await user.click(screen.getByRole("button", { name: "Save" }));
 
-    expect(await screen.findByText(/Type the password this login should use/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/Type the password this login should use/),
+    ).toBeInTheDocument();
     expect(ipcMock.updateNode).not.toHaveBeenCalled();
+  });
+});
+
+describe("the protocols a connection may be given", () => {
+  /*
+   * The restriction this replaces: the menu disabled `rdp`, `sftp` and `vnc`
+   * and explained that the build opened SSH only. It was true — `session_open`
+   * refused them by name — and it stopped being true the day the framebuffer
+   * adapters were wired into the gate. A disabled control that has outlived its
+   * reason is the same defect as a control with nothing behind it, read from
+   * the other end.
+   */
+  it("offers all four, with none of them disabled", async () => {
+    renderEditor(NEW_CONNECTION);
+
+    const menu = await screen.findByLabelText("Protocol");
+    const offered = Array.from(menu.querySelectorAll("option"));
+    expect(offered.map((option) => option.value)).toEqual([
+      "ssh",
+      "sftp",
+      "rdp",
+      "vnc",
+    ]);
+    for (const option of offered) {
+      expect(option.disabled, option.value).toBe(false);
+      // The label is the protocol name and nothing else: no apology appended.
+      expect(option.textContent).toBe(option.value);
+    }
+  });
+
+  /*
+   * RDP and VNC authenticate with a password. The agent and a private key are
+   * SSH and SFTP, and offering either here would be a choice that fails at
+   * connect time for a reason the editor knew before it was made.
+   */
+  it.each(["rdp", "vnc"])(
+    "offers %s a password and nothing else",
+    async (protocol) => {
+      const user = userEvent.setup();
+      renderEditor(NEW_CONNECTION);
+
+      await user.selectOptions(
+        await screen.findByLabelText("Protocol"),
+        protocol,
+      );
+
+      expect(screen.getByLabelText("Password")).toBeInTheDocument();
+      expect(
+        screen.queryByRole("radio", { name: /SSH agent/ }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("radio", { name: /Private key/ }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByText(
+          new RegExp(`${protocol.toUpperCase()} authenticates with a password`),
+        ),
+      ).toBeInTheDocument();
+    },
+  );
+});
+
+describe("the protocol settings a connection carries", () => {
+  const windows = node({
+    id: "conn-1",
+    name: "dc-01",
+    protocol: "rdp",
+    host: "dc-01.corp.example",
+  });
+
+  beforeEach(() => {
+    ipcMock.listNodes.mockResolvedValue([windows]);
+  });
+
+  /*
+   * The section is a reading, not a form: no command writes a connection's
+   * settings map, so it says so rather than drawing a control that would
+   * discard what was typed into it.
+   */
+  it("shows what the adapter will read, and says it cannot be changed here", async () => {
+    ipcMock.resolveNode.mockResolvedValue(
+      resolved({
+        protocol: "rdp",
+        fields: [
+          field({ field: "settings.domain", value: "CORP" }),
+          field({
+            field: "settings.network_level_authentication",
+            value: "false",
+            origin: "inherited",
+            sourceName: "Datacentre EU-West",
+          }),
+        ],
+      }),
+    );
+    renderEditor({ mode: "edit", nodeId: "conn-1" });
+
+    expect(await screen.findByText("Protocol settings")).toBeInTheDocument();
+    expect(
+      screen.getByText(/These settings cannot be changed here/),
+    ).toBeInTheDocument();
+
+    // Each setting under its own key, with the value the connection resolved.
+    expect(screen.getByText("domain")).toBeInTheDocument();
+    expect(withoutBidi(screen.getByText(/CORP/).textContent ?? "")).toBe(
+      "CORP",
+    );
+
+    // A setting whose value has a consequence says what the consequence is —
+    // and this one is the consequence that matters most on the screen.
+    expect(
+      screen.getByText(/credentials are sent to whatever answered the port/),
+    ).toBeInTheDocument();
+    // Inherited, and the screen says from where.
+    expect(screen.getByText(/Datacentre EU-West/)).toBeInTheDocument();
+  });
+
+  /*
+   * And what RDP does not do at all. Every item is a channel the adapter has
+   * no implementation of, so there is no setting for any of them — an omission
+   * that would otherwise read as an oversight rather than as the answer.
+   */
+  it("names what this build's RDP cannot do, even with nothing set", async () => {
+    ipcMock.resolveNode.mockResolvedValue(
+      resolved({ protocol: "rdp", fields: [] }),
+    );
+    renderEditor({ mode: "edit", nodeId: "conn-1" });
+
+    expect(
+      await screen.findByText(
+        /does not redirect the clipboard, drives, printers/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Nothing is set on this connection/),
+    ).toBeInTheDocument();
+  });
+
+  /* An SSH connection with no settings of its own gets no empty section. */
+  it("is absent for a protocol with nothing to say and nothing set", async () => {
+    ipcMock.listNodes.mockResolvedValue([
+      node({
+        id: "conn-1",
+        name: "web-01",
+        protocol: "ssh",
+        host: "web-01.example.net",
+      }),
+    ]);
+    ipcMock.resolveNode.mockResolvedValue(resolved({ fields: [] }));
+    renderEditor({ mode: "edit", nodeId: "conn-1" });
+
+    await screen.findByLabelText("Name");
+    expect(screen.queryByText("Protocol settings")).not.toBeInTheDocument();
   });
 });

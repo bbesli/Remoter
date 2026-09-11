@@ -12,7 +12,7 @@
 import { describe, expect, it } from "vitest";
 
 import { i18n, initI18n } from "@/i18n";
-import { formatBytes, formatClock, formatElapsed, formatSize, formatUptime } from "./format";
+import { formatBytes, formatElapsed, formatSize, formatUptime } from "./format";
 
 // English is bundled and the backend answers for it synchronously, so a real
 // `t` is available here without awaiting anything or rendering a component.
@@ -64,13 +64,6 @@ describe("formatElapsed", () => {
 
   it("says nothing rather than zero when there is no measurement", () => {
     expect(formatElapsed(t, "en", -1)).toBe("—");
-  });
-});
-
-describe("formatClock", () => {
-  it("drops the hour until there is one", () => {
-    expect(formatClock(374_000)).toBe("06:14");
-    expect(formatClock(11_524_000)).toBe("3:12:04");
   });
 });
 

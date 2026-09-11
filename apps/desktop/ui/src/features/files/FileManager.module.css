@@ -1,0 +1,105 @@
+/*
+ * The file manager screen.
+ *
+ * Two panes side by side above a queue, collapsing to one column when the
+ * window is narrow — a dual-pane browser squeezed into 400 px is two unusable
+ * panes rather than one usable one.
+ *
+ * Every length is a token. The one bare number is the grid's breakpoint, which
+ * is a layout decision rather than a design value and has no token to be.
+ */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-height: 0;
+  height: 100%;
+  padding: var(--space-3);
+  background: var(--bg-canvas);
+  color: var(--fg-default);
+  font-size: var(--text-base);
+}
+
+.header {
+  display: flex;
+  flex: none;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--fg-default);
+}
+
+.on {
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+}
+
+.spacer {
+  flex: 1 1 auto;
+}
+
+.chooser {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.chooserLabel {
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+}
+
+.select {
+  padding: var(--space-1) var(--space-2);
+  background: var(--bg-surface);
+  color: var(--fg-default);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: var(--text-sm);
+}
+
+.select:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 1px;
+}
+
+.hint {
+  flex-basis: 100%;
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--fg-subtle);
+}
+
+.centred {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+}
+
+.blockers {
+  flex: none;
+}
+
+.panes {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-3);
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+@media (min-width: 60rem) {
+  .panes {
+    grid-template-columns: 1fr 1fr;
+  }
+}

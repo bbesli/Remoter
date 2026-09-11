@@ -6,9 +6,15 @@
  * and is exactly the wrong shape now: the flag has to be edited by hand when a
  * catalogue lands, so the first thing that happens after a translation ships is
  * that the screen keeps calling it unavailable. Availability is measured from
- * the catalogue directory instead (`isLocaleAvailable`), so a language becomes
- * selectable the moment `locales/<code>/` is complete and this file needs no
- * change at all.
+ * the catalogues instead (`localeIsComplete`), so a language becomes selectable
+ * the moment `locales/<code>/` translates every message English ships, and this
+ * file needs no change at all.
+ *
+ * "Complete" means every message, not every file. The file test was the second
+ * version of this mistake: a namespace that existed but was half translated
+ * passed it, so the row called the language finished while strings inside it
+ * fell back to English. Measuring properly means reading the catalogues, which
+ * is why the list arrives a moment after the screen does.
  *
  * Choosing one takes effect immediately: `setLocale` moves the store, the
  * provider above the whole application loads the catalogues and writes `lang`
@@ -22,10 +28,12 @@
  * direction, not the language's.
  */
 
+import { useEffect, useState } from "react";
+
 import { Badge } from "@/components/Badge";
 import { FailureNotice } from "@/components/FailureNotice";
 import { Spinner } from "@/components/Spinner";
-import { SUPPORTED_LOCALES, isLocaleAvailable, useT } from "@/i18n";
+import { SUPPORTED_LOCALES, completeLocales, useT } from "@/i18n";
 import { useApp } from "@/stores/app";
 
 import { SettingsSection } from "./SettingsSection";
@@ -46,14 +54,53 @@ export function LanguageSection({
   const saving = savingField === "locale";
   const localeFailure = failure !== null && failure.field === "locale" ? failure.failure : null;
 
-  // Measured, not declared. Both of these were constants until the catalogues
-  // existed, and a constant is what let the screen go stale.
+  /**
+   * Which languages are complete, measured rather than declared — and measured
+   * by *key coverage*, which is why it is asynchronous and why this screen has
+   * a moment before it can answer.
+   *
+   * The check used to be the presence of each namespace file, which a
+   * half-translated catalogue passed: the row said the language was finished
+   * while strings inside it fell back to English. Reading the catalogues is
+   * the only way to know better, and they are dynamic imports.
+   *
+   * `null` means "not measured yet", and the screen offers nothing while it
+   * holds. A row drawn before the answer arrives would be a choice made on the
+   * old, wrong test — which is the whole defect, one frame at a time.
+   */
+  const [complete, setComplete] = useState<ReadonlySet<string> | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    void completeLocales().then((codes) => {
+      if (alive) setComplete(new Set(codes));
+    });
+    // The catalogues cannot change while the application runs, so this settles
+    // once; the guard is for a screen closed before the read comes back.
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   const locales = SUPPORTED_LOCALES.map((locale) => ({
     ...locale,
-    available: isLocaleAvailable(locale.code),
+    available: complete?.has(locale.code) ?? false,
   }));
   const availableCount = locales.filter((locale) => locale.available).length;
-  const storedIsAvailable = isLocaleAvailable(settings.locale);
+  const storedIsAvailable = complete?.has(settings.locale) ?? false;
+
+  if (complete === null) {
+    // No copy: the spinner announces itself as "Working" through its own
+    // default label, and inventing a sentence for a wait this short would be
+    // one more string for nine translators and one more thing to go stale.
+    return (
+      <SettingsSection title={t("language.title")} description={t("language.description")}>
+        <p className={s.saving}>
+          <Spinner size={14} />
+        </p>
+      </SettingsSection>
+    );
+  }
 
   function choose(code: string) {
     if (code === settings.locale) return;

@@ -16,6 +16,7 @@ import "i18next";
 import type audit from "../../../../../locales/en/audit.json";
 import type common from "../../../../../locales/en/common.json";
 import type connections from "../../../../../locales/en/connections.json";
+import type files from "../../../../../locales/en/files.json";
 // `import` is a reserved word, so the local binding is `importer`; the
 // namespace itself is "import", matching the feature directory.
 import type importer from "../../../../../locales/en/import.json";
@@ -34,6 +35,7 @@ declare module "i18next" {
       connections: typeof connections;
       settings: typeof settings;
       sessions: typeof sessions;
+      files: typeof files;
       import: typeof importer;
       vault: typeof vault;
       vaultsettings: typeof vaultsettings;

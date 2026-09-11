@@ -25,7 +25,7 @@ import { FailureNotice } from "@/components/FailureNotice";
 import { Field } from "@/components/Field";
 import { TextInput } from "@/components/TextInput";
 import { kdfNote } from "@/features/vault/UnlockScreen";
-import { isolate, useT } from "@/i18n";
+import { isolate, useLocale, useT } from "@/i18n";
 import type { ChangePassword, IpcFailure, Slot } from "@/lib/ipc";
 
 import { Dialog } from "./Dialog";
@@ -53,6 +53,7 @@ export function ChangePasswordDialog({
 }: ChangePasswordDialogProps) {
   const t = useT("vaultsettings");
   const tCommon = useT("common");
+  const { code: locale } = useLocale();
   const [current, setCurrent] = useState("");
   const [currentKeyfile, setCurrentKeyfile] = useState<string | null>(null);
   const [next, setNext] = useState("");
@@ -177,7 +178,7 @@ export function ChangePasswordDialog({
         <div className={s.busy}>
           <BusyStatus
             label={t("changePassword.savingStage")}
-            note={kdfNote(slot.kdfSummary)}
+            note={kdfNote(locale, slot.kdf)}
             size={16}
           />
         </div>

@@ -230,7 +230,11 @@ export function ImportWizard() {
     };
   }, []);
 
-  const index: ImportTreeIndex = useMemo(() => indexNodes(preview?.nodes ?? []), [preview]);
+  const index: ImportTreeIndex = useMemo(
+    // The locale orders siblings, so a language change re-sorts the preview.
+    () => indexNodes(preview?.nodes ?? [], locale),
+    [preview, locale],
+  );
   const counts = useMemo(() => includedCounts(index, excluded), [index, excluded]);
   // The filter folds under the reader's casing rules, so the language has to
   // reach it. See `matchingIds`.
@@ -259,7 +263,7 @@ export function ImportWizard() {
     busy,
   };
 
-  const folders = nodes.isSuccess ? folderPaths(nodes.data) : null;
+  const folders = nodes.isSuccess ? folderPaths(nodes.data, locale) : null;
   const destinationLabel =
     destinationId === null ? null : (folders?.find((f) => f.id === destinationId)?.path ?? null);
 

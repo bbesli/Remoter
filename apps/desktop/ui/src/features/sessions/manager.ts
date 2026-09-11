@@ -36,6 +36,23 @@ import {
   writeNotice,
   writeToTerminal,
 } from "./terminals";
+import {
+  disposeSurface,
+  ensureSurface,
+  hasSurface,
+  resizeSurface,
+  writeFrame,
+} from "./surfaces";
+import { defaultScaleMode, smartResizeRequest, type Size } from "./scaling";
+
+/**
+ * The vault setting that makes a graphical session send nothing.
+ *
+ * `node_resolve` returns every protocol setting as a resolved field named
+ * `settings.<key>`, so this is the key as the VNC adapter declares it
+ * (`crates/remoter-proto-vnc/src/protocol.rs`, `SETTING_VIEW_ONLY`).
+ */
+const VIEW_ONLY_FIELD = "settings.view_only";
 
 /** `host:port` as configured, for the tab before the core reports its own. */
 function targetOf(node: Pick<TreeNode, "host" | "port">): string | null {
@@ -80,6 +97,10 @@ export function reconnect(tabId: string): void {
   if (record.sessionId !== null) {
     void ipc.closeSession(record.sessionId).catch(() => undefined);
   }
+  // A reconnect may land on a different desktop size, or on a server that is
+  // not resizable this time. The surface is rebuilt from the new session's
+  // first keyframe rather than carried over half-valid.
+  disposeSurface(tabId);
   useSessions.getState().restart(tabId);
   // The scrollback is kept — the design's reconnect notice promises it — so
   // the terminal needs a mark saying where the old session stopped. Otherwise
@@ -137,7 +158,18 @@ function startAttempt(tabId: string): void {
   useSessions.getState().patch(tabId, { renderer: rendererFor(tabId) });
 
   const channel = sessionChannel({
-    onData: (bytes) => writeToTerminal(tabId, bytes),
+    // One channel, two decoders. `SessionEvent::Data` carries terminal bytes
+    // *or* an encoded framebuffer update, and which it is follows from the
+    // session's kind rather than from anything in the bytes — no sniffing.
+    //
+    // There is no window in which this can pick wrongly: a framebuffer surface
+    // is created synchronously when `ready` names the kind, and the adapters
+    // emit `Ready` before their first frame on a channel that delivers in
+    // order.
+    onData: (bytes) => {
+      if (hasSurface(tabId)) writeFrame(tabId, bytes);
+      else writeToTerminal(tabId, bytes);
+    },
     onMessage: (message) => handleMessage(tabId, message),
   });
 
@@ -179,6 +211,11 @@ function onReady(tabId: string, opened: SessionOpened): void {
     failure: null,
   });
 
+  if (opened.capabilities.kind === "framebuffer") {
+    startFramebuffer(tabId, opened);
+    return;
+  }
+
   // The PTY was opened at the core's default size. The tab knows the real one,
   // and a terminal told the wrong width draws wrongly rather than safely.
   const size = sizeOf(tabId);
@@ -186,6 +223,93 @@ function onReady(tabId: string, opened: SessionOpened): void {
     void ipc.resizeSession(opened.sessionId, size.cols, size.rows).catch(() => undefined);
   }
   if (useSessions.getState().activeTabId === tabId) focusTerminal(tabId);
+}
+
+/**
+ * Turns a tab into a graphical one, at the moment the core names its kind.
+ *
+ * The terminal that was created speculatively at the start of the attempt goes
+ * here. It was never opened — nothing mounted it — so it holds no WebGL
+ * context and no scrollback, but it does hold an xterm instance, and a tab
+ * showing a remote desktop has no use for one.
+ */
+function startFramebuffer(tabId: string, opened: SessionOpened): void {
+  disposeTerminal(tabId);
+  ensureSurface(tabId, {
+    onMetrics: (metrics) => {
+      const current = useSessions.getState().byId[tabId];
+      if (current === undefined) return;
+      // `cols` and `rows` are pixels for a graphical session, which is what the
+      // status bar's size field already shows correctly: 1920x1080 reads the
+      // same way 80x24 does.
+      useSessions.getState().setMetrics(tabId, {
+        ...current.metrics,
+        bytesIn: metrics.bytesIn,
+        cols: metrics.width,
+        rows: metrics.height,
+      });
+    },
+  });
+
+  useSessions.getState().patch(tabId, {
+    // rendering.md makes smart resize the default where it is supported, and
+    // `capabilities.resizable` is the adapter's report of whether the channel
+    // that performs it is actually open — not a guess from the protocol name.
+    scale: { mode: defaultScaleMode(opened.capabilities.resizable), zoom: 2 },
+    // The renderer probe belongs to the terminal that was just disposed of.
+    renderer: null,
+  });
+
+  void readViewOnly(tabId);
+}
+
+/**
+ * Reads whether this connection is configured to send nothing.
+ *
+ * A separate call because `SessionOpened` does not carry protocol settings;
+ * `node_resolve` is where an inherited `view_only` resolves, with the folder it
+ * came from. A failure leaves the flag `null` — unknown, and said as unknown —
+ * rather than defaulting to "not view only", which would be the interface
+ * asserting something it had failed to read.
+ */
+async function readViewOnly(tabId: string): Promise<void> {
+  const record = useSessions.getState().byId[tabId];
+  if (record === undefined) return;
+  try {
+    const resolved = await ipc.resolveNode(record.nodeId);
+    const field = resolved.fields.find((entry) => entry.field === VIEW_ONLY_FIELD);
+    if (field === undefined) {
+      // The protocol has no such setting — RDP does not — so the session is not
+      // view-only. That is a read, not a default.
+      useSessions.getState().patch(tabId, { viewOnly: false });
+      return;
+    }
+    useSessions.getState().patch(tabId, { viewOnly: field.value === "true" });
+  } catch {
+    // Left unknown on purpose. See the doc comment.
+  }
+}
+
+/**
+ * Asks a resizable server to make its desktop the size of the tab.
+ *
+ * This is "smart resize" in `docs/architecture/rendering.md`, and it is the one
+ * thing the surface's scaling controls can do to the far end. `session_resize`
+ * carries pixels for a graphical session — MS-RDPEDISP for RDP, `SetDesktopSize`
+ * for VNC — so the same command the terminal uses for columns and rows does
+ * this without a second one.
+ *
+ * A refusal is not reported here: the adapter raises a warning the surface
+ * already shows (`rdp.display_control_unavailable`), and the next request would
+ * only repeat it.
+ */
+export function requestDesktopSize(tabId: string, viewport: Size, devicePixelRatio: number): void {
+  const record = useSessions.getState().byId[tabId];
+  if (record === undefined || record.sessionId === null) return;
+  if (record.opened?.capabilities.resizable !== true) return;
+  const wanted = smartResizeRequest(viewport, devicePixelRatio);
+  if (wanted === null) return;
+  void ipc.resizeSession(record.sessionId, wanted.width, wanted.height).catch(() => undefined);
 }
 
 /** Everything the core says about a session while it is alive. */
@@ -242,7 +366,13 @@ function handleMessage(tabId: string, message: SessionMessage): void {
 
     case "resized":
       // The far end changed the display size on its own — a `resize` in a
-      // multiplexer, or a server-driven change. The tab follows.
+      // multiplexer, a server-driven change, or the Deactivate All that answers
+      // a smart-resize request. The tab follows.
+      //
+      // For a graphical session this has to reach the surface before the
+      // pixels for the new size do, or the first frame of it is cropped to the
+      // old backing store.
+      resizeSurface(tabId, message.width, message.height);
       store.setMetrics(tabId, {
         ...record.metrics,
         cols: message.width,
@@ -340,6 +470,7 @@ export async function closeTab(tabId: string): Promise<void> {
     }
   }
   disposeTerminal(tabId);
+  disposeSurface(tabId);
   useSessions.getState().remove(tabId);
 }
 
@@ -351,5 +482,6 @@ export async function cancelConnect(tabId: string): Promise<void> {
 /** Dismisses a tab whose session has already ended, without asking the core. */
 export function dismissTab(tabId: string): void {
   disposeTerminal(tabId);
+  disposeSurface(tabId);
   useSessions.getState().remove(tabId);
 }

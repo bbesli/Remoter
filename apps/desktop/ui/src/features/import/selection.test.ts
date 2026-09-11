@@ -73,7 +73,7 @@ const NODES: ImportNode[] = [
   node({ id: "old1", name: "old-01", kind: "connection", parentId: "archive", host: "old.acme" }),
 ];
 
-const index = indexNodes(NODES);
+const index = indexNodes(NODES, "en");
 
 describe("indexNodes", () => {
   it("orders the tree depth-first, with depths", () => {
@@ -83,16 +83,22 @@ describe("indexNodes", () => {
   });
 
   it("treats a node whose parent is missing as a root rather than hiding it", () => {
-    const orphaned = indexNodes([node({ id: "a", name: "a", kind: "connection", parentId: "gone" })]);
+    const orphaned = indexNodes(
+      [node({ id: "a", name: "a", kind: "connection", parentId: "gone" })],
+      "en",
+    );
     expect([...orphaned.order]).toEqual(["a"]);
     expect(orphaned.depth.get("a")).toBe(0);
   });
 
   it("does not spin on a parent cycle", () => {
-    const cyclic = indexNodes([
-      node({ id: "a", name: "a", kind: "folder", parentId: "b" }),
-      node({ id: "b", name: "b", kind: "folder", parentId: "a" }),
-    ]);
+    const cyclic = indexNodes(
+      [
+        node({ id: "a", name: "a", kind: "folder", parentId: "b" }),
+        node({ id: "b", name: "b", kind: "folder", parentId: "a" }),
+      ],
+      "en",
+    );
     expect([...cyclic.order].sort()).toEqual(["a", "b"]);
   });
 });
@@ -208,7 +214,7 @@ describe("matchingIds, outside English", () => {
     node({ id: "el", name: "ΟΔΟΣ-7", kind: "connection", host: "odos-7.example.gr" }),
     node({ id: "ar", name: "مُحَمَّد-01", kind: "connection", host: "m01.example.sa" }),
   ];
-  const foreign = indexNodes(FOREIGN);
+  const foreign = indexNodes(FOREIGN, "tr");
 
   it("finds a Turkish machine by the name written on it", () => {
     // The defect this replaces: "IŞIK-01" folded to "isik-01" under English
@@ -237,5 +243,59 @@ describe("matchingIds, outside English", () => {
 
   it("still refuses a query that matches nothing", () => {
     expect([...(matchingIds(foreign, "zzz", "tr") ?? [])]).toEqual([]);
+  });
+});
+
+/**
+ * The other half of the same rule, and the regression that came with the first
+ * half: a hostname is not a word in anyone's language.
+ *
+ * Folding one under the reader's rules breaks it in the direction nobody
+ * expects — Turkish folds `VDI` to `vdı`, so the reader who types the letters
+ * printed on the machine is told the file has no such host. The observed
+ * defect, on an interface set to Turkish and a file of perfectly ordinary
+ * corporate hostnames.
+ */
+describe("matchingIds, on identifiers rather than words", () => {
+  const HOSTS: ImportNode[] = [
+    node({ id: "gw", name: "Berlin gateway", kind: "connection", host: "VDI-GW.corp" }),
+    node({ id: "api", name: "Avrupa", kind: "connection", host: "API-EU-01.corp" }),
+    node({ id: "acct", name: "Yönetici", kind: "connection", host: "h9.corp", username: "ADMIN" }),
+  ];
+  const hosts = indexNodes(HOSTS, "tr");
+
+  it("finds a host by its own letters with the interface in Turkish", () => {
+    expect(matchingIds(hosts, "vdi", "tr")?.has("gw")).toBe(true);
+    expect(matchingIds(hosts, "api", "tr")?.has("api")).toBe(true);
+  });
+
+  it("finds it typed in capitals too", () => {
+    expect(matchingIds(hosts, "VDI", "tr")?.has("gw")).toBe(true);
+  });
+
+  it("folds an account name the same way a host is folded", () => {
+    expect(matchingIds(hosts, "admin", "tr")?.has("acct")).toBe(true);
+  });
+
+  it("still folds the name in the reader's language", () => {
+    // "Yönetici" is a word, and the name half of the row is what carries it.
+    expect(matchingIds(hosts, "YÖNETİCİ", "tr")?.has("acct")).toBe(true);
+  });
+});
+
+describe("indexNodes ordering", () => {
+  it("orders siblings by the reader's collation, not the machine's", () => {
+    // Turkish treats the dotless i as a letter of its own, sorted before the
+    // dotted one, so "ısı" comes before "inek"; every other collation here
+    // makes them the same letter and decides on the second character, which
+    // puts "inek" first. Bare `localeCompare` answers with whatever language
+    // the operating system is set to — which is how one file came out in two
+    // orders on two laptops running the same build in the same language.
+    const names: ImportNode[] = [
+      node({ id: "dotless", name: "ısı", kind: "folder", sortOrder: 0 }),
+      node({ id: "dotted", name: "inek", kind: "folder", sortOrder: 0 }),
+    ];
+    expect([...indexNodes(names, "tr").order]).toEqual(["dotless", "dotted"]);
+    expect([...indexNodes(names, "en").order]).toEqual(["dotted", "dotless"]);
   });
 });

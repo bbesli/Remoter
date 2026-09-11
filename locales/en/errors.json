@@ -885,7 +885,7 @@
       "message": "One of this connection's settings has no value, and the connection cannot open without it."
     },
     "protocol-unsupported": {
-      "message": "This build opens SSH and SFTP sessions only."
+      "message": "Nothing in this build speaks that connection's protocol, or it cannot do what was asked of it."
     },
     "unsupported": {
       "message": "Sessions of this protocol do not support that."

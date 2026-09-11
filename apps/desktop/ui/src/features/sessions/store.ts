@@ -26,6 +26,7 @@ import type {
 } from "@/lib/ipc";
 import type { ConnectPhase, StageId } from "./stages";
 import type { RendererReport } from "./renderer";
+import type { ScaleMode } from "./scaling";
 
 /** A warning the session raised, kept so the panel can show more than the last. */
 export interface SessionWarning {
@@ -33,6 +34,19 @@ export interface SessionWarning {
   kind: string;
   detail: string | null;
   at: number;
+}
+
+/**
+ * How a graphical session is fitted into its tab.
+ *
+ * User intent rather than presenter state, so it lives here: it has to survive
+ * a tab switch, a reconnect and a server-driven resize, none of which the
+ * canvas itself outlives in a meaningful way.
+ */
+export interface ScaleChoice {
+  mode: ScaleMode;
+  /** The magnification `zoom` uses. Integer — see `scaling.ts`. */
+  zoom: number;
 }
 
 /** The live counters a session's surfaces read. */
@@ -96,6 +110,22 @@ export interface SessionRecord {
   metrics: SessionMetrics;
   renderer: RendererReport | null;
 
+  /**
+   * How a graphical session is scaled. Meaningless for a terminal tab, which
+   * is why nothing reads it there rather than why it is absent: one record
+   * shape keeps `patch` honest.
+   */
+  scale: ScaleChoice;
+  /**
+   * Whether the connection is configured to send nothing to the remote host.
+   *
+   * `settings.view_only`, resolved from the vault when a graphical session
+   * opens. `null` means it has not been read — not that it is false. The
+   * difference matters: a surface that says "view only" when it does not know
+   * is as wrong as one that stays silent when it does.
+   */
+  viewOnly: boolean | null;
+
   /** Client clock. Uptime runs from here until the core reports its own. */
   startedAt: number;
   /** When each stage was seen to finish, measured between real events. */
@@ -129,6 +159,8 @@ interface SessionStore {
   restart: (tabId: string) => void;
   addWarning: (tabId: string, warning: SessionWarning) => void;
   setMetrics: (tabId: string, metrics: SessionMetrics) => void;
+  /** How a graphical session is fitted into its tab. */
+  setScale: (tabId: string, scale: ScaleChoice) => void;
   remove: (tabId: string) => void;
   activate: (tabId: string | null) => void;
 }
@@ -171,6 +203,11 @@ function seedRecord(seed: {
     warnings: [],
     metrics: { bytesIn: 0, bytesOut: 0, cols: 0, rows: 0, echoMs: null },
     renderer: null,
+    // `fit` until the session reports whether it is resizable, at which point
+    // `manager.ts` moves a resizable one to `smart`. Seeding `smart` here would
+    // be a promise made before anything had said it could be kept.
+    scale: { mode: "fit", zoom: 2 },
+    viewOnly: null,
     startedAt: Date.now(),
     stageAt: {},
   };
@@ -219,8 +256,16 @@ export const useSessions = create<SessionStore>((set) => ({
         protocol: current.protocol,
         target: current.target,
       });
-      // The renderer was probed once and does not change between attempts.
-      return { byId: { ...s.byId, [tabId]: { ...fresh, renderer: current.renderer } } };
+      // The renderer was probed once and does not change between attempts, and
+      // the scale is the user's choice about this tab rather than about the
+      // session that just ended — a reconnect that reset it to Fit would undo
+      // a zoom the user set precisely because they were reading something.
+      return {
+        byId: {
+          ...s.byId,
+          [tabId]: { ...fresh, renderer: current.renderer, scale: current.scale },
+        },
+      };
     }),
 
   addWarning: (tabId, warning) =>
@@ -237,6 +282,13 @@ export const useSessions = create<SessionStore>((set) => ({
       const current = s.byId[tabId];
       if (current === undefined) return {};
       return { byId: { ...s.byId, [tabId]: { ...current, metrics } } };
+    }),
+
+  setScale: (tabId, scale) =>
+    set((s) => {
+      const current = s.byId[tabId];
+      if (current === undefined) return {};
+      return { byId: { ...s.byId, [tabId]: { ...current, scale } } };
     }),
 
   remove: (tabId) =>

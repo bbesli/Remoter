@@ -1,0 +1,59 @@
+/*
+ * The removal confirmation.
+ *
+ * The sample paths are monospaced and wrap anywhere: a remote path can be
+ * longer than the dialog, and a path that overflows its container is a path the
+ * reader cannot check before agreeing to remove it.
+ */
+
+.scanning {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--fg-muted);
+}
+
+.summary {
+  margin: 0;
+  font-weight: 600;
+  color: var(--fg-default);
+}
+
+.note {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--fg-muted);
+}
+
+.sampleHeading {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+}
+
+.sample {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  padding-inline-start: var(--space-4);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--fg-default);
+  overflow-wrap: anywhere;
+}
+
+.failurePath {
+  display: block;
+  color: var(--fg-default);
+}
+
+.failureReason {
+  display: block;
+  font-family: var(--font-ui);
+  color: var(--fg-muted);
+}

@@ -27,7 +27,9 @@ import { attachTerminal, focusTerminal, hasTerminal } from "./terminals";
 import { cancelConnect, closeTab, decideHostKey, dismissTab, reconnect } from "./manager";
 import { ConnectProgress } from "./ConnectProgress";
 import { FindBar } from "./FindBar";
+import { FramebufferHost } from "./FramebufferHost";
 import { HostKeyDialog } from "./HostKeyDialog";
+import { SessionWarnings } from "./SessionWarnings";
 import { isConnecting } from "./stages";
 
 import s from "./SessionSurface.module.css";
@@ -195,20 +197,40 @@ export function SessionSurface({ empty }: { empty: ReactNode }) {
 
   return (
     <>
-      {order.map((tabId) => (
-        <TerminalHost
-          key={tabId}
-          tabId={tabId}
-          name={byId[tabId]?.name ?? tabId}
-          active={tabId === activeTabId}
-        />
-      ))}
+      {order.map((tabId) => {
+        const tab = byId[tabId];
+        // Which surface a session gets follows from the core's own
+        // `capabilities.kind`, never from the protocol name: a plugin protocol
+        // that reports `framebuffer` gets the canvas, and nothing here has to
+        // learn a list of protocol strings. The kind is not known until
+        // `ready`, and until then the connect panel is over the area anyway.
+        if (tab !== undefined && tab.opened?.capabilities.kind === "framebuffer") {
+          return <FramebufferHost key={tabId} record={tab} active={tabId === activeTabId} />;
+        }
+        return (
+          <TerminalHost
+            key={tabId}
+            tabId={tabId}
+            name={tab?.name ?? tabId}
+            active={tabId === activeTabId}
+          />
+        );
+      })}
 
-      {/* Only over a live session: searching the scrollback of a tab that is
-          showing a failure notice would be searching an empty buffer. */}
-      {finding && active !== undefined && active.phase === "running" && (
-        <FindBar tabId={active.tabId} onClose={() => setFinding(false)} />
-      )}
+      {/* Only over a live terminal: searching the scrollback of a tab that is
+          showing a failure notice would be searching an empty buffer, and a
+          framebuffer session has no scrollback to search at all. */}
+      {finding &&
+        active !== undefined &&
+        active.phase === "running" &&
+        active.opened?.capabilities.kind !== "framebuffer" && (
+          <FindBar tabId={active.tabId} onClose={() => setFinding(false)} />
+        )}
+
+      {/* Everything the session warned about, over the session. Terminal and
+          graphical alike: an SSH login banner and a VNC security type land in
+          the same place. */}
+      {active !== undefined && <SessionWarnings record={active} />}
 
       {active !== undefined && active.inputError !== null && (
         <div className={s.inputBar}>

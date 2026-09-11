@@ -93,28 +93,114 @@ const LAZY_INDEX: ReadonlyMap<string, ReadonlyMap<Namespace, () => Promise<unkno
 })();
 
 /**
- * Whether a language can be offered as a choice.
+ * Every message key English ships, per namespace. The yardstick completeness
+ * is measured against.
  *
- * The test is presence of every namespace English ships, which is the closest
- * thing to "complete" that can be answered without loading every catalogue of
- * every language at startup. It is a floor, not a proof: a file that exists but
- * is half-translated passes it, and the missing keys then fall back to English
- * key by key. What it does guarantee is that choosing the language changes
- * something, which is the failure this replaces — nine rows that were choices
- * in appearance only.
- *
- * English is always available; it is the source, not a translation of it.
+ * `_comment_*` entries are left out: they are notes to the translator, shown
+ * in Weblate and never rendered, so a language that has translated every
+ * message but dropped a comment is complete as far as a reader is concerned.
+ * (The build guard in `plurals.test.ts` does hold them to the comments too —
+ * a comment that only exists in English is a comment the next translator
+ * cannot see — but that is a repository rule, not a reason to take a language
+ * off the Language screen.)
  */
-export function isLocaleAvailable(code: string): boolean {
+const ENGLISH_KEYS: ReadonlyMap<Namespace, ReadonlySet<string>> = (() => {
+  const out = new Map<Namespace, ReadonlySet<string>>();
+  for (const ns of SHIPPED_NAMESPACES) {
+    out.set(ns, messageKeys(ENGLISH_CATALOGUES[ns] ?? {}));
+  }
+  return out;
+})();
+
+/** Every dotted key with a string behind it, comments excluded. */
+function messageKeys(catalogue: Catalogue): ReadonlySet<string> {
+  const keys = new Set<string>();
+  const walk = (node: unknown, path: string[]): void => {
+    if (typeof node === "string") {
+      keys.add(path.join("."));
+      return;
+    }
+    if (typeof node !== "object" || node === null || Array.isArray(node)) return;
+    for (const [key, value] of Object.entries(node)) {
+      if (key.startsWith("_comment")) continue;
+      walk(value, [...path, key]);
+    }
+  };
+  walk(catalogue, []);
+  return keys;
+}
+
+/**
+ * One answer per language, computed once.
+ *
+ * The promise is cached rather than the boolean, so the ninety catalogue files
+ * are read at most once each however many callers ask and however close
+ * together. Catalogue files cannot change while the application is running, so
+ * there is nothing to invalidate.
+ */
+const COMPLETE = new Map<string, Promise<boolean>>();
+
+/**
+ * Whether a language is complete enough to be offered as a choice.
+ *
+ * **Completeness is key coverage, not file presence.** The previous version of
+ * this function checked that every namespace *file* existed, and its own
+ * comment admitted what that let through: "a file that exists but is
+ * half-translated passes it". It did, and it was not theoretical — deleting a
+ * single key from `locales/tr/settings.json` left Turkish offered as a
+ * finished language while a string fell back to English inside it. The build
+ * guard in `plurals.test.ts` caught that; the running product did not, and the
+ * running product is where the reader is.
+ *
+ * So this loads the language's catalogues and compares their keys against
+ * English's. It is asynchronous because there is no honest synchronous answer:
+ * the catalogues are dynamic imports, and reading all ninety of them before
+ * the first paint to keep a synchronous signature would trade a real cost for
+ * a cosmetic one. A caller that needs the answer to draw something waits for
+ * it; `setLanguage` — which is about to load those catalogues anyway — pays
+ * nothing extra.
+ *
+ * The cheap test still runs first and short-circuits: a language missing whole
+ * namespaces is refused without reading anything.
+ *
+ * English is always complete; it is the source, not a translation of it.
+ */
+export function localeIsComplete(code: string): Promise<boolean> {
+  const cached = COMPLETE.get(code);
+  if (cached !== undefined) return cached;
+  const measuring = measureLocale(code);
+  COMPLETE.set(code, measuring);
+  return measuring;
+}
+
+async function measureLocale(code: string): Promise<boolean> {
   if (code === SOURCE_LOCALE) return true;
   const forLocale = LAZY_INDEX.get(code);
   if (forLocale === undefined) return false;
-  return SHIPPED_NAMESPACES.every((ns) => forLocale.has(ns));
+  // Whole namespaces first: no point reading nine files to discover the tenth
+  // was never written.
+  if (!SHIPPED_NAMESPACES.every((ns) => forLocale.has(ns))) return false;
+
+  const loaded = await Promise.all(SHIPPED_NAMESPACES.map((ns) => loadCatalogue(code, ns)));
+  return SHIPPED_NAMESPACES.every((ns, index) => {
+    const catalogue = loaded[index];
+    // `null` is a file that would not parse. It falls back to English at
+    // runtime, which is exactly the half-English screen this gate exists to
+    // keep off the Language list.
+    if (catalogue === undefined || catalogue === null) return false;
+    const theirs = messageKeys(catalogue);
+    for (const key of ENGLISH_KEYS.get(ns) ?? []) {
+      if (!theirs.has(key)) return false;
+    }
+    return true;
+  });
 }
 
-/** The subset of {@link SUPPORTED_LOCALES} that has catalogues behind it. */
-export function availableLocales(): readonly string[] {
-  return SUPPORTED_LOCALES.map((l) => l.code).filter(isLocaleAvailable);
+/** The subset of {@link SUPPORTED_LOCALES} a reader can actually read. */
+export async function completeLocales(): Promise<readonly string[]> {
+  const codes = SUPPORTED_LOCALES.map((l) => l.code);
+  const complete = await Promise.all(codes.map(localeIsComplete));
+  return codes.filter((_, index) => complete[index] === true);
 }
 
 /**

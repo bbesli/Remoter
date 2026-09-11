@@ -182,6 +182,26 @@ describe("the sidebar in Turkish", () => {
     expect(screen.getByRole("treeitem", { name: /ışık-01/ })).toBeInTheDocument();
   });
 
+  it("finds a machine by its hostname, which is not a Turkish word", async () => {
+    // The regression the name fold caused. A hostname is an identifier on a
+    // remote system, not text in the reader's language: folded under Turkish
+    // rules "VDI-GW.corp" becomes "vdı-gw.corp", so the query "vdi" — the
+    // letters printed on the machine — matched nothing at all, while the same
+    // three keystrokes worked for a colleague reading the English interface.
+    ipcMock.listNodes.mockResolvedValue([
+      node({ id: "gw", name: "Berlin geçidi", protocol: "rdp", host: "VDI-GW.corp" }),
+      node({ id: "api", name: "Avrupa", protocol: "ssh", host: "API-EU-01.corp" }),
+      node({ id: "other", name: "web-02", protocol: "ssh", host: "web-02.corp" }),
+    ]);
+    await switchToTurkish();
+    renderTree();
+    await screen.findByRole("treeitem", { name: /Berlin/ });
+
+    await userEvent.type(screen.getByRole("textbox"), "vdi");
+    expect(screen.getByRole("treeitem", { name: /Berlin/ })).toBeInTheDocument();
+    expect(screen.queryByRole("treeitem", { name: /web-02/ })).not.toBeInTheDocument();
+  });
+
   it("still reads a favourite tag written in capitals", async () => {
     // The tag is an ASCII flag this application defines, not a word in the
     // reader's language: folded under Turkish rules "FAVOURITE" becomes

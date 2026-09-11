@@ -33,6 +33,7 @@ import { FailureNotice } from "@/components/FailureNotice";
 import { Icon } from "@/components/Icon";
 import { TextInput } from "@/components/TextInput";
 import {
+  compareInLocale,
   documentDirection,
   foldForSearch,
   foldInvariant,
@@ -258,8 +259,9 @@ function describeMove(
 export function ConnectionTree() {
   const t = useT("connections");
   const tCommon = useT("common");
-  // The filter folds under this language's casing rules, so it has to know
-  // which language that is. See the `foldForSearch` call below.
+  // Two things here need the language the *reader* chose rather than the one
+  // the operating system is set to: the filter folds under its casing rules,
+  // and the tree is ordered by its collation. See `filtered` and `index`.
   const { code: locale } = useLocale();
   const selectedNodeId = useApp((st) => st.selectedNodeId);
   const select = useApp((st) => st.select);
@@ -318,10 +320,16 @@ export function ConnectionTree() {
       else bucket.push(node);
     }
     for (const bucket of children.values()) {
-      bucket.sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+      // `localeCompare` with no locale sorts by the *operating system's*
+      // language, not the one the interface is in, so the same vault came out
+      // in a different order on a colleague's machine. `locale` is the
+      // language the reader actually chose; see `compareInLocale`.
+      bucket.sort(
+        (a, b) => a.sortOrder - b.sortOrder || compareInLocale(a.name, b.name, locale),
+      );
     }
     return { byId, children };
-  }, [nodes]);
+  }, [nodes, locale]);
 
   // `FAVOURITE_TAGS` is a pair of ASCII spellings this application treats as a
   // flag, not a word in the reader's language — so the tag folds invariantly.
@@ -332,15 +340,43 @@ export function ConnectionTree() {
     [nodes],
   );
 
-  /** Nodes the filter keeps, plus the ancestors that lead to them. */
+  /**
+   * Nodes the filter keeps, plus the ancestors that lead to them.
+   *
+   * **The query is folded twice, because the haystack is two kinds of text.**
+   * A node's name and its tags are words somebody wrote in a language, and
+   * they fold in the reader's. A hostname and a username are not: they are
+   * identifiers on a remote system, and `docs/features/i18n.md` puts them with
+   * file paths and IP addresses outside all three folds.
+   *
+   * Folding everything in the reader's language was worse than useless for the
+   * second kind. Under Turkish rules `VDI-GW.corp` folds to `vdı-gw.corp` and
+   * `API-EU-01` to `apı-eu-01`, so a Turkish reader typing "vdi" or "api"
+   * found *nothing*, on hosts a colleague with an English interface could find
+   * by typing exactly the same letters. Folding the identifiers invariantly
+   * and the words in the reader's language is what the shortcut table already
+   * does with its prose and its key caps, for the same reason.
+   *
+   * A query is not required to say which kind it is: it is folded both ways
+   * and a node matches if either side does. The cost of that is a query
+   * spanning a name and a hostname at once — "berlin vdi" — which no longer
+   * matches; the two are separate fields and always were, and the old
+   * behaviour of joining them was never something the interface promised.
+   */
   const filtered = useMemo(() => {
-    const needle = foldForSearch(filter.trim(), locale);
+    const typed = filter.trim();
+    const needle = foldForSearch(typed, locale);
+    const identifierNeedle = foldInvariant(typed);
     if (needle === "") return null;
     const keep = new Set<string>();
     const forceOpen = new Set<string>();
     for (const node of nodes) {
-      const haystack = [node.name, node.host ?? "", node.username ?? "", ...node.tags];
-      if (!haystack.some((h) => foldForSearch(h, locale).includes(needle))) continue;
+      const words = [node.name, ...node.tags];
+      const identifiers = [node.host ?? "", node.username ?? ""];
+      const hit =
+        words.some((w) => foldForSearch(w, locale).includes(needle)) ||
+        identifiers.some((id) => foldInvariant(id).includes(identifierNeedle));
+      if (!hit) continue;
       keep.add(node.id);
       let parent = node.parentId;
       for (let hops = 0; parent !== null && hops < 64; hops += 1) {

@@ -34,6 +34,8 @@ import { Mark } from "@/components/Mark";
 import { TextInput } from "@/components/TextInput";
 import { formatDate, isolateLtr, useLocale, useT } from "@/i18n";
 import type { CreateVaultResult } from "@/lib/ipc";
+
+import { kdfSummary } from "./kdf";
 import { useApp } from "@/stores/app";
 
 import s from "./RecoveryKeyScreen.module.css";
@@ -233,12 +235,15 @@ function sheetText(
   result: CreateVaultResult,
   key: string,
 ): string {
+  // A vault with no password slot has no cost to name, and half a sentence on
+  // a sheet somebody will retype from is worse than one line fewer.
+  const protection = kdfSummary(locale, result.kdf);
   return [
     t("recovery.sheet.title"),
     "",
     t("recovery.sheet.vault", { path: result.path }),
     t("recovery.sheet.created", { date: formatDate(locale, Date.now()) }),
-    t("recovery.sheet.protection", { summary: result.kdfSummary }),
+    ...(protection === null ? [] : [t("recovery.sheet.protection", { summary: protection })]),
     "",
     key,
     "",
@@ -259,6 +264,9 @@ export interface RecoveryKeyPanelProps {
 export function RecoveryKeyPanel({ result, onConfirmedChange }: RecoveryKeyPanelProps) {
   const t = useT("vault");
   const { code: locale } = useLocale();
+  // Composed here, not sent by the core; `null` when there is no password slot
+  // to describe, in which case the sheet simply does not carry the line.
+  const printedProtection = kdfSummary(locale, result.kdf);
   const [entry, setEntry] = useState("");
   const [copied, setCopied] = useState(false);
   // The clipboard write is a promise, and on a Wayland session without a
@@ -455,7 +463,9 @@ export function RecoveryKeyPanel({ result, onConfirmedChange }: RecoveryKeyPanel
       <div className={s.printSheet} aria-hidden="true">
         <h1>{t("recovery.sheet.title")}</h1>
         <p>{t("recovery.sheet.vault", { path: isolateLtr(result.path) })}</p>
-        <p>{t("recovery.sheet.protection", { summary: isolateLtr(result.kdfSummary) })}</p>
+        {printedProtection !== null && (
+          <p>{t("recovery.sheet.protection", { summary: isolateLtr(printedProtection) })}</p>
+        )}
         <p className={s.printKey}>{fullKey}</p>
         <p className={s.printWarning}>
           {t("recovery.sheet.warning", {

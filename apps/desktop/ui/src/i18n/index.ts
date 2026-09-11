@@ -23,7 +23,7 @@ export {
   type LocaleDescriptor,
   type Namespace,
 } from "./locales";
-export { availableLocales, isLocaleAvailable, SHIPPED_NAMESPACES } from "./catalogues";
+export { completeLocales, localeIsComplete, SHIPPED_NAMESPACES } from "./catalogues";
 export {
   resolveFailureText,
   useFailureText,
@@ -41,7 +41,7 @@ export {
   type StrengthText,
 } from "./strength";
 export { documentDirection, inlineStartOffset, isolate, isolateChain, isolateLtr } from "./bidi";
-export { equalsIgnoringCase, foldForSearch, foldInvariant } from "./fold";
+export { compareInLocale, equalsIgnoringCase, foldForSearch, foldInvariant } from "./fold";
 export {
   formatBytes,
   formatClock,

@@ -159,16 +159,43 @@
     "_comment_sectionIdentity": "Section headings. 'Identity' here means what the entry IS — its name, protocol and address. The login lives under Credentials.",
     "sectionIdentity": "Identity",
     "sectionCredentials": "Credentials",
+    "_comment_sectionProtocolSettings": "The heading over the settings that belong to the connection's protocol rather than to every connection — an RDP domain, a VNC encoding. 'Protocol' here is the word from the Protocol field above it; keep the two the same word.",
+    "sectionProtocolSettings": "Protocol settings",
     "sectionNotes": "Notes",
+
+    "_comment_protocolSettingsReadOnly": "SECURITY-ADJACENT, and the sentence the whole section exists for: this build can SHOW these settings and cannot CHANGE them, because no command writes them yet. Do not soften 'cannot be changed here' into 'are not editable yet' if your language has a plainer way to say it — a user who reads this as a temporary inconvenience will keep looking for the field. The second sentence says where the values do come from, so the statement is not a dead end.",
+    "protocolSettingsReadOnly": "These settings cannot be changed here: this build has no way to write them. A connection opens with what an import stored on it, what a folder above it passes down, or the defaults its protocol uses.",
+    "_comment_protocolSettingsNone": "Shown in place of the list when the connection carries no protocol settings at all — the ordinary case for a connection created here rather than imported. Says what happens instead, rather than only that the list is empty.",
+    "protocolSettingsNone": "Nothing is set on this connection, so it opens with the defaults its protocol uses.",
+
+    "_comment_protocolLimits": "SECURITY-ADJACENT. One sentence per protocol, naming what this build's adapter does NOT do — so that a missing control reads as an answer rather than as an oversight. Every item is a real gap in the adapter, not a policy: there is no setting for any of them because there is nothing behind them. Do not add to these lists and do not remove from them; they are kept in step with the adapters. 'Remote Desktop Gateway', 'RDP', 'VNC', 'RFB' and 'Tight' are product and protocol names and are never translated.",
+    "protocolLimits": {
+      "_comment_rdp": "The desktop, the keyboard and the pointer are what RDP carries here. 'Console session' is the /admin session on a Windows server. 'True colour' is 32-bit colour; the frame format has no other depth, so colour depth is not a choice rather than a choice nobody made.",
+      "rdp": "This build's RDP carries the desktop, the keyboard and the pointer. It does not redirect the clipboard, drives, printers or smart cards, carries no audio, opens no console session, drives one monitor only, and does not go through a Remote Desktop Gateway. Colour depth is not a choice either — every frame arrives as 32-bit true colour.",
+      "_comment_vnc": "'Ask the server to resize' is the client-initiated desktop resize, which RFB has no standard message for — so the tab scales the picture instead, which is a different thing and worth naming. Reading the remote clipboard is the direction that is missing; pasting into the session is not.",
+      "vnc": "This build's VNC offers the Raw encoding and otherwise lets the server choose, so Tight's compression and quality levels have nothing to set. It cannot ask the server to resize — the tab scales the picture instead — and it cannot read the remote clipboard. VNC has no account name on the wire, so the username above is kept for your records and is not sent."
+    },
+
+    "_comment_settingNote": "A line under one particular setting, shown only when that setting's value has a consequence. Each names the cost of the value that is actually set, so none of them is boilerplate.",
+    "settingNote": {
+      "_comment_rdpDomain": "The mistake this line exists for: an administrator types the domain into the username box, or leaves it out entirely, and the password is then checked against the wrong account. NTLM hashes the account and the domain separately, so DOMAIN\\user in the username field is handled — but the two are not interchangeable. Keep the backslash form literal; it is what Windows shows.",
+      "rdpDomain": "The Windows domain, which is separate from the username. Leave it empty for a local account. A username written as DOMAIN\\user carries its own domain and overrides this.",
+      "_comment_rdpNlaOff": "SECURITY-CRITICAL. Network Level Authentication is off on this connection. Without it the credentials are sent to whatever answered the port, before the server has proved it is the right machine. State the consequence; do not turn it into advice.",
+      "rdpNlaOff": "Network Level Authentication is off on this connection, so your credentials are sent to whatever answered the port before it has proved which machine it is.",
+      "_comment_vncFloor": "The floor is at its default. Explains what a floor is for, since nothing else on the screen does: without one the server alone decides how old a conversation the two of you have.",
+      "vncFloor": "The oldest RFB version this connection will accept. RFB negotiation is 'the lower of the two', so without a floor the server alone decides how far back to go.",
+      "_comment_vncFloorLowered": "SECURITY-CRITICAL. The floor has been lowered below 3.8. RFB 3.3 lets the SERVER pick the security type rather than offering a list the client chooses from, and below 3.8 a failed handshake can appear as a connection that simply stops instead of as a reported error. Both halves matter.",
+      "vncFloorLowered": "This connection will accept an RFB version older than 3.8. At 3.3 the server chooses the security type rather than offering you a list, and a rejected login can arrive as a connection that simply stops rather than as a stated failure.",
+      "_comment_vncExclusive": "The connection is set to exclusive rather than shared. The consequence is about other people, which is why it is worth a line: connecting will disconnect whoever is already on that screen.",
+      "vncExclusive": "Exclusive: opening this session disconnects anyone already viewing that screen.",
+      "_comment_vncViewOnly": "Input is suppressed on this connection. Say where it is suppressed — locally — because a user who believes the server is refusing their keystrokes will go and change the server.",
+      "vncViewOnly": "View only: keystrokes and pointer movements are dropped here and never sent to the server."
+    },
 
     "name": "Name",
     "protocol": "Protocol",
     "_comment_protocolNone": "Stands where SSH, RDP, VNC or SFTP would, for an entry with no protocol recorded. A placeholder glyph, not a word; change it only if an em dash reads as something else in your script.",
     "protocolNone": "—",
-    "_comment_protocolOptionNotBuilt": "One entry of the protocol menu, disabled. {protocol} is a protocol name — ssh, rdp, vnc, sftp — and is never translated or capitalised differently.",
-    "protocolOptionNotBuilt": "{protocol} — not in this build yet",
-    "_comment_protocolNotBuiltHelp": "{protocol} is a protocol name in capitals, such as RDP. The connection can be stored and edited; only opening a session is missing. Say both halves — a user who reads only the first will think the entry is worthless.",
-    "protocolNotBuiltHelp": "This build opens SSH sessions only, so a connection using {protocol} can be stored and edited but not opened yet.",
     "_comment_protocolFixedHelp": "Why the protocol is a badge rather than a menu once the connection exists.",
     "protocolFixedHelp": "The protocol is chosen when the connection is created.",
     "host": "Hostname",

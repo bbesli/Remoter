@@ -24,7 +24,7 @@ import { FailureNotice } from "@/components/FailureNotice";
 import { Field } from "@/components/Field";
 import { TextInput } from "@/components/TextInput";
 import { kdfNote } from "@/features/vault/UnlockScreen";
-import { useT } from "@/i18n";
+import { useLocale, useT } from "@/i18n";
 import type { AddPasswordSlot, IpcFailure, SlotKind } from "@/lib/ipc";
 
 import { Dialog } from "./Dialog";
@@ -67,6 +67,7 @@ export function AddSlotDialog({
 }: AddSlotDialogProps) {
   const t = useT("vaultsettings");
   const tCommon = useT("common");
+  const { code: locale } = useLocale();
   const [kind, setKind] = useState<AddKind>("password");
   const [label, setLabel] = useState("");
   const [password, setPassword] = useState("");
@@ -216,7 +217,7 @@ export function AddSlotDialog({
           one that is only in one place. */}
       {busy === "password" && (
         <div className={s.busy}>
-          <BusyStatus label={t("addSlot.addingStage")} note={kdfNote(null)} size={16} />
+          <BusyStatus label={t("addSlot.addingStage")} note={kdfNote(locale, null)} size={16} />
         </div>
       )}
 

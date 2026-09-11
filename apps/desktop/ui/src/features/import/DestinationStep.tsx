@@ -15,7 +15,7 @@
 import { BusyStatus, SkeletonRows } from "@/components/Busy";
 import { FailureNotice } from "@/components/FailureNotice";
 import { Icon } from "@/components/Icon";
-import { isolate, useT } from "@/i18n";
+import { compareInLocale, isolate, useT } from "@/i18n";
 import type { IpcFailure, TreeNode } from "@/lib/ipc";
 
 import s from "./ImportWizard.module.css";
@@ -128,8 +128,10 @@ export function DestinationStep({
  *
  * `group` counts as a folder here: it is a folder with credential-sharing
  * semantics, and it can hold imported nodes exactly as a folder can.
+ *
+ * `locale` orders the result; the list is read, not computed against.
  */
-export function folderPaths(nodes: readonly TreeNode[]): FolderOption[] {
+export function folderPaths(nodes: readonly TreeNode[], locale: string): FolderOption[] {
   const byId = new Map(nodes.map((node) => [node.id, node]));
   const options: FolderOption[] = [];
 
@@ -148,5 +150,9 @@ export function folderPaths(nodes: readonly TreeNode[]): FolderOption[] {
     options.push({ id: node.id, path: parts.join(PATH_SEPARATOR) });
   }
 
-  return options.sort((a, b) => a.path.localeCompare(b.path));
+  // Ordered for the reader, so it follows the language the interface is in
+  // rather than the one the host operating system is set to. A breadcrumb is
+  // made of folder names somebody typed, which is precisely the text whose
+  // order differs between languages.
+  return options.sort((a, b) => compareInLocale(a.path, b.path, locale));
 }

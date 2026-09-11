@@ -86,21 +86,30 @@ import s from "./ConnectionEditor.module.css";
  */
 type Copy = TFunction<"connections">;
 
-/** The protocols the shipped adapters cover. A plugin protocol widens this. */
-const PROTOCOLS = ["ssh", "sftp", "rdp", "vnc"] as const;
+/**
+ * The keys of the two messages below that are chosen by data rather than
+ * written at the call site: which protocol, and which setting.
+ *
+ * Spelled as a union of the literals rather than as `string`, so that renaming
+ * one of them is a compile error here instead of a blank line on screen. The
+ * `as const` on each table is what produces it — the same shape `SessionSurface`
+ * uses for its close-reason and prompt-kind tables, and for the same reason.
+ */
+type CopyKey =
+  | (typeof PROTOCOL_LIMITS)[keyof typeof PROTOCOL_LIMITS]
+  | (typeof SETTING_NOTES)[keyof typeof SETTING_NOTES];
 
 /**
- * The protocols this build can actually open a session for.
+ * The protocols the shipped adapters cover. A plugin protocol widens this.
  *
- * The list above is the data model's vocabulary — an import from mRemoteNG or
- * Royal TS carries RDP and VNC connections, and they have to be storable and
- * editable or the import would lose them. Opening one is a different question:
- * only SSH has an adapter today, and `session_open` refuses the rest. Offering
- * the others as a free choice made the editor promise a connection the core
- * would decline, and the refusal arrived at connect time — after the
- * connection had been named, filled in and saved.
+ * Every one of them can now be opened. This list used to be filtered by a
+ * second set naming the ones with an adapter, because `session_open` refused
+ * RDP and VNC by name and choosing one produced a connection that could be
+ * saved and never opened. Both adapters exist, and `session_open`'s gate now
+ * admits all four — so the filter is gone rather than left as a restriction
+ * nobody would think to lift.
  */
-const OPENABLE_PROTOCOLS: ReadonlySet<string> = new Set(["ssh"]);
+const PROTOCOLS = ["ssh", "sftp", "rdp", "vnc"] as const;
 
 const DEFAULT_PORTS: Readonly<Record<string, string>> = {
   ssh: "22",
@@ -202,6 +211,108 @@ function findField(
   name: string,
 ): ResolvedField | undefined {
   return resolved?.fields.find((f) => f.field === name);
+}
+
+/**
+ * How the core names a protocol setting among the resolved fields.
+ *
+ * `node_resolve` flattens the adapter's settings map into the same list as
+ * `host` and `port`, one entry per key, each carrying its own provenance. The
+ * prefix is what tells the two apart.
+ */
+const SETTINGS_PREFIX = "settings.";
+
+/** One protocol setting, as the core resolved it. */
+interface ProtocolSetting {
+  /**
+   * The adapter's own key — `domain`, `rfb_version_min`, `desktop_width`. A
+   * wire identifier, so it is shown as it is and never translated.
+   */
+  key: string;
+  value: string;
+  own: boolean;
+  provenance: Provenance;
+}
+
+/**
+ * The protocol settings this connection carries, in the core's order.
+ *
+ * Read out of the resolved view rather than listed here, because the list of
+ * settings belongs to the adapter: RDP's schema names nine, VNC's names six,
+ * and duplicating either here would mean a form that disagrees with the thing
+ * that reads it the day one of them changes. What appears is what the core
+ * resolved — set on this connection, inherited from a folder, or absent.
+ */
+function protocolSettings(resolved: EffectiveConnection | undefined): ProtocolSetting[] {
+  if (resolved === undefined) return [];
+  return resolved.fields
+    .filter((field) => field.field.startsWith(SETTINGS_PREFIX))
+    .map((field) => ({
+      key: field.field.slice(SETTINGS_PREFIX.length),
+      value: field.value ?? "",
+      own: field.origin === "own",
+      provenance: provenanceOf(field),
+    }));
+}
+
+/**
+ * What this build's adapter does **not** do, per protocol.
+ *
+ * Stated rather than left as an absence. Both framebuffer adapters report
+ * `clipboard: "none"` from their own `capabilities()`, and neither carries a
+ * redirection channel, so the settings for those things do not exist — and a
+ * screen that simply omitted them would read as an oversight rather than as
+ * the answer. The sentences are kept in step with the adapters' own
+ * `capabilities()` and module documentation; that is where the truth is.
+ */
+const PROTOCOL_LIMITS = {
+  rdp: "editor.protocolLimits.rdp",
+  vnc: "editor.protocolLimits.vnc",
+} as const;
+
+function protocolLimitsKey(protocol: string): CopyKey | null {
+  if (protocol === "rdp" || protocol === "vnc") return PROTOCOL_LIMITS[protocol];
+  return null;
+}
+
+/**
+ * The one line a particular setting's value earns, when its value has a
+ * consequence the screen has to state.
+ *
+ * Keyed by protocol as well as by setting name: `shared` means one thing to
+ * RFB (RFC 6143 §7.3.1, whether other viewers stay connected) and would mean
+ * something else entirely to another adapter.
+ */
+const SETTING_NOTES = {
+  rdpDomain: "editor.settingNote.rdpDomain",
+  rdpNlaOff: "editor.settingNote.rdpNlaOff",
+  vncFloor: "editor.settingNote.vncFloor",
+  vncFloorLowered: "editor.settingNote.vncFloorLowered",
+  vncExclusive: "editor.settingNote.vncExclusive",
+  vncViewOnly: "editor.settingNote.vncViewOnly",
+} as const;
+
+/** The RFB version the floor sits at unless somebody lowered it. */
+const RFB_DEFAULT_FLOOR = "3.8";
+
+function settingNoteKey(protocol: string, key: string, value: string): CopyKey | null {
+  if (protocol === "rdp") {
+    if (key === "domain") return SETTING_NOTES.rdpDomain;
+    // Only when it is off. On is the default and the documented position, and
+    // a warning that fires on the safe setting is a warning people stop
+    // reading.
+    if (key === "network_level_authentication" && value === "false") {
+      return SETTING_NOTES.rdpNlaOff;
+    }
+  }
+  if (protocol === "vnc") {
+    if (key === "rfb_version_min") {
+      return value === RFB_DEFAULT_FLOOR ? SETTING_NOTES.vncFloor : SETTING_NOTES.vncFloorLowered;
+    }
+    if (key === "shared" && value === "false") return SETTING_NOTES.vncExclusive;
+    if (key === "view_only" && value === "true") return SETTING_NOTES.vncViewOnly;
+  }
+  return null;
 }
 
 /** How this connection proves who it is, in order of increasing exposure. */
@@ -917,13 +1028,7 @@ function EditorDialog({ target }: { target: EditorTarget }) {
                       label={t("editor.protocol")}
                       htmlFor="editor-protocol"
                       help={
-                        form.protocol !== "" && !OPENABLE_PROTOCOLS.has(form.protocol)
-                          ? t("editor.protocolNotBuiltHelp", {
-                              protocol: form.protocol.toUpperCase(),
-                            })
-                          : target.mode === "edit"
-                            ? t("editor.protocolFixedHelp")
-                            : undefined
+                        target.mode === "edit" ? t("editor.protocolFixedHelp") : undefined
                       }
                     >
                       {target.mode === "create" ? (
@@ -946,20 +1051,14 @@ function EditorDialog({ target }: { target: EditorTarget }) {
                             });
                           }}
                         >
-                          {PROTOCOLS.map((p) => {
-                            // An imported connection keeps its own protocol
-                            // selectable, so opening its editor cannot quietly
-                            // rewrite what the import stored.
-                            const unopenable =
-                              !OPENABLE_PROTOCOLS.has(p) && p !== form.protocol;
-                            return (
-                              <option key={p} value={p} disabled={unopenable}>
-                                {unopenable
-                                  ? t("editor.protocolOptionNotBuilt", { protocol: p })
-                                  : p}
-                              </option>
-                            );
-                          })}
+                          {/* A protocol name is a wire identifier and is never
+                              translated — docs/features/i18n.md, "What is never
+                              translated". */}
+                          {PROTOCOLS.map((p) => (
+                            <option key={p} value={p}>
+                              {p}
+                            </option>
+                          ))}
                         </select>
                       ) : (
                         <div className={s.readOnlyRow}>
@@ -994,6 +1093,16 @@ function EditorDialog({ target }: { target: EditorTarget }) {
                   </>
                 )}
               </section>
+
+              {/* Only in edit mode: the resolved view is what these come from,
+                  and a connection that does not exist yet has nothing to
+                  resolve. */}
+              {isConnection === true && target.mode === "edit" && (
+                <ProtocolSettingsSection
+                  protocol={form.protocol}
+                  settings={protocolSettings(resolved)}
+                />
+              )}
 
               {hasIdentity && (
                 <>
@@ -1320,6 +1429,79 @@ function ProvenanceLine({ own, provenance }: { own: boolean; provenance: Provena
         ? t("editor.protocolDefault")
         : t("editor.inheritedFrom", { source: isolate(provenance.inheritedSource) })}
     </span>
+  );
+}
+
+/**
+ * The settings the connection's own protocol adapter reads, and the plain
+ * statement of what this editor cannot do with them.
+ *
+ * **It cannot change them.** There is no command that writes a connection's
+ * settings map: `node_update` carries a name, a host, a port, a login and a
+ * list of overrides to clear, and nothing else. So the values are shown with
+ * their provenance — which is the whole point of this screen — and the first
+ * line says outright that this is a reading and not a form. An RDP or VNC
+ * connection opens with what an import stored on it, what a folder above it
+ * passes down, or the adapter's own defaults.
+ *
+ * Drawing an editable control here would have been the fifth time this product
+ * shipped a control with nothing behind it. It says what it cannot do instead.
+ */
+function ProtocolSettingsSection({
+  protocol,
+  settings,
+}: {
+  protocol: string;
+  settings: readonly ProtocolSetting[];
+}) {
+  const t = useT("connections");
+  const limits = protocolLimitsKey(protocol);
+
+  // Nothing resolved and nothing to say: an SSH connection with no settings of
+  // its own gets no empty section.
+  if (settings.length === 0 && limits === null) return null;
+
+  return (
+    <>
+      <div className={s.rule} />
+      <section className={s.section}>
+        <div className={s.sectionTitle}>{t("editor.sectionProtocolSettings")}</div>
+
+        <Callout tone="info">
+          <p>{t("editor.protocolSettingsReadOnly")}</p>
+          {limits !== null && <p>{t(limits)}</p>}
+        </Callout>
+
+        {settings.length === 0 ? (
+          <p className={s.footerNote}>{t("editor.protocolSettingsNone")}</p>
+        ) : (
+          settings.map((setting) => {
+            const note = settingNoteKey(protocol, setting.key, setting.value);
+            return (
+              <Field
+                // The adapter's own key. A wire identifier, like a protocol
+                // name: shown as it is, never translated.
+                key={setting.key}
+                label={setting.key}
+                {...(note === null ? {} : { help: t(note) })}
+              >
+                <span className={clsx(s.inheritedBox, s.inheritedMono)}>
+                  {setting.value === "" ? (
+                    <span className={s.inheritedEmpty}>{t("editor.nothingInherited")}</span>
+                  ) : (
+                    // A setting value is a wire token — `true`, `3.8`, `1920`,
+                    // a domain, a path. Left-to-right by specification whatever
+                    // its first character is.
+                    isolateLtr(setting.value)
+                  )}
+                </span>
+                <ProvenanceLine own={setting.own} provenance={setting.provenance} />
+              </Field>
+            );
+          })
+        )}
+      </section>
+    </>
   );
 }
 

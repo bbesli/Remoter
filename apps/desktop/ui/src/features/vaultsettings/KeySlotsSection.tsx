@@ -36,6 +36,7 @@ import type {
   AddPasswordSlot,
   ChangePassword,
   IpcFailure,
+  KdfParams,
   RecoveryKey,
   RotateMasterKey,
   RotationOutcome,
@@ -62,13 +63,13 @@ import s from "./KeySlotsSection.module.css";
 interface KeySlotsSectionProps {
   vaultSlots: VaultSlots;
   vaultPath: string;
-  /** The vault's Argon2id summary, printed on a recovery key sheet. */
-  kdfSummary: string | null;
+  /** What the vault's password slot cost to derive, for a recovery key sheet. */
+  kdf: KdfParams | null;
 }
 
 type AddKind = "password" | "recovery" | "keychain";
 
-export function KeySlotsSection({ vaultSlots, vaultPath, kdfSummary }: KeySlotsSectionProps) {
+export function KeySlotsSection({ vaultSlots, vaultPath, kdf }: KeySlotsSectionProps) {
   const t = useT("vaultsettings");
   const tCommon = useT("common");
   const { code: locale } = useLocale();
@@ -441,7 +442,7 @@ export function KeySlotsSection({ vaultSlots, vaultPath, kdfSummary }: KeySlotsS
           key={`${pendingKey.slotIndex}-${keyQueue.length}`}
           recoveryKey={pendingKey}
           vaultPath={vaultPath}
-          kdfSummary={kdfSummary}
+          kdf={kdf}
           {...(keyQueue.length > 1 || rotationOutcome !== null
             ? {
                 sequence: {
