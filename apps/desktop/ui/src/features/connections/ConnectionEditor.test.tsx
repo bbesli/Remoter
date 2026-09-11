@@ -21,13 +21,14 @@
  */
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
   EffectiveConnection,
   PrivateKeyInfo,
+  ProtocolSchema,
   ResolvedField,
   TreeNode,
 } from "@/lib/ipc";
@@ -47,6 +48,7 @@ const { ipcMock, dialogOpen } = vi.hoisted(() => ({
     createNode: vi.fn(),
     updateNode: vi.fn(),
     inspectKey: vi.fn(),
+    protocolSchemas: vi.fn(),
   },
   dialogOpen: vi.fn(),
 }));
@@ -136,6 +138,92 @@ function renderEditor(target: EditorTarget) {
   );
 }
 
+/**
+ * The RDP schema as the adapter declares it, trimmed to what these tests read.
+ *
+ * Hand-written rather than imported: the point of the form is that it renders
+ * whatever the adapter sends, so the tests feed it a schema rather than
+ * reaching for the real one and asserting against itself. The shapes are the
+ * ones `protocol_schemas` puts on the wire, and the Rust tests in
+ * `crates/remoter-ipc/src/commands.rs` are what pin those to the adapters.
+ */
+const RDP_SCHEMA: ProtocolSchema = {
+  protocol: "rdp",
+  settings: [
+    {
+      key: "domain",
+      label: "settings.rdp.domain",
+      kind: { type: "text", maxLen: 255 },
+      default: null,
+      defaultOrigin: "fixed",
+      required: false,
+      options: [],
+      optionsAreClosed: false,
+    },
+    {
+      key: "network_level_authentication",
+      label: "settings.rdp.network_level_authentication",
+      kind: { type: "boolean" },
+      default: "true",
+      defaultOrigin: "fixed",
+      required: false,
+      options: [],
+      optionsAreClosed: false,
+    },
+    {
+      key: "desktop_width",
+      label: "settings.rdp.desktop_width",
+      kind: { type: "integer", min: 200, max: 8192 },
+      default: "1024",
+      defaultOrigin: "fixed",
+      required: false,
+      options: [],
+      optionsAreClosed: false,
+    },
+    {
+      // The setting the whole exercise is about: an identifier over the full
+      // 32-bit space, a list of the layouts worth naming, and a default read
+      // off this machine rather than a constant.
+      key: "keyboard_layout",
+      label: "settings.rdp.keyboard_layout",
+      kind: { type: "integer", min: 0, max: 4294967295 },
+      default: "1055",
+      defaultOrigin: "detected",
+      required: false,
+      options: [
+        { value: "1033", label: { kind: "message", key: "settings.keyboardLayout.us" } },
+        { value: "1055", label: { kind: "message", key: "settings.keyboardLayout.turkishQ" } },
+        { value: "66591", label: { kind: "message", key: "settings.keyboardLayout.turkishF" } },
+      ],
+      optionsAreClosed: false,
+    },
+  ],
+};
+
+/** VNC's floor: a closed choice, whose values are wire tokens shown as they are. */
+const VNC_SCHEMA: ProtocolSchema = {
+  protocol: "vnc",
+  settings: [
+    {
+      key: "rfb_version_min",
+      label: "settings.vnc.rfb_version_min",
+      kind: { type: "choice" },
+      default: "3.8",
+      defaultOrigin: "fixed",
+      required: false,
+      options: [
+        { value: "3.8", label: { kind: "verbatim", text: "3.8" } },
+        { value: "3.7", label: { kind: "verbatim", text: "3.7" } },
+        { value: "3.3", label: { kind: "verbatim", text: "3.3" } },
+      ],
+      optionsAreClosed: true,
+    },
+  ],
+};
+
+/** The sentinel the "type an identifier the list does not carry" option stores. */
+const CUSTOM_OPTION = "\u0000custom";
+
 const NEW_CONNECTION: EditorTarget = {
   mode: "create",
   parentId: null,
@@ -152,8 +240,20 @@ beforeEach(() => {
   ipcMock.createNode.mockResolvedValue(node({ id: "created" }));
   ipcMock.updateNode.mockResolvedValue(node({ id: "created" }));
   ipcMock.inspectKey.mockResolvedValue(OPENSSH);
+  ipcMock.protocolSchemas.mockResolvedValue([]);
   dialogOpen.mockResolvedValue(OPENSSH.path);
 });
+
+/**
+ * The block of a form field: its label, its control, its buttons and its
+ * provenance line. `Field` wraps all of them in one element, which is what
+ * makes "the Override button belonging to THIS setting" expressible.
+ */
+function row(label: string): HTMLElement {
+  const found = screen.getByText(label).parentElement;
+  if (found === null) throw new Error(`no field around the label ${label}`);
+  return found;
+}
 
 /** The identity fields every create has to carry before anything is judged. */
 async function fillIdentity(user: ReturnType<typeof userEvent.setup>) {
@@ -694,6 +794,19 @@ describe("the protocols a connection may be given", () => {
   );
 });
 
+/*
+ * The defect this section exists to end: every RDP connection this product
+ * ever opened told the server to decode its scancodes as US English, because
+ * the adapter's default was a constant and nothing in the interface could set
+ * the value. A Turkish keyboard typed Turkish into a server that had been told
+ * to expect American, and nothing anywhere reported a fault — the protocol has
+ * no way to say "that was the wrong character".
+ *
+ * The adapter's half landed first: the schema offers the layouts, defaults to
+ * the one this machine reports, and says whether it read that or guessed it.
+ * This is the other half — a person can now choose, and what is pinned here is
+ * that the choice reaches the core in the form the wire carries.
+ */
 describe("the protocol settings a connection carries", () => {
   const windows = node({
     id: "conn-1",
@@ -704,22 +817,116 @@ describe("the protocol settings a connection carries", () => {
 
   beforeEach(() => {
     ipcMock.listNodes.mockResolvedValue([windows]);
+    ipcMock.protocolSchemas.mockResolvedValue([RDP_SCHEMA]);
+    ipcMock.resolveNode.mockResolvedValue(resolved({ protocol: "rdp", fields: [] }));
+  });
+
+  /** Overrides one setting and hands back the control it drew. */
+  async function override(
+    user: ReturnType<typeof userEvent.setup>,
+    label: string,
+  ): Promise<HTMLElement> {
+    await user.click(within(row(label)).getByRole("button", { name: "Override here" }));
+    return screen.getByLabelText(label);
+  }
+
+  it("renders one control per setting, chosen by the schema's kind", async () => {
+    const user = userEvent.setup();
+    renderEditor({ mode: "edit", nodeId: "conn-1" });
+
+    expect(await screen.findByText("Protocol settings")).toBeInTheDocument();
+
+    // Free text gets a text box.
+    expect(await override(user, "Windows domain")).toHaveValue("");
+
+    // A boolean gets a switch, not a box that would accept "yes".
+    await override(user, "Network Level Authentication");
+    expect(
+      screen.getByRole("switch", { name: "Network Level Authentication" }),
+    ).toBeChecked();
+
+    // A named set gets a picker that shows the NAME and stores the identifier.
+    const layout = await override(user, "Keyboard layout");
+    expect(layout).toHaveValue("1055");
+    expect(
+      within(layout).getByRole("option", { name: "Turkish Q" }),
+    ).toBeInTheDocument();
   });
 
   /*
-   * The section is a reading, not a form: no command writes a connection's
-   * settings map, so it says so rather than drawing a control that would
-   * discard what was typed into it.
+   * The end of the defect. The identifier travels, not the name: the server
+   * reads `66591` out of the Client Core Data and has never heard of
+   * "Turkish F".
    */
-  it("shows what the adapter will read, and says it cannot be changed here", async () => {
+  it("sends the chosen keyboard layout as the identifier the wire carries", async () => {
+    const user = userEvent.setup();
+    renderEditor({ mode: "edit", nodeId: "conn-1" });
+
+    await screen.findByText("Protocol settings");
+    await user.selectOptions(await override(user, "Keyboard layout"), "66591");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(ipcMock.updateNode).toHaveBeenCalledTimes(1));
+    expect(ipcMock.updateNode).toHaveBeenCalledWith("conn-1", {
+      settings: { keyboard_layout: "66591" },
+    });
+  });
+
+  /*
+   * `optionsAreClosed: false` is the schema saying its list is a convenience
+   * over a larger space. Microsoft publishes several hundred layout
+   * identifiers; the schema names the ones worth listing, and the rest have to
+   * be reachable or the picker is a wall rather than a shortcut.
+   */
+  it("lets an identifier the list does not carry be typed in", async () => {
+    const user = userEvent.setup();
+    renderEditor({ mode: "edit", nodeId: "conn-1" });
+
+    await screen.findByText("Protocol settings");
+    await user.selectOptions(await override(user, "Keyboard layout"), CUSTOM_OPTION);
+
+    const typed = screen.getByLabelText("Keyboard layout");
+    await user.clear(typed);
+    await user.type(typed, "1031");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(ipcMock.updateNode).toHaveBeenCalledTimes(1));
+    expect(ipcMock.updateNode).toHaveBeenCalledWith("conn-1", {
+      settings: { keyboard_layout: "1031" },
+    });
+  });
+
+  /* A closed choice gets no escape hatch, because the adapter would refuse it. */
+  it("offers no free-text escape on a setting whose list is the whole of it", async () => {
+    const user = userEvent.setup();
+    ipcMock.protocolSchemas.mockResolvedValue([VNC_SCHEMA]);
+    ipcMock.listNodes.mockResolvedValue([
+      node({ id: "conn-1", name: "kiosk", protocol: "vnc", host: "kiosk.example" }),
+    ]);
+    ipcMock.resolveNode.mockResolvedValue(resolved({ protocol: "vnc", fields: [] }));
+    renderEditor({ mode: "edit", nodeId: "conn-1" });
+
+    await screen.findByText("Protocol settings");
+    const floor = await override(user, "Lowest RFB version");
+    expect(within(floor).queryByRole("option", { name: "Another identifier…" })).toBeNull();
+    // A wire token is shown exactly as it stands, and never translated.
+    expect(within(floor).getByRole("option", { name: "3.3" })).toBeInTheDocument();
+  });
+
+  /*
+   * The three-state inheritance the rest of the editor has, applied to a
+   * setting: a folder's value is shown with its source, and overriding it is
+   * the same one click it is on the hostname twenty pixels above.
+   */
+  it("shows a folder's value with its source, and overrides it in one click", async () => {
+    const user = userEvent.setup();
     ipcMock.resolveNode.mockResolvedValue(
       resolved({
         protocol: "rdp",
         fields: [
-          field({ field: "settings.domain", value: "CORP" }),
           field({
-            field: "settings.network_level_authentication",
-            value: "false",
+            field: "settings.keyboard_layout",
+            value: "1055",
             origin: "inherited",
             sourceName: "Datacentre EU-West",
           }),
@@ -728,24 +935,125 @@ describe("the protocol settings a connection carries", () => {
     );
     renderEditor({ mode: "edit", nodeId: "conn-1" });
 
-    expect(await screen.findByText("Protocol settings")).toBeInTheDocument();
+    await screen.findByText("Protocol settings");
+    // By name, and with where it came from.
     expect(
-      screen.getByText(/These settings cannot be changed here/),
+      within(row("Keyboard layout")).getByText("Turkish Q", { normalizer: withoutBidi }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("inherited from Datacentre EU-West", { normalizer: withoutBidi }),
     ).toBeInTheDocument();
 
-    // Each setting under its own key, with the value the connection resolved.
-    expect(screen.getByText("domain")).toBeInTheDocument();
-    expect(withoutBidi(screen.getByText(/CORP/).textContent ?? "")).toBe(
-      "CORP",
+    await user.selectOptions(await override(user, "Keyboard layout"), "66591");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(ipcMock.updateNode).toHaveBeenCalledTimes(1));
+    expect(ipcMock.updateNode).toHaveBeenCalledWith("conn-1", {
+      settings: { keyboard_layout: "66591" },
+    });
+  });
+
+  /*
+   * And the way back. "Inherit this again" and "set this to nothing" are
+   * different instructions to the core, and only the first of them is what the
+   * revert control means — so it sends `null` rather than an empty string.
+   */
+  it("clears an override with null, which is not the same as an empty value", async () => {
+    const user = userEvent.setup();
+    ipcMock.resolveNode.mockResolvedValue(
+      resolved({
+        protocol: "rdp",
+        fields: [field({ field: "settings.domain", value: "CORP", origin: "own" })],
+      }),
     );
+    renderEditor({ mode: "edit", nodeId: "conn-1" });
 
-    // A setting whose value has a consequence says what the consequence is —
-    // and this one is the consequence that matters most on the screen.
+    await screen.findByText("Protocol settings");
+    expect(screen.getByLabelText("Windows domain")).toHaveValue("CORP");
+
+    await user.click(
+      within(row("Windows domain")).getByRole("button", { name: "Use the default" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(ipcMock.updateNode).toHaveBeenCalledTimes(1));
+    expect(ipcMock.updateNode).toHaveBeenCalledWith("conn-1", {
+      settings: { domain: null },
+    });
+  });
+
+  /*
+   * The bounds are the protocol's own — MS-RDPEDISP §2.2.2.2.1 for a desktop
+   * width — and the form was rendered from the schema that carries them, so
+   * the user is told at the field rather than by a failure notice after a
+   * round trip.
+   */
+  it("refuses a number outside the protocol's range before sending it", async () => {
+    const user = userEvent.setup();
+    renderEditor({ mode: "edit", nodeId: "conn-1" });
+
+    await screen.findByText("Protocol settings");
+    const width = await override(user, "Desktop width");
+    await user.clear(width);
+    await user.type(width, "99999");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    const message = await screen.findByText(/Enter a number between/);
+    expect(withoutBidi(message.textContent ?? "")).toMatch(/200/);
+    expect(ipcMock.updateNode).not.toHaveBeenCalled();
+  });
+
+  /* And the core's own refusal, when one arrives for something the form allowed. */
+  it("shows the core's refusal when it refuses a value the form accepted", async () => {
+    const user = userEvent.setup();
+    ipcMock.updateNode.mockRejectedValue({
+      code: "session.setting-invalid",
+      message: "The setting `domain` is not usable: it must be shorter text.",
+      detail: null,
+      actions: [],
+    });
+    renderEditor({ mode: "edit", nodeId: "conn-1" });
+
+    await screen.findByText("Protocol settings");
+    await user.type(await override(user, "Windows domain"), "CORP");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
     expect(
-      screen.getByText(/credentials are sent to whatever answered the port/),
+      await screen.findByText(/The setting .domain. is not usable/),
     ).toBeInTheDocument();
-    // Inherited, and the screen says from where.
-    expect(screen.getByText(/Datacentre EU-West/)).toBeInTheDocument();
+  });
+
+  /*
+   * `defaultOrigin: "guessed"` means detection was attempted and failed, and
+   * the value in place is a stand-in. Saying so is the entire reason the
+   * origin crosses the boundary: a wrong keyboard layout produces the wrong
+   * characters and no error, so a user who is not told concludes their
+   * keyboard is broken.
+   */
+  it("says out loud when the default was guessed rather than detected", async () => {
+    ipcMock.protocolSchemas.mockResolvedValue([
+      {
+        ...RDP_SCHEMA,
+        settings: RDP_SCHEMA.settings.map((setting) =>
+          setting.key === "keyboard_layout"
+            ? { ...setting, default: "1033", defaultOrigin: "guessed" as const }
+            : setting,
+        ),
+      },
+    ]);
+    renderEditor({ mode: "edit", nodeId: "conn-1" });
+
+    const line = await screen.findByText(/could not tell which keyboard/);
+    // Named, so the user can see whether the guess is wrong.
+    expect(withoutBidi(line.textContent ?? "")).toContain("US");
+  });
+
+  /* The quieter half of the same sentence, when it really was read off this machine. */
+  it("names the layout it detected, and says it can be changed", async () => {
+    renderEditor({ mode: "edit", nodeId: "conn-1" });
+
+    const line = await screen.findByText(/Detected from this computer/);
+    expect(withoutBidi(line.textContent ?? "")).toContain("Turkish Q");
   });
 
   /*
@@ -753,24 +1061,40 @@ describe("the protocol settings a connection carries", () => {
    * no implementation of, so there is no setting for any of them — an omission
    * that would otherwise read as an oversight rather than as the answer.
    */
-  it("names what this build's RDP cannot do, even with nothing set", async () => {
-    ipcMock.resolveNode.mockResolvedValue(
-      resolved({ protocol: "rdp", fields: [] }),
-    );
+  it("names what this build's RDP cannot do", async () => {
     renderEditor({ mode: "edit", nodeId: "conn-1" });
 
     expect(
-      await screen.findByText(
-        /does not redirect the clipboard, drives, printers/,
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/Nothing is set on this connection/),
+      await screen.findByText(/does not redirect the clipboard, drives, printers/),
     ).toBeInTheDocument();
   });
 
-  /* An SSH connection with no settings of its own gets no empty section. */
-  it("is absent for a protocol with nothing to say and nothing set", async () => {
+  /*
+   * A key stored on the connection that this build's schema does not name.
+   * `remoter-core` preserves it on purpose, so that opening a vault in an
+   * older build does not discard a newer protocol's settings. It is shown,
+   * because hiding it would hide the thing the preservation protects; and it
+   * gets no control, because there is no type behind it to draw one from.
+   */
+  it("shows a setting outside the schema without offering to edit it", async () => {
+    ipcMock.resolveNode.mockResolvedValue(
+      resolved({
+        protocol: "rdp",
+        fields: [field({ field: "settings.from_the_future", value: "42", origin: "own" })],
+      }),
+    );
+    renderEditor({ mode: "edit", nodeId: "conn-1" });
+
+    expect(await screen.findByText(/not part of this build's settings/)).toBeInTheDocument();
+    expect(screen.getByText("from_the_future")).toBeInTheDocument();
+    expect(
+      within(row("from_the_future")).queryByRole("button", { name: "Override here" }),
+    ).toBeNull();
+  });
+
+  /* Nothing to draw and nothing to say: no empty section. */
+  it("is absent for a protocol whose schema this build does not have", async () => {
+    ipcMock.protocolSchemas.mockResolvedValue([]);
     ipcMock.listNodes.mockResolvedValue([
       node({
         id: "conn-1",
@@ -783,6 +1107,7 @@ describe("the protocol settings a connection carries", () => {
     renderEditor({ mode: "edit", nodeId: "conn-1" });
 
     await screen.findByLabelText("Name");
+    await waitFor(() => expect(ipcMock.protocolSchemas).toHaveBeenCalled());
     expect(screen.queryByText("Protocol settings")).not.toBeInTheDocument();
   });
 });

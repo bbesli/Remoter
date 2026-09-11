@@ -18,9 +18,17 @@
   transition: background var(--motion-fast) var(--ease), color var(--motion-fast) var(--ease);
 }
 
-.edgeButton:hover {
+.edgeButton:hover:not(:disabled) {
   background: var(--bg-elevated);
   color: var(--fg-default);
+}
+
+/* A control with nothing to act on — the Files toggle with no session that
+   carries files. Its tooltip says which of the reasons applies; this only has
+   to make the refusal visible before the click. */
+.edgeButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .rightEdge {

@@ -57,6 +57,7 @@ export type WarningKey =
   | "warning.detail.vncClipboardRefused"
   | "warning.detail.vncClipboardUnsupported"
   | "warning.detail.rdpNlaDisabled"
+  | "warning.detail.rdpKeyboardLayoutGuessed"
   | "warning.detail.rdpDisplayControlUnavailable"
   | "warning.detail.sshAgentForwarding"
   | "warning.detail.sshInputUnsupported"
@@ -111,6 +112,7 @@ const DETAIL_KEYS: Readonly<Record<string, WarningKey>> = {
   "vnc.clipboard.policy_refused": "warning.detail.vncClipboardRefused",
   "vnc.clipboard_unsupported": "warning.detail.vncClipboardUnsupported",
   "rdp.network_level_authentication_disabled": "warning.detail.rdpNlaDisabled",
+  "rdp.keyboard_layout_guessed": "warning.detail.rdpKeyboardLayoutGuessed",
   "rdp.display_control_unavailable": "warning.detail.rdpDisplayControlUnavailable",
   "ssh.agent_forwarding_enabled": "warning.detail.sshAgentForwarding",
   "ssh.input_unsupported": "warning.detail.sshInputUnsupported",
@@ -150,6 +152,10 @@ const DETAIL_TONES: Readonly<Record<string, CalloutTone>> = {
   "vnc.clipboard.policy_refused": "info",
   "vnc.clipboard_unsupported": "info",
   "rdp.network_level_authentication_disabled": "danger",
+  // Not `info`. Nothing is unprotected, but every keystroke in the session is
+  // being decoded by the wrong layout and the protocol reports no fault for
+  // it — the user's own conclusion is that their keyboard is broken.
+  "rdp.keyboard_layout_guessed": "warning",
   "rdp.display_control_unavailable": "info",
   "ssh.agent_forwarding_enabled": "warning",
   "ssh.input_unsupported": "info",

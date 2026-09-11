@@ -98,6 +98,7 @@ describe("describeWarning", () => {
     "vnc.clipboard.policy_refused",
     "vnc.clipboard_unsupported",
     "rdp.network_level_authentication_disabled",
+    "rdp.keyboard_layout_guessed",
     "rdp.display_control_unavailable",
     "ssh.agent_forwarding_enabled",
     "ssh.input_unsupported",

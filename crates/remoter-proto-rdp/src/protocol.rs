@@ -26,6 +26,9 @@ use tokio_util::sync::CancellationToken;
 use crate::cert::CertificateChecker;
 use crate::connect::{ConnectionConfig, DEFAULT_TIMEOUT, DesktopSize, connect, static_channels};
 use crate::error::rdp_protocol_id;
+use crate::layout::{
+    FALLBACK_KEYBOARD_LAYOUT, LayoutSource, default_layout, keyboard_layout_options,
+};
 use crate::prompt::PromptChannel;
 use crate::session::{RdpSession, capabilities};
 
@@ -49,9 +52,15 @@ pub const SETTING_WORKSTATION: &str = "workstation";
 /// The catalogue key surfaced when Network Level Authentication is turned off.
 pub const WARNING_NLA_DISABLED: &str = "rdp.network_level_authentication_disabled";
 
-/// US English — `0x0409`. The layout a connection gets when nothing on the
-/// inheritance path chose one.
-pub const DEFAULT_KEYBOARD_LAYOUT: u32 = 0x0000_0409;
+/// The catalogue key surfaced when the keyboard layout had to be guessed.
+///
+/// Raised only when **both** are true: nothing on the inheritance path chose a
+/// layout, and this build could not work out what the machine is using. The
+/// session then runs with US English scancode decoding, which is right for one
+/// keyboard and wrong for every other — and wrong *silently*, because the
+/// protocol reports no fault for typing the wrong character. Saying so is the
+/// whole point; see [`crate::layout`].
+pub const WARNING_KEYBOARD_LAYOUT_GUESSED: &str = "rdp.keyboard_layout_guessed";
 
 /// The RDP adapter.
 pub struct RdpProtocol {
@@ -123,6 +132,21 @@ impl RdpProtocol {
 
         let target = connection_target(config)?;
         let connection = self.connection_config(config, creds, &target)?;
+
+        if self.keyboard_layout_is_guessed(config) {
+            // Said out loud, because nothing else will say it. The server
+            // decodes this client's scancodes with the layout named in the
+            // Client Core Data, so a wrong one produces the wrong characters
+            // and no error anywhere — the user is left believing their
+            // keyboard is broken.
+            let _ = events
+                .send(remoter_proto::SessionEvent::Warning(
+                    remoter_proto::SessionWarning::Other {
+                        detail: WARNING_KEYBOARD_LAYOUT_GUESSED.to_owned(),
+                    },
+                ))
+                .await;
+        }
 
         if !connection.network_level_authentication {
             // Stated where the user will see it, every time. Without NLA the
@@ -214,11 +238,16 @@ impl RdpProtocol {
             height: self.dimension(config, SETTING_HEIGHT, DesktopSize::default().height)?,
         };
 
+        // The stored value if there is one, and otherwise the schema's default
+        // — which is this machine's own layout, not a constant. See
+        // `crate::layout`: an explicit choice on the connection, or one
+        // inherited from a folder, is in `config.settings` and therefore wins,
+        // and detection only fills the silence.
         connection.keyboard_layout = self
             .schema
             .integer(&config.settings, SETTING_KEYBOARD_LAYOUT)?
             .and_then(|value| u32::try_from(value).ok())
-            .unwrap_or(DEFAULT_KEYBOARD_LAYOUT);
+            .unwrap_or(FALLBACK_KEYBOARD_LAYOUT);
 
         connection.network_level_authentication = self
             .schema
@@ -241,6 +270,24 @@ impl RdpProtocol {
             .map_or(DEFAULT_TIMEOUT, |ms| Duration::from_millis(u64::from(ms)));
 
         Ok(connection)
+    }
+
+    /// Whether this connection is about to run on a layout nobody chose and
+    /// nothing detected.
+    ///
+    /// Two conditions, and both matter. A connection that *stated* a layout is
+    /// never guessing, however little this build knows about the machine; and
+    /// a machine that reported its layout is not guessing either. Only the
+    /// intersection — silence on the connection, silence from the machine —
+    /// gets [`WARNING_KEYBOARD_LAYOUT_GUESSED`].
+    ///
+    /// `config.settings` is read directly rather than through the schema,
+    /// because [`remoter_proto::SettingsSchema::string`] falls back to the
+    /// default and the difference between "the user chose US English" and
+    /// "nobody chose anything" is precisely what is being asked.
+    fn keyboard_layout_is_guessed(&self, config: &EffectiveConnection) -> bool {
+        !config.settings.contains_key(SETTING_KEYBOARD_LAYOUT)
+            && default_layout().source == LayoutSource::Guessed
     }
 
     fn string<'a>(&'a self, config: &'a EffectiveConnection, key: &str) -> Option<&'a str> {
@@ -397,18 +444,7 @@ pub fn schema() -> SettingsSchema {
             },
         )
         .with_default(DesktopSize::default().height.to_string()),
-        SettingField::new(
-            SETTING_KEYBOARD_LAYOUT,
-            "settings.rdp.keyboard_layout",
-            // A Windows locale identifier. The server applies the layout to
-            // the scancodes this client sends, so a wrong value here types the
-            // wrong characters and nothing in the adapter can tell.
-            SettingKind::Integer {
-                min: 0,
-                max: 0xffff_ffff,
-            },
-        )
-        .with_default(DEFAULT_KEYBOARD_LAYOUT.to_string()),
+        keyboard_layout_field(),
         SettingField::new(
             SETTING_ALTERNATE_SHELL,
             "settings.rdp.alternate_shell",
@@ -420,6 +456,41 @@ pub fn schema() -> SettingsSchema {
             SettingKind::Text { max_len: 512 },
         ),
     ])
+}
+
+/// The keyboard layout field, with this machine's own layout as its default.
+///
+/// The three things this field has to be at once, and why it is built here
+/// rather than inline:
+///
+/// - **An identifier**, because that is what MS-RDPBCGR §2.2.1.3.2 carries. So
+///   the kind stays `Integer` over the whole 32-bit space and a user with an
+///   identifier nobody listed can type it in — there are several hundred, and
+///   a closed list would be a wall rather than a convenience.
+/// - **A named set**, because `1055` means nothing to anybody. The options are
+///   the layouts worth offering, each with a catalogue key for its name.
+/// - **Defaulted from the machine**, because a constant here is the defect:
+///   every connection ever made got US English, and a Turkish keyboard typed
+///   Turkish into a server that had been told to decode it as American.
+///
+/// The default's origin travels with it, so a machine this build could not
+/// read is a `Guessed` default the interface can say out loud rather than a
+/// number indistinguishable from a deliberate one.
+fn keyboard_layout_field() -> SettingField {
+    let detected = default_layout();
+    let field = SettingField::new(
+        SETTING_KEYBOARD_LAYOUT,
+        "settings.rdp.keyboard_layout",
+        SettingKind::Integer {
+            min: 0,
+            max: 0xffff_ffff,
+        },
+    )
+    .with_options(keyboard_layout_options());
+    match detected.source {
+        LayoutSource::Detected => field.with_detected_default(detected.id.to_string()),
+        LayoutSource::Guessed => field.with_guessed_default(detected.id.to_string()),
+    }
 }
 
 /// A settings map with the given entries, attributed to `node`.
@@ -654,7 +725,9 @@ mod tests {
             .connection_config(&effective(BTreeMap::new()), &Account("ada"), &target())
             .unwrap();
         assert_eq!(connection.desktop, DesktopSize::default());
-        assert_eq!(connection.keyboard_layout, DEFAULT_KEYBOARD_LAYOUT);
+        // Not a constant any more: whatever this machine reported, or the
+        // fallback if it reported nothing. See the two tests below.
+        assert_eq!(connection.keyboard_layout, default_layout().id);
         assert!(connection.network_level_authentication);
         assert_eq!(connection.workstation, "REMOTER");
         assert_eq!(connection.timeout, DEFAULT_TIMEOUT);
@@ -694,6 +767,190 @@ mod tests {
         assert_eq!(connection.keyboard_layout, 0x0407);
         assert!(!connection.network_level_authentication);
         assert_eq!(connection.workstation, "LAPTOP-7");
+        assert_eq!(connection.alternate_shell, "cmd.exe");
+        assert_eq!(connection.work_dir, "C:\\Windows");
+    }
+
+    #[test]
+    fn the_keyboard_layout_default_comes_from_the_machine_and_not_a_constant() {
+        // The defect: `DEFAULT_KEYBOARD_LAYOUT = 0x0409` was the default for
+        // every connection ever made, so a Turkish keyboard typed Turkish into
+        // a server that had been told to decode it as American.
+        //
+        // What replaces it is not "a different constant" — it is a default
+        // that carries where it came from. The assertion is that the schema's
+        // default and the detector's answer are the same fact: a schema that
+        // drifted from the detector would put one layout in the form and
+        // another on the wire.
+        let field = schema()
+            .field(SETTING_KEYBOARD_LAYOUT)
+            .expect("the layout is a setting")
+            .clone();
+        let detected = default_layout();
+        assert_eq!(
+            field.default.as_deref(),
+            Some(detected.id.to_string().as_str())
+        );
+        assert_eq!(
+            field.default_origin,
+            match detected.source {
+                LayoutSource::Detected => remoter_proto::DefaultOrigin::Detected,
+                // Never `Fixed`: a guess that presents itself as a decision is
+                // the thing this change exists to stop.
+                LayoutSource::Guessed => remoter_proto::DefaultOrigin::Guessed,
+            }
+        );
+
+        // And the value reaches the connection.
+        let connection = adapter()
+            .connection_config(&effective(BTreeMap::new()), &Account("ada"), &target())
+            .unwrap();
+        assert_eq!(connection.keyboard_layout, detected.id);
+    }
+
+    #[test]
+    fn a_chosen_layout_beats_detection() {
+        // Detection is only ever the default. A connection that states a
+        // layout — its own, or one inherited from a folder — is using the
+        // layout it states, on any machine.
+        let adapter = adapter();
+        let config = effective(settings_from(
+            NodeId::new(),
+            // Turkish F, 0x0001041F, which is a different keyboard from
+            // Turkish Q and from anything this machine may have reported.
+            [(SETTING_KEYBOARD_LAYOUT, "66591")],
+        ));
+        let connection = adapter
+            .connection_config(&config, &Account("ada"), &target())
+            .unwrap();
+        assert_eq!(connection.keyboard_layout, 0x0001_041F);
+        // A stated layout is never a guess, whatever the machine said.
+        assert!(!adapter.keyboard_layout_is_guessed(&config));
+    }
+
+    #[test]
+    fn the_layout_list_offers_turkish_q_and_turkish_f_as_different_values() {
+        // The interface renders this list; if the two Turkish layouts collapse
+        // into one entry the owner of this repository cannot pick the one they
+        // type on. Their identifiers are Microsoft's, from "Keyboard
+        // identifiers and input method editors for Windows".
+        let field = schema()
+            .field(SETTING_KEYBOARD_LAYOUT)
+            .expect("the layout is a setting")
+            .clone();
+        let value_for = |label: &str| {
+            field
+                .options
+                .iter()
+                .find(|option| {
+                    option.label
+                        == remoter_proto::OptionLabel::Message {
+                            key: label.to_owned(),
+                        }
+                })
+                .map(|option| option.value.clone())
+        };
+        assert_eq!(
+            value_for("settings.keyboardLayout.turkishQ").as_deref(),
+            Some("1055")
+        );
+        assert_eq!(
+            value_for("settings.keyboardLayout.turkishF").as_deref(),
+            Some("66591")
+        );
+
+        // Named, not closed: an identifier the list does not carry is still a
+        // valid value, because there are several hundred of them.
+        assert!(!field.options_are_closed());
+        for option in &field.options {
+            field.validate(&option.value).unwrap();
+        }
+        field.validate("2057").unwrap();
+    }
+
+    #[tokio::test]
+    async fn a_guessed_layout_is_announced_rather_than_typed_silently() {
+        // `connect_session` cannot run without a server, so what is asserted
+        // here is the decision that gates the warning. The warning itself is
+        // sent beside the NLA one, from the same `events` sink.
+        let adapter = adapter();
+        // Nothing stated on the connection: guessing iff the machine said
+        // nothing either.
+        assert_eq!(
+            adapter.keyboard_layout_is_guessed(&effective(BTreeMap::new())),
+            default_layout().source == LayoutSource::Guessed
+        );
+        // Even US English, chosen deliberately, is not a guess.
+        let stated = effective(settings_from(
+            NodeId::new(),
+            [(
+                SETTING_KEYBOARD_LAYOUT,
+                FALLBACK_KEYBOARD_LAYOUT.to_string().as_str(),
+            )],
+        ));
+        assert!(!adapter.keyboard_layout_is_guessed(&stated));
+        assert_eq!(
+            adapter
+                .connection_config(&stated, &Account("ada"), &target())
+                .unwrap()
+                .keyboard_layout,
+            FALLBACK_KEYBOARD_LAYOUT
+        );
+    }
+
+    #[test]
+    fn every_setting_in_the_schema_reaches_the_connection() {
+        // The defect this project keeps shipping: a field in a schema that
+        // nothing reads. The list is written out so that adding a ninth
+        // setting fails here until `connection_config` reads it — which is the
+        // only moment anybody is looking.
+        const WIRED: &[&str] = &[
+            SETTING_DOMAIN,
+            SETTING_WORKSTATION,
+            SETTING_NLA,
+            SETTING_WIDTH,
+            SETTING_HEIGHT,
+            SETTING_KEYBOARD_LAYOUT,
+            SETTING_ALTERNATE_SHELL,
+            SETTING_WORK_DIR,
+        ];
+        for field in schema().fields() {
+            assert!(
+                WIRED.contains(&field.key.as_str()),
+                "{} is in the schema and nothing reads it",
+                field.key
+            );
+        }
+
+        // And each of the eight, set to a value nothing else would produce,
+        // arrives on the configuration the connection sequence is built from.
+        let config = effective(settings_from(
+            NodeId::new(),
+            [
+                (SETTING_DOMAIN, "CORP"),
+                (SETTING_WORKSTATION, "LAPTOP-7"),
+                (SETTING_NLA, "false"),
+                (SETTING_WIDTH, "1600"),
+                (SETTING_HEIGHT, "900"),
+                (SETTING_KEYBOARD_LAYOUT, "66591"),
+                (SETTING_ALTERNATE_SHELL, "cmd.exe"),
+                (SETTING_WORK_DIR, "C:\\Windows"),
+            ],
+        ));
+        let connection = adapter()
+            .connection_config(&config, &Account("ada"), &target())
+            .unwrap();
+        assert_eq!(connection.domain, "CORP");
+        assert_eq!(connection.workstation, "LAPTOP-7");
+        assert!(!connection.network_level_authentication);
+        assert_eq!(
+            connection.desktop,
+            DesktopSize {
+                width: 1600,
+                height: 900
+            }
+        );
+        assert_eq!(connection.keyboard_layout, 0x0001_041F);
         assert_eq!(connection.alternate_shell, "cmd.exe");
         assert_eq!(connection.work_dir, "C:\\Windows");
     }

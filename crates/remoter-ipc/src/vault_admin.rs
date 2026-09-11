@@ -648,7 +648,7 @@ mod tests {
             listed
                 .slots
                 .iter()
-                .any(|slot| slot.kind == "password" && slot.kdf_summary.is_some()),
+                .any(|slot| slot.kind == "password" && slot.kdf.is_some()),
             "the password slot reports its Argon2id parameters: {:?}",
             listed.slots
         );

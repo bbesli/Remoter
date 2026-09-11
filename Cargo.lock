@@ -4330,6 +4330,7 @@ dependencies = [
  "remoter-core",
  "remoter-plugin-abi",
  "serde",
+ "serde_json",
  "sha2 0.11.0",
  "thiserror 2.0.20",
  "tokio",
@@ -4361,6 +4362,7 @@ dependencies = [
  "tokio-util",
  "tracing",
  "webpki-roots",
+ "winreg",
  "x509-cert",
  "zeroize",
 ]

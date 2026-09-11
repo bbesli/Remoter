@@ -460,6 +460,86 @@ pub enum SettingKind {
     },
 }
 
+/// What to call one offered value on screen.
+///
+/// Two cases, because a settings value is named in two genuinely different
+/// ways and collapsing them costs one of them. `0x0000041F` is "Turkish Q",
+/// which is prose and belongs to a translator; `3.8` is an RFB version, which
+/// is a wire token and belongs to nobody.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum OptionLabel {
+    /// A message catalogue key, like [`SettingField::label`]. Translated.
+    Message {
+        /// The key — `settings.keyboardLayout.turkishF`, say.
+        key: String,
+    },
+    /// Text shown exactly as it stands: a wire token, a version number, a
+    /// proper name. Never translated, and never a sentence.
+    Verbatim {
+        /// The text.
+        text: String,
+    },
+}
+
+/// One value a setting offers by name.
+///
+/// **A named set is not a closed one.** [`SettingKind`] decides what is
+/// *valid*; this decides what is worth *offering*. An integer field with a
+/// hundred named values still accepts the hundred-and-first — which is the
+/// whole point for a keyboard layout, where Microsoft publishes hundreds of
+/// identifiers and no list anybody would want to scroll holds them all. Use
+/// [`SettingField::options_are_closed`] to tell the two apart.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SettingOption {
+    /// The value as stored — exactly the string that travels through the
+    /// settings map, not a rendering of it.
+    pub value: String,
+    /// What to call it.
+    pub label: OptionLabel,
+}
+
+impl SettingOption {
+    /// An option whose name comes from the message catalogue.
+    #[must_use]
+    pub fn message(value: impl Into<String>, key: impl Into<String>) -> Self {
+        Self {
+            value: value.into(),
+            label: OptionLabel::Message { key: key.into() },
+        }
+    }
+
+    /// An option whose name is shown as it stands.
+    #[must_use]
+    pub fn verbatim(value: impl Into<String>, text: impl Into<String>) -> Self {
+        Self {
+            value: value.into(),
+            label: OptionLabel::Verbatim { text: text.into() },
+        }
+    }
+}
+
+/// Where a field's default value came from.
+///
+/// A default that was read off this machine is a different statement from one
+/// the adapter chose, and a default that is a *guess* is a third. The interface
+/// needs all three: telling a user their keyboard layout was guessed is the
+/// difference between "the wrong characters appear and I cannot think why" and
+/// "the client said it could not tell, and there is the field to fix it".
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DefaultOrigin {
+    /// The adapter's own constant. The ordinary case.
+    #[default]
+    Fixed,
+    /// Read from the machine this build is running on.
+    Detected,
+    /// Detection was attempted and failed; the value is a stand-in. **Say so
+    /// on screen** — a silent guess is the failure this variant exists to
+    /// prevent.
+    Guessed,
+}
+
 /// One settings field.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SettingField {
@@ -474,6 +554,14 @@ pub struct SettingField {
     pub default: Option<String>,
     /// Whether a value must be present.
     pub required: bool,
+    /// The values worth offering by name. Empty where there are none.
+    ///
+    /// Advisory unless [`Self::options_are_closed`]: see [`SettingOption`].
+    #[serde(default)]
+    pub options: Vec<SettingOption>,
+    /// Where [`Self::default`] came from.
+    #[serde(default)]
+    pub default_origin: DefaultOrigin,
 }
 
 impl SettingField {
@@ -486,14 +574,52 @@ impl SettingField {
             kind,
             default: None,
             required: false,
+            options: Vec::new(),
+            default_origin: DefaultOrigin::Fixed,
         }
     }
 
-    /// The same field, with a default.
+    /// The same field, with a default the adapter chose.
     #[must_use]
     pub fn with_default(mut self, default: impl Into<String>) -> Self {
         self.default = Some(default.into());
+        self.default_origin = DefaultOrigin::Fixed;
         self
+    }
+
+    /// The same field, with a default read off this machine.
+    #[must_use]
+    pub fn with_detected_default(mut self, default: impl Into<String>) -> Self {
+        self.default = Some(default.into());
+        self.default_origin = DefaultOrigin::Detected;
+        self
+    }
+
+    /// The same field, with a default that is a stand-in for something this
+    /// build could not determine. The interface must say so; see
+    /// [`DefaultOrigin::Guessed`].
+    #[must_use]
+    pub fn with_guessed_default(mut self, default: impl Into<String>) -> Self {
+        self.default = Some(default.into());
+        self.default_origin = DefaultOrigin::Guessed;
+        self
+    }
+
+    /// The same field, offering these values by name.
+    #[must_use]
+    pub fn with_options(mut self, options: Vec<SettingOption>) -> Self {
+        self.options = options;
+        self
+    }
+
+    /// Whether [`Self::options`] is the whole of what this field will accept.
+    ///
+    /// True only for [`SettingKind::Choice`], which is the one kind that
+    /// refuses a value outside its list. Everything else keeps the escape
+    /// hatch: the named values are a convenience over a larger space.
+    #[must_use]
+    pub const fn options_are_closed(&self) -> bool {
+        matches!(self.kind, SettingKind::Choice { .. })
     }
 
     /// The same field, required.
@@ -826,6 +952,88 @@ mod tests {
         let bad = settings(&[("compression", "yes please")]);
         let error = schema.boolean(&bad, "compression").expect_err("not a bool");
         assert!(!error.to_string().contains("yes please"));
+    }
+
+    #[test]
+    fn a_named_value_outside_a_choice_is_still_refused() {
+        // The escape hatch is the *kind*'s, not the option list's. A `Choice`
+        // is closed and says so; anything else keeps accepting values the list
+        // does not name, which is what makes a hundred named keyboard layouts
+        // a convenience rather than a cage.
+        let closed = SettingField::new(
+            "bandwidth",
+            "settings.rdp.bandwidth",
+            SettingKind::Choice {
+                options: vec!["lan".to_owned()],
+            },
+        );
+        assert!(closed.options_are_closed());
+        assert!(closed.validate("broadband").is_err());
+
+        let open = SettingField::new(
+            "keyboard_layout",
+            "settings.rdp.keyboard_layout",
+            SettingKind::Integer { min: 0, max: 9999 },
+        )
+        .with_options(vec![SettingOption::message("1055", "layout.turkishQ")]);
+        assert!(!open.options_are_closed());
+        // Named, and validated because it is in range.
+        open.validate("1055").unwrap();
+        // Not named, and accepted anyway: there are hundreds of identifiers
+        // and the list is not all of them.
+        open.validate("1031").unwrap();
+        // Still bounded by the kind.
+        assert!(open.validate("100000").is_err());
+    }
+
+    #[test]
+    fn a_default_says_where_it_came_from() {
+        // A guessed default and a chosen one are different statements, and the
+        // interface has to be able to tell the user which it is looking at.
+        let field = SettingField::new("k", "settings.k", SettingKind::Text { max_len: 8 });
+        assert_eq!(field.default_origin, DefaultOrigin::Fixed);
+        assert_eq!(
+            field.clone().with_default("a").default_origin,
+            DefaultOrigin::Fixed
+        );
+        assert_eq!(
+            field.clone().with_detected_default("b").default_origin,
+            DefaultOrigin::Detected
+        );
+        let guessed = field.with_guessed_default("c");
+        assert_eq!(guessed.default_origin, DefaultOrigin::Guessed);
+        assert_eq!(guessed.default.as_deref(), Some("c"));
+    }
+
+    #[test]
+    fn an_option_is_named_either_by_the_catalogue_or_verbatim() {
+        // `0x0409` is "US English", which a translator owns. `3.8` is an RFB
+        // version, which nobody owns. One type, two honest answers.
+        assert_eq!(
+            SettingOption::message("1055", "settings.keyboardLayout.turkishQ").label,
+            OptionLabel::Message {
+                key: "settings.keyboardLayout.turkishQ".to_owned()
+            }
+        );
+        assert_eq!(
+            SettingOption::verbatim("3.8", "3.8").label,
+            OptionLabel::Verbatim {
+                text: "3.8".to_owned()
+            }
+        );
+    }
+
+    #[test]
+    fn a_schema_stored_before_options_existed_still_reads() {
+        // `SettingsSchema` is serialisable, and a plugin manifest or a cached
+        // copy written by an older build carries neither `options` nor
+        // `defaultOrigin`. Both default rather than failing the parse.
+        let json = r#"{"fields":[{"key":"terminal","label":"settings.ssh.terminal",
+            "kind":{"type":"text","max_len":32},"default":"xterm","required":false}]}"#;
+        let schema: SettingsSchema = serde_json::from_str(json).unwrap();
+        let field = schema.field("terminal").unwrap();
+        assert!(field.options.is_empty());
+        assert_eq!(field.default_origin, DefaultOrigin::Fixed);
     }
 
     #[test]

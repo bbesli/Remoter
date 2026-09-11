@@ -32,6 +32,15 @@ export const qk = {
   /** A tree search, including the palette's. */
   search: (query: string) => ["nodes", "search", query] as const,
 
+  /**
+   * Every protocol's settings schema, as the adapters declare them.
+   *
+   * Not under `nodes`: a schema is the build's, not the vault's, so nothing a
+   * tree change does can affect it. It is fixed for the life of the process
+   * and wants a long `staleTime` rather than an invalidation.
+   */
+  protocolSchemas: () => ["protocols", "schemas"] as const,
+
   /** Application settings. */
   settings: () => ["settings"] as const,
 

@@ -72,6 +72,20 @@ confidence-threshold = 0.9
 # carries an additional restriction, a non-commercial clause or a
 # source-availability obligation.
 #
+# The keyboard layout default (CLAUDE.md §8.1). One crate, Windows only:
+#
+#   winreg 0.55          MIT                  already present as a build
+#                                             dependency of tauri-build, via
+#                                             embed-resource
+#
+# `crates/remoter-proto-rdp/src/layout.rs` reads the user's configured layout
+# out of `HKCU\Keyboard Layout\Preload`, because a hard-coded US English
+# identifier types the wrong characters on every other keyboard and reports no
+# fault while doing it. The alternative, `GetKeyboardLayoutNameW`, is FFI, and
+# the workspace sets `unsafe_code = "forbid"`. MIT is permissive and imposes
+# nothing on a GPL-3.0 work; the crate is already in the graph, so the
+# dependency tree does not grow.
+
 # Two crates were deliberately *not* added, and the reasons are recorded in
 # `crates/remoter-proto-rdp/src/lib.rs` rather than only here:
 #

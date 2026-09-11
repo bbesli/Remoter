@@ -119,6 +119,16 @@ thiserror.workspace = true
 tracing.workspace = true
 zeroize.workspace = true
 
+# Reading the user's configured keyboard layout out of
+# `HKCU\Keyboard Layout\Preload` — see `src/layout.rs` for why the default
+# cannot be a constant. MIT, and already in this workspace's dependency graph
+# (tauri-build -> embed-resource), so it adds no crate and no licence to
+# review; recorded in `deny.toml` all the same. The alternative is
+# `GetKeyboardLayoutNameW`, which is FFI, and this workspace sets
+# `unsafe_code = "forbid"`.
+[target.'cfg(windows)'.dependencies]
+winreg = "0.55"
+
 [dev-dependencies]
 # `test-util` is what `#[tokio::test(start_paused = true)]` needs. One test
 # asserts how long a closing tab waits for a deactivation-reactivation

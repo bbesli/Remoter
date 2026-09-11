@@ -66,10 +66,10 @@ use parking_lot::Mutex;
 use remoter_core::{EffectiveConnection, GatewayHop, NodeId, NodeKind, RecordingPolicy};
 use remoter_proto::{
     ChainBuilder, CloseReason, CredentialProvider, DEFAULT_HOP_TIMEOUT, EventSink,
-    GatewayChainPlan, HopConfig, HostPort, InputEvent, NextAction, Prompt, PromptAnswer,
-    PromptKind, ProtocolError, SessionEvent, SessionHandle, SessionId, SessionSpec,
-    SessionSupervisor, SessionWarning, SettingsSchema, SupervisorConfig, TcpDialer, Transport,
-    TrustStore, connection_target,
+    GatewayChainPlan, HopConfig, HostPort, InputEvent, Modifiers, NextAction, PointerButtons,
+    Prompt, PromptAnswer, PromptKind, ProtocolError, SessionEvent, SessionHandle, SessionId,
+    SessionSpec, SessionSupervisor, SessionWarning, SettingsSchema, SupervisorConfig, TcpDialer,
+    Transport, TrustStore, connection_target,
 };
 use remoter_proto_rdp::{
     PromptChannel as RdpPromptChannel, RDP_ID, RdpProtocol, capabilities as rdp_capabilities,
@@ -130,7 +130,7 @@ pub(crate) enum Adapter {
 impl Adapter {
     /// The adapter for a protocol identifier, or `None` when nothing here
     /// speaks it.
-    fn for_protocol(protocol: &str) -> Option<Self> {
+    pub(crate) fn for_protocol(protocol: &str) -> Option<Self> {
         match protocol {
             SSH_ID => Some(Self::Ssh),
             SFTP_ID => Some(Self::Sftp),
@@ -156,7 +156,7 @@ impl Adapter {
 
     /// The settings the adapter understands, so a mistyped one is caught
     /// before the network rather than three round trips later.
-    fn schema(self) -> SettingsSchema {
+    pub(crate) fn schema(self) -> SettingsSchema {
         match self {
             // SFTP is opened on an SSH connection and is configured by the SSH
             // settings; it has no schema of its own.
@@ -295,12 +295,29 @@ pub struct PromptDto {
     pub prompt_id: u64,
     /// `"password" | "key_passphrase" | "keyboard_interactive" | "certificate"`
     pub kind: String,
-    /// The server's text, for keyboard-interactive. Untrusted: render as text,
-    /// never as markup.
+    /// The server's text. For keyboard-interactive it is the challenge; for a
+    /// certificate it is the address being connected to. Untrusted either way:
+    /// render as text, never as markup.
     pub text: String,
     /// Whether the answer may be echoed. `false` for anything secret, and the
     /// interface must honour it.
     pub echo: bool,
+    /// `SHA256:…` for the certificate being offered. `None` for every other
+    /// kind.
+    ///
+    /// Carried because a `certificate` prompt is a **trust decision**, and the
+    /// fingerprint is the only thing in it the user can check against something
+    /// the far end did not also supply. Without it the interface could offer a
+    /// button that means "trust whatever answered the port", which is the one
+    /// shape `docs/security/transport-security.md` refuses. It is a public
+    /// value and not a secret: it exists to be printed and compared.
+    pub fingerprint: Option<String>,
+    /// Why the certificate is not trusted, as
+    /// `remoter_proto::CertificateProblem::as_str`: one of `self-signed`,
+    /// `untrusted root`, `expired`, `name mismatch`, `revoked`, `malformed`,
+    /// `changed`. A closed set, so the interface translates it. `None` for
+    /// every other kind.
+    pub reason: Option<String>,
 }
 
 /// Why a session ended, with everything the tab shows.
@@ -1634,6 +1651,135 @@ pub(crate) async fn session_input_impl(
     session_id: u64,
     bytes: Vec<u8>,
 ) -> Result<(), IpcError> {
+    send_input(state, session_id, InputEvent::Bytes(bytes.into())).await
+}
+
+/// Sends one key transition to a graphical session.
+///
+/// The counterpart of [`session_input`] for a framebuffer protocol, and the
+/// reason there are two commands rather than one: a PTY takes a byte stream,
+/// and RDP and VNC take a *key*, in a vocabulary neither of them shares. The
+/// RDP adapter drops a `Bytes` event and the VNC adapter refuses it, so a
+/// graphical session driven through `session_input` is a window that swallows
+/// everything typed at it.
+///
+/// **Both halves of the key travel, and the frontend produces both.** A browser
+/// `KeyboardEvent` carries neither a PS/2 scancode nor an X11 keysym, and
+/// neither can be derived from the other without the keyboard layout — which
+/// exists in the WebView and not here. `remoter_proto::InputEvent::Key`
+/// documents the contract; `apps/desktop/ui/src/features/sessions/keymap.ts` is
+/// the translation, and nothing in this layer second-guesses it. `keysym` is
+/// `None` for a key that produced no character: a bare modifier, a function
+/// key, a dead key mid-composition.
+///
+/// `modifiers` arrives as the bit set `remoter_proto::Modifiers` defines,
+/// deserialised into the type rather than reassembled here, so the interface
+/// and the core cannot drift about which bit means Alt. The three lock states
+/// ride in it because RDP synchronises latches explicitly (MS-RDPBCGR
+/// §2.2.8.1.1.3.1.1.5), and a session that never says "Caps Lock is on" types
+/// in capitals until someone works out why.
+///
+/// Frozen and audited exactly as [`session_input`] is: the same refusal, with
+/// the same code, and the same touch of the idle clock. A user driving a remote
+/// desktop is working, and the vault must not lock out from under them.
+#[tauri::command]
+pub(crate) async fn session_key(
+    state: State<'_, AppState>,
+    session_id: u64,
+    scancode: u32,
+    keysym: Option<u32>,
+    modifiers: Modifiers,
+    pressed: bool,
+) -> Result<(), IpcError> {
+    session_key_impl(&state, session_id, scancode, keysym, modifiers, pressed).await
+}
+
+pub(crate) async fn session_key_impl(
+    state: &AppState,
+    session_id: u64,
+    scancode: u32,
+    keysym: Option<u32>,
+    modifiers: Modifiers,
+    pressed: bool,
+) -> Result<(), IpcError> {
+    send_input(
+        state,
+        session_id,
+        InputEvent::Key {
+            scancode,
+            keysym,
+            modifiers,
+            pressed,
+        },
+    )
+    .await
+}
+
+/// Sends one pointer state to a graphical session.
+///
+/// A full state rather than a transition, because that is what both protocols
+/// put on the wire: RFB's `button-mask` (RFC 6143 §7.5.5) and RDP's pointer
+/// events are each a snapshot. `buttons` is the bit set
+/// `remoter_proto::PointerButtons` defines, back and forward included — RDP
+/// carries those as `PTRXFLAGS_BUTTON1` and `PTRXFLAGS_BUTTON2`
+/// (MS-RDPBCGR §2.2.8.1.1.3.1.1.4), and the VNC adapter drops them because RFB
+/// has nowhere to put them.
+///
+/// `x` and `y` are **remote display coordinates** — the tab's scale and the
+/// device pixel ratio already divided out. That division belongs to the
+/// frontend and stays there: only the frontend knows what it drew. See
+/// `remotePoint` in `apps/desktop/ui/src/features/sessions/scaling.ts`.
+///
+/// Both wheel axes travel, in the units RDP's `rotationUnits` uses — one notch
+/// is 120. A horizontal wheel is a different axis, not a different sign, and
+/// dropping it is why horizontal scrolling does nothing in most remote desktop
+/// clients.
+///
+/// Frozen and audited exactly as [`session_input`] is. A freeze that stopped
+/// the keyboard and left the mouse live would be a freeze in name only: a
+/// pointer can close a window, drag a file and click Confirm.
+#[tauri::command]
+pub(crate) async fn session_pointer(
+    state: State<'_, AppState>,
+    session_id: u64,
+    x: u16,
+    y: u16,
+    buttons: PointerButtons,
+    wheel: i16,
+    wheel_x: i16,
+) -> Result<(), IpcError> {
+    session_pointer_impl(&state, session_id, x, y, buttons, wheel, wheel_x).await
+}
+
+pub(crate) async fn session_pointer_impl(
+    state: &AppState,
+    session_id: u64,
+    x: u16,
+    y: u16,
+    buttons: PointerButtons,
+    wheel: i16,
+    wheel_x: i16,
+) -> Result<(), IpcError> {
+    send_input(
+        state,
+        session_id,
+        InputEvent::Pointer {
+            x,
+            y,
+            buttons,
+            wheel,
+            wheel_x,
+        },
+    )
+    .await
+}
+
+/// The one path input takes towards a session, whichever command carried it.
+///
+/// Written once because the three commands must not be able to differ: a freeze
+/// that a second implementation forgot to check is a keyboard that keeps typing
+/// into a production shell at an unattended machine.
+async fn send_input(state: &AppState, session_id: u64, event: InputEvent) -> Result<(), IpcError> {
     let hub = state.sessions();
     if hub.is_frozen() {
         return Err(IpcError::new(
@@ -1652,10 +1798,7 @@ pub(crate) async fn session_input_impl(
     // stopped reading cannot make the keystroke stop counting.
     state.activity().touch();
 
-    handle
-        .input(InputEvent::Bytes(bytes.into()))
-        .await
-        .map_err(|_| session_closed())
+    handle.input(event).await.map_err(|_| session_closed())
 }
 
 /// Tells the far end the tab changed size.
@@ -1983,21 +2126,36 @@ fn classify_prompt(
             })
         }
         other => {
-            if matches!(other, PromptKind::Certificate { .. }) {
-                // Recorded, so `host_key_decide` can answer it. Without this
-                // the only certificate a `session_open` could get past would be
-                // one signed by a public trust anchor — which is not what a
-                // Windows host presents by default, so RDP would have opened
-                // against almost nothing.
-                host_keys
-                    .lock()
-                    .insert(prompt.id.get(), HostKeyQuestion::Certificate);
-            }
+            // The certificate case carries two more facts than the rest, and
+            // both of them leave this function. Recorded in `host_keys` so
+            // `host_key_decide` can answer it — without that, the only
+            // certificate a `session_open` could get past would be one signed
+            // by a public trust anchor, which is not what a Windows host
+            // presents by default, so RDP would have opened against almost
+            // nothing. Copied into the DTO so the interface can *show* what it
+            // is being asked to trust: the fingerprint and the reason were
+            // dropped here until now, which left the dialog with a question
+            // and no evidence, and the only honest control on a dialog like
+            // that is Cancel.
+            let (fingerprint, reason) = match other {
+                PromptKind::Certificate {
+                    fingerprint,
+                    reason,
+                } => {
+                    host_keys
+                        .lock()
+                        .insert(prompt.id.get(), HostKeyQuestion::Certificate);
+                    (Some(fingerprint.clone()), Some(reason.clone()))
+                }
+                _ => (None, None),
+            };
             SessionMessageDto::Prompt(PromptDto {
                 prompt_id: prompt.id.get(),
                 kind: prompt_kind_wire(other).to_owned(),
                 text: prompt.text.clone(),
                 echo: prompt.echo,
+                fingerprint,
+                reason,
             })
         }
     }
@@ -2640,6 +2798,331 @@ mod tests {
         );
     }
 
+    /// The freeze covers the keyboard *and* the mouse of a graphical session.
+    ///
+    /// A freeze that stopped `session_input` and left the two framebuffer
+    /// commands open would be a freeze in name only: a pointer at an unattended
+    /// machine can close a window, drag a file and click Confirm, and a key
+    /// event is a keystroke whichever command carried it.
+    #[tokio::test]
+    async fn a_frozen_vault_refuses_framebuffer_input_too() {
+        let scratch = crate::test_support::Scratch::new();
+        let Some(state) = crate::test_support::open_vault(&scratch) else {
+            panic!("the fixture vault could not be created");
+        };
+        let hub = state.sessions();
+
+        hub.apply_lock_policy(SessionOnLock::FreezeInput);
+        let key = session_key_impl(&state, 1, 0x1e, Some(0x61), Modifiers::NONE, true).await;
+        assert_eq!(
+            key.err().map(|e| e.code),
+            Some(String::from("session.frozen"))
+        );
+        let pointer = session_pointer_impl(&state, 1, 10, 20, PointerButtons::LEFT, 0, 0).await;
+        assert_eq!(
+            pointer.err().map(|e| e.code),
+            Some(String::from("session.frozen"))
+        );
+
+        hub.thaw();
+        // The same honest answer the byte path gives once the vault is open.
+        let key = session_key_impl(&state, 1, 0x1e, Some(0x61), Modifiers::NONE, true).await;
+        assert_eq!(
+            key.err().map(|e| e.code),
+            Some(String::from("session.no-such-session"))
+        );
+        let pointer = session_pointer_impl(&state, 1, 10, 20, PointerButtons::NONE, 0, 0).await;
+        assert_eq!(
+            pointer.err().map(|e| e.code),
+            Some(String::from("session.no-such-session"))
+        );
+    }
+
+    /// What a graphical session actually receives.
+    ///
+    /// The defect these guard against is the one that made this work necessary:
+    /// input reached the core as `InputEvent::Bytes`, which the RDP adapter
+    /// drops and the VNC adapter refuses, so a user typing at a remote desktop
+    /// was typing into nothing. Asserting on the event the session is handed —
+    /// rather than on the command returning `Ok` — is the difference between
+    /// "it was sent" and "it arrived as a key".
+    #[tokio::test]
+    async fn a_key_and_a_pointer_arrive_as_the_events_a_framebuffer_protocol_needs() {
+        let scratch = crate::test_support::Scratch::new();
+        let Some(state) = crate::test_support::open_vault(&scratch) else {
+            panic!("the fixture vault could not be created");
+        };
+        let hub = state.sessions();
+
+        let received: Arc<Mutex<Vec<InputEvent>>> = Arc::new(Mutex::new(Vec::new()));
+        let collected = Arc::clone(&received);
+        let handle = hub
+            .supervisor()
+            .spawn(
+                SessionSpec {
+                    node: NodeId::new(),
+                    protocol: remoter_core::ProtocolId::new(VNC_ID).unwrap(),
+                    capabilities: vnc_capabilities(),
+                    target: HostPort::new("127.0.0.1", 5900).unwrap(),
+                },
+                |mut ctx| async move {
+                    loop {
+                        tokio::select! {
+                            () = ctx.cancel.cancelled() => break,
+                            command = ctx.commands.recv() => match command {
+                                Some(remoter_proto::SessionCommand::Input(event)) => {
+                                    collected.lock().push(event);
+                                }
+                                Some(_) => {}
+                                None => break,
+                            },
+                        }
+                    }
+                    Ok(CloseReason::ClosedByUser)
+                },
+            )
+            .unwrap();
+        let id = handle.id().get();
+        hub.insert(
+            id,
+            SessionEntry {
+                handle: Arc::new(handle),
+                answers: PromptChannel::new().0,
+                host_keys: Arc::new(Mutex::new(BTreeMap::new())),
+                node: NodeId::new(),
+                name: String::from("lab-vnc"),
+                protocol: String::from(VNC_ID),
+                capabilities: vnc_capabilities(),
+                connection: None,
+                events: None,
+                target: String::from("127.0.0.1:5900"),
+                username: String::from("ada"),
+                started_at_ms: 0,
+                connected: true,
+                audit_id: None,
+            },
+        );
+
+        // A Turkish Q keyboard's dotless ı: the physical key a US layout calls
+        // `KeyI` (scancode 0x17) and the character U+0131 the layout produced.
+        // The scancode is what RDP wants and the keysym is what VNC wants;
+        // both travel, because neither can be derived from the other here.
+        session_key_impl(
+            &state,
+            id,
+            0x17,
+            Some(0x0100_0131),
+            Modifiers::SHIFT.with(Modifiers::CAPS_LOCK),
+            true,
+        )
+        .await
+        .expect("a key must reach an open session");
+        session_pointer_impl(
+            &state,
+            id,
+            1919,
+            1079,
+            PointerButtons::LEFT.with(PointerButtons::BACK),
+            -120,
+            240,
+        )
+        .await
+        .expect("a pointer state must reach an open session");
+
+        // The task is another future on this runtime; give it the chance to
+        // drain what was sent before reading what it saw.
+        for _ in 0..16 {
+            if received.lock().len() == 2 {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+
+        let seen = received.lock().clone();
+        assert_eq!(
+            seen,
+            vec![
+                InputEvent::Key {
+                    scancode: 0x17,
+                    keysym: Some(0x0100_0131),
+                    modifiers: Modifiers::SHIFT.with(Modifiers::CAPS_LOCK),
+                    pressed: true,
+                },
+                InputEvent::Pointer {
+                    x: 1919,
+                    y: 1079,
+                    buttons: PointerButtons::LEFT.with(PointerButtons::BACK),
+                    wheel: -120,
+                    wheel_x: 240,
+                },
+            ]
+        );
+
+        let _ = session_close_impl(&state, id).await;
+    }
+
+    /// A key with no character is complete, and must not be dropped.
+    ///
+    /// `keysym` is optional precisely for a bare modifier, a function key or a
+    /// dead key mid-composition. A layer that treated `None` as "nothing to
+    /// send" would make Shift, Control and every arrow key unusable.
+    #[tokio::test]
+    async fn a_key_that_produced_no_character_still_travels() {
+        let scratch = crate::test_support::Scratch::new();
+        let Some(state) = crate::test_support::open_vault(&scratch) else {
+            panic!("the fixture vault could not be created");
+        };
+        let hub = state.sessions();
+
+        let received: Arc<Mutex<Vec<InputEvent>>> = Arc::new(Mutex::new(Vec::new()));
+        let collected = Arc::clone(&received);
+        let handle = hub
+            .supervisor()
+            .spawn(
+                SessionSpec {
+                    node: NodeId::new(),
+                    protocol: remoter_core::ProtocolId::new(RDP_ID).unwrap(),
+                    capabilities: rdp_capabilities(),
+                    target: HostPort::new("127.0.0.1", 3389).unwrap(),
+                },
+                |mut ctx| async move {
+                    while let Some(command) = ctx.commands.recv().await {
+                        if let remoter_proto::SessionCommand::Input(event) = command {
+                            collected.lock().push(event);
+                        }
+                    }
+                    Ok(CloseReason::ClosedByUser)
+                },
+            )
+            .unwrap();
+        let id = handle.id().get();
+        hub.insert(
+            id,
+            SessionEntry {
+                handle: Arc::new(handle),
+                answers: PromptChannel::new().0,
+                host_keys: Arc::new(Mutex::new(BTreeMap::new())),
+                node: NodeId::new(),
+                name: String::from("ctso-dc01"),
+                protocol: String::from(RDP_ID),
+                capabilities: rdp_capabilities(),
+                connection: None,
+                events: None,
+                target: String::from("127.0.0.1:3389"),
+                username: String::from("ada"),
+                started_at_ms: 0,
+                connected: true,
+                audit_id: None,
+            },
+        );
+
+        // Right Control: extended scancode, no character at all.
+        session_key_impl(&state, id, 0x11d, None, Modifiers::CONTROL, true)
+            .await
+            .expect("a modifier is a key and must reach the session");
+
+        for _ in 0..16 {
+            if received.lock().len() == 1 {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+        assert_eq!(
+            received.lock().clone(),
+            vec![InputEvent::Key {
+                scancode: 0x11d,
+                keysym: None,
+                modifiers: Modifiers::CONTROL,
+                pressed: true,
+            }]
+        );
+
+        let _ = session_close_impl(&state, id).await;
+    }
+
+    /// Driving a remote desktop is working, so it holds the idle lock off.
+    ///
+    /// The same defect the terminal path had, and it would have returned the
+    /// moment input arrived by a different command: a user clicking through a
+    /// remote desktop touches the vault not at all, and would watch it lock
+    /// itself while they were using it.
+    #[tokio::test]
+    #[expect(
+        clippy::panic,
+        reason = "a session test without a vault has nothing left to assert"
+    )]
+    async fn driving_a_graphical_session_holds_the_idle_lock_off() {
+        let scratch = crate::test_support::Scratch::new();
+        let Some(state) = crate::test_support::open_vault(&scratch) else {
+            panic!("the fixture vault could not be created");
+        };
+        let hub = state.sessions();
+
+        let handle = hub
+            .supervisor()
+            .spawn(
+                SessionSpec {
+                    node: NodeId::new(),
+                    protocol: remoter_core::ProtocolId::new(RDP_ID).unwrap(),
+                    capabilities: rdp_capabilities(),
+                    target: HostPort::new("127.0.0.1", 3389).unwrap(),
+                },
+                |ctx| async move {
+                    ctx.cancel.cancelled().await;
+                    Ok(CloseReason::ClosedByUser)
+                },
+            )
+            .unwrap();
+        let id = handle.id().get();
+        hub.insert(
+            id,
+            SessionEntry {
+                handle: Arc::new(handle),
+                answers: PromptChannel::new().0,
+                host_keys: Arc::new(Mutex::new(BTreeMap::new())),
+                node: NodeId::new(),
+                name: String::from("ctso-dc01"),
+                protocol: String::from(RDP_ID),
+                capabilities: rdp_capabilities(),
+                connection: None,
+                events: None,
+                target: String::from("127.0.0.1:3389"),
+                username: String::from("ada"),
+                started_at_ms: 0,
+                connected: true,
+                audit_id: None,
+            },
+        );
+
+        state.lock().expire_activity();
+        session_pointer_impl(&state, id, 40, 40, PointerButtons::NONE, 0, 0)
+            .await
+            .expect("the pointer was not delivered");
+        {
+            let mut guard = state.lock();
+            guard.enforce_auto_lock();
+            assert!(
+                guard.locks_in_seconds().is_some(),
+                "moving the mouse in a session is activity, and the vault must still be open"
+            );
+        }
+
+        state.lock().expire_activity();
+        session_key_impl(&state, id, 0x1e, Some(0x61), Modifiers::NONE, true)
+            .await
+            .expect("the keystroke was not delivered");
+        {
+            let mut guard = state.lock();
+            guard.enforce_auto_lock();
+            assert!(
+                guard.locks_in_seconds().is_some(),
+                "typing at a remote desktop is activity, and the vault must still be open"
+            );
+        }
+
+        let _ = session_close_impl(&state, id).await;
+    }
+
     // --------------------------------------------- session traffic is activity
 
     /// Typing in a terminal is activity.
@@ -3142,6 +3625,39 @@ mod tests {
             panic!("a certificate is a prompt, not a host key comparison");
         };
         assert_eq!(dto.kind, "certificate");
+        // The evidence travels with the question. A trust decision offered
+        // without the fingerprint is a button that means "trust whatever
+        // answered the port", and this assertion is what stops the two fields
+        // being dropped again on the way out of `classify_prompt`.
+        assert_eq!(
+            dto.fingerprint.as_deref(),
+            Some("SHA256:CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC")
+        );
+        assert_eq!(dto.reason.as_deref(), Some("self-signed"));
+    }
+
+    /// And nothing else carries them. A password prompt with a fingerprint on
+    /// it would draw the certificate dialog over a password question.
+    #[test]
+    fn only_a_certificate_prompt_carries_a_fingerprint() {
+        let registry = Arc::new(Mutex::new(BTreeMap::new()));
+        let prompt = Prompt {
+            id: PromptId::new(5),
+            kind: PromptKind::Password,
+            text: String::new(),
+            echo: false,
+        };
+
+        let SessionMessageDto::Prompt(dto) = classify_prompt(&prompt, &registry) else {
+            panic!("a password is a prompt");
+        };
+        assert_eq!(dto.kind, "password");
+        assert!(dto.fingerprint.is_none());
+        assert!(dto.reason.is_none());
+        assert!(
+            registry.lock().is_empty(),
+            "a password question is not a trust decision and must not be answerable as one"
+        );
     }
 
     /// And a certificate is a *first use*: it may be accepted, and there is

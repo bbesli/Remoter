@@ -78,8 +78,8 @@ pub use hostkey::{
 };
 pub use protocol::{
     Capabilities, ClipboardData, ClipboardFormats, ClipboardOp, ClipboardPolicy, ClipboardSupport,
-    InputEvent, Modifiers, PointerButtons, Protocol, Session, SessionKind, SettingField,
-    SettingKind, SettingsSchema, connection_target,
+    DefaultOrigin, InputEvent, Modifiers, OptionLabel, PointerButtons, Protocol, Session,
+    SessionKind, SettingField, SettingKind, SettingOption, SettingsSchema, connection_target,
 };
 pub use supervisor::{
     SessionCommand, SessionContext, SessionHandle, SessionId, SessionInfo, SessionSpec,

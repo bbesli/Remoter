@@ -9,7 +9,7 @@
  * footer off the bottom of the window.
  */
 
-import { useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { BusyStatus, SkeletonRows } from "@/components/Busy";
@@ -33,7 +33,9 @@ import {
   closeAllSessions,
   isTerminalFocused,
   useSessions,
+  type SessionRecord,
 } from "@/features/sessions";
+import { FilePane } from "@/features/files";
 import { TitleBar } from "./TitleBar";
 import { TabStrip } from "./TabStrip";
 import { StatusBar } from "./StatusBar";
@@ -41,6 +43,7 @@ import { Footer } from "./Footer";
 import { Inspector } from "./Inspector";
 import { EmptyVault } from "./EmptyVault";
 import { KdfUpgradeBar } from "./KdfUpgradeBar";
+import { canDockFilePane } from "./filePanes";
 import { useConnectionEditor } from "@/features/connections/ConnectionEditor";
 import s from "./MainWindow.module.css";
 
@@ -103,6 +106,40 @@ function SessionPlaceholder({ node }: { node: TreeNode | undefined }) {
   );
 }
 
+/**
+ * One file pane, docked under the session it belongs to.
+ *
+ * Memoised, and its props are four primitives, for a reason that is not
+ * premature: this window re-renders on every session metrics flush — once a
+ * second, per open session — and the pane below it can be drawing a thousand
+ * listing rows. Without the memo those rows are reconciled every second for a
+ * byte counter in the status bar. The close handler is built here rather than
+ * passed in so that it is stable across those renders, which is what lets the
+ * memo hold.
+ */
+const DockedFilePane = memo(function DockedFilePane({
+  tabId,
+  sessionId,
+  name,
+  active,
+}: {
+  tabId: string;
+  sessionId: number | null;
+  name: string;
+  active: boolean;
+}) {
+  const toggleFilePane = useApp((st) => st.toggleFilePane);
+  const onClose = useCallback(() => {
+    toggleFilePane(tabId);
+  }, [toggleFilePane, tabId]);
+
+  return (
+    <div className={s.filesDock} hidden={!active}>
+      <FilePane sessionId={sessionId} name={name} onClose={onClose} />
+    </div>
+  );
+});
+
 export function MainWindow() {
   const t = useT("shell");
   const tCommon = useT("common");
@@ -121,8 +158,34 @@ export function MainWindow() {
   // area, and when a session does, that is what it describes.
   const activeTabId = useSessions((st) => st.activeTabId);
   const sessionsById = useSessions((st) => st.byId);
-  const sessionCount = useSessions((st) => st.order.length);
+  const sessionOrder = useSessions((st) => st.order);
+  const sessionCount = sessionOrder.length;
   const activeSession = activeTabId === null ? undefined : sessionsById[activeTabId];
+
+  /*
+   * The file panes docked under a shell, one per tab that asked for one.
+   *
+   * Every one of them is mounted whenever its session is running — not only the
+   * tab in front — and the ones behind are hidden with `hidden` rather than
+   * unmounted. A pane is an open SFTP channel with a transfer queue draining
+   * through it, and unmounting closes it, which cancels whatever it is copying.
+   * "Switch to another tab while that downloads" has to be true, and this is
+   * what makes it true.
+   *
+   * A tab whose session has ended drops out on its own: the record stops being
+   * dockable, the pane unmounts and `sftp_close` runs. The tab id stays in the
+   * store, so a reconnect brings the pane back rather than making the user ask
+   * for it twice.
+   */
+  const filePaneTabs = useApp((st) => st.filePaneTabs);
+  const dockedPanes = useMemo(
+    () =>
+      sessionOrder
+        .filter((tabId) => filePaneTabs.has(tabId))
+        .map((tabId) => sessionsById[tabId])
+        .filter((record): record is SessionRecord => canDockFilePane(record)),
+    [sessionOrder, sessionsById, filePaneTabs],
+  );
 
   /** Set when the window manager refused a full-screen toggle. */
   const [windowFailure, setWindowFailure] = useState<string | null>(null);
@@ -404,7 +467,23 @@ export function MainWindow() {
           <TabStrip />
 
           <div className={s.session}>
-            <SessionSurface empty={sessionFallback} />
+            <div className={s.sessionPrimary}>
+              <SessionSurface empty={sessionFallback} />
+            </div>
+
+            {/* Under the session rather than over it: the terminal keeps the
+                keyboard and stays readable, which is the point of browsing
+                files on a host you are working on. Hidden — not unmounted —
+                when its tab is not the one in front. */}
+            {dockedPanes.map((record) => (
+              <DockedFilePane
+                key={record.tabId}
+                tabId={record.tabId}
+                sessionId={record.sessionId}
+                name={record.name}
+                active={record.tabId === activeTabId}
+              />
+            ))}
           </div>
 
           {/* The bar describes the session; the hint beside it describes the

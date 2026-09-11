@@ -345,9 +345,17 @@ export function ConnectionTree() {
    *
    * **The query is folded twice, because the haystack is two kinds of text.**
    * A node's name and its tags are words somebody wrote in a language, and
-   * they fold in the reader's. A hostname and a username are not: they are
-   * identifiers on a remote system, and `docs/features/i18n.md` puts them with
-   * file paths and IP addresses outside all three folds.
+   * they fold in the reader's. A hostname, a username and a protocol name are
+   * not: they are identifiers on a remote system, and `docs/features/i18n.md`
+   * puts them with file paths and IP addresses outside all three folds — the
+   * protocol explicitly, as "`[0-9A-Z]`, a protocol name shown in capitals".
+   *
+   * The protocol was in that sentence before it was in the haystack, so typing
+   * `rdp` into the filter found nothing while the same word typed into the
+   * import preview — which folds `host`, `username` and `protocol` together in
+   * `features/import/selection.ts` — found every row. Two screens filtering the
+   * same node over different fields is the drift a shared claim is supposed to
+   * prevent, so the field list here now matches that one.
    *
    * Folding everything in the reader's language was worse than useless for the
    * second kind. Under Turkish rules `VDI-GW.corp` folds to `vdı-gw.corp` and
@@ -372,7 +380,7 @@ export function ConnectionTree() {
     const forceOpen = new Set<string>();
     for (const node of nodes) {
       const words = [node.name, ...node.tags];
-      const identifiers = [node.host ?? "", node.username ?? ""];
+      const identifiers = [node.host ?? "", node.username ?? "", node.protocol ?? ""];
       const hit =
         words.some((w) => foldForSearch(w, locale).includes(needle)) ||
         identifiers.some((id) => foldInvariant(id).includes(identifierNeedle));

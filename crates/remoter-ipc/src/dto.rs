@@ -29,9 +29,39 @@ pub struct RecentVaultDto {
     /// vault stays visible and disabled with a reason; hiding it would look
     /// like data loss.
     pub reachable: bool,
+    /// The English sentence for [`Self::unreachable_kind`].
+    ///
+    /// **Not for rendering.** It is the fallback for a kind the interface does
+    /// not know yet, exactly as `IpcError::message` is the fallback for a code
+    /// the `errors` catalogue has no entry for. The picker composes the
+    /// sentence its reader needs from `vault:picker.unreachable.*`.
     pub unreachable_reason: Option<String>,
-    /// Set when the vault lives in a known cloud-sync folder.
+    /// Why the vault cannot be reached, as a stable identifier rather than a
+    /// sentence: `"missing"`, `"unreadable"`, `"not-a-file"` — the variants of
+    /// `UnreachableKind` in `recents.rs`.
+    ///
+    /// `None` when the file is there but does not read as a vault; that case
+    /// carries [`Self::unreachable_code`] instead, because the vault error
+    /// already has a code and a translated sentence of its own.
+    pub unreachable_kind: Option<String>,
+    /// The underlying diagnostic for [`Self::unreachable_kind`] — an operating
+    /// system error string. English on purpose, like `IpcError::detail`: it is
+    /// what a reader copies into a bug report.
+    pub unreachable_detail: Option<String>,
+    /// The `IpcError::code` of the probe failure, when the file exists but is
+    /// not a readable vault. The interface renders the already-translated
+    /// sentence for it from `locales/<lang>/errors.json`.
+    pub unreachable_code: Option<String>,
+    /// The English sentence for [`Self::sync_provider`].
+    ///
+    /// **Not for rendering**, for the reason above. See
+    /// `vault:detail.syncWarning`.
     pub sync_warning: Option<String>,
+    /// The cloud-sync provider whose folder this vault sits in, if any:
+    /// `"Dropbox"`, `"OneDrive"`, `"iCloud Drive"`. A brand name, so it is
+    /// never translated — it is the *value* the interface's sentence is
+    /// composed around.
+    pub sync_provider: Option<String>,
     pub size_bytes: Option<u64>,
 }
 
@@ -47,7 +77,13 @@ pub struct VaultProbeDto {
     pub size_bytes: u64,
     pub slots: Vec<SlotDto>,
     pub backups: Vec<BackupDto>,
+    /// The English sentence for [`Self::sync_provider`]. **Not for rendering**
+    /// — see [`RecentVaultDto::sync_warning`].
     pub sync_warning: Option<String>,
+    /// The cloud-sync provider whose folder this vault sits in, if any. A
+    /// brand name, never translated; the interface's sentence is composed
+    /// around it. See [`RecentVaultDto::sync_provider`].
+    pub sync_provider: Option<String>,
     /// The key file this vault was last opened with, if one is remembered on
     /// this machine and still on disk. The path is not a secret; the file's
     /// contents are. Offering it back removes an easy and unhelpful mistake:
@@ -68,8 +104,49 @@ pub struct SlotDto {
     pub last_used: Option<i64>,
     /// True when this slot's password also requires a key file.
     pub requires_keyfile: bool,
-    /// Argon2id parameters, for the password slot only.
-    pub kdf_summary: Option<String>,
+    /// The key-derivation cost, for the password slot only.
+    pub kdf: Option<KdfParamsDto>,
+}
+
+/// What a slot cost to derive, as numbers.
+///
+/// This used to be one English sentence — "Argon2id, 256 MiB, 3 passes, 4
+/// lanes" — composed in `remoter-vault` and printed verbatim by six screens
+/// that are otherwise fully translated. "passes" and "lanes" are English
+/// words, so no catalogue could reach them and no reader of the other nine
+/// languages ever saw their own.
+///
+/// The parameters cross as numbers and the interface composes its own line
+/// (`features/vault/kdf.ts`), which is also what lets the digits follow the
+/// locale's numbering system and the memory carry a unit the reader's `Intl`
+/// formatted.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KdfParamsDto {
+    /// The function's name: `"Argon2id"`. A proper name, never translated
+    /// (`docs/features/i18n.md`), and sent rather than hardcoded in the
+    /// interface so that the core stays the authority on what it actually ran.
+    pub algorithm: String,
+    /// Memory cost, in kibibytes — Argon2's `m`.
+    pub memory_kib: u32,
+    /// Iterations — Argon2's `t`.
+    pub passes: u32,
+    /// Degree of parallelism — Argon2's `p`.
+    pub lanes: u32,
+}
+
+impl From<remoter_vault::KdfParams> for KdfParamsDto {
+    fn from(params: remoter_vault::KdfParams) -> Self {
+        Self {
+            // The only KDF this build derives with; `remoter-vault` has no
+            // other, and the version number is a format detail the interface
+            // has no use for.
+            algorithm: String::from("Argon2id"),
+            memory_kib: params.m_cost,
+            passes: params.t_cost,
+            lanes: params.p_cost,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -125,7 +202,10 @@ pub struct CreateVaultResultDto {
     pub recovery_key_groups: Vec<String>,
     /// Which group the transcription check will ask the user to retype.
     pub confirm_group_index: usize,
-    pub kdf_summary: String,
+    /// What the new vault's password slot cost to derive. `None` only if the
+    /// vault somehow has no password slot — the sheet then omits the line
+    /// rather than printing a half-sentence.
+    pub kdf: Option<KdfParamsDto>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -347,6 +427,21 @@ pub struct UpdateNodeDto {
     pub credential_id: Option<String>,
     /// Field names to reset to `Inherited::Inherit`.
     pub clear_overrides: Option<Vec<String>>,
+    /// Protocol settings to write on this node, one entry per key touched.
+    ///
+    /// A sparse patch, and the two cases are different instructions:
+    /// `Some(value)` sets the key on this node, and `None` **removes** this
+    /// node's own entry so the key inherits again — the settings equivalent of
+    /// [`Self::clear_overrides`], which cannot serve here because it names
+    /// whole inheritable fields and a settings map inherits key by key.
+    ///
+    /// Keys the patch does not mention are left exactly as they are, which is
+    /// what lets a form send only what the user touched and what keeps a key
+    /// written by a newer build from being dropped by an older one.
+    ///
+    /// Values are typed against the adapter's own schema before anything is
+    /// written; see `commands::apply_settings`.
+    pub settings: Option<BTreeMap<String, Option<String>>>,
 }
 
 /// One resolved field, carrying where its value came from — the provenance the
@@ -381,6 +476,100 @@ pub struct EffectiveConnectionDto {
     pub credential_attached: bool,
 }
 
+// ------------------------------------------------------ protocol schemas ----
+
+/// What one protocol's settings are, as the adapter itself declares them.
+///
+/// **Read from the adapter, never restated here.** A second list would agree
+/// with the first until the day somebody adds a setting — which is exactly the
+/// drift `ConnectionEditor.tsx` already carries a comment about. See
+/// `commands::protocol_schemas`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProtocolSchemaDto {
+    /// `"ssh"`, `"rdp"`, `"vnc"` — the same identifier a connection stores.
+    pub protocol: String,
+    /// In the order the form should show them, which is the adapter's order.
+    pub settings: Vec<SettingFieldDto>,
+}
+
+/// One settings field.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SettingFieldDto {
+    /// The key it is stored under, and the key the resolved view carries after
+    /// its `settings.` prefix. A wire identifier: shown as it is, never
+    /// translated.
+    pub key: String,
+    /// The message catalogue key for its label.
+    pub label: String,
+    /// What it holds, with the bounds that go with it.
+    pub kind: SettingKindDto,
+    /// The value used when nothing on the inheritance path sets one.
+    pub default: Option<String>,
+    /// Where [`Self::default`] came from: `"fixed"`, `"detected"` or
+    /// `"guessed"`. **A `"guessed"` default must be said out loud** — it means
+    /// this build could not determine the value and put a stand-in there.
+    pub default_origin: String,
+    pub required: bool,
+    /// The values this field offers by name, empty where there are none.
+    ///
+    /// For a `choice` these are the whole of what it accepts; for anything
+    /// else they are the ones worth listing out of a larger space. See
+    /// [`Self::options_are_closed`].
+    pub options: Vec<SettingOptionDto>,
+    /// Whether a value outside [`Self::options`] is refused.
+    ///
+    /// False for the keyboard layout, deliberately: Microsoft publishes
+    /// several hundred identifiers and the list holds the ones worth showing,
+    /// so the form needs a way to type one in.
+    pub options_are_closed: bool,
+}
+
+/// One offered value.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SettingOptionDto {
+    /// The value as stored — the string that goes back on the wire, not a
+    /// rendering of it.
+    pub value: String,
+    /// What to call it.
+    pub label: SettingOptionLabelDto,
+}
+
+/// How an option is named.
+///
+/// Two cases, because a settings value is named two different ways: a keyboard
+/// layout is prose a translator owns, and an RFB version is a wire token
+/// nobody owns.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum SettingOptionLabelDto {
+    /// Put `key` through `t()`.
+    Message { key: String },
+    /// Show `text` as it stands. Never translated.
+    Verbatim { text: String },
+}
+
+/// What a field holds, and within what bounds.
+///
+/// A `choice`'s permitted values are **not** here: they are in
+/// [`SettingFieldDto::options`] with a label each, so that the form has one
+/// list to render rather than two shapes to reconcile.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum SettingKindDto {
+    /// Free text, up to `max_len` characters.
+    #[serde(rename_all = "camelCase")]
+    Text { max_len: usize },
+    /// A whole number, inclusive of both bounds.
+    Integer { min: i64, max: i64 },
+    /// `"true"` or `"false"`, stored as those strings.
+    Boolean,
+    /// One of [`SettingFieldDto::options`], and nothing else.
+    Choice,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchHitDto {
@@ -389,7 +578,22 @@ pub struct SearchHitDto {
     pub path: String,
     /// Character ranges in `node.name` that matched, for highlighting.
     pub name_matches: Vec<(usize, usize)>,
+    /// The hit's second line.
+    ///
+    /// For a connection or a credential this is an address or a login — a
+    /// value, not a sentence, and the palette renders it as it stands. For a
+    /// folder or a group it is a count, and the English form ("3 items") is
+    /// **not for rendering**: it is the fallback for a
+    /// [`Self::subtitle_kind`] the interface does not know, the same
+    /// arrangement `IpcError`'s code and message use.
     pub subtitle: String,
+    /// `"items"` or `"members"` when [`Self::subtitle`] is a counted sentence
+    /// the interface should compose itself — the variants of
+    /// `SubtitleKind` in `commands.rs`. `None` when the subtitle is a value.
+    pub subtitle_kind: Option<String>,
+    /// The number [`Self::subtitle_kind`] counts. Sent as a number so the
+    /// interface can put it through an ICU plural and the locale's digits.
+    pub subtitle_count: Option<u64>,
     pub score: i64,
 }
 
@@ -1084,8 +1288,18 @@ impl fmt::Debug for UpdateNodeDto {
             .field("credential", &self.credential)
             .field("credential_id", &self.credential_id)
             .field("clear_overrides", &self.clear_overrides)
+            // Keys, never values. There is no `Secret` kind in a settings
+            // schema, but a settings map is exactly where a mistyped password
+            // ends up — which is why `SettingField::validate` names the key
+            // and withholds the value, and this follows it.
+            .field("settings", &setting_keys(self.settings.as_ref()))
             .finish()
     }
+}
+
+/// The keys of a settings patch, without any of its values.
+fn setting_keys(settings: Option<&BTreeMap<String, Option<String>>>) -> Option<Vec<&str>> {
+    settings.map(|map| map.keys().map(String::as_str).collect())
 }
 
 #[cfg(test)]
@@ -1164,6 +1378,7 @@ mod tests {
             credential: None,
             credential_id: None,
             clear_overrides: None,
+            settings: None,
         };
         let rendered = format!("{update:?}");
         assert!(!rendered.contains(PASSWORD), "rendered: {rendered}");
@@ -1187,6 +1402,7 @@ mod tests {
             credential: None,
             credential_id: None,
             clear_overrides: None,
+            settings: None,
         };
         let rendered = format!("{update:?}");
         assert!(rendered.contains("password: None"), "rendered: {rendered}");

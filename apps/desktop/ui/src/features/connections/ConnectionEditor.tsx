@@ -43,7 +43,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { TFunction } from "i18next";
+import type { ParseKeys, TFunction } from "i18next";
 import { open } from "@tauri-apps/plugin-dialog";
 import clsx from "clsx";
 import { create } from "zustand";
@@ -66,8 +66,11 @@ import {
   type IpcFailure,
   type KeyFormat,
   type PrivateKeyInfo,
+  type ProtocolSchema,
   type ResolvedField,
   type SecretKind,
+  type SettingField,
+  type SettingOption,
   type TreeNode,
   type UpdateNode,
 } from "@/lib/ipc";
@@ -98,6 +101,18 @@ type Copy = TFunction<"connections">;
 type CopyKey =
   | (typeof PROTOCOL_LIMITS)[keyof typeof PROTOCOL_LIMITS]
   | (typeof SETTING_NOTES)[keyof typeof SETTING_NOTES];
+
+/**
+ * A catalogue key that arrives as data rather than as a literal.
+ *
+ * Two kinds of key reach `t()` from the protocol schema — a setting's own
+ * label and the name of one of its offered values — and both are chosen by an
+ * adapter in Rust. `settings.keyboardLayout.*` alone is sixty-one of them, and
+ * the union of literals the rest of this file enjoys cannot cover a list that
+ * a crate outside this codebase decides. The catalogue is checked against the
+ * adapters by the tests in `src/i18n/`, which is where a missing key is caught.
+ */
+type DynamicKey = ParseKeys<"connections">;
 
 /**
  * The protocols the shipped adapters cover. A plugin protocol widens this.
@@ -235,13 +250,14 @@ interface ProtocolSetting {
 }
 
 /**
- * The protocol settings this connection carries, in the core's order.
+ * The protocol settings this connection has a value for, in the core's order.
  *
- * Read out of the resolved view rather than listed here, because the list of
- * settings belongs to the adapter: RDP's schema names nine, VNC's names six,
- * and duplicating either here would mean a form that disagrees with the thing
- * that reads it the day one of them changes. What appears is what the core
- * resolved — set on this connection, inherited from a folder, or absent.
+ * This is only half of the form: it says what is *set*, on this connection or
+ * above it. What each setting *is* — its type, its bounds, the values it
+ * offers by name, the default that applies when nothing set one — comes from
+ * the adapter's own schema, and the two are joined by this key. Neither list
+ * is written out here: duplicating either would mean a form that disagrees
+ * with the thing that reads it the day somebody adds a setting.
  */
 function protocolSettings(resolved: EffectiveConnection | undefined): ProtocolSetting[] {
   if (resolved === undefined) return [];
@@ -256,6 +272,101 @@ function protocolSettings(resolved: EffectiveConnection | undefined): ProtocolSe
 }
 
 /**
+ * The schema the form renders itself from, for one protocol.
+ *
+ * SFTP is absent from the list on purpose and is not a gap: it is an SSH
+ * subsystem and is configured by the SSH connection's settings, which is
+ * exactly what the core's own adapter lookup does. Mapping it here keeps an
+ * SFTP connection's settings editable rather than silently read-only.
+ */
+function schemaFor(
+  schemas: readonly ProtocolSchema[] | undefined,
+  protocol: string,
+): readonly SettingField[] | undefined {
+  const wanted = protocol === "sftp" ? "ssh" : protocol;
+  return schemas?.find((schema) => schema.protocol === wanted)?.settings;
+}
+
+/**
+ * A setting with nothing decided about it: the schema's default applies, and
+ * the row offers to override it.
+ *
+ * One shared object rather than one per call. It is never mutated — every
+ * edit replaces the entry — and a new `{own: false, value: ""}` on each render
+ * would defeat the identity comparisons the memoised patch depends on.
+ */
+const UNSET: Draft = { own: false, value: "" };
+
+/** What this connection sets for `key`, or [`UNSET`]. */
+function settingDraft(drafts: Readonly<Record<string, Draft>>, key: string): Draft {
+  return drafts[key] ?? UNSET;
+}
+
+/**
+ * The form's starting point for every setting the resolved view knows about.
+ *
+ * A value this connection owns seeds the control; one it inherits seeds the
+ * inherited state, because the point of the screen is that inheriting is a
+ * state a field is *in* rather than the absence of one. A key nobody set
+ * anywhere gets no entry at all and is [`UNSET`] when the row asks.
+ */
+function settingDrafts(resolved: EffectiveConnection | undefined): Record<string, Draft> {
+  const out: Record<string, Draft> = {};
+  for (const setting of protocolSettings(resolved)) {
+    out[setting.key] = { own: setting.own, value: setting.own ? setting.value : "" };
+  }
+  return out;
+}
+
+/**
+ * The sentinel the "type a value the list does not carry" option stores.
+ *
+ * A NUL followed by a word, because a stored setting value can never be one:
+ * `ProtocolSettings` accepts any string, but every value that reaches it comes
+ * from a wire token or a number, and a NUL cannot travel through the schema
+ * key syntax or any of the adapters' formats. It never leaves this file —
+ * selecting that option switches the row to its text field, and what the user
+ * types there is what is sent.
+ */
+const CUSTOM_OPTION = "\u0000custom";
+
+/** The option naming `value`, if the schema offers one. */
+function namedOption(field: SettingField, value: string): SettingOption | undefined {
+  return field.options.find((option) => option.value === value);
+}
+
+/**
+ * What to call one offered value.
+ *
+ * Two cases, because a settings value is named two genuinely different ways: a
+ * keyboard layout is prose a translator owns, and an RFB version is a wire
+ * token nobody owns. Collapsing them would cost one of the two.
+ */
+function optionLabel(t: Copy, option: SettingOption): string {
+  return option.label.kind === "verbatim"
+    ? option.label.text
+    : t(option.label.key as DynamicKey);
+}
+
+/**
+ * A setting value as a person should read it, isolated the way its own nature
+ * requires.
+ *
+ * A wire token — `3.8`, `1920`, `true`, a path, an identifier the list does
+ * not name — is left-to-right by specification whatever its first character
+ * is, so the direction is forced: `1920x1080` reverses otherwise. A name out
+ * of the catalogue is prose in the reader's own language, and forcing *that*
+ * would be the same mistake pointing the other way.
+ */
+function settingValueLabel(t: Copy, field: SettingField, value: string): string {
+  const option = namedOption(field, value);
+  if (option === undefined) return isolateLtr(value);
+  return option.label.kind === "message"
+    ? isolate(optionLabel(t, option))
+    : isolateLtr(option.label.text);
+}
+
+/**
  * What this build's adapter does **not** do, per protocol.
  *
  * Stated rather than left as an absence. Both framebuffer adapters report
@@ -264,6 +375,14 @@ function protocolSettings(resolved: EffectiveConnection | undefined): ProtocolSe
  * screen that simply omitted them would read as an oversight rather than as
  * the answer. The sentences are kept in step with the adapters' own
  * `capabilities()` and module documentation; that is where the truth is.
+ *
+ * Re-checked against the adapters when this section became a form: RDP's
+ * `capabilities()` still reports `clipboard: none`, no audio, no printing and
+ * no multi-monitor; `connect.rs` asks for `WANT_32_BPP_SESSION` and offers no
+ * depth to choose; and there is no console-session or gateway field anywhere
+ * in the crate. VNC's `capabilities()` still reports `resizable: false` and
+ * `clipboard: none`, and `Adapter::needs_username` still exempts it. Every
+ * sentence below is still true, which is why none of them changed.
  */
 const PROTOCOL_LIMITS = {
   rdp: "editor.protocolLimits.rdp",
@@ -285,6 +404,7 @@ function protocolLimitsKey(protocol: string): CopyKey | null {
  */
 const SETTING_NOTES = {
   rdpDomain: "editor.settingNote.rdpDomain",
+  rdpKeyboardLayout: "editor.settingNote.rdpKeyboardLayout",
   rdpNlaOff: "editor.settingNote.rdpNlaOff",
   vncFloor: "editor.settingNote.vncFloor",
   vncFloorLowered: "editor.settingNote.vncFloorLowered",
@@ -298,6 +418,16 @@ const RFB_DEFAULT_FLOOR = "3.8";
 function settingNoteKey(protocol: string, key: string, value: string): CopyKey | null {
   if (protocol === "rdp") {
     if (key === "domain") return SETTING_NOTES.rdpDomain;
+    /*
+     * Not conditional on the value, unlike everything else here: the
+     * consequence is the same whichever layout is chosen, and it is the one
+     * consequence on this screen that nothing else can report. The server
+     * decodes this client's scancodes with the layout named in the Client Core
+     * Data (MS-RDPBCGR §2.2.1.3.2), so a wrong one types the wrong characters
+     * and raises no error at either end — the user is left believing their
+     * keyboard is broken.
+     */
+    if (key === "keyboard_layout") return SETTING_NOTES.rdpKeyboardLayout;
     // Only when it is off. On is the default and the documented position, and
     // a warning that fires on the safe setting is a warning people stop
     // reading.
@@ -388,6 +518,15 @@ interface FormState {
   keyPath: string;
   /** Held only until save hands it to the core. Never read back, never shown. */
   keyPassphrase: string;
+  /**
+   * The protocol settings, keyed by the adapter's own key.
+   *
+   * Three-state, like every other inheritable field on this screen: an entry
+   * with `own` is set on this connection, an entry without it is inherited or
+   * defaulted, and a key with no entry at all is one nobody has touched. Only
+   * keys that differ from where they started are sent.
+   */
+  settings: Record<string, Draft>;
 }
 
 /**
@@ -498,6 +637,23 @@ function EditorDialog({ target }: { target: EditorTarget }) {
   });
 
   /*
+   * The shape of every protocol setting, straight from the adapters.
+   *
+   * Never invalidated and never refetched: a schema is the build's and not the
+   * vault's, so nothing a tree change does can affect it, and it cannot change
+   * while this process runs. It does not gate the form — the rest of the
+   * editor is usable while it arrives, and the settings section says what it is
+   * waiting for.
+   */
+  const schemasQuery = useQuery({
+    queryKey: qk.protocolSchemas(),
+    queryFn: () => ipc.protocolSchemas(),
+    enabled: resolvable,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+
+  /*
    * Both queries gate the form, and the query client is configured with
    * `retry: false`, so a single rejection used to leave this dialog on its
    * skeleton for good: no message, no way back, only the close button. The
@@ -544,6 +700,9 @@ function EditorDialog({ target }: { target: EditorTarget }) {
         agentFilter: "",
         keyPath: "",
         keyPassphrase: "",
+        // A connection that does not exist yet has no inheritance to resolve
+        // and no settings section; the field is here so the shape is one shape.
+        settings: {},
       });
       return;
     }
@@ -574,6 +733,7 @@ function EditorDialog({ target }: { target: EditorTarget }) {
       agentFilter: identity.agentFilter,
       keyPath: "",
       keyPassphrase: "",
+      settings: settingDrafts(resolved),
     });
   }, [form, node, origin, resolvable, resolveQuery.data, resolved, target]);
 
@@ -585,6 +745,7 @@ function EditorDialog({ target }: { target: EditorTarget }) {
         ? draftOf(findField(resolved, "port"))
         : { own: true, value: node.port === null ? "" : String(node.port) },
       identity: seedIdentity(node, origin),
+      settings: settingDrafts(resolved),
     };
   }, [node, origin, resolved, target.mode]);
 
@@ -764,6 +925,19 @@ function EditorDialog({ target }: { target: EditorTarget }) {
 
   const keyStored = initial?.identity.own === true && initial.identity.auth === "privateKey";
 
+  /*
+   * The settings this connection's protocol declares, in the adapter's order.
+   *
+   * Empty until the schema arrives, and empty for a protocol no adapter in
+   * this build speaks — a plugin's. Both cases mean the same thing to the form
+   * below: there is nothing it knows how to draw a control for, so it draws
+   * none rather than guessing at a type.
+   */
+  const settingFields = useMemo(
+    () => schemaFor(schemasQuery.data, form?.protocol ?? "") ?? [],
+    [schemasQuery.data, form?.protocol],
+  );
+
   const errors =
     form === null
       ? {}
@@ -775,6 +949,7 @@ function EditorDialog({ target }: { target: EditorTarget }) {
           inspecting: inspect.isPending,
           keyStored,
           initialAuth: initial?.identity.own === true ? initial.identity.auth : null,
+          settingFields,
         });
   const hasErrors = Object.keys(errors).length > 0;
 
@@ -1094,13 +1269,23 @@ function EditorDialog({ target }: { target: EditorTarget }) {
                 )}
               </section>
 
-              {/* Only in edit mode: the resolved view is what these come from,
-                  and a connection that does not exist yet has nothing to
-                  resolve. */}
+              {/* Only in edit mode: the provenance these rows show comes from
+                  the resolved view, and a connection that does not exist yet
+                  has nothing to resolve and no folder to inherit from. */}
               {isConnection === true && target.mode === "edit" && (
                 <ProtocolSettingsSection
                   protocol={form.protocol}
-                  settings={protocolSettings(resolved)}
+                  fields={settingFields}
+                  resolved={protocolSettings(resolved)}
+                  drafts={form.settings}
+                  errors={errors.settings ?? {}}
+                  attempted={attempted}
+                  loading={schemasQuery.isPending && schemasQuery.fetchStatus !== "idle"}
+                  failure={schemasQuery.error === null ? null : asFailure(schemasQuery.error)}
+                  onRetry={() => void schemasQuery.refetch()}
+                  onChange={(key, draft) =>
+                    setForm({ ...form, settings: { ...form.settings, [key]: draft } })
+                  }
                 />
               )}
 
@@ -1433,33 +1618,71 @@ function ProvenanceLine({ own, provenance }: { own: boolean; provenance: Provena
 }
 
 /**
- * The settings the connection's own protocol adapter reads, and the plain
- * statement of what this editor cannot do with them.
+ * The settings the connection's own protocol adapter reads — and writes.
  *
- * **It cannot change them.** There is no command that writes a connection's
- * settings map: `node_update` carries a name, a host, a port, a login and a
- * list of overrides to clear, and nothing else. So the values are shown with
- * their provenance — which is the whole point of this screen — and the first
- * line says outright that this is a reading and not a form. An RDP or VNC
- * connection opens with what an import stored on it, what a folder above it
- * passes down, or the adapter's own defaults.
+ * **The schema is the authority.** Every row here comes from
+ * `protocol_schemas`, which returns the adapters' own `SettingsSchema`
+ * values: the same objects `session_open` validates against and the same ones
+ * the RDP and VNC crates build their configuration from. Nothing about a
+ * setting is restated in this file — not its type, not its bounds, not the
+ * values it offers by name — so adding a setting to an adapter makes it appear
+ * on this screen without anybody editing this component.
  *
- * Drawing an editable control here would have been the fifth time this product
- * shipped a control with nothing behind it. It says what it cannot do instead.
+ * This section used to say, correctly, that it could not change anything: no
+ * command wrote a connection's settings map. One does now (`node_update`'s
+ * `settings`), and the sentence went with the limitation rather than being
+ * softened — a callout claiming a form is read-only, over a form, is worse
+ * than either.
+ *
+ * A key the schema does not name is still shown, and still not editable. The
+ * core preserves unknown keys on purpose so that opening a vault in an older
+ * build does not discard a newer protocol's settings; drawing a control with
+ * no type behind it would be guessing, and dropping the row would hide the
+ * thing the preservation exists to protect.
  */
 function ProtocolSettingsSection({
   protocol,
-  settings,
+  fields,
+  resolved,
+  drafts,
+  errors,
+  attempted,
+  loading,
+  failure,
+  onRetry,
+  onChange,
 }: {
   protocol: string;
-  settings: readonly ProtocolSetting[];
+  /** The adapter's schema, in its own order. Empty while it is loading. */
+  fields: readonly SettingField[];
+  /** What the core resolved, for provenance and for keys outside the schema. */
+  resolved: readonly ProtocolSetting[];
+  drafts: Readonly<Record<string, Draft>>;
+  errors: Readonly<Record<string, string>>;
+  attempted: boolean;
+  loading: boolean;
+  failure: IpcFailure | null;
+  onRetry: () => void;
+  onChange: (key: string, draft: Draft) => void;
 }) {
   const t = useT("connections");
+  const tCommon = useT("common");
   const limits = protocolLimitsKey(protocol);
 
-  // Nothing resolved and nothing to say: an SSH connection with no settings of
-  // its own gets no empty section.
-  if (settings.length === 0 && limits === null) return null;
+  const byKey = useMemo(
+    () => new Map(resolved.map((setting) => [setting.key, setting])),
+    [resolved],
+  );
+  const known = useMemo(() => new Set(fields.map((field) => field.key)), [fields]);
+  // Set on this connection or above it, and outside the schema this build
+  // knows. Preserved by the core, so it is shown rather than quietly dropped.
+  const unknown = resolved.filter((setting) => !known.has(setting.key));
+
+  // Nothing to draw, nothing set and nothing to say: an SSH connection whose
+  // schema has not arrived yet gets no empty section rather than a flicker.
+  if (fields.length === 0 && unknown.length === 0 && limits === null && !loading && failure === null) {
+    return null;
+  }
 
   return (
     <>
@@ -1467,23 +1690,47 @@ function ProtocolSettingsSection({
       <section className={s.section}>
         <div className={s.sectionTitle}>{t("editor.sectionProtocolSettings")}</div>
 
-        <Callout tone="info">
-          <p>{t("editor.protocolSettingsReadOnly")}</p>
-          {limits !== null && <p>{t(limits)}</p>}
-        </Callout>
+        {limits !== null && (
+          <Callout tone="info">
+            <p>{t(limits)}</p>
+          </Callout>
+        )}
 
-        {settings.length === 0 ? (
-          <p className={s.footerNote}>{t("editor.protocolSettingsNone")}</p>
-        ) : (
-          settings.map((setting) => {
-            const note = settingNoteKey(protocol, setting.key, setting.value);
-            return (
+        {loading && <BusyStatus label={t("editor.protocolSettingsLoading")} size={13} />}
+
+        {/* The form cannot be drawn without the shape of the fields, so the
+            core's own failure is shown with the retry it deserves rather than
+            an empty section that looks like a connection with no settings. */}
+        {failure !== null && (
+          <FailureNotice
+            failure={failure}
+            title={t("editor.protocolSettingsSchemaFailed")}
+            onRetry={onRetry}
+            retryLabel={tCommon("action.retry")}
+          />
+        )}
+
+        {fields.map((field) => (
+          <SettingRow
+            key={field.key}
+            protocol={protocol}
+            field={field}
+            resolved={byKey.get(field.key)}
+            draft={settingDraft(drafts, field.key)}
+            error={attempted ? errors[field.key] : undefined}
+            onChange={(draft) => onChange(field.key, draft)}
+          />
+        ))}
+
+        {unknown.length > 0 && (
+          <>
+            <p className={s.footerNote}>{t("editor.protocolSettingsUnknown")}</p>
+            {unknown.map((setting) => (
               <Field
                 // The adapter's own key. A wire identifier, like a protocol
                 // name: shown as it is, never translated.
                 key={setting.key}
                 label={setting.key}
-                {...(note === null ? {} : { help: t(note) })}
               >
                 <span className={clsx(s.inheritedBox, s.inheritedMono)}>
                   {setting.value === "" ? (
@@ -1497,10 +1744,300 @@ function ProtocolSettingsSection({
                 </span>
                 <ProvenanceLine own={setting.own} provenance={setting.provenance} />
               </Field>
-            );
-          })
+            ))}
+          </>
         )}
       </section>
+    </>
+  );
+}
+
+/**
+ * One protocol setting, in whichever of the three states it is in.
+ *
+ * The three-state shape is the same one `InheritableField` gives a host and a
+ * port, because a setting inherits exactly as they do — and a user who has
+ * learned "Override here" and "Revert to inherited" on the address should not
+ * have to learn something else twenty pixels lower. What differs is that a
+ * setting knows its own type, so the control is chosen by the schema rather
+ * than fixed.
+ */
+function SettingRow({
+  protocol,
+  field,
+  resolved,
+  draft,
+  error,
+  onChange,
+}: {
+  protocol: string;
+  field: SettingField;
+  resolved: ProtocolSetting | undefined;
+  draft: Draft;
+  error: string | undefined;
+  onChange: (draft: Draft) => void;
+}) {
+  const t = useT("connections");
+  const id = `editor-setting-${field.key}`;
+  const provenance = resolved?.provenance ?? NO_PROVENANCE;
+
+  /*
+   * What applies when this connection sets nothing: a folder's value if one
+   * supplies it, and otherwise the adapter's own default. The second half is
+   * why this row cannot reuse `InheritableField` — a resolved field carries no
+   * entry at all for a key nobody ever set, and "nothing inherited" would be a
+   * lie about a setting that very much has a value.
+   */
+  const inherited = resolved === undefined ? field.default : provenance.inheritedValue;
+  const inheritedFromDefault = resolved === undefined || provenance.inheritedSource === null;
+
+  // The label is the adapter's catalogue key, not its wire key: `domain` is
+  // what the setting is called on the wire and "Windows domain" is what it is
+  // called to a person.
+  const label = t(field.label as DynamicKey);
+  const note = settingNoteKey(protocol, field.key, draft.own ? draft.value : (inherited ?? ""));
+
+  return (
+    <Field
+      label={label}
+      htmlFor={draft.own ? id : undefined}
+      {...(error === undefined ? {} : { error })}
+      {...(note === null ? {} : { help: t(note) })}
+    >
+      <div className={s.control}>
+        {draft.own ? (
+          <SettingControl
+            id={id}
+            field={field}
+            value={draft.value}
+            invalid={error !== undefined}
+            label={label}
+            onChange={(value) => onChange({ own: true, value })}
+          />
+        ) : (
+          <span className={clsx(s.inheritedBox, s.inheritedMono)}>
+            {inherited === null || inherited === "" ? (
+              <span className={s.inheritedEmpty}>{t("editor.nothingInherited")}</span>
+            ) : (
+              // The name where the schema offers one — `1055` means nothing
+              // to anybody — and the token itself where it does not.
+              settingValueLabel(t, field, inherited)
+            )}
+          </span>
+        )}
+
+        {draft.own ? (
+          <Button
+            size="sm"
+            onClick={() => onChange({ own: false, value: "" })}
+          >
+            {inheritedFromDefault
+              ? t("editor.settingRevertToDefault")
+              : t("editor.revertPlain")}
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            onClick={() =>
+              // Seeded with what applies today, so overriding is an edit rather
+              // than a blank field the user has to fill from memory.
+              onChange({ own: true, value: inherited ?? field.default ?? "" })
+            }
+          >
+            {t("editor.overrideHere")}
+          </Button>
+        )}
+      </div>
+
+      {draft.own ? (
+        <span className={s.provenance}>
+          <span className={s.provenanceDot} />
+          {provenance.canInherit && provenance.inheritedSource !== null
+            ? t("editor.overridesSource", { source: isolate(provenance.inheritedSource) })
+            : t("editor.setHere")}
+        </span>
+      ) : resolved === undefined ? (
+        <DefaultOriginLine field={field} />
+      ) : (
+        <ProvenanceLine own={false} provenance={provenance} />
+      )}
+    </Field>
+  );
+}
+
+/**
+ * Where the value that applies came from, when it is the adapter's default.
+ *
+ * `guessed` is the case this exists for, and it is said out loud: the build
+ * tried to read the machine, failed, and put a stand-in in place. A user whose
+ * remote session types the wrong characters has no other way to find that out
+ * — the protocol reports no fault for typing `i` where `ı` was pressed — so a
+ * silent guess is the failure the origin is carried across the boundary to
+ * prevent. `detected` gets the quieter half of the same sentence, and `fixed`
+ * gets nothing: a constant the adapter chose is not news.
+ */
+function DefaultOriginLine({ field }: { field: SettingField }) {
+  const t = useT("connections");
+  if (field.default === null) return null;
+
+  // Already isolated: a layout name is prose, and a bare identifier is not.
+  const name = settingValueLabel(t, field, field.default);
+
+  if (field.defaultOrigin === "guessed") {
+    return (
+      <span className={clsx(s.provenance, s.provenanceGuessed)} role="status">
+        <span className={s.provenanceGlyph}>
+          <Icon name="alert" size={11} />
+        </span>
+        {t("editor.settingDefaultGuessed", { value: name })}
+      </span>
+    );
+  }
+  if (field.defaultOrigin === "detected") {
+    return (
+      <span className={s.provenance}>
+        <span className={s.provenanceGlyph}>
+          <Icon name="server" size={11} />
+        </span>
+        {t("editor.settingDefaultDetected", { value: name })}
+      </span>
+    );
+  }
+  return (
+    <span className={s.provenance}>
+      <span className={s.provenanceGlyph}>
+        <Icon name="folder" size={11} />
+      </span>
+      {t("editor.protocolDefault")}
+    </span>
+  );
+}
+
+/**
+ * The control one setting gets, chosen by its kind.
+ *
+ * Four kinds and four controls, and the mapping is the whole point: the form
+ * does not know that `desktop_width` is a number or that `shared` is a flag,
+ * it knows that the schema said `integer` and `boolean`. A setting added to an
+ * adapter tomorrow gets the right control today.
+ *
+ * The interesting case is a named set that is **not** closed — the keyboard
+ * layout, where Microsoft publishes several hundred identifiers and the schema
+ * names the sixty-odd worth listing. That row is a picker *and* a field: the
+ * list for the layout a user actually has, and a way to type the identifier
+ * for one nobody listed. `optionsAreClosed` is what tells the two apart, and a
+ * closed choice gets no escape hatch because the adapter would refuse it.
+ */
+function SettingControl({
+  id,
+  field,
+  value,
+  invalid,
+  label,
+  onChange,
+}: {
+  id: string;
+  field: SettingField;
+  value: string;
+  invalid: boolean;
+  /** The field's translated label, for controls that carry their own name. */
+  label: string;
+  onChange: (value: string) => void;
+}) {
+  const t = useT("connections");
+
+  /*
+   * Whether the row is showing its text field rather than its list.
+   *
+   * Seeded from the value: a connection carrying an identifier the schema does
+   * not name opens on the field, already holding it, rather than on a list
+   * that silently does not contain what is stored. Held in state because the
+   * user may open the field, clear it and type — at which point the value
+   * matches no option and the list would take the row back.
+   */
+  const [typing, setTyping] = useState(
+    () => !field.optionsAreClosed && field.options.length > 0 && namedOption(field, value) === undefined,
+  );
+
+  if (field.kind.type === "boolean") {
+    const on = value === "true";
+    return (
+      <span className={s.switchRow}>
+        <input
+          id={id}
+          type="checkbox"
+          role="switch"
+          className={s.switch}
+          checked={on}
+          onChange={(e) => onChange(e.target.checked ? "true" : "false")}
+        />
+        {/* The state in words beside the switch. A switch with no label reads
+            as on or off only by its colour, which is not a reading. */}
+        <span className={s.switchState}>{on ? t("editor.settingOn") : t("editor.settingOff")}</span>
+      </span>
+    );
+  }
+
+  const hasList = field.options.length > 0;
+
+  if (hasList && !typing) {
+    return (
+      <span className={s.controlGrow}>
+        <select
+          id={id}
+          className={s.select}
+          value={namedOption(field, value) === undefined ? "" : value}
+          aria-invalid={invalid}
+          onChange={(e) => {
+            if (e.target.value === CUSTOM_OPTION) {
+              setTyping(true);
+              return;
+            }
+            onChange(e.target.value);
+          }}
+        >
+          {/* Only while the stored value is not one of the offered ones, which
+              a closed choice can still be after an import. An empty option
+              that stays in the list would be a way to store nothing. */}
+          {namedOption(field, value) === undefined && (
+            <option value="">{t("editor.settingChoose")}</option>
+          )}
+          {field.options.map((option) => (
+            <option key={option.value} value={option.value}>
+              {optionLabel(t, option)}
+            </option>
+          ))}
+          {/* The escape hatch, and only where the schema says the list is not
+              the whole of what the setting accepts. */}
+          {!field.optionsAreClosed && (
+            <option value={CUSTOM_OPTION}>{t("editor.settingCustom")}</option>
+          )}
+        </select>
+      </span>
+    );
+  }
+
+  return (
+    <>
+      <span className={s.controlGrow}>
+        <TextInput
+          id={id}
+          value={value}
+          onChange={onChange}
+          mono
+          invalid={invalid}
+          ariaLabel={label}
+          {...(field.kind.type === "integer" && field.default !== null
+            ? { placeholder: field.default }
+            : {})}
+        />
+      </span>
+      {/* Back to the list, for a user who opened the field by accident. */}
+      {hasList && (
+        <Button size="sm" onClick={() => setTyping(false)}>
+          {t("editor.settingUseList")}
+        </Button>
+      )}
     </>
   );
 }
@@ -1902,6 +2439,12 @@ interface FormErrors {
   key?: string;
   passphrase?: string;
   password?: string;
+  /**
+   * One message per protocol setting that is out of bounds, keyed by the
+   * adapter's key. Present only when there is at least one, so the
+   * `Object.keys(errors).length` test above still means "the form is clean".
+   */
+  settings?: Record<string, string>;
 }
 
 /** What the form has to know about its surroundings before it can be judged. */
@@ -1917,6 +2460,11 @@ interface ValidationContext {
   keyStored: boolean;
   /** How this entry's own login authenticated before the edit; null if it had none. */
   initialAuth: AuthMethod | null;
+  /**
+   * The protocol's settings schema, which is what a setting's value is judged
+   * against. Empty while it is loading, and for a protocol no adapter speaks.
+   */
+  settingFields: readonly SettingField[];
 }
 
 export function validate(t: Copy, form: FormState, context: ValidationContext): FormErrors {
@@ -1934,6 +2482,9 @@ export function validate(t: Copy, form: FormState, context: ValidationContext): 
       }
     }
   }
+
+  const settings = validateSettings(t, form, context.settingFields);
+  if (settings !== undefined) errors.settings = settings;
 
   // The method only means anything on a login this entry is writing.
   if (!context.hasIdentity || !form.identityOwn) return errors;
@@ -1973,10 +2524,79 @@ export function validate(t: Copy, form: FormState, context: ValidationContext): 
   return errors;
 }
 
+/**
+ * Every protocol setting this connection sets, judged against its own schema.
+ *
+ * Checked here rather than left to the core, even though the core checks it
+ * again with the same schema: a bound the form knows is a bound the user
+ * should be told about at the field rather than in a failure notice after a
+ * round trip. The core's refusal is still shown if one arrives — a build whose
+ * adapters moved on, or a key this form never drew.
+ */
+function validateSettings(
+  t: Copy,
+  form: FormState,
+  fields: readonly SettingField[],
+): Record<string, string> | undefined {
+  const errors: Record<string, string> = {};
+  for (const field of fields) {
+    const draft = settingDraft(form.settings, field.key);
+    if (!draft.own) continue;
+    const message = settingError(t, field, draft.value);
+    if (message !== undefined) errors[field.key] = message;
+  }
+  return Object.keys(errors).length === 0 ? undefined : errors;
+}
+
+/**
+ * What is wrong with one value, or nothing.
+ *
+ * The bounds are the adapter's own, so the messages name them rather than
+ * saying "invalid": `desktop_width` is between 200 and 8192 because
+ * MS-RDPEDISP §2.2.2.2.1 says so, and a user told that number can act on it.
+ */
+function settingError(t: Copy, field: SettingField, value: string): string | undefined {
+  const empty = value.trim() === "";
+  switch (field.kind.type) {
+    case "text":
+      if (empty && field.required) return t("editor.errorSettingRequired");
+      // Length in code points, matching `SettingField::validate`, which counts
+      // `chars()` — a form that counted UTF-16 units would refuse a value the
+      // core accepts.
+      if ([...value].length > field.kind.maxLen) {
+        return t("editor.errorSettingTooLong", { count: field.kind.maxLen });
+      }
+      return undefined;
+    case "integer": {
+      // An empty number is not a number. It is also not "unset": handing the
+      // setting back is what the revert control is for, and it sends a
+      // different instruction.
+      if (empty) return t("editor.errorSettingRequired");
+      if (!/^-?\d+$/.test(value.trim())) return t("editor.errorSettingNumber");
+      const parsed = Number(value.trim());
+      if (!Number.isSafeInteger(parsed)) return t("editor.errorSettingNumber");
+      if (parsed < field.kind.min || parsed > field.kind.max) {
+        return t("editor.errorSettingRange", { min: field.kind.min, max: field.kind.max });
+      }
+      return undefined;
+    }
+    case "boolean":
+      // The control is a switch, so there is no third state to refuse.
+      return undefined;
+    case "choice":
+      if (empty) return t("editor.errorSettingRequired");
+      return namedOption(field, value) === undefined
+        ? t("editor.errorSettingChoice")
+        : undefined;
+  }
+}
+
 interface InitialDrafts {
   host: Draft;
   port: Draft;
   identity: IdentityState;
+  /** The settings as the core resolved them, so a patch carries only changes. */
+  settings: Record<string, Draft>;
 }
 
 /** What an edit does to the login, which is what the interface has to explain. */
@@ -2038,6 +2658,9 @@ function buildPatch(
     } else if (initial.port.own) {
       clear.push("port");
     }
+
+    const settings = settingsPatch(form.settings, initial.settings);
+    if (settings !== undefined) patch.settings = settings;
   }
 
   const login = kinds.hasIdentity
@@ -2046,6 +2669,43 @@ function buildPatch(
 
   if (clear.length > 0) patch.clearOverrides = clear;
   return { patch, setsPassword: login.setsPassword, identity: login.identity };
+}
+
+/**
+ * The protocol settings half of the patch: only the keys that changed.
+ *
+ * The two instructions a settings row can send are deliberately different, for
+ * the same reason `clearOverrides` exists beside a null value elsewhere on this
+ * screen:
+ *
+ *  - a **string** sets the key on this connection;
+ *  - **null** removes this connection's own entry, so the key inherits from
+ *    the folder again — or falls back to the adapter's default when no folder
+ *    supplies one.
+ *
+ * A key neither side touched is absent, which is what keeps a setting an
+ * importer wrote, or one a newer build knows about, from being dropped by a
+ * save from a form that never drew it.
+ */
+function settingsPatch(
+  current: Readonly<Record<string, Draft>>,
+  initial: Readonly<Record<string, Draft>>,
+): Record<string, string | null> | undefined {
+  const patch: Record<string, string | null> = {};
+  const keys = new Set([...Object.keys(current), ...Object.keys(initial)]);
+  for (const key of keys) {
+    const now = settingDraft(current, key);
+    const before = settingDraft(initial, key);
+    if (now.own) {
+      // A value is trimmed on the way out: a trailing space in a domain or a
+      // desktop width is never meant, and the core would store it verbatim.
+      const value = now.value.trim();
+      if (!before.own || value !== before.value.trim()) patch[key] = value;
+    } else if (before.own) {
+      patch[key] = null;
+    }
+  }
+  return Object.keys(patch).length === 0 ? undefined : patch;
 }
 
 /**

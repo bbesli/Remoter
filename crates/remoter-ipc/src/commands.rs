@@ -24,6 +24,7 @@ use remoter_core::{
     KeyFormat, Node, NodeId, NodeKind, NodeRef, Provenance, ReconnectPolicy, RecordingPolicy,
     SecretKind, Tag, Tree, TreePatch, validate_port,
 };
+use remoter_proto::{DefaultOrigin, OptionLabel, SettingField, SettingKind, SettingsSchema};
 use remoter_vault::{
     AuditEvent, AuditOutcome, CreateOptions, ExposeSecret as _, ImportedKey, RecoveryKey, Secret,
     SlotInfo, UnlockError, UnlockMethod, Vault, VaultInfo, agent_credential,
@@ -36,12 +37,14 @@ use zeroize::Zeroizing;
 use crate::dto::{
     AppSettingsDto, BackupDto, CreateNodeDto, CreateVaultRequestDto, CreateVaultResultDto,
     CredentialInputDto, EffectiveConnectionDto, KdfParamsDto, NodeDto, PasswordStrengthDto,
-    PrivateKeyInfoDto, RecentVaultDto, ResolvedFieldDto, SearchHitDto, ShortcutDto, SlotDto,
+    PrivateKeyInfoDto, ProtocolSchemaDto, RecentVaultDto, ResolvedFieldDto, SearchHitDto,
+    SettingFieldDto, SettingKindDto, SettingOptionDto, SettingOptionLabelDto, ShortcutDto, SlotDto,
     UnlockRequestDto, UpdateCheckDto, UpdateNodeDto, UpdateReleaseDto, VaultProbeDto,
     VaultStateDto,
 };
 use crate::error::IpcError;
 use crate::recents::{Recents, sync_provider, sync_warning};
+use crate::session::{Adapter, ipc_error};
 use crate::state::{AppSettingsPatch, AppState, now_millis, now_seconds};
 
 /// How many search hits a single query returns. The palette shows far fewer;
@@ -963,6 +966,114 @@ fn node_resolve_impl(state: &AppState, id: String) -> Result<EffectiveConnection
         .effective_connection(id)
         .map_err(|err| IpcError::from_core(&err))?;
     Ok(effective_dto(&tree, id, &effective))
+}
+
+// ======================================================= protocol schemas ==
+
+/// Every protocol's settings schema, as the adapters declare them.
+///
+/// The editor used to receive resolved key/value pairs and nothing else — no
+/// type, no bounds, no list of permitted values — which is why it could only
+/// display them. This is the missing half: the shape of each setting, so a
+/// form can be rendered from it rather than written out a second time.
+///
+/// **The schemas are read from the adapters.** `remoter_proto_rdp::schema()`
+/// is the same function `RdpProtocol::new` builds its own schema with, so the
+/// form and the code that reads the settings cannot disagree. Restating the
+/// fields here would produce two lists that agree until somebody adds a
+/// setting to one of them.
+///
+/// SFTP is absent because it has no schema: it is an SSH subsystem and takes
+/// the SSH connection's settings.
+#[tauri::command]
+pub(crate) fn protocol_schemas() -> Result<Vec<ProtocolSchemaDto>, IpcError> {
+    Ok(protocol_schemas_impl())
+}
+
+fn protocol_schemas_impl() -> Vec<ProtocolSchemaDto> {
+    vec![
+        schema_dto(remoter_proto_ssh::SSH_ID, &remoter_proto_ssh::schema()),
+        schema_dto(remoter_proto_rdp::RDP_ID, &remoter_proto_rdp::schema()),
+        schema_dto(remoter_proto_vnc::VNC_ID, &remoter_proto_vnc::schema()),
+    ]
+}
+
+fn schema_dto(protocol: &str, schema: &SettingsSchema) -> ProtocolSchemaDto {
+    ProtocolSchemaDto {
+        protocol: protocol.to_owned(),
+        settings: schema.fields().iter().map(setting_field_dto).collect(),
+    }
+}
+
+fn setting_field_dto(field: &SettingField) -> SettingFieldDto {
+    SettingFieldDto {
+        key: field.key.clone(),
+        label: field.label.clone(),
+        kind: setting_kind_dto(&field.kind),
+        default: field.default.clone(),
+        default_origin: default_origin_wire(field.default_origin).to_owned(),
+        required: field.required,
+        options: setting_options_dto(field),
+        options_are_closed: field.options_are_closed(),
+    }
+}
+
+/// The values a field offers, as one list whatever shape they arrived in.
+///
+/// A `Choice` carries its permitted values inside the kind and, today, no
+/// names for them — they are wire tokens such as `3.8` and `auto`, which are
+/// shown as they stand. Everything else carries named options beside the kind.
+/// Both become the same list, so the form has one thing to render.
+fn setting_options_dto(field: &SettingField) -> Vec<SettingOptionDto> {
+    if field.options.is_empty() {
+        if let SettingKind::Choice { options } = &field.kind {
+            return options
+                .iter()
+                .map(|value| SettingOptionDto {
+                    value: value.clone(),
+                    label: SettingOptionLabelDto::Verbatim {
+                        text: value.clone(),
+                    },
+                })
+                .collect();
+        }
+        return Vec::new();
+    }
+    field
+        .options
+        .iter()
+        .map(|option| SettingOptionDto {
+            value: option.value.clone(),
+            label: match &option.label {
+                OptionLabel::Message { key } => SettingOptionLabelDto::Message { key: key.clone() },
+                OptionLabel::Verbatim { text } => {
+                    SettingOptionLabelDto::Verbatim { text: text.clone() }
+                }
+            },
+        })
+        .collect()
+}
+
+fn setting_kind_dto(kind: &SettingKind) -> SettingKindDto {
+    match kind {
+        SettingKind::Text { max_len } => SettingKindDto::Text { max_len: *max_len },
+        SettingKind::Integer { min, max } => SettingKindDto::Integer {
+            min: *min,
+            max: *max,
+        },
+        SettingKind::Boolean => SettingKindDto::Boolean,
+        SettingKind::Choice { .. } => SettingKindDto::Choice,
+    }
+}
+
+/// The wire form of a default's origin. Stable identifiers, like every other
+/// enum that crosses this boundary.
+const fn default_origin_wire(origin: DefaultOrigin) -> &'static str {
+    match origin {
+        DefaultOrigin::Fixed => "fixed",
+        DefaultOrigin::Detected => "detected",
+        DefaultOrigin::Guessed => "guessed",
+    }
 }
 
 // ========================================================== private keys ==
@@ -2399,9 +2510,81 @@ fn apply_patch(node: &mut Node, patch: &UpdateNodeDto) -> Result<(), IpcError> {
         }
     }
 
+    if let Some(settings) = &patch.settings {
+        apply_settings(node, settings)?;
+    }
+
     if let Some(fields) = &patch.clear_overrides {
         for field in fields {
             clear_override(node, field)?;
+        }
+    }
+    Ok(())
+}
+
+/// Writes a sparse settings patch onto a node.
+///
+/// Three rules, and each of them is the difference between a form that works
+/// and one that quietly loses something:
+///
+/// - **`None` removes rather than blanks.** "Inherit this again" and "set this
+///   to the empty string" are different instructions, exactly as they are for
+///   [`clear_override`]. An editor handing a setting back to the folder above
+///   it sends `None`, and the key leaves this node's own map.
+/// - **Unmentioned keys are untouched.** The patch carries what the user
+///   touched, so a key written by a newer build — or by an importer this form
+///   knows nothing about — survives a save from this one.
+/// - **Values are typed against the adapter's own schema**, the same schema
+///   the form rendered itself from and the same one `session_open` validates
+///   against. Catching `desktop_width: 99999` here means the user is told at
+///   Save rather than at connect time, three round trips later.
+///
+/// A key the schema does not define is still accepted: `remoter-core`
+/// preserves unknown keys on purpose, and refusing them here would undo that.
+/// A protocol no adapter in this build speaks — a plugin's — gets the key-syntax
+/// check `ProtocolSettings::insert` performs and nothing more, because there is
+/// no schema here to check it against.
+fn apply_settings(
+    node: &mut Node,
+    settings: &BTreeMap<String, Option<String>>,
+) -> Result<(), IpcError> {
+    let schema = node
+        .kind
+        .as_connection()
+        .map(|props| props.protocol.as_str())
+        .and_then(Adapter::for_protocol)
+        .map(Adapter::schema);
+
+    if let Some(schema) = &schema {
+        for (key, value) in settings {
+            if let (Some(field), Some(value)) = (schema.field(key), value.as_deref()) {
+                field.validate(value).map_err(|err| ipc_error(&err))?;
+            }
+        }
+    }
+
+    let target = match &mut node.kind {
+        NodeKind::Connection(props) => &mut props.settings,
+        NodeKind::Folder(props) => &mut props.settings,
+        _ => {
+            return Err(IpcError::new(
+                "node.field-not-applicable",
+                "Only connections and folders carry protocol settings.",
+            )
+            .with_actions(["Edit a connection or a folder instead"]));
+        }
+    };
+
+    for (key, value) in settings {
+        match value {
+            Some(value) => {
+                target
+                    .insert(key.clone(), value.clone())
+                    .map_err(|err| IpcError::from_validation(&err))?;
+            }
+            None => {
+                target.remove(key);
+            }
         }
     }
     Ok(())
@@ -4054,6 +4237,7 @@ mod tests {
                 credential: None,
                 credential_id: None,
                 clear_overrides: None,
+                settings: None,
             },
         );
         assert!(
@@ -4082,6 +4266,7 @@ mod tests {
                 credential: None,
                 credential_id: None,
                 clear_overrides: Some(vec![String::from("port")]),
+                settings: None,
             },
         );
         assert!(cleared.is_ok_and(|node| node.port == Some(22)));
@@ -4103,6 +4288,7 @@ mod tests {
                 credential: None,
                 credential_id: None,
                 clear_overrides: None,
+                settings: None,
             },
         );
         assert!(named.is_ok(), "setting a username failed: {}", why(&named));
@@ -4510,6 +4696,7 @@ mod tests {
             credential: None,
             credential_id: None,
             clear_overrides: None,
+            settings: None,
         };
 
         let failed = node_update_impl(&state, Uuid::now_v7().to_string(), &mut patch);
@@ -4548,6 +4735,94 @@ mod tests {
         assert!(failure.is_some_and(|err| err.code == "vault.locked"));
         assert!(node_delete_impl(&state, Uuid::now_v7().to_string()).is_err());
         assert!(vault_state_impl(&state).is_ok_and(|state| !state.unlocked));
+    }
+
+    #[test]
+    fn the_protocol_schemas_are_the_adapters_own() {
+        // The rule this guards: the schema crosses the boundary, it is not
+        // restated at the boundary. Compared against the adapters' own
+        // functions key for key, so a setting added to an adapter and not to
+        // this command — or, worse, a list written out here — fails.
+        let schemas = protocol_schemas_impl();
+        let expected = [
+            (remoter_proto_ssh::SSH_ID, remoter_proto_ssh::schema()),
+            (remoter_proto_rdp::RDP_ID, remoter_proto_rdp::schema()),
+            (remoter_proto_vnc::VNC_ID, remoter_proto_vnc::schema()),
+        ];
+        assert_eq!(schemas.len(), expected.len());
+        for (dto, (id, schema)) in schemas.iter().zip(expected.iter()) {
+            assert_eq!(dto.protocol, *id);
+            let keys: Vec<&str> = dto.settings.iter().map(|f| f.key.as_str()).collect();
+            let theirs: Vec<&str> = schema.fields().iter().map(|f| f.key.as_str()).collect();
+            assert_eq!(keys, theirs, "{id}");
+        }
+    }
+
+    #[test]
+    fn the_keyboard_layout_crosses_as_something_a_form_can_render() {
+        // What the editor could not do before: the setting arrived as a
+        // key/value pair with no type, no bounds and no names, so `1055` was
+        // all there was to show. Everything a select needs is now on the wire.
+        let rdp = protocol_schemas_impl()
+            .into_iter()
+            .find(|schema| schema.protocol == remoter_proto_rdp::RDP_ID)
+            .expect("the RDP schema crosses");
+        let layout = rdp
+            .settings
+            .iter()
+            .find(|field| field.key == remoter_proto_rdp::protocol::SETTING_KEYBOARD_LAYOUT)
+            .expect("the layout is one of them");
+
+        assert!(matches!(layout.kind, SettingKindDto::Integer { .. }));
+        // Named — Turkish F among them, which is the one the two-identifier
+        // distinction exists for.
+        let turkish_f = layout
+            .options
+            .iter()
+            .find(|option| option.value == "66591")
+            .expect("Turkish F is offered");
+        assert!(matches!(
+            &turkish_f.label,
+            SettingOptionLabelDto::Message { key } if key == "settings.keyboardLayout.turkishF"
+        ));
+        // …and open, because Microsoft publishes several hundred identifiers
+        // and this list is not all of them.
+        assert!(!layout.options_are_closed);
+        // The default is this machine's, and says so. Never "fixed": that is
+        // the constant this change removed.
+        assert!(
+            layout.default_origin == "detected" || layout.default_origin == "guessed",
+            "{}",
+            layout.default_origin
+        );
+        assert_eq!(
+            layout.default.as_deref(),
+            Some(remoter_proto_rdp::default_layout().id.to_string().as_str())
+        );
+    }
+
+    #[test]
+    fn a_choice_crosses_as_one_list_whatever_shape_it_was_in() {
+        // VNC's version settings are a `Choice` whose values are wire tokens,
+        // and they arrive in the same `options` list as the named ones so the
+        // form has one thing to render rather than two.
+        let vnc = protocol_schemas_impl()
+            .into_iter()
+            .find(|schema| schema.protocol == remoter_proto_vnc::VNC_ID)
+            .expect("the VNC schema crosses");
+        let version = vnc
+            .settings
+            .iter()
+            .find(|field| field.key == remoter_proto_vnc::protocol::SETTING_RFB_VERSION)
+            .expect("the RFB version is one of them");
+        assert!(matches!(version.kind, SettingKindDto::Choice));
+        assert!(version.options_are_closed, "a choice refuses anything else");
+        assert!(version.options.iter().any(|option| {
+            option.value == "3.8"
+                && matches!(&option.label, SettingOptionLabelDto::Verbatim { text } if text == "3.8")
+        }));
+        assert_eq!(version.default.as_deref(), Some("3.8"));
+        assert_eq!(version.default_origin, "fixed");
     }
 
     #[test]
@@ -5163,6 +5438,7 @@ mod credential_tests {
                 }),
                 credential_id: None,
                 clear_overrides: None,
+                settings: None,
             },
         );
         assert!(updated.is_ok(), "updating failed: {}", why(&updated));
@@ -5206,6 +5482,7 @@ mod credential_tests {
                 }),
                 credential_id: None,
                 clear_overrides: None,
+                settings: None,
             },
         );
         assert!(updated.is_ok(), "updating failed: {}", why(&updated));
@@ -5331,6 +5608,7 @@ mod credential_tests {
                 credential: None,
                 credential_id: None,
                 clear_overrides: Some(vec![String::from("credential")]),
+                settings: None,
             },
         );
         assert!(reverted.is_ok_and(|node| node.credential_id.is_none()));
@@ -5370,6 +5648,7 @@ mod credential_tests {
                 credential: None,
                 credential_id: Some(folder.id),
                 clear_overrides: None,
+                settings: None,
             },
         );
         assert!(refused.is_err_and(|err| err.code == "validation.credential-kind"));
@@ -5389,6 +5668,7 @@ mod credential_tests {
                 credential: None,
                 credential_id: Some(Uuid::now_v7().to_string()),
                 clear_overrides: None,
+                settings: None,
             },
         );
         assert!(missing.is_err_and(|err| err.code == "validation.credential-unknown"));
@@ -5424,6 +5704,7 @@ mod identity_tests {
             credential: None,
             credential_id: None,
             clear_overrides: None,
+            settings: None,
         }
     }
 
@@ -5680,6 +5961,7 @@ mod identity_tests {
             &web01.id,
             UpdateNodeDto {
                 clear_overrides: Some(vec![String::from("credential")]),
+                settings: None,
                 ..blank_update()
             },
         );
@@ -5893,6 +6175,264 @@ mod identity_tests {
             },
         );
         assert!(conflicting.is_err_and(|err| err.code == "request.invalid"));
+    }
+}
+
+/// Writing a connection's protocol settings.
+///
+/// The defect these pin: every RDP connection this build ever opened used the
+/// keyboard layout the adapter defaulted to, because nothing above this layer
+/// could write one. `node_update` carried a name, a host, a port and a login,
+/// and a settings map was readable and unreachable — so a user on a Turkish
+/// keyboard had no way to say so, and the server decoded their scancodes as
+/// American with no error anywhere to show for it.
+#[cfg(test)]
+#[expect(
+    clippy::panic,
+    reason = "a seam test without a vault has nothing left to assert"
+)]
+mod settings_tests {
+    use super::*;
+    use crate::test_support::{Scratch, open_vault, why};
+
+    /// The Windows keyboard identifier for Turkish Q — the value the whole
+    /// path exists to carry. Decimal on the wire, as MS-RDPBCGR carries it.
+    const TURKISH_Q: &str = "1055";
+
+    fn blank_update() -> UpdateNodeDto {
+        UpdateNodeDto {
+            name: None,
+            description: None,
+            tags: None,
+            colour: None,
+            host: None,
+            port: None,
+            username: None,
+            password: None,
+            credential: None,
+            credential_id: None,
+            clear_overrides: None,
+            settings: None,
+        }
+    }
+
+    fn settings_patch(entries: &[(&str, Option<&str>)]) -> UpdateNodeDto {
+        UpdateNodeDto {
+            settings: Some(
+                entries
+                    .iter()
+                    .map(|(key, value)| ((*key).to_owned(), value.map(ToOwned::to_owned)))
+                    .collect(),
+            ),
+            ..blank_update()
+        }
+    }
+
+    fn create(state: &AppState, mut input: CreateNodeDto) -> NodeDto {
+        match node_create_impl(state, &mut input) {
+            Ok(node) => node,
+            Err(err) => panic!("creating a node failed: {}", err.message),
+        }
+    }
+
+    fn rdp_connection(state: &AppState, parent: Option<&str>) -> NodeDto {
+        create(
+            state,
+            CreateNodeDto {
+                parent_id: parent.map(ToOwned::to_owned),
+                kind: String::from("connection"),
+                name: String::from("dc-01"),
+                protocol: Some(String::from("rdp")),
+                host: Some(String::from("dc-01.corp.example")),
+                port: None,
+                username: None,
+                password: None,
+                credential: None,
+                credential_id: None,
+            },
+        )
+    }
+
+    fn folder(state: &AppState, name: &str) -> NodeDto {
+        create(
+            state,
+            CreateNodeDto {
+                parent_id: None,
+                kind: String::from("folder"),
+                name: name.to_owned(),
+                protocol: None,
+                host: None,
+                port: None,
+                username: None,
+                password: None,
+                credential: None,
+                credential_id: None,
+            },
+        )
+    }
+
+    fn update(state: &AppState, id: &str, mut patch: UpdateNodeDto) -> Result<NodeDto, IpcError> {
+        node_update_impl(state, id.to_owned(), &mut patch)
+    }
+
+    fn setting(state: &AppState, id: &str, key: &str) -> Option<ResolvedFieldDto> {
+        let field = format!("settings.{key}");
+        node_resolve_impl(state, id.to_owned())
+            .ok()
+            .and_then(|effective| {
+                effective
+                    .fields
+                    .into_iter()
+                    .find(|resolved| resolved.field == field)
+            })
+    }
+
+    #[test]
+    fn a_keyboard_layout_chosen_on_a_connection_is_stored_and_resolves_as_its_own() {
+        let scratch = Scratch::new();
+        let Some(state) = open_vault(&scratch) else {
+            panic!("the vault could not be created");
+        };
+        let connection = rdp_connection(&state, None);
+
+        let saved = update(
+            &state,
+            &connection.id,
+            settings_patch(&[("keyboard_layout", Some(TURKISH_Q))]),
+        );
+        assert!(saved.is_ok(), "the save failed: {}", why(&saved));
+
+        let Some(resolved) = setting(&state, &connection.id, "keyboard_layout") else {
+            panic!("the layout should resolve after it was written");
+        };
+        assert_eq!(resolved.value.as_deref(), Some(TURKISH_Q));
+        assert_eq!(resolved.origin, "own");
+    }
+
+    #[test]
+    fn clearing_a_setting_hands_it_back_to_the_folder_above() {
+        // "Inherit this again" and "set this to nothing" are different
+        // instructions, and `None` is the first of them.
+        let scratch = Scratch::new();
+        let Some(state) = open_vault(&scratch) else {
+            panic!("the vault could not be created");
+        };
+        let parent = folder(&state, "Datacentre EU-West");
+        let connection = rdp_connection(&state, Some(&parent.id));
+
+        let on_folder = update(
+            &state,
+            &parent.id,
+            settings_patch(&[("keyboard_layout", Some(TURKISH_Q))]),
+        );
+        assert!(
+            on_folder.is_ok(),
+            "the folder save failed: {}",
+            why(&on_folder)
+        );
+
+        // Overridden on the connection...
+        let overridden = update(
+            &state,
+            &connection.id,
+            settings_patch(&[("keyboard_layout", Some("1031"))]),
+        );
+        assert!(
+            overridden.is_ok(),
+            "the override failed: {}",
+            why(&overridden)
+        );
+        let overridden = setting(&state, &connection.id, "keyboard_layout");
+        assert_eq!(
+            overridden.as_ref().and_then(|f| f.value.as_deref()),
+            Some("1031")
+        );
+        assert_eq!(overridden.map(|f| f.origin), Some(String::from("own")));
+
+        // ...and handed back.
+        let cleared = update(
+            &state,
+            &connection.id,
+            settings_patch(&[("keyboard_layout", None)]),
+        );
+        assert!(cleared.is_ok(), "clearing failed: {}", why(&cleared));
+        let Some(inherited) = setting(&state, &connection.id, "keyboard_layout") else {
+            panic!("the folder's value should apply once the override is gone");
+        };
+        assert_eq!(inherited.value.as_deref(), Some(TURKISH_Q));
+        assert_eq!(inherited.origin, "inherited");
+        assert_eq!(inherited.source_name.as_deref(), Some("Datacentre EU-West"));
+    }
+
+    #[test]
+    fn a_value_outside_the_adapters_bounds_is_refused_by_key_and_never_by_value() {
+        // The bounds are MS-RDPEDISP's own, and the schema that refuses this
+        // is the same one the form rendered itself from — so the user is told
+        // at Save rather than at connect time. The value is withheld from the
+        // message for the reason `SettingField::validate` withholds it: a
+        // settings map is exactly where a mistyped password ends up.
+        let scratch = Scratch::new();
+        let Some(state) = open_vault(&scratch) else {
+            panic!("the vault could not be created");
+        };
+        let connection = rdp_connection(&state, None);
+
+        let refused = update(
+            &state,
+            &connection.id,
+            settings_patch(&[("desktop_width", Some("99999"))]),
+        );
+        let Err(error) = refused else {
+            panic!("a width outside the protocol's range should be refused");
+        };
+        assert_eq!(error.code, "session.setting-invalid");
+        assert!(error.message.contains("desktop_width"), "{}", error.message);
+        assert!(!error.message.contains("99999"), "{}", error.message);
+
+        // And nothing was written: a refused save leaves the connection as it
+        // was rather than half-applied.
+        assert!(setting(&state, &connection.id, "desktop_width").is_none());
+    }
+
+    #[test]
+    fn a_key_the_patch_does_not_mention_is_left_exactly_as_it_was() {
+        // What lets the form send only what the user touched — and what keeps
+        // a setting written by a newer build from being dropped by this one.
+        let scratch = Scratch::new();
+        let Some(state) = open_vault(&scratch) else {
+            panic!("the vault could not be created");
+        };
+        let connection = rdp_connection(&state, None);
+
+        let first = update(
+            &state,
+            &connection.id,
+            settings_patch(&[
+                ("keyboard_layout", Some(TURKISH_Q)),
+                ("from_the_future", Some("42")),
+            ]),
+        );
+        assert!(first.is_ok(), "the first save failed: {}", why(&first));
+
+        let second = update(
+            &state,
+            &connection.id,
+            settings_patch(&[("domain", Some("CORP"))]),
+        );
+        assert!(second.is_ok(), "the second save failed: {}", why(&second));
+
+        for (key, expected) in [
+            ("keyboard_layout", TURKISH_Q),
+            ("from_the_future", "42"),
+            ("domain", "CORP"),
+        ] {
+            let resolved = setting(&state, &connection.id, key);
+            assert_eq!(
+                resolved.and_then(|field| field.value),
+                Some(expected.to_owned()),
+                "`{key}` should still be set"
+            );
+        }
     }
 }
 

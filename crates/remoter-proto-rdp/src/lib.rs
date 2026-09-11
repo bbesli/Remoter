@@ -120,6 +120,7 @@ pub mod display;
 pub mod error;
 pub mod framed;
 pub mod input;
+pub mod layout;
 pub mod prompt;
 pub mod protocol;
 pub mod session;
@@ -137,6 +138,10 @@ pub use display::FrameEncoder;
 pub use error::{DEFAULT_PORT, RDP_ID, rdp_protocol_id};
 pub use framed::Framed;
 pub use input::InputEncoder;
+pub use layout::{
+    DefaultLayout, FALLBACK_KEYBOARD_LAYOUT, KEYBOARD_LAYOUTS, KeyboardLayout, LayoutSource,
+    default_layout, keyboard_layout_options,
+};
 pub use prompt::PromptChannel;
 pub use protocol::{RdpProtocol, schema, settings_from, split_account};
 pub use session::{RdpSession, capabilities, run_rdp_session};

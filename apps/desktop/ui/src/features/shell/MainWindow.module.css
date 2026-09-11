@@ -36,12 +36,50 @@
   background: var(--bg-canvas);
 }
 
+/* The session area: the session itself, and a file pane docked under it when
+   the tab has asked for one. A column, so the dock takes height from the
+   session rather than covering it — a terminal you cannot see is a terminal you
+   cannot use, and the reason to browse files on a host is usually that you are
+   working on it in the shell above. */
 .session {
   flex: 1;
   min-height: 0;
-  position: relative;
+  display: flex;
+  flex-direction: column;
   background: var(--bg-inset);
   overflow: hidden;
+}
+
+/* The positioned box every session host anchors to. The hosts are
+   `position: absolute; inset: 0`, so this has to be the containing block
+   rather than `.session` — otherwise a docked pane would shrink the column and
+   the terminal would keep drawing over it. */
+.sessionPrimary {
+  flex: 1 1 auto;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Roughly two fifths, and never so small that the dual-pane browser has no
+   room for a row. `flex-shrink: 0` below that floor means a very short window
+   scrolls the shell rather than crushing the pane into its own header. */
+.filesDock {
+  flex: 0 0 40%;
+  min-height: 18rem;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  border-block-start: 1px solid var(--border-strong);
+  background: var(--bg-canvas);
+}
+
+/* A pane whose tab is not in front. The attribute alone would not do it: the
+   rule above sets `display: flex`, which outranks the user agent's
+   `[hidden] { display: none }`. */
+.filesDock[hidden] {
+  display: none;
 }
 
 .placeholder {

@@ -225,6 +225,48 @@
   border-color: var(--border-focus);
 }
 
+/*
+ * A boolean setting.
+ *
+ * `role="switch"` on a real checkbox rather than a styled button: the platform
+ * control is already in the tab order, already toggles with Space, and already
+ * announces its state. `accent-color` is what makes it look like the rest of
+ * the form without reimplementing any of that.
+ */
+.switchRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1 1 auto;
+  min-height: var(--space-8);
+}
+
+.switch {
+  flex: none;
+  width: var(--space-4);
+  height: var(--space-4);
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+/* The state in words beside it: a switch read by colour alone is not read. */
+.switchState {
+  font-size: var(--text-sm);
+  color: var(--fg-default);
+}
+
+/*
+ * The provenance line under a value this build had to guess at.
+ *
+ * Warning-coloured, unlike every other provenance line, because it is the one
+ * that reports a failure: detection was attempted and did not work, and the
+ * value in place is a stand-in. See `DefaultOrigin::Guessed` in
+ * crates/remoter-proto/src/protocol.rs, which exists to make this sayable.
+ */
+.provenanceGuessed {
+  color: var(--warning);
+}
+
 .readOnlyRow {
   display: flex;
   align-items: center;

@@ -72,6 +72,8 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         commands::node_delete,
         commands::node_move,
         commands::node_resolve,
+        // --- protocol schemas ---
+        commands::protocol_schemas,
         // --- credentials ---
         commands::key_inspect,
         // --- key slots ---
@@ -104,6 +106,8 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         // --- sessions ---
         session::session_open,
         session::session_input,
+        session::session_key,
+        session::session_pointer,
         session::session_resize,
         session::session_close,
         session::session_list,

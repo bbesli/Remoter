@@ -523,6 +523,24 @@ export interface UpdateNode {
   credentialId?: string;
   /** Field names to reset to inherited. */
   clearOverrides?: string[];
+  /**
+   * Protocol settings to write, one entry per key the user touched.
+   *
+   * A sparse patch, and the two cases are different instructions: a string
+   * sets the key on this node, and `null` **removes** this node's own entry so
+   * the key inherits again — the settings equivalent of `clearOverrides`,
+   * which cannot serve here because it names whole inheritable fields and a
+   * settings map inherits key by key.
+   *
+   * Keys this object does not mention are left exactly as they are, so a
+   * setting an importer wrote, or one a newer build knows about, survives a
+   * save from a form that never showed it.
+   *
+   * Values are typed against the adapter's own schema before anything is
+   * written, and a value outside its bounds comes back as
+   * `session.setting-invalid`, naming the key and never the value.
+   */
+  settings?: Record<string, string | null>;
 }
 
 /**
@@ -561,6 +579,93 @@ export interface EffectiveConnection {
    * connection's own instead.
    */
   credentialAttached: boolean;
+}
+
+// --------------------------------------------------- protocol schemas ----
+
+/**
+ * Where a setting's default value came from.
+ *
+ * `"fixed"` — the adapter chose it. `"detected"` — it was read off this
+ * machine. `"guessed"` — the core tried to read it off this machine and could
+ * not, so what is there is a stand-in.
+ *
+ * **A `"guessed"` default has to be said out loud.** The case it exists for is
+ * the RDP keyboard layout: the server decodes this client's scancodes with the
+ * layout the connection names, so a wrong one types the wrong characters and
+ * reports no error at all. A user typing Turkish into a session that assumed
+ * US English needs to be told that the client guessed.
+ */
+export type DefaultOrigin = "fixed" | "detected" | "guessed";
+
+/** What a setting holds, and within what bounds. */
+export type SettingKind =
+  | { type: "text"; maxLen: number }
+  | { type: "integer"; min: number; max: number }
+  | { type: "boolean" }
+  /** The permitted values are in `SettingField.options`, not here. */
+  | { type: "choice" };
+
+/**
+ * How an offered value is named.
+ *
+ * Two cases, because a settings value is named two different ways. A keyboard
+ * layout is prose and belongs to a translator; an RFB version is a wire token
+ * and belongs to nobody. `kind: "message"` goes through `t()`; `kind:
+ * "verbatim"` is shown as it stands and never translated.
+ */
+export type SettingOptionLabel = { kind: "message"; key: string } | { kind: "verbatim"; text: string };
+
+/** One value a setting offers by name. */
+export interface SettingOption {
+  /** The value as stored — what goes back on the wire, not a rendering of it. */
+  value: string;
+  label: SettingOptionLabel;
+}
+
+/** One settings field, as its adapter declares it. */
+export interface SettingField {
+  /**
+   * The key it is stored under — `keyboard_layout`, `rfb_version_min`. The
+   * same key the resolved view carries after its `settings.` prefix, which is
+   * what joins this schema to `EffectiveConnection.fields`. A wire identifier:
+   * never translated.
+   */
+  key: string;
+  /** Catalogue key for the label. Put it through `t()`. */
+  label: string;
+  kind: SettingKind;
+  /** Used when nothing on the inheritance path sets a value. */
+  default: string | null;
+  defaultOrigin: DefaultOrigin;
+  required: boolean;
+  /**
+   * The values worth offering by name. Empty where there are none — a domain
+   * or a working directory has no list.
+   */
+  options: SettingOption[];
+  /**
+   * Whether a value outside `options` is refused.
+   *
+   * True for a `choice`. False for the keyboard layout on purpose: Microsoft
+   * publishes several hundred identifiers, `options` holds the ones worth
+   * listing, and a form has to let the rest be typed in.
+   */
+  optionsAreClosed: boolean;
+}
+
+/**
+ * One protocol's settings, read from the adapter that implements it.
+ *
+ * The editor is meant to render its form from this rather than list the fields
+ * itself: RDP's schema names eight and VNC's names six, and a second list
+ * would agree with the first only until somebody adds a setting.
+ */
+export interface ProtocolSchema {
+  /** `"ssh"`, `"rdp"`, `"vnc"` — the identifier a connection stores. */
+  protocol: string;
+  /** In the order the form should show them. */
+  settings: SettingField[];
 }
 
 export interface SearchHit {
@@ -1284,15 +1389,39 @@ export interface HostKeyPrompt {
   confirmationLen: number | null;
 }
 
-/** Anything else the server asked for mid-handshake. */
+/**
+ * Anything else the server asked for mid-handshake.
+ *
+ * `certificate` is the odd one, and the only one this build can answer. It is
+ * not a request for a value — it is a **first-use trust decision** about the
+ * certificate an RDP server presented, and it is answered with
+ * {@link ipc.decideHostKey} rather than by sending text: `accept` to pin it,
+ * `reject` to end the attempt. `replace` is refused on it, because a
+ * certificate that contradicts a pinned one never arrives this way — the
+ * adapter raises that one as a {@link HostKeyPrompt}, which is the only shape
+ * that can carry both fingerprints for the side-by-side comparison.
+ *
+ * The other three kinds have no command behind them in this build.
+ */
 export interface SessionPrompt {
   promptId: number;
   kind: "password" | "key_passphrase" | "keyboard_interactive" | "certificate";
-  /** The server's text, for keyboard-interactive. Untrusted: never markup. */
+  /** The server's text: the challenge for keyboard-interactive, the address
+   * for a certificate. Untrusted: never markup. */
   text: string;
   /** Whether the answer may be echoed. Honour it — the server marks its own
    * secret questions (RFC 4256 §3.3). */
   echo: boolean;
+  /** `SHA256:…` for the certificate being offered, and `null` for every other
+   * kind. The one value in the prompt the user can check against something the
+   * far end did not also supply, so a certificate dialog shows it or offers no
+   * accept at all. */
+  fingerprint: string | null;
+  /** Why the certificate is not trusted: `self-signed`, `untrusted root`,
+   * `expired`, `name mismatch`, `revoked`, `malformed`, `changed`. A closed
+   * set from the core, so it is translated rather than printed. `null` for
+   * every other kind. */
+  reason: string | null;
 }
 
 /** Progress on something long-running. */
@@ -1724,6 +1853,17 @@ export const ipc = {
     invoke<void>("node_move", { id, parentId, sortOrder }),
   resolveNode: (id: string) => invoke<EffectiveConnection>("node_resolve", { id }),
 
+  // --- protocol schemas ---
+  /**
+   * Every protocol's settings schema, as the adapters declare them.
+   *
+   * The shape of each setting — its type, its bounds, the values it offers by
+   * name, its default and where that default came from. Fixed for the life of
+   * a process, so it is worth caching and never worth invalidating after a
+   * tree change.
+   */
+  protocolSchemas: () => invoke<ProtocolSchema[]>("protocol_schemas"),
+
   // --- credentials ---
   /**
    * What a candidate private key file is, without any of what is in it. Call
@@ -1885,20 +2025,81 @@ export const ipc = {
    * pays for the encoding.
    *
    * **Terminal sessions only.** This is `InputEvent::Bytes`, which is the byte
-   * stream a PTY wants. A framebuffer protocol needs `InputEvent::Key` — a PS/2
-   * scancode, an X11 keysym, modifiers and lock states — or
-   * `InputEvent::Pointer`, and the RDP adapter drops a `Bytes` event while the
-   * VNC adapter refuses it outright. **No command on this surface constructs
-   * either**, so there is no way to send input to a graphical session in this
-   * build, and `features/sessions/FramebufferHost.tsx` says so on screen rather
-   * than capturing keystrokes that would go nowhere.
-   *
-   * The translation those commands will need is written and tested in
-   * `features/sessions/keymap.ts`; what is missing is the command that carries
-   * its output across this boundary.
+   * stream a PTY wants. The RDP adapter drops a `Bytes` event and the VNC
+   * adapter refuses it outright, because a framebuffer protocol's input is keys
+   * and a pointer: {@link sendKey} and {@link sendPointer} are the two commands
+   * for that, and `features/sessions/keymap.ts` is the translation that feeds
+   * them.
    */
   sendInput: (sessionId: number, bytes: Uint8Array) =>
     invoke<void>("session_input", { sessionId, bytes: Array.from(bytes) }),
+  /**
+   * Sends one key transition to a graphical session.
+   *
+   * **Both halves travel, because neither can be derived from the other.** RDP
+   * carries a PS/2 Set 1 make code and lets the server apply the keyboard
+   * layout (MS-RDPBCGR §2.2.8.1.1.3.1.1.1); VNC carries an X11 keysym with the
+   * layout already applied by the client (RFC 6143 §7.5.4). The layout exists
+   * only in this WebView, so this side produces both and each adapter takes the
+   * one it needs.
+   *
+   * Build the arguments with `keyInputFrom` in `features/sessions/keymap.ts`
+   * rather than from a `KeyboardEvent` here: `event.keyCode` is neither a
+   * scancode nor a keysym, and a client that treats it as one types correctly
+   * on a US keyboard and wrongly on a Turkish, German or AZERTY one.
+   *
+   * `keysym` is null for a key that produced no character — a bare modifier, a
+   * function key, a dead key mid-composition — and that event is still worth
+   * sending. `modifiers` is the bit set `remoter_proto::Modifiers` defines, the
+   * three lock states included: RDP synchronises latches explicitly, and a
+   * session that never says "Caps Lock is on" types in capitals until someone
+   * works out why.
+   *
+   * Subject to the input freeze, and rejected with `session.frozen` while the
+   * vault is locked under that policy — exactly as {@link sendInput} is.
+   */
+  sendKey: (
+    sessionId: number,
+    key: { scancode: number; keysym: number | null; modifiers: number; pressed: boolean },
+  ) =>
+    invoke<void>("session_key", {
+      sessionId,
+      scancode: key.scancode,
+      keysym: key.keysym,
+      modifiers: key.modifiers,
+      pressed: key.pressed,
+    }),
+  /**
+   * Sends one pointer state to a graphical session.
+   *
+   * A full state rather than a transition: `buttons` is which buttons are down
+   * *now*, which is what both protocols put on the wire. Back and forward are
+   * in the set; the VNC adapter drops them because RFB has nowhere to put them,
+   * and the RDP adapter sends them as `PTRXFLAGS_BUTTON1` and `2`.
+   *
+   * `x` and `y` are **remote display coordinates**, not canvas ones — the tab's
+   * scale and the device pixel ratio already divided out. `remotePoint` in
+   * `features/sessions/scaling.ts` is that division, and it belongs on this
+   * side because only this side knows what it drew.
+   *
+   * Both wheel axes are carried, in notches of 120. A horizontal wheel is a
+   * different axis, not a different sign.
+   *
+   * Subject to the input freeze, for the reason a keyboard is: a pointer at an
+   * unattended machine can close a window and click Confirm.
+   */
+  sendPointer: (
+    sessionId: number,
+    pointer: { x: number; y: number; buttons: number; wheel: number; wheelX: number },
+  ) =>
+    invoke<void>("session_pointer", {
+      sessionId,
+      x: pointer.x,
+      y: pointer.y,
+      buttons: pointer.buttons,
+      wheel: pointer.wheel,
+      wheelX: pointer.wheelX,
+    }),
   /**
    * Tells the far end the tab changed size.
    *

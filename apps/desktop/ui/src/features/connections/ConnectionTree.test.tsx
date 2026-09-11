@@ -202,6 +202,26 @@ describe("the sidebar in Turkish", () => {
     expect(screen.queryByRole("treeitem", { name: /web-02/ })).not.toBeInTheDocument();
   });
 
+  it("finds a machine by its protocol, as the import preview already did", async () => {
+    // The filter's own comment listed the protocol among the identifiers that
+    // fold invariantly; the haystack did not contain it, so `rdp` matched
+    // nothing here while matching every row in the import preview. Typed in
+    // capitals under Turkish rules to pin both halves at once: the query and
+    // the value have to be folded the same invariant way, or `RDP` and `rdp`
+    // part company on the dotless i's neighbours.
+    ipcMock.listNodes.mockResolvedValue([
+      node({ id: "gw", name: "Berlin geçidi", protocol: "rdp", host: "gw.corp" }),
+      node({ id: "other", name: "web-02", protocol: "ssh", host: "web-02.corp" }),
+    ]);
+    await switchToTurkish();
+    renderTree();
+    await screen.findByRole("treeitem", { name: /Berlin/ });
+
+    await userEvent.type(screen.getByRole("textbox"), "RDP");
+    expect(screen.getByRole("treeitem", { name: /Berlin/ })).toBeInTheDocument();
+    expect(screen.queryByRole("treeitem", { name: /web-02/ })).not.toBeInTheDocument();
+  });
+
   it("still reads a favourite tag written in capitals", async () => {
     // The tag is an ASCII flag this application defines, not a word in the
     // reader's language: folded under Turkish rules "FAVOURITE" becomes
