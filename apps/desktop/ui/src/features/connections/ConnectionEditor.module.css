@@ -1,0 +1,429 @@
+/*
+ * The connection editor.
+ *
+ * Two visual states, one rule, taken from the design: a dashed border and
+ * muted text mean the value is inherited; a solid border means it is set on
+ * this node. The line under every field names the source.
+ */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: var(--space-10) var(--space-4) var(--space-8);
+  background: var(--bg-overlay);
+  overflow-y: auto;
+}
+
+.dialog {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 46rem;
+  max-height: 100%;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-3);
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.headerGlyph {
+  display: flex;
+  align-items: center;
+  color: var(--accent);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--fg-default);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.path {
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.headerSpacer {
+  flex: 1 1 auto;
+}
+
+.close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--space-6);
+  height: var(--space-6);
+  border-radius: var(--radius-sm);
+  color: var(--fg-muted);
+}
+
+.close:hover {
+  background: var(--bg-elevated);
+  color: var(--fg-default);
+}
+
+.body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-5) var(--space-6) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.sectionTitle {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+}
+
+.rule {
+  height: 1px;
+  background: var(--border-default);
+}
+
+.control {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.controlGrow {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.controlNarrow {
+  flex: none;
+  width: 7rem;
+}
+
+/* An inherited value is shown, not edited: the box reads as a quotation. */
+.inheritedBox {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: var(--space-8);
+  padding: 0 var(--space-3);
+  background: var(--bg-inset);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.inheritedMono {
+  font-family: var(--font-mono);
+}
+
+.inheritedEmpty {
+  color: var(--fg-subtle);
+  font-style: italic;
+}
+
+.provenance {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  min-width: 0;
+}
+
+.provenanceDot {
+  flex: none;
+  width: var(--space-1);
+  height: var(--space-1);
+  border-radius: var(--radius-full);
+  background: var(--accent);
+}
+
+.provenanceGlyph {
+  display: flex;
+  align-items: center;
+  flex: none;
+  color: var(--warning);
+}
+
+.source {
+  color: var(--fg-strong);
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+/*
+ * The line that says a choice has a consequence: typing a username here gives
+ * this connection a login of its own rather than editing the one it inherits.
+ *
+ * Deliberately quiet — no warning colour, no icon. The user is doing something
+ * reasonable and nothing is at risk; they only need to know that the folder's
+ * credential is not being changed under them. A warning tone here would say
+ * the opposite of what is true.
+ */
+/* Logical, not physical: the rule sits at the inline start of the text it
+   annotates, which is the right-hand side in Arabic. The two physical
+   properties this replaced were the only ones left in the frontend. */
+.consequence {
+  margin: 0;
+  padding-inline-start: var(--space-2);
+  border-inline-start: 2px solid var(--border-strong);
+  color: var(--fg-muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+}
+
+.select {
+  min-height: var(--space-8);
+  padding: 0 var(--space-2);
+  background: var(--bg-inset);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  color: var(--fg-default);
+  font-size: var(--text-sm);
+}
+
+.select:focus-visible {
+  border-color: var(--border-focus);
+}
+
+/*
+ * A boolean setting.
+ *
+ * `role="switch"` on a real checkbox rather than a styled button: the platform
+ * control is already in the tab order, already toggles with Space, and already
+ * announces its state. `accent-color` is what makes it look like the rest of
+ * the form without reimplementing any of that.
+ */
+.switchRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1 1 auto;
+  min-height: var(--space-8);
+}
+
+.switch {
+  flex: none;
+  width: var(--space-4);
+  height: var(--space-4);
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+/* The state in words beside it: a switch read by colour alone is not read. */
+.switchState {
+  font-size: var(--text-sm);
+  color: var(--fg-default);
+}
+
+/*
+ * The provenance line under a value this build had to guess at.
+ *
+ * Warning-coloured, unlike every other provenance line, because it is the one
+ * that reports a failure: detection was attempted and did not work, and the
+ * value in place is a stand-in. See `DefaultOrigin::Guessed` in
+ * crates/remoter-proto/src/protocol.rs, which exists to make this sayable.
+ */
+.provenanceGuessed {
+  color: var(--warning);
+}
+
+.readOnlyRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/*
+ * The authentication chooser.
+ *
+ * The three options are a list rather than a row of tabs: they are ordered by
+ * increasing exposure, and a vertical list is the only arrangement in which
+ * that order reads as an order. Each carries its own sentence, so the rows are
+ * two lines and the selected one opens beneath itself.
+ */
+.authOptions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.authOption {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--bg-inset);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.authOption:hover {
+  border-color: var(--border-strong);
+}
+
+.authOptionActive {
+  background: var(--accent-tint);
+  border-color: var(--accent);
+}
+
+.authRadio {
+  flex: none;
+  margin: 0;
+  margin-block-start: var(--space-1);
+  accent-color: var(--accent);
+}
+
+.authText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.authTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--fg-default);
+}
+
+.authBody {
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  line-height: var(--leading-normal);
+}
+
+/* Indented under the option it belongs to, so the fields read as part of that
+   choice rather than as part of the form. */
+.authDetail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-inline-start: var(--space-6);
+  padding-inline-start: var(--space-3);
+  border-inline-start: 1px solid var(--border-default);
+}
+
+.keyRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+}
+
+.keyName {
+  font-family: var(--font-mono);
+  color: var(--fg-strong);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 22rem;
+}
+
+.keyMeta {
+  font-size: var(--text-xs);
+  color: var(--fg-subtle);
+}
+
+/* The key file is chosen by a button rather than typed into a field, so its
+   error has no Field to live under. */
+.fieldError {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--danger-text);
+}
+
+.tagList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: none;
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border-default);
+  background: var(--bg-canvas);
+}
+
+.footerNote {
+  font-size: var(--text-xs);
+  color: var(--fg-subtle);
+}
+
+.footerSpacer {
+  flex: 1 1 auto;
+}
+
+.loading {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-4);
+  padding: var(--space-8);
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+}
+
+/* Field-sized blocks, so the dialog does not resize when the real form
+   replaces them. */
+.loadingFields {
+  display: flex;
+  flex-direction: column;
+}
+
+/* The discard question replaces the footer note rather than opening a second
+   dialog over the first: one modal, one focus trap, one Escape. */
+.discardQuestion {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--danger-text);
+}

@@ -67,6 +67,40 @@ user is told so and pointed at the rolling backups. That distinction only
 becomes visible *after* a slot has been successfully unwrapped, so it leaks
 nothing to someone who cannot already open the vault.
 
+### Refusals on an open vault are specific, and must be
+
+Re-wrapping a slot — changing a password, upgrading a slot's Argon2id cost,
+rotating the master key — verifies the offered credential against the slot it
+names before replacing anything, and every one of those operations runs on a
+vault that is already open. The rule above therefore does not apply to them: the
+caller has already proved they hold a credential, so the refusal says what it
+knows.
+
+Three things it must distinguish, because they are three different problems and
+"that does not open key slot 0" is actionable for none of them:
+
+- **The key file could not be read.** A key file contributes
+  `BLAKE3(file_bytes)`, so reading it is a step that fails on its own — a
+  removable drive that dropped, a synchronised file whose local copy is no
+  longer materialised, a path that has become a directory, a file past the
+  64 MiB cap. This is reported as a key file failure. It is *not* a wrong
+  credential, and reporting it as one tells an owner their password is wrong
+  when it never was.
+- **The credential is for another slot.** An unlock tries every slot of the
+  method's kind; a re-wrap verifies the one it was given. On a vault holding
+  more than one password, "the credential that has this vault open" and "the
+  credential for this slot" are different claims. The vault knows which slot the
+  session was opened through, and says so.
+- **The credential is simply wrong** — including a key file at the right path
+  whose contents are not the enrolled ones. A vault that is already open is no
+  evidence about a key file: its master key was unwrapped earlier in the
+  session, and the file is not read again until a re-wrap asks for it.
+
+What stays absolute is the check itself. A slot is re-wrapped only when the
+offered credential unwraps *that* slot to the master key the session is holding;
+a rewrap without that check destroys the only copy of the master key the slot
+held, and the owner finds out at the next unlock.
+
 ## Auto-lock
 
 Locking is real: it zeroizes the VMK, the CEK, the SEK and every cached

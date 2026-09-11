@@ -106,6 +106,20 @@ physical pixel size so text is sharp rather than upscaled.
 The mapping tables are tested against Turkish Q and F, German, French AZERTY,
 Spanish, Russian and Arabic layouts.
 
+**Keyboard layout**: RDP sends scancodes and the *server* decodes them, using
+the identifier the client names once in the Client Core Data
+(MS-RDPBCGR §2.2.1.3.2). Naming the wrong one types the wrong characters and
+reports no fault, so the identifier is a setting on the connection —
+inheritable from a folder like any other — and its default is **read from the
+machine the user is sitting at** rather than fixed. Windows is asked for the
+layout it has configured; elsewhere the active X keyboard layout, or failing
+that the locale, is mapped onto a Microsoft identifier. Where none of that
+answers, the session falls back to US English **and says so** on screen: a
+guess that announces itself is recoverable and a silent one is not. The picker
+offers the layouts worth listing by name — Turkish Q and Turkish F are two of
+them, and they are two different identifiers — and accepts any other
+identifier typed in, because Microsoft publishes several hundred.
+
 **Gateway**: RD Gateway support is planned for v1.1. Until then, RDP through an
 SSH bastion works today via the gateway chain, which covers most of the same
 need.

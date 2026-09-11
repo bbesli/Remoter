@@ -1,0 +1,83 @@
+/* These sit inside the status bar's own flex row, so they only style
+   themselves — the bar owns the height, the padding and the type scale. */
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-full);
+  flex: none;
+}
+
+.dot[data-state="connected"] {
+  background: var(--state-connected);
+}
+
+.dot[data-state="connecting"] {
+  background: var(--state-connecting);
+}
+
+.dot[data-state="failed"] {
+  background: var(--state-failed);
+}
+
+.dot[data-state="idle"] {
+  background: var(--state-locked);
+}
+
+.state {
+  color: var(--fg-strong);
+  font-weight: 500;
+  white-space: nowrap;
+  flex: none;
+}
+
+.sep {
+  color: var(--border-default);
+  flex: none;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-variant-ligatures: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: none;
+}
+
+.hops {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.spacer {
+  flex: 1;
+  min-width: var(--space-2);
+}
+
+.note {
+  color: var(--fg-subtle);
+  white-space: nowrap;
+  flex: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 24ch;
+}
+
+.recording {
+  color: var(--state-recording);
+  white-space: nowrap;
+  flex: none;
+}
+
+.verified {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--success);
+  white-space: nowrap;
+  flex: none;
+}

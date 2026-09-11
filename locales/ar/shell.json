@@ -1,0 +1,174 @@
+{
+  "_comment_file": "The application shell: title bar, tab strip, status bar, footer, inspector, and the two full-area states (empty vault, locked vault). Loaded before the first paint, because it is on screen whenever the window is.",
+
+  "titleBar": {
+    "_comment_": "A 38px bar. Every label here is also a tooltip, so short wins — but a disabled control's tooltip says WHY, because 'why not?' is the only question a dead button raises.",
+    "noVault": "لا توجد خزنة مفتوحة",
+    "unlocked": "مفتوحة",
+    "locked": "مقفلة",
+    "lock": "قفل الخزنة",
+    "lockAlreadyLocked": "لا توجد خزنة مفتوحة لقفلها.",
+    "lockInProgress": "جارٍ قفل الخزنة…",
+    "_comment_lockingShort": "Shown in the bar itself, where there is room for one word. The tooltip carries lockInProgress.",
+    "lockingShort": "جارٍ القفل…",
+    "settings": "الإعدادات",
+    "vaultSettings": "إعدادات الخزنة",
+    "audit": "سجل التدقيق",
+    "importer": "استيراد الاتصالات",
+    "_comment_needsVault": "{action} is one of the four labels above. Interpolated rather than concatenated: languages differ on where the subject of this sentence goes.",
+    "needsVault": "يتطلب «{action}» خزنة مفتوحة.",
+    "minimise": "تصغير",
+    "maximise": "تكبير",
+    "restore": "استعادة الحجم",
+    "close": "إغلاق",
+    "_comment_controlFailed": "SECURITY-ADJACENT. The window controls are the one place where doing nothing is indistinguishable from being broken. Do not soften this into 'something went wrong'.",
+    "controlFailed": "رفض مدير النوافذ تنفيذ «{action}».",
+    "noWindow": "هذه الصفحة لا تعمل داخل نافذة Remoter، فلا تفعل أزرار التحكم بالنافذة شيئًا هنا."
+  },
+
+  "tabStrip": {
+    "sidebarShow": "إظهار شجرة الاتصالات",
+    "sidebarHide": "إخفاء شجرة الاتصالات",
+    "noSessions": "لا توجد جلسات مفتوحة — انقر نقرًا مزدوجًا على اتصال لبدء واحدة",
+    "_comment_inspector": "Ctrl-free: F4 is a bare function key and is written as-is in every language.",
+    "inspector": "القيم الفعلية · F4",
+    "_comment_filesOpen": "The control that opens a file pane under the session in front. The four 'filesNo…' / 'filesNot…' sentences are the reasons it is doing nothing, one per reason: a disabled control has to say WHY, and 'unavailable' is not a reason. A file pane is one more channel on a connection that has already authenticated, never a second sign-in, which is why three of the four are about the session rather than about the pane.",
+    "filesOpen": "تصفّح ملفات هذه الجلسة",
+    "filesClose": "إغلاق لوحة الملفات",
+    "filesNoSession": "تصفّح الملفات يحتاج إلى جلسة مفتوحة. انقر نقرًا مزدوجًا على اتصال لبدء واحدة.",
+    "filesNotRunning": "هذه الجلسة غير متصلة، فلا يوجد اتصال يُتصفَّح عبره.",
+    "_comment_filesNoFileChannel": "SSH and SFTP are never translated. Names the reason rather than saying the button is unavailable.",
+    "filesNoFileChannel": "هذه الجلسة لا تحمل ملفات. يعمل SFTP فوق SSH، وجلسة RDP أو VNC لا قناة ملفات فيها.",
+    "filesIsFileSession": "هذا التبويب جلسة ملفات بالفعل."
+  },
+
+  "statusBar": {
+    "nothingSelected": "لا شيء محدد",
+    "noSession": "لا توجد جلسة",
+    "resolving": "جارٍ استخلاص القيم الموروثة…",
+    "unresolved": "لم تُستخلص القيم الفعلية بعد",
+    "_comment_protocolUnset": "Sits where SSH, RDP, VNC or SFTP would. Lower case: it is the absence of a protocol, not the name of one.",
+    "protocolUnset": "بلا بروتوكول",
+    "showDetail": "عرض سبب الإخفاق في لوحة القيم الفعلية"
+  },
+
+  "footer": {
+    "_comment_": "Counts. Every one is a plural: Russian needs four forms here and Arabic six, and the zero case is worth its own wording in the languages that have one.",
+    "sessions": "{count, plural, zero {لا جلسات} one {جلسة واحدة} two {جلستان} few {# جلسات} many {# جلسة} other {# جلسة}}",
+    "tunnels": "{count, plural, zero {لا أنفاق} one {نفق واحد} two {نفقان} few {# أنفاق} many {# نفقًا} other {# نفق}}",
+    "connections": "{count, plural, zero {لا اتصالات} one {اتصال واحد} two {اتصالان} few {# اتصالات} many {# اتصالًا} other {# اتصال}}",
+    "credentials": "{count, plural, zero {لا بيانات اعتماد} one {مجموعة بيانات اعتماد واحدة} two {مجموعتا بيانات اعتماد} few {# مجموعات بيانات اعتماد} many {# مجموعة بيانات اعتماد} other {# مجموعة بيانات اعتماد}}",
+    "openPanels": "فتح لوحة الجلسات والأنفاق",
+    "_comment_locksIn": "{clock} is mm:ss, produced by formatClock() so the digits follow the locale's numbering system.",
+    "locksIn": "تُقفل الخزنة خلال {clock}",
+    "noAutoLock": "القفل التلقائي معطّل",
+    "_comment_vaultLocked": "SECURITY-ADJACENT. Sits where the auto-lock countdown goes. It exists because the countdown is null in two different situations - auto-lock switched off, and the vault LOCKED - and the footer used to say 'auto-lock is off' at the exact moment auto-lock had just fired. Lower case, like the counts beside it.",
+    "vaultLocked": "الخزنة مقفلة"
+  },
+
+  "inspector": {
+    "title": "القيم الفعلية",
+    "close": "إغلاق لوحة القيم الفعلية",
+    "nothingSelected": "لا شيء محدد",
+    "nothingSelectedBody": "اختر اتصالًا من الشجرة لعرض إعداداته بعد استخلاصها.",
+    "notAConnection": "المجلدات لا تملك قيمًا فعلية خاصة بها.",
+    "notAConnectionBody": "ما يضبطه المجلد يظهر على الاتصالات التي تحته، بوصفه مصدر القيمة الموروثة.",
+    "resolving": "جارٍ الاستخلاص",
+    "failed": "تعذّر استخلاص قيم هذا الاتصال",
+    "retry": "إعادة الاستخلاص",
+    "notAsked": "لم تُطلب القيم الفعلية",
+    "notAskedBody": "يجري الاستخلاص مقابل خزنة مفتوحة. وهذه الخزنة مقفلة، فلا يوجد ما يُستخلص منه بعد.",
+    "_comment_unset": "The value of a field nobody has set, anywhere in the inheritance chain.",
+    "unset": "غير مضبوط",
+    "_comment_setHere": "Provenance labels, shown under a resolved field. 'set here' means this connection's own value; the others name where an inherited value came from. Lower case: they are fragments under a value, not sentences.",
+    "setHere": "مضبوط هنا",
+    "fromDefault": "افتراضي البروتوكول",
+    "inherited": "موروث",
+    "_comment_fromSource": "{source} is a folder or connection name — user data, in any script, isolated before it arrives.",
+    "fromSource": "من {source}",
+    "_comment_overridesInherited": "{field} is a field name such as 'port' or 'username'. This is the case worth calling out: the tree above says something different from what will actually be used.",
+    "overridesInherited": "يتجاوز {field} الموروث",
+    "credentialOwn": "خاصة بهذا الاتصال",
+    "credentialShared": "مضبوطة هنا · مشتركة مع عناصر أخرى",
+    "gateway": "سلسلة البوابات",
+    "tags": "الوسوم",
+    "noFields": "لا يُستخلص من هذا الاتصال أي حقل."
+  },
+
+  "emptyVault": {
+    "title": "هذه الخزنة فارغة",
+    "_comment_body": "{vault} is the vault file's name, which is user data and may be in any script. It is wrapped in a Unicode isolate before it gets here, so the sentence keeps its own direction whatever the name contains.",
+    "body": "لا شيء مخزّن في {vault} حتى الآن. يبدأ معظم الناس بنقل ما لديهم بالفعل.",
+    "unnamedVault": "هذه الخزنة",
+    "importTitle": "استيراد من أداة أخرى",
+    "_comment_importBody": "Product and file names. Not translated.",
+    "importBody": "mRemoteNG, ~/.ssh/config, CSV",
+    "createTitle": "إنشاء أول اتصال",
+    "createBody": "مضيف وبروتوكول وبيانات اعتماد تكفي للبدء.",
+    "createBusy": "جارٍ فتح محرر الاتصالات…",
+    "openTitle": "فتح خزنة أخرى",
+    "openBody": "يقفل هذه الخزنة ويعود إلى قائمة اختيار الخزنة.",
+    "openBusy": "جارٍ قفل هذه الخزنة…",
+    "openFailed": "لم تُقفل هذه الخزنة، فلم تُفتح قائمة الاختيار."
+  },
+
+  "main": {
+    "nothingSelected": "لا شيء محدد",
+    "_comment_nothingSelectedBody": "Ctrl+K is a key name. Translate the sentence around it, not the key.",
+    "nothingSelectedBody": "اختر اتصالًا من الشجرة، أو اضغط Ctrl+K للبحث عن واحد.",
+    "noProtocol": "بلا بروتوكول",
+    "_comment_sidebarLabel": "The accessible name of the connection tree's landmark region. Read aloud when a screen reader lists the regions of the window.",
+    "sidebarLabel": "الاتصالات",
+    "_comment_nodeKind": "What a selected tree entry is, shown above its name where a connection shows its protocol. These are the node kinds from the domain model; they are shown to the user, so they are translated, unlike the protocol names beside them.",
+    "nodeKind": {
+      "folder": "مجلد",
+      "connection": "اتصال",
+      "credential": "بيانات اعتماد",
+      "group": "مجموعة",
+      "separator": "فاصل"
+    },
+    "connectHint": "انقر عليه نقرًا مزدوجًا في الشجرة، أو اضغط Enter في لوحة الأوامر، أو استخدم «اتصال» من قائمة السياق.",
+    "folderSelected": "تحمل المجلدات إعدادات ترثها الاتصالات التي تحتها.",
+
+    "vaultStateFailed": "يتعذّر على Remoter معرفة ما إذا كانت هناك خزنة مفتوحة.",
+    "treeFailed": "تعذّرت قراءة شجرة الاتصالات.",
+    "lockFailed": "لم تُقفل الخزنة.",
+
+    "fullscreenFailedTitle": "لم تنتقل النافذة إلى ملء الشاشة.",
+    "fullscreenFailedBody": "رفض مدير النوافذ ذلك، أو أن هذه الصفحة لا تعمل داخل نافذة Remoter. لم يتغير شيء في الجلسة.",
+
+    "checkingVault": "جارٍ التحقق مما إذا كانت هناك خزنة مفتوحة…",
+    "readingTree": "جارٍ قراءة الاتصالات من الخزنة…",
+    "_comment_lockedLeaving": "The one frame between the application noticing the vault has locked and the unlock screen replacing this window. Nothing of the vault is drawn behind it, which is the point: this is what the shell says while it is taking the connection tree off the screen.",
+    "lockedLeaving": "يجري مسح محتوى الخزنة من هذه النافذة…"
+  },
+
+  "kdfUpgrade": {
+    "_comment_": "SECURITY-CRITICAL SECTION. This is the offer to strengthen a vault's key derivation. Do not soften 'weaker than the current standard' into 'could be improved', and do not drop the sentence explaining why the password is asked for again — a credential prompt without a stated reason is exactly what a phishing dialog looks like.",
+    "offer": "اشتقاق المفتاح في هذه الخزنة أضعف من المعيار الحالي. تقويته يستغرق لحظة ولا يحتاج إلى كلمة مرور جديدة.",
+    "strengthen": "قوِّه",
+    "notNow": "ليس الآن",
+    "dismissLabel": "تجاهل هذا الاقتراح حتى فتح القفل التالي",
+
+    "password": "كلمة المرور الرئيسية",
+    "passwordHelp": "نفس كلمة المرور التي فتحت بها القفل للتو. تُعاد بناء كل فتحة مفتاح حولها، فلا بد من إدخالها مرة أخرى.",
+    "confirm": "تقوية",
+    "_comment_working": "Short enough that reserving room for it does not widen the idle button.",
+    "working": "جارٍ التقوية…",
+    "workingStage": "جارٍ اشتقاق المفتاح من جديد، بالتكلفة الأقوى…",
+
+    "reading": "جارٍ قراءة ترويسة الخزنة…",
+    "readFailed": "تعذّرت قراءة ترويسة هذه الخزنة، فلا يمكن تقوية فتحات المفاتيح.",
+
+    "keyfile": "ملف المفتاح",
+    "keyfileMissing": "تحتاج فتحة كلمة المرور في هذه الخزنة إلى ملف مفتاحها أيضًا.",
+    "keyfileDialog": "اختر ملف المفتاح لهذه الخزنة",
+    "keyfileDialogFailed": "لم يُفتح متصفح ملفات النظام، فلم يُختر أي ملف مفتاح. ولم يُرسل شيء إلى الخزنة.",
+
+    "failed": "لم تُقوَّ فتحات المفاتيح.",
+    "done": "تم. فتحات المفاتيح في هذه الخزنة عند التكلفة الحالية.",
+
+    "blockedPassword": "اكتب كلمة المرور الرئيسية.",
+    "blockedKeyfile": "اختر ملف المفتاح الذي تحتاجه هذه الخزنة."
+  }
+}

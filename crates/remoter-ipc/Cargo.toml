@@ -1,0 +1,64 @@
+[package]
+name = "remoter-ipc"
+description = "Tauri command surface — the seam between the interface and the core"
+license = "GPL-3.0-or-later"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[features]
+default = []
+# Tests that open a real session against the development sshd in
+# `scripts/dev-sshd.sh`. Off by default: they need a server.
+integration-tests = []
+
+[dependencies]
+remoter-core.workspace = true
+remoter-vault.workspace = true
+remoter-proto.workspace = true
+remoter-proto-ssh.workspace = true
+# The framebuffer adapters. `session_open` names every protocol it can open, so
+# it has to be able to name these two; without them here the gate could only
+# refuse them.
+remoter-proto-rdp.workspace = true
+remoter-proto-vnc.workspace = true
+remoter-import.workspace = true
+
+serde.workspace = true
+serde_json.workspace = true
+uuid.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tokio.workspace = true
+# The cancellation token a tunnel is stopped with. A tunnel has no session
+# handle to borrow one from.
+tokio-util = { version = "0.7", features = ["rt"] }
+# `InputEvent::Bytes` is a `Bytes`, so the keystroke path does not copy on the
+# way through the command channel.
+bytes = "1"
+# The update check's HTTP client, and the only outbound request in the product
+# that is not a session the user opened. Blocking and small on purpose: one
+# request on the blocking pool needs no async TLS stack, and `reqwest`'s rustls
+# feature would pull aws-lc-rs — a second, C, cryptographic implementation into
+# a process that already holds one. `ureq`'s rustls uses `ring`, which
+# `deny.toml` already clarifies. MIT OR Apache-2.0.
+ureq = { version = "3", default-features = false, features = ["rustls", "gzip"] }
+parking_lot.workspace = true
+directories.workspace = true
+getrandom.workspace = true
+# Buffers holding a candidate password or a generated passphrase are wiped on
+# drop rather than left in freed heap (threat model T8: another process running
+# as the same user).
+zeroize.workspace = true
+
+tauri = { version = "2", features = [] }
+
+[dev-dependencies]
+# The integration tests connect a plain socket through a forward, which needs
+# the parts of `tokio` the library itself does not use.
+tokio = { workspace = true, features = ["full"] }
+
+[lints]
+workspace = true

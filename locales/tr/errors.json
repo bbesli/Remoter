@@ -1,0 +1,1183 @@
+{
+  "_comment_file": "Every failure the core can hand the interface, keyed by the stable `code` on `IpcError`. The codes are raised all over `crates/remoter-ipc` — error.rs, session.rs, sftp.rs, tunnel.rs, commands.rs, state.rs, bridge.rs, vault_admin.rs, import.rs, recents.rs, audit.rs — and `src/i18n/failures.catalogue.test.ts` reads every one of those files, so a code with no entry here is a failing build rather than a sentence that turns up in English months later. The code is the join: the core sends a code, a sentence, an optional diagnostic and an ordered list of next actions, and this file supplies the sentence and the actions in the reader's language. Six rules for anyone editing this file. (1) `actions` is positional: the order is the order the core offered, and a label is used only when the entry has one at that position. (2) The `action` object at the end of this file is the shared lexicon, keyed by what the action means rather than by the failure it belongs to. Two kinds of entry rely on it and carry no `actions` of their own: every `session.*` failure, whose actions the core composes from a fixed set (`action_text` in session.rs) in an order that depends on what actually failed; and a code the core raises from several places with a different button each time, where one positional label would be the wrong sentence for every other arm. The lexicon labels those by the sentence the core sent. Positional labels still win where an entry has them. (3) No sentence here may quote a password, a passphrase, a key or any other secret — a failure is the one moment an implementation is tempted to say what it was given. (4) The sentences carry no placeholders. The core fills its own sentence with the specifics (a path, a slot number, a byte offset) and those cannot be recovered from the finished string, so each sentence here is written to stay true without them; an English reader is shown the core's own sentence, specifics and all, and every other language is shown this one. (5) A message says what failed and what the reader can do about it. 'An error occurred' is never an acceptable translation of anything below. (6) A few entries deliberately carry no `message` at all, and say so in a `_comment_`: for those the core composes the only description of what happened, so the reader is shown that sentence rather than a generalisation of it.",
+  "unknown": {
+    "_comment_": "Not a code the core sends: `asFailure` in apps/desktop/ui/src/lib/ipc.ts uses it when a rejection arrives with no shape at all — a panic inside a command, or a transport failure below Tauri. It is the last sentence in the application and should never be reached.",
+    "message": "Bir şeyler ters gitti."
+  },
+  "vault": {
+    "locked": {
+      "message": "Açık kasa yok. Bağlantılarınızı görmek için bir kasanın kilidini açın.",
+      "actions": [
+        "Bir kasanın kilidini aç"
+      ]
+    },
+    "auto-locked": {
+      "message": "Kasa, belirlediğiniz boşta kalma süresinin sonunda kendini kilitledi. Devam etmek için kilidini açın.",
+      "actions": [
+        "Kasanın kilidini aç",
+        "Ayarlardan zaman aşımını değiştir"
+      ]
+    },
+    "locked-by-trigger": {
+      "message": "Kasa, kilitlenmesini istediğiniz bir olay gerçekleştiği için kendini kilitledi. Devam etmek için kilidini açın.",
+      "actions": [
+        "Kasanın kilidini aç",
+        "Kasa ayarlarında neyin kilitleyeceğini değiştir"
+      ]
+    },
+    "_comment_unlock-failed": "SECURITY-CRITICAL. This sentence must not say which factor was wrong, and a translation must not add that either: before a key slot has unwrapped the master key, naming the password or the key file as the wrong one tells an attacker which half they have already guessed. See the module docs in crates/remoter-ipc/src/error.rs.",
+    "unlock-failed": {
+      "message": "Bu, kasanın kilidini açmadı.",
+      "actions": [
+        "Yeniden dene",
+        "Bu kasa bir anahtar dosyası kullanıyorsa onu denetle",
+        "Kurtarma anahtarını kullan"
+      ]
+    },
+    "header-tampered": {
+      "message": "Bu kasanın başlığı yazıldığından bu yana değiştirilmiş, bu yüzden içeriğine güvenilemez.",
+      "actions": [
+        "Kasanın yanındaki bir yedeği aç",
+        "Bir eşitleme istemcisinin dosyayı yeniden yazıp yazmadığını denetle"
+      ]
+    },
+    "body-corrupt": {
+      "message": "Bu kasanın içeriği çözülemedi. Dosya hasarlı.",
+      "actions": [
+        "Kasanın yanındaki bir yedeği aç",
+        "Kasanın bulunduğu sürücüyü denetle"
+      ]
+    },
+    "no-such-method": {
+      "message": "Bu kasa o kilit açma yöntemini sunmuyor.",
+      "actions": [
+        "Bu kasanın sunduğu yöntemlerden birini seç"
+      ]
+    },
+    "_comment_fido2-unsupported": "The core sends this code both when a hardware key is offered as a way in and when one is added as a key slot, so the sentence has to stay true of both. It has no `actions` of its own for the same reason: the two arms offer differently worded buttons, and the shared `action` lexicon at the end of this file labels whichever one the core sent.",
+    "fido2-unsupported": {
+      "message": "Donanım anahtarıyla kilit açma, Remoter'ın bu sürümünde uygulanmadı."
+    },
+    "not-a-vault": {
+      "message": "Bu dosya bir Remoter kasası değil.",
+      "actions": [
+        "Bir .rvault dosyası seç",
+        "Yeni bir kasa oluştur"
+      ]
+    },
+    "unsupported-format": {
+      "message": "Bu kasa, Remoter'ın bu yapısının okumadığı bir kasa biçimi sürümü kullanıyor.",
+      "actions": [
+        "Remoter'ı güncelle",
+        "Kasayı, onu yazan makinede aç"
+      ]
+    },
+    "corrupt": {
+      "message": "Bu kasa hasarlı: yapısı okunamadı.",
+      "actions": [
+        "Kasanın yanındaki bir yedeği aç"
+      ]
+    },
+    "corrupt-row": {
+      "message": "Bu kasa, Remoter'ın bu yapısının okuyamadığı bir kayıt içeriyor.",
+      "actions": [
+        "Kasanın yanındaki bir yedeği aç",
+        "Remoter'ı güncelle"
+      ]
+    },
+    "header-encode": {
+      "message": "Bu kasanın başlığı kodlanamadı, bu yüzden yazılmadı.",
+      "actions": [
+        "Bunu bildir — diskteki kasa değişmedi"
+      ]
+    },
+    "crypto": {
+      "message": "Bu kasa üzerinde bir şifreleme adımı başarısız oldu, bu yüzden işlemden vazgeçildi.",
+      "actions": [
+        "Yeniden dene",
+        "Sürerse bunu bildir"
+      ]
+    },
+    "kdf-too-weak": {
+      "message": "Bu Argon2id parametreleri Remoter'ın kabul ettiği alt sınırın altında; daha zayıf bir kasa, daha hızlı bir kilit açma için kabul edilebilir bir takas değil.",
+      "actions": [
+        "Ölçülen parametreleri kullan"
+      ]
+    },
+    "kdf-params-refused": {
+      "message": "Bu kasa, bu yapının deneyeceğinin üzerinde Argon2id parametreleri bildiriyor. Hiçbir anahtar türetilmedi.",
+      "actions": [
+        "Kasayı, onu yazan makinede aç",
+        "Remoter'ı güncelle",
+        "Kasanın yanındaki bir yedeği aç"
+      ]
+    },
+    "no-such-slot": {
+      "message": "Bu kasada böyle bir anahtar yuvası yok.",
+      "actions": [
+        "Yuva listesini yeniden yükle"
+      ]
+    },
+    "no-slot-of-kind": {
+      "message": "Bu kasada o türden bir yuva yok.",
+      "actions": [
+        "Önce o kilit açma yöntemini ekle"
+      ]
+    },
+    "slot-table-full": {
+      "message": "Bu kasa, izin verilen en fazla sayıda anahtar yuvasını zaten içeriyor.",
+      "actions": [
+        "Artık kullanmadığın bir kilit açma yöntemini kaldır"
+      ]
+    },
+    "last-slot": {
+      "message": "Bu, bu kasaya giden tek yol; onu kaldırmak seni kalıcı olarak dışarıda bırakır.",
+      "actions": [
+        "Önce başka bir kilit açma yöntemi ekle"
+      ]
+    },
+    "wrong-slot-kind": {
+      "message": "O anahtar yuvası başka türden, bu yüzden işlem ona uygulanmaz.",
+      "actions": [
+        "Yuva listesini yeniden yükle",
+        "Doğru türden bir yuva seç"
+      ]
+    },
+    "slot-credential-missing": {
+      "message": "O anahtar yuvası parolası olmadan yeniden sarmalanamaz ve onu sessizce düşürmek birinin giriş yolunu elinden alırdı. Hiçbir şey değiştirilmedi.",
+      "actions": [
+        "O yuvanın parolasını gir",
+        "O yuvayı döndürmeden bilerek çıkar"
+      ]
+    },
+    "slot-credential-rejected": {
+      "message": "Bu, anahtar yuvasını açmıyor; yuva tam olduğu gibi bırakıldı.",
+      "actions": [
+        "Yeniden dene",
+        "O yuva bir anahtar dosyası kullanıyorsa onu denetle",
+        "Kurtarma anahtarını kullan"
+      ]
+    },
+    "keychain": {
+      "message": "Bu makinenin kimlik bilgisi deposu kullanılamıyor ya da bu kasa için bir belirteç tutmuyor.",
+      "actions": [
+        "Parolanla kilidi aç",
+        "Sonrasında bu aygıtı yeniden kaydet"
+      ]
+    },
+    "recovery-key-malformed": {
+      "message": "Bu bir kurtarma anahtarı değil: kurtarma anahtarı, dörder karakterlik on dört gruptan oluşur.",
+      "actions": [
+        "Anahtarın tamamını yapıştırdığından emin ol"
+      ]
+    },
+    "recovery-key-checksum": {
+      "message": "Bu kurtarma anahtarı yanlış yazılmış görünüyor — denetim grubu geri kalanıyla uyuşmuyor.",
+      "actions": [
+        "Sakladığın kopyayla karşılaştır",
+        "Yeniden dene"
+      ]
+    },
+    "keyfile": {
+      "message": "Anahtar dosyası okunamadı.",
+      "actions": [
+        "Dosyanın, kasa oluşturulduğundaki yerinde olduğunu denetle",
+        "Bulunduğu sürücüyü bağla"
+      ]
+    },
+    "database": {
+      "message": "Bu kasanın içindeki veritabanı işlemi reddetti.",
+      "actions": [
+        "Yeniden dene",
+        "Kasanın yanındaki bir yedeği aç"
+      ]
+    },
+    "schema-too-new": {
+      "message": "Bu kasa Remoter'ın daha yeni bir sürümü tarafından yazılmış: şema sürümü, bu yapının anlamadığı bir sürüm.",
+      "actions": [
+        "Remoter'ı güncelle"
+      ]
+    },
+    "migration-failed": {
+      "message": "Bu kasa daha yeni şemaya taşınamadı; dosya olduğu gibi bırakıldı.",
+      "actions": [
+        "Kasanın yanındaki bir yedeği aç",
+        "Bunu bildir"
+      ]
+    },
+    "label-empty": {
+      "message": "Bir kasanın adı olmalı.",
+      "actions": [
+        "Bu kasa için bir ad yaz"
+      ]
+    },
+    "_comment_password-empty": "The core raises this both for a vault's master password and for a key slot's password, so the sentence has to stay true of both.",
+    "password-empty": {
+      "message": "O parola boş; boş bir paroladan hiçbir şey türetilemez.",
+      "actions": [
+        "Bir parola yaz",
+        "Bir parola cümlesi üret"
+      ]
+    },
+    "_comment_password-too-weak": "SECURITY-CRITICAL. The refusal must keep its reason: a weak password is not rescued by the key derivation function, and a vault is only as strong as its weakest slot. A translation that softens this into 'consider a stronger password' invites the user to keep the one they typed.",
+    "password-too-weak": {
+      "message": "O parolayı tahmin etmek fazla kolay ve bir kasa, en zayıf yuvası kadar güçlüdür. Argon2id her tahminin maliyetini yükseltir ama saldırganın daha en başta deneyeceği bir parolayı kurtaramaz.",
+      "actions": [
+        "Bir parola cümlesi üret",
+        "Daha uzun, daha az tahmin edilebilir bir parola kullan"
+      ]
+    },
+    "kdf-upgrade-refused": {
+      "message": "Bu, güçlendirilmesi gereken yuvayı açmıyor; bu yüzden yuva olduğu gibi bırakıldı.",
+      "actions": [
+        "Bu kasanın oluşturulduğu parolayı gir",
+        "Şimdilik böyle kalsın — kasa yine de açılıyor"
+      ]
+    },
+    "_comment_locked-unsaved": "SECURITY-CRITICAL in the data-loss sense: the vault is safe, the keys are gone from memory, and unsaved changes are gone with them. A translation must keep both facts. Do not imply the changes can be recovered.",
+    "locked-unsaved": {
+      "message": "Kasa kilitli ve anahtarları silindi, ama dosya yazılamadı; bu yüzden en son başarılı kayıttan bu yana değişen her şey kayboldu.",
+      "actions": [
+        "Kasanın saklandığı sürücüyü ya da paylaşımı denetle",
+        "Yeniden kilidini açıp neyin eksik olduğunu denetle"
+      ]
+    },
+    "_comment_unlock-throttled": "SECURITY-CRITICAL. Like vault.unlock-failed, this sentence must not say which factor was wrong. It must also keep its reassurance: the wait is a delay, not a lockout, and a translation that reads like the vault has been sealed will send people looking for their recovery key when they do not need it.",
+    "unlock-throttled": {
+      "message": "Arka arkaya çok sayıda kilit açma denemesi işe yaramadı; bu yüzden sonraki deneme bekleyecek. Hiçbir şey kilitlenmedi: bekleme bitince kasa açılır.",
+      "actions": [
+        "Geri sayımı bekle",
+        "Kurtarma anahtarını kullan",
+        "Bu kasa anahtar dosyası kullanıyorsa onu denetle"
+      ]
+    }
+  },
+  "request": {
+    "invalid": {
+      "_comment_": "A bug in the interface, not something the reader did: the frontend sent the core a field it cannot read. Keep the sentence blameless and keep the action pointing at a bug report.",
+      "message": "O istekteki bir değer kullanılabilir değil.",
+      "actions": [
+        "Bunu bildir — arayüz, çekirdeğin okuyamadığı bir şey gönderdi"
+      ]
+    }
+  },
+  "path": {
+    "unusable": {
+      "message": "O konum kullanılamaz.",
+      "actions": [
+        "Başka bir konum seç"
+      ]
+    }
+  },
+  "io": {
+    "failed": {
+      "message": "O dosya okunamadı ya da yazılamadı.",
+      "actions": [
+        "Yolun var olduğunu ve yazılabilir olduğunu denetle",
+        "Başka bir konum seç"
+      ]
+    }
+  },
+  "system": {
+    "csprng": {
+      "message": "İşletim sisteminin rastgele sayı üreteci kullanılamıyor, bu yüzden hiçbir rastgele değer güvenle üretilemez.",
+      "actions": [
+        "Remoter'ı yeniden başlat",
+        "Sürerse bunu bildir"
+      ]
+    }
+  },
+  "key": {
+    "not-a-private-key": {
+      "message": "Bu dosya bir özel anahtar değil. Bir açık anahtar, bir sertifika ya da ilgisiz bir dosya bir bağlantıyı kimlik doğrulayamaz.",
+      "actions": [
+        "Özel anahtarı seç, .pub eşini değil",
+        "Bunun yerine platformun SSH aracısını kullan"
+      ]
+    },
+    "_comment_unsupported-format": "The refusal is a real limitation, not a conversion the user can perform: no protocol in this build can authenticate with a key of that kind, so the actions must not suggest converting the file. The three algorithm names in the first action are algorithm names, not words; leave them exactly as they are.",
+    "unsupported-format": {
+      "message": "Bu, bu yapıdaki hiçbir protokolün kimlik doğrulamada kullanamayacağı türde bir özel anahtar. Hiçbir şey yazılmadı.",
+      "actions": [
+        "Bunun yerine Ed25519, ECDSA ya da RSA anahtarı kullan",
+        "Bunun yerine platformun SSH aracısını kullan"
+      ]
+    },
+    "_comment_legacy-encrypted": "Different from unsupported-format: the key itself is fine, it is the PEM container that is encrypted, and Remoter has to read the container before it can store the key. The first action quotes two commands. Translate the sentence around them if there is one; never translate the commands themselves, and keep `<file>` and `<copy>` exactly as they are. The word 'copy' is load-bearing: `ssh-keygen -p` rewrites the file it is given, and the user's key file is very often shared with other tools.",
+    "legacy-encrypted": {
+      "message": "Bu anahtar kendi PEM kabının içinde şifreli ve Remoter anahtarı saklayabilmek için önce kabı okuyabilmeli. Hiçbir şey yazılmadı.",
+      "actions": [
+        "Bir kopyayı dönüştür: `cp <file> <copy>`, ardından `ssh-keygen -p -m PKCS8 -f <copy>`",
+        "Bunun yerine platformun SSH aracısını kullan"
+      ]
+    },
+    "passphrase-required": {
+      "message": "O anahtar bir parola cümlesiyle korunuyor ve o olmadan Remoter onu kimlik doğrulamada kullanamaz.",
+      "actions": [
+        "Anahtarın parola cümlesini gir",
+        "Parola cümlesiyle korunmayan bir anahtar seç"
+      ]
+    }
+  },
+  "credential": {
+    "not-a-private-key": {
+      "message": "Bu öğe, özel anahtar tutan bir kimlik bilgisi değil; dolayısıyla üzerinde okunacak ya da değiştirilecek bir anahtar yok.",
+      "actions": [
+        "Bir kimlik bilgisi seç",
+        "Önce onun için bir anahtar dosyası seç"
+      ]
+    },
+    "purpose-refused": {
+      "message": "Bu kimlik bilgisinin kısıtı, kullanılmak istenen amacı kapsamıyor; bu yüzden kasa onu açmadı. Kısıtı kimlik bilgisinin ayarlarından genişletin ya da bu amaca zaten izin veren bir kimlik bilgisi seçin.",
+      "actions": [
+        "Başka bir kimlik bilgisi seç",
+        "Kimlik bilgisinin kısıtını genişlet"
+      ]
+    }
+  },
+  "node": {
+    "_comment_not-found": "Sent both for an item missing from the vault and for one missing from the tree on screen. Either way the item is gone and the tree on screen is stale, which is what the sentence says.",
+    "not-found": {
+      "message": "O öğe artık ağaçta değil; büyük olasılıkla başka bir pencerede silindi.",
+      "actions": [
+        "Ağacı yeniden yükle"
+      ]
+    },
+    "parent-not-found": {
+      "message": "Onu bıraktığın klasör artık yok.",
+      "actions": [
+        "Ağacı yeniden yükle",
+        "Başka bir klasör seç"
+      ]
+    },
+    "duplicate": {
+      "message": "O tanımlayıcıya sahip bir öğe ağaçta zaten var.",
+      "actions": [
+        "Ağacı yeniden yükle"
+      ]
+    },
+    "not-a-container": {
+      "message": "Yalnızca klasörler başka öğeleri tutabilir.",
+      "actions": [
+        "Bir klasörün içine bırak",
+        "En üst düzeye bırak"
+      ]
+    },
+    "cycle": {
+      "message": "Bir klasör kendi içine taşınamaz.",
+      "actions": [
+        "O klasörün dışında bir hedef seç"
+      ]
+    },
+    "too-deep": {
+      "message": "Bu taşıma, ağacı sınırın izin verdiğinden daha derine iç içe koyardı.",
+      "actions": [
+        "Onu en üst düzeye yakın bir yere taşı",
+        "Üstündeki klasörleri düzleştir"
+      ]
+    },
+    "parent-changed": {
+      "message": "Bir düzenleme bir öğenin üst klasörünü değiştiremez; bunun yerine taşı.",
+      "actions": [
+        "Onu yeni klasöre sürükle"
+      ]
+    },
+    "not-a-connection": {
+      "message": "Yalnızca bağlantıların gösterilecek çözümlenmiş ayarları vardır.",
+      "actions": [
+        "Bir bağlantı seç"
+      ]
+    },
+    "_comment_field-not-applicable": "No `actions` of its own: the core raises this from seven places with a different instruction each time — select a credential, create one, edit the connection, edit a folder — so a label at position 0 would be the wrong sentence six times out of seven. The shared `action` lexicon at the end of this file translates each of them by what the core actually sent.",
+    "field-not-applicable": {
+      "message": "O alan bu türden bir öge için geçerli değil."
+    }
+  },
+  "tree": {
+    "corrupt": {
+      "message": "Bu kasadaki öğe ağacı sonlanmıyor: bir üst öğe zinciri kendine dönüyor.",
+      "actions": [
+        "Kasanın yanındaki bir yedeği aç",
+        "Bunu bildir"
+      ]
+    }
+  },
+  "secret": {
+    "not-found": {
+      "message": "O kimlik bilgisinde öyle bir gizli değer saklı değil.",
+      "actions": [
+        "Şimdi gir",
+        "Başka bir kimlik bilgisi seç"
+      ]
+    },
+    "stale": {
+      "message": "Saklanan gizli değer, kaydının güncel sürümüyle eşleşmiyor; bu yüzden kullanılmak yerine reddedildi.",
+      "actions": [
+        "Gizli değeri yeniden gir",
+        "Kasanın yanındaki bir yedeği aç"
+      ]
+    }
+  },
+  "import": {
+    "too-large": {
+      "message": "Bu dosya, bu yapının okuduğundan daha büyük. Hiçbir şey ayrıştırılmadı.",
+      "actions": [
+        "Dosyayı böl",
+        "Parçaları ayrı ayrı içe aktar"
+      ]
+    },
+    "not-utf8": {
+      "message": "Bu dosya UTF-8 metni değil.",
+      "actions": [
+        "Dosyayı UTF-8 olarak yeniden kaydet",
+        "Seçmek istediğin dosyanın bu olduğunu denetle"
+      ]
+    },
+    "malformed-xml": {
+      "message": "Bu dosya iyi biçimli XML değil.",
+      "actions": [
+        "Dosyayı, onu yazan uygulamadan yeniden dışa aktar",
+        "Seçmek istediğin dosyanın bu olduğunu denetle"
+      ]
+    },
+    "doctype-refused": {
+      "message": "Bu dosya bir belge türü bildirimi taşıyor ve Remoter bunu işlemeyi reddediyor: bir XML dosyasına bu makinedeki başka dosyaları okutmanın yolu budur.",
+      "actions": [
+        "DOCTYPE satırını kaldır ve yeniden dene",
+        "Dosyayı, onu yazan uygulamadan yeniden dışa aktar"
+      ]
+    },
+    "entity-refused": {
+      "message": "Bu dosya kendi XML varlıklarını tanımlıyor ve Remoter bunları genişletmeyi reddediyor: belleği tüketmek için yazılmış bir dosyanın biçimi budur.",
+      "actions": [
+        "Dosyayı, onu yazan uygulamadan yeniden dışa aktar"
+      ]
+    },
+    "too-deep": {
+      "message": "Bu dosya klasörleri, bu yapının okuduğundan daha derine iç içe koyuyor.",
+      "actions": [
+        "Kaynak uygulamada en derin klasörleri düzleştir"
+      ]
+    },
+    "too-many-items": {
+      "message": "Bu dosya, bu yapının okuduğundan daha çok öğe içeriyor.",
+      "actions": [
+        "Dosyayı böl",
+        "Parçaları ayrı ayrı içe aktar"
+      ]
+    },
+    "value-too-long": {
+      "message": "Bu dosya, bu yapının okuduğundan daha uzun bir değer içeriyor.",
+      "actions": [
+        "Kaynak uygulamada kısalt, sonra yeniden dışa aktar"
+      ]
+    },
+    "truncated": {
+      "message": "Bu dosya bir kaydın ortasında bitiyor: dosya eksik.",
+      "actions": [
+        "Dosyayı geldiği yerden yeniden kopyala",
+        "Onu yazan uygulamadan yeniden dışa aktar"
+      ]
+    },
+    "wrong-format": {
+      "message": "Bu dosya, o içe aktarıcının okuduğu şey değil.",
+      "actions": [
+        "Kaynak biçimi kendin seç",
+        "Başka bir dosya seç"
+      ]
+    },
+    "password-required": {
+      "message": "Bu dosya şifreli ve okunabilmesi için belge parolasını gerektiriyor.",
+      "actions": [
+        "Belge parolasını gir",
+        "Başka bir dosya seç"
+      ]
+    },
+    "wrong-password": {
+      "message": "Bu, dosyanın şifrelendiği parola değil.",
+      "actions": [
+        "Yeniden dene",
+        "Dosyanın kaynak uygulamanın öntanımlı parolasını kullanıp kullanmadığını denetle"
+      ]
+    },
+    "unsupported-cipher": {
+      "message": "Bu dosya, Remoter'ın okuyamadığı bir şifreleyiciyle şifrelenmiş.",
+      "actions": [
+        "Dosyayı şifresiz olarak yeniden dışa aktar, sonra içe aktar",
+        "Onu kaynak uygulamanın daha yeni bir sürümünden yeniden kaydet"
+      ]
+    },
+    "malformed-ciphertext": {
+      "message": "Bu dosyanın şifreli bölümü hasarlı: kullanılabilir hiçbir şeye çözülmüyor.",
+      "actions": [
+        "Dosyayı geldiği yerden yeniden kopyala",
+        "Onu yazan uygulamadan yeniden dışa aktar"
+      ]
+    },
+    "too-many-nodes": {
+      "message": "Bu dosya, sınırın izin verdiğinden daha çok öğe oluştururdu.",
+      "actions": [
+        "Dosyayı böl",
+        "Parçaları ayrı ayrı içe aktar"
+      ]
+    },
+    "missing-column": {
+      "message": "Bu dosyada, içe aktarıcının gereksinim duyduğu bir sütun eksik.",
+      "actions": [
+        "Sütun başlığını ekle ve yeniden dene",
+        "İlk satırın başlık satırı olduğunu denetle"
+      ]
+    },
+    "duplicate-column": {
+      "message": "Bu dosya bir sütunu iki kez adlandırıyor; bu yüzden değeri hangisinin tuttuğu belirlenemiyor.",
+      "actions": [
+        "Yinelenen sütunu kaldır ya da yeniden adlandır"
+      ]
+    },
+    "read-failed": {
+      "message": "Bir içerme izlenirken bir dosya okunamadı.",
+      "actions": [
+        "Dosyanın var olduğunu ve okunabilir olduğunu denetle",
+        "Include satırını kaldır ve yeniden içe aktar"
+      ]
+    },
+    "include-too-deep": {
+      "message": "Bu dosya, bu yapının izlediğinden daha derinde dosyalar içeriyor.",
+      "actions": [
+        "Include zincirini düzleştir ve yeniden içe aktar"
+      ]
+    },
+    "failed": {
+      "message": "Bu dosya içe aktarılamadı.",
+      "actions": [
+        "Başka bir dosya seç",
+        "Bunu bildir"
+      ]
+    },
+    "unknown-format": {
+      "message": "Bu dosya, Remoter'ın içe aktardığı bir biçimde değil: ne mRemoteNG belgesi, ne OpenSSH yapılandırması, ne de CSV dışa aktarımı.",
+      "actions": [
+        "Kaynak biçimi kendin seç",
+        "Bağlantıları yeniden CSV olarak dışa aktar"
+      ]
+    },
+    "orphaned-nodes": {
+      "message": "Bu dosya, klasörü içe aktarımda bulunmayan ögeler üretti; bu yüzden ağaç kurulamadı. Hiçbir şey yazılmadı.",
+      "actions": [
+        "Dosyanın tamamını içe aktar",
+        "Bunu bildir"
+      ]
+    },
+    "no-such-preview": {
+      "message": "O içe aktarma önizlemesi artık tutulmuyor: uygulandı, iptal edildi ya da kasa kilitlenince düştü. Hiçbir şey yazılmadı.",
+      "actions": [
+        "Dosyayı yeniden seç"
+      ]
+    }
+  },
+  "validation": {
+    "_comment_file": "The reader's own input being wrong. Each sentence names the rule rather than the value, because the core has already put the value in the sentence it sends and this one has to read correctly without it.",
+    "name-empty": {
+      "message": "Bu öğenin bir ada gereksinimi var.",
+      "actions": [
+        "Bir ad yaz"
+      ]
+    },
+    "name-too-long": {
+      "message": "Bu ad sınırdan daha uzun.",
+      "actions": [
+        "Adı kısalt"
+      ]
+    },
+    "control-char": {
+      "message": "Bu değer, saklanamayan denetim karakterleri içeriyor.",
+      "actions": [
+        "Yeniden yaz",
+        "Düz metin olarak yapıştır"
+      ]
+    },
+    "description-too-long": {
+      "message": "Bu açıklama sınırdan daha uzun.",
+      "actions": [
+        "Açıklamayı kısalt"
+      ]
+    },
+    "host-empty": {
+      "message": "Bu bağlantının adresi yok. Bir ana makine adı ya da IP adresi ekle.",
+      "actions": [
+        "Bir ana makine adı ya da IP adresi gir"
+      ]
+    },
+    "host-invalid": {
+      "message": "Bu bir ana makine adı, bir IPv4 adresi ya da köşeli ayraç içinde bir IPv6 adresi değil.",
+      "actions": [
+        "Yazımı denetle",
+        "Bir IPv6 adresini [köşeli ayraç] içine al"
+      ]
+    },
+    "port": {
+      "message": "Bir bağlantı noktası 1 ile 65535 arasında olmalı.",
+      "actions": [
+        "Aralıktaki bir bağlantı noktası gir",
+        "Protokolün öntanımlısını kullanmak için boş bırak"
+      ]
+    },
+    "tag": {
+      "message": "Bu kullanılabilir bir etiket değil.",
+      "actions": [
+        "Harf, rakam, tire ve nokta kullan"
+      ]
+    },
+    "protocol": {
+      "message": "Bu, Remoter'ın tanıdığı bir protokol değil.",
+      "actions": [
+        "Listeden bir protokol seç"
+      ]
+    },
+    "setting-key": {
+      "message": "Bu kullanılabilir bir protokol ayarı adı değil.",
+      "actions": [
+        "Harf, rakam, tire ve nokta kullan"
+      ]
+    },
+    "custom-field-key": {
+      "message": "Bu kullanılabilir bir özel alan adı değil.",
+      "actions": [
+        "Harf, rakam, tire ve nokta kullan"
+      ]
+    },
+    "_comment_colour": "The two patterns are syntax, not words: leave #rrggbb and #rrggbbaa exactly as they are in every language.",
+    "colour": {
+      "message": "Bu bir renk değil; #rrggbb ya da #rrggbbaa bekleniyordu.",
+      "actions": [
+        "Örneklerden bir renk seç"
+      ]
+    },
+    "icon": {
+      "message": "Bu simge başvurusu boş ya da denetim karakterleri içeriyor.",
+      "actions": [
+        "Listeden bir simge seç"
+      ]
+    },
+    "gateway-too-long": {
+      "message": "Bu ağ geçidi zinciri, sınırın izin verdiğinden daha çok sıçrama içeriyor.",
+      "actions": [
+        "Bir sıçrama kaldır"
+      ]
+    },
+    "gateway-cycle": {
+      "message": "Ağ geçidi zinciri kendine dönüyor: bir ana makine iki kez geçiyor.",
+      "actions": [
+        "Yinelenen sıçramayı kaldır"
+      ]
+    },
+    "gateway-hop-unknown": {
+      "message": "Ağ geçidi sıçramalarından biri, artık bu kasada olmayan bir öğeyi gösteriyor.",
+      "actions": [
+        "Başka bir ağ geçidi seç",
+        "Doğrudan bağlan"
+      ]
+    },
+    "gateway-hop-kind": {
+      "message": "Bir ağ geçidi sıçraması bir bağlantı olmalı; bir klasör trafiği iletemez.",
+      "actions": [
+        "Ağ geçidi olarak bir bağlantı seç"
+      ]
+    },
+    "credential-unknown": {
+      "message": "Bunun kullandığı kimlik bilgisi silinmiş. Başka birini seç ya da şimdi bir tane gir.",
+      "actions": [
+        "Başka bir kimlik bilgisi seç",
+        "Şimdi bir tane gir"
+      ]
+    },
+    "credential-kind": {
+      "message": "Bu öğe bir kimlik bilgisi değil.",
+      "actions": [
+        "Bir kimlik bilgisi seç"
+      ]
+    },
+    "credential-attached": {
+      "message": "O kimlik bilgisi başka bir bağlantıya ait. Onu paylaşmak, bir yerde düzenlemenin diğerini de değiştirmesi anlamına gelirdi.",
+      "actions": [
+        "Paylaşılan bir kimlik bilgisi seç",
+        "Bunun yerine buraya bir kullanıcı adı ve parola yaz"
+      ]
+    },
+    "credential-attachment": {
+      "message": "Bu kasadaki bir kimlik bilgisi, burada olmayan bir bağlantıya ait. Hiçbir şey değiştirilmedi.",
+      "actions": [
+        "Kasayı yeniden yükle",
+        "Bir yedekten geri yükle"
+      ]
+    },
+    "credential-purpose": {
+      "message": "Bu kimlik bilgisi kısıtlı ve o protokol için kullanılamaz.",
+      "actions": [
+        "Başka bir kimlik bilgisi seç",
+        "Kimlik bilgisinin kısıtını genişlet"
+      ]
+    },
+    "username-too-long": {
+      "message": "Bu kullanıcı adı sınırdan daha uzun.",
+      "actions": [
+        "Kullanıcı adını kısalt"
+      ]
+    },
+    "external-credential": {
+      "message": "Bir dış kimlik bilgisi hem bir sağlayıcı hem de bir başvuru gerektirir.",
+      "actions": [
+        "İki alanı da doldur"
+      ]
+    },
+    "secret-empty": {
+      "message": "Bir kimlik bilgisinin bir gizli değere gereksinimi vardır; boş bir zarf kimlik bilgisi değildir.",
+      "actions": [
+        "Bir parola gir",
+        "Bir anahtar dosyası seç"
+      ]
+    },
+    "layout": {
+      "message": "Bir ızgara düzeni en az bir satır ve bir sütun gerektirir.",
+      "actions": [
+        "Satır ve sütunu 1 ya da daha fazlasına ayarla"
+      ]
+    },
+    "group-member": {
+      "message": "Bu grubun üyelerinden biri artık kasada değil.",
+      "actions": [
+        "Eksik üyeyi kaldır"
+      ]
+    },
+    "empty-action": {
+      "message": "Bir bağlanma ya da bağlantıyı kesme eylemi boş bir satır olamaz.",
+      "actions": [
+        "Boş satırı kaldır"
+      ]
+    },
+    "reconnect-policy": {
+      "message": "Otomatik yeniden bağlanma en az bir deneme ve küçülmeyen bir bekleme süresi gerektirir.",
+      "actions": [
+        "En büyük bekleme süresini ilkine eşit ya da ondan büyük yap"
+      ]
+    },
+    "interval": {
+      "message": "Zaman aşımları ve canlı tutma aralıkları sıfırdan büyük olmalı.",
+      "actions": [
+        "Pozitif bir sayı gir",
+        "Devralmak için alanı temizle"
+      ]
+    },
+    "protocol-missing": {
+      "message": "Bir bağlantının protokolü olmalı: SSH, RDP, VNC ya da SFTP.",
+      "actions": [
+        "Bir protokol seç"
+      ]
+    }
+  },
+  "session": {
+    "no-address": {
+      "message": "Bu bağlantının adresi yok. Bir adres eklemek için ayarlarını açın."
+    },
+    "invalid-host": {
+      "message": "Bu, Remoter'ın kullanabileceği bir adres değil. Bağlantının ayarlarından denetleyin."
+    },
+    "invalid-port": {
+      "message": "Bu bağlantının kullanılabilir bir portu yok. Ayarlarını açıp 1 ile 65535 arasında bir port belirleyin."
+    },
+    "gateway-cycle": {
+      "message": "Ağ geçidi zinciri kendi üzerine dönüyor: sıçramalarından biri zincirde iki kez geçiyor."
+    },
+    "gateway-too-long": {
+      "message": "Bu ağ geçidi zincirinde Remoter'ın geçeceğinden daha çok sıçrama var."
+    },
+    "gateway-deleted": {
+      "message": "Bu ağ geçidi zincirindeki bir sıçrama, silinmiş bir bağlantıya işaret ediyor."
+    },
+    "gateway-credential-required": {
+      "message": "Bu ağ geçidi zincirindeki bir sıçramanın kimlik doğrulaması için kimlik bilgisi yok."
+    },
+    "gateway-not-a-connection": {
+      "message": "Bu ağ geçidi zincirindeki bir sıçrama, bağlantı olmayan bir şeye işaret ediyor."
+    },
+    "limit": {
+      "message": "Sınırın izin verdiği kadar oturum açık. Birini kapatın ya da ayarlardan sınırı yükseltin."
+    },
+    "credential-deleted": {
+      "message": "Bu bağlantının kullandığı kimlik bilgisi silinmiş. Başka birini seçin ya da şimdi bir tane girin."
+    },
+    "credential-purpose": {
+      "message": "Bu kimlik bilgisi başka kullanımlarla sınırlı; burada kullanılamaz."
+    },
+    "credential-required": {
+      "message": "Bu bağlantı için kimlik bilgisi yok ve SSH'ta anonim oturum açma diye bir şey yoktur."
+    },
+    "credential-no-username": {
+      "message": "O kimlik bilgisinde hesap adı yok ve SSH'ta anonim oturum açma diye bir şey yoktur."
+    },
+    "credential-not-a-credential": {
+      "message": "Bu bağlantının işaret ettiği şey bir kimlik bilgisi değil; bu yüzden oturum açmakta kullanılamaz."
+    },
+    "credential-external": {
+      "message": "O kimlik bilgisi başka bir sağlayıcıda duruyor ve bu sürümde onu getirebilecek bir eklenti yok."
+    },
+    "credential-unsupported": {
+      "message": "O kimlik bilgisi bir sertifika; bu protokolün oturumları sertifika kullanmaz."
+    },
+    "dns": {
+      "message": "Bu adres çözümlenemedi. Adı ya da DNS'inizi denetleyin."
+    },
+    "refused": {
+      "message": "Sunucu bağlantıyı reddetti. Hizmet çalışıyor mu?"
+    },
+    "timeout": {
+      "message": "Sunucu zamanında yanıt vermedi. Güvenlik duvarını ya da ağ geçidini denetleyin."
+    },
+    "unreachable": {
+      "message": "Bu adrese bu makineden erişilemiyor. Ağı denetleyin."
+    },
+    "hop-failed": {
+      "message": "Hedefe ağ geçidi zinciri üzerinden ulaşılamadı: sıçramalardan biri başarısız oldu. Ayrıntılar hangisi olduğunu ve nedenini söylüyor."
+    },
+    "io": {
+      "message": "Bağlantı bir okuma ya da yazma sırasında başarısız oldu. Ayrıntılar hangisi olduğunu söylüyor."
+    },
+    "host-key-unknown": {
+      "message": "Sunucu, Remoter'ın daha önce hiç görmediği bir sunucu anahtarı sundu ve oturum bunu soramadı."
+    },
+    "_comment_host-key-changed": "SECURITY-CRITICAL. The reader decides from this sentence whether to trust the server in front of them, and a changed host key is what an interception looks like (docs/security/threat-model.md, T3). A translation must keep all three parts: the key is not the one that was trusted, this can mean someone is intercepting, and the two keys are in the details. Do not soften it into a routine warning, and do not suggest accepting the key.",
+    "host-key-changed": {
+      "message": "Bu sunucunun sunduğu anahtar, Remoter'ın onun için güvendiği anahtar değil. Bu, birinin bağlantıyı araya girip dinlediği anlamına gelebilir. Ayrıntılarda güvenilen anahtar ile sunulan anahtar gösterilir."
+    },
+    "host-key-rejected": {
+      "message": "Sunucunun sunduğu anahtar kabul edilmedi, bu yüzden oturum sürmedi."
+    },
+    "host-key-nothing-to-replace": {
+      "message": "Bu sunucu için henüz bir şey saklanmadı; yani değiştirilecek bir anahtar yok. Parmak izini inceleyip kabul edin ya da reddedin."
+    },
+    "fingerprint-malformed": {
+      "message": "Bu bir SHA-256 parmak izi değil; bu yüzden sunucunun sunduğuyla karşılaştırılamadı."
+    },
+    "confirmation-mismatch": {
+      "message": "Bu, ekranda gösterilen doğrulama metni değil; bu yüzden kayıtlı sunucu anahtarına dokunulmadı."
+    },
+    "no-shared-algorithm": {
+      "message": "Sunucu yalnızca Remoter'ın artık kabul etmediği algoritmaları sunuyor. Ayrıntılarda bunlar listeleniyor."
+    },
+    "_comment_certificate-untrusted": "SECURITY-CRITICAL. This is the sentence a reader decides from when a server's certificate cannot be validated. A translation must keep the last clause: until the reason is resolved, there is no proof this is the intended server. Do not soften it, and do not imply the session may be continued safely.",
+    "certificate-untrusted": {
+      "message": "Bu sunucunun sunduğu sertifika güvenilir değil. Ayrıntılar nedenini söylüyor. Bu çözülene kadar, bunun ulaşmak istediğiniz sunucu olduğuna dair bir kanıt yok."
+    },
+    "handshake-failed": {
+      "message": "El sıkışma tamamlanmadı, bu yüzden oturum açılmadı. Ayrıntılar nereye kadar gelindiğini söylüyor."
+    },
+    "trust-store": {
+      "message": "Kasa, sunucu anahtarı kararını kaydedemedi; bu yüzden karar saklanmadı."
+    },
+    "auth-rejected": {
+      "message": "Sunucu bu kimlik bilgilerini reddetti."
+    },
+    "auth-method-unavailable": {
+      "message": "Sunucu bu kimlik doğrulama yöntemini kabul etmiyor. Ayrıntılarda sunduğu yöntemler listeleniyor."
+    },
+    "auth-cancelled": {
+      "message": "Oturum açma iptal edildi, bu yüzden oturum açılmadı."
+    },
+    "agent-unavailable": {
+      "message": "SSH aracısı çalışmıyor ya da bu süreç onun yuvasına erişemiyor."
+    },
+    "setting-invalid": {
+      "message": "Bu bağlantının ayarlarından biri kullanılabilir değil. Ayrıntılar hangisi olduğunu ve ne olması gerektiğini söylüyor."
+    },
+    "setting-required": {
+      "message": "Bu bağlantının bir ayarının değeri yok ve o olmadan bağlantı açılamaz."
+    },
+    "protocol-unsupported": {
+      "message": "Bu sürüm yalnızca SSH ve SFTP oturumları açar."
+    },
+    "unsupported": {
+      "message": "Bu protokolün oturumları bunu desteklemiyor."
+    },
+    "disconnected": {
+      "message": "Sunucu bağlantıyı kapattı."
+    },
+    "network-lost": {
+      "message": "Ağ bağlantısı koptu."
+    },
+    "protocol-violation": {
+      "message": "Sunucu, protokolün izin vermediği bir şey gönderdi."
+    },
+    "_comment_path-not-found": "A file-manager failure on a session that is connected and working. It used to be reported as `setting-invalid`, which sent the reader to the connection editor to fix a setting that was never wrong. Keep the second sentence: the commonest cause by far is a listing that is a few seconds out of date, and the way out is to read the folder again.",
+    "path-not-found": {
+      "message": "Sunucuda bu yolda hiçbir şey yok. Bu klasör en son okunduktan sonra taşınmış, adı değiştirilmiş veya silinmiş olabilir."
+    },
+    "_comment_path-permission-denied": "SECURITY-ADJACENT. This must not read as a sign-in failure. It used to be reported as `auth-rejected` — 'the server rejected these credentials' — on a connection that had authenticated minutes earlier, which sends the reader off to re-check an SSH key that is working. The distinction between 'who you are' and 'what this file allows' is the whole sentence; a translation that blurs it undoes the fix.",
+    "path-permission-denied": {
+      "message": "Sunucu bu yola erişimi reddetti. Bu bir oturum açma sorunu değil, dosya izinlerinden kaynaklanan bir ret: bağlantının kimliği doğrulanmış durumda ve bu hesabın bu dosya ya da klasör için izni yok."
+    },
+    "_comment_file-operation-refused": "HONESTY. SFTP version 3 has one catch-all status for everything that is not 'missing' or 'not permitted', so a full disk, a quota, a read-only mount, a lock and a cross-device rename are genuinely indistinguishable here. The sentence names the likely causes and admits it cannot tell them apart; do not turn it into a guess at one of them.",
+    "file-operation-refused": {
+      "message": "Sunucu bu dosya üzerindeki işlemi tamamlayamadı ve nedenini söylemedi. Dolu disk, kota, salt okunur dosya sistemi, bir kilit ya da iki dosya sistemi arasında yeniden adlandırma — hepsi tam olarak bu biçimde gelir."
+    },
+    "cancelled": {
+      "message": "Oturum açılmadan iptal edildi."
+    },
+    "closed": {
+      "message": "O oturum artık çalışmıyor."
+    },
+    "no-such-session": {
+      "message": "O oturum artık açık değil. Sekmesi kapatılabilir."
+    },
+    "no-such-node": {
+      "message": "O bağlantı artık bu kasada değil. Başka bir pencerede silinmiş olabilir."
+    },
+    "no-such-prompt": {
+      "message": "O sunucu anahtarı sorusu artık açık değil. Oturum beklemekten vazgeçmiş olabilir."
+    },
+    "frozen": {
+      "message": "Kasa kilitli ve bu kasanın ilkesi, kilit açılana dek oturum girişini dondurmak. Oturum hâlâ bağlı."
+    },
+    "event-stream-closed": {
+      "message": "Oturumun çıktı akışı, oturumdan önce kapandı; bu yüzden oturum sonlandırıldı."
+    },
+    "task-failed": {
+      "message": "Oturum bir iç hatayla başarısız oldu ve kapatıldı. Başka hiçbir şey etkilenmedi."
+    },
+    "shutdown-timeout": {
+      "message": "Oturum zamanında kapanmadı ve zorla durduruldu. Bu, bildirilmeye değer bir kusur."
+    },
+    "internal": {
+      "message": "Remoter bir iç hatayla karşılaştı. Bu, bildirilmeye değer bir kusur."
+    },
+    "failed": {
+      "_comment_": "Deliberately has no `message`. The core composes this one at the moment of failure — it is a diagnostic sentence naming what went wrong, with no `detail` beside it — so a generalised translation here would replace the only account of what happened. The reader sees the core's English sentence and translated action buttons. If SessionFailureDto ever carries the taxonomy code instead of this wrapper, give this entry a message and remove the note."
+    }
+  },
+  "sftp": {
+    "session-not-ready": {
+      "message": "O oturum bağlı değil; bu yüzden henüz gezilecek bir şey yok. Dosya bölmesi, kimlik doğrulaması tamamlanmış bir bağlantıda açılır.",
+      "actions": [
+        "Bağlanmasını bekle",
+        "Bağlantıyı yeniden aç"
+      ]
+    },
+    "directory-not-empty": {
+      "message": "O dizin kaldırılmadı. Bir dizinin kaldırılabilmesi için boş olması gerekir; bu dizin boş olmayabilir.",
+      "actions": [
+        "İçindekileri de sil",
+        "Açıp bak"
+      ]
+    },
+    "transfer-running": {
+      "message": "O aktarım bitmedi; bu yüzden henüz yeniden denenecek bir şey yok.",
+      "actions": [
+        "Önce durdur",
+        "Bitmesini bekle"
+      ]
+    },
+    "_comment_unsafe-name": "The name in question came from the remote server. The point of the sentence is that Remoter refused to take the server's word for where a file should land; a translation must not turn it into a complaint about the user's choice of folder.",
+    "unsafe-name": {
+      "message": "O dosya bu klasöre kaydedilemez: sunucunun verdiği ad, düz bir dosya adı değil.",
+      "actions": [
+        "Adını kendin belirle",
+        "Başka bir yere kaydet"
+      ]
+    },
+    "no-such-pane": {
+      "message": "O dosya bölmesi artık açık değil. Oturumu sona ermiş olabilir.",
+      "actions": [
+        "Bölmeyi kapat",
+        "Yeniden dosya bölmesi aç"
+      ]
+    },
+    "no-such-transfer": {
+      "message": "O aktarım bu bölmenin kuyruğunda değil.",
+      "actions": [
+        "Aktarım listesini yenile"
+      ]
+    },
+    "subsystem-unavailable": {
+      "message": "Bu sunucu bir SFTP alt sistemi açmadı. Kimi sunucularda bu kapalıdır, kimileri de yalnızca belirli hesaplara açar.",
+      "actions": [
+        "Sunucu yöneticisinden SFTP alt sistemini açmasını iste",
+        "Bunun yerine terminali kullan"
+      ]
+    },
+    "listing-too-large": {
+      "message": "O dizinde, Remoter'ın tek listelemede okuyacağından fazlası var.",
+      "actions": [
+        "Bunun yerine bir alt dizin aç",
+        "Bu dizin için terminali kullan"
+      ]
+    },
+    "rename-failed": {
+      "message": "O dosyanın adı değiştirilemedi. Çoğu sunucuda ad değiştirme bir dosya sisteminden ötekine geçemez ve bunu deneyen tam olarak böyle reddedilir.",
+      "actions": [
+        "Öbür tarafa kopyalayıp özgün dosyayı sil",
+        "Aynı dosya sistemi içinde adını değiştir"
+      ]
+    },
+    "_comment_local-destination-unreadable": "Raised while checking, before a transfer is queued, whether something is already at the place a download would write. It is deliberately not fatal: the transfer is still offered, and the dialog says which destinations could not be looked at. 'Nothing is there' and 'nobody could look' are different answers and the interface must not show the first when it means the second.",
+    "local-destination-unreadable": {
+      "message": "Remoter, bu bilgisayarda o konumda zaten bir dosya olup olmadığını denetleyemedi. Aktarım yine de gönderilebilir, ancak neyin üzerine yazılacağı bilinmiyor."
+    },
+    "transfer-failed": {
+      "_comment_": "Deliberately has no `message`, for the same reason as session.failed: the sentence is the transfer's own diagnostic, composed when it failed, and there is no detail beside it to fall back on."
+    }
+  },
+  "tunnel": {
+    "no-such-tunnel": {
+      "message": "O tünel artık açık değil.",
+      "actions": [
+        "Tünel listesini yenile"
+      ]
+    },
+    "_comment_bind-exposed": "SECURITY-CRITICAL. This is the sentence that stands between a forward bound to localhost and one the whole local network can use. A translation must keep both halves: the address is not loopback, and the forward would therefore be reachable from the local network. Do not soften it into a note about a preference.",
+    "bind-exposed": {
+      "message": "Bu bir geri döngü adresi değil; yani bu yönlendirme yerel ağdan erişilebilir olur. Bunu açıkça belirten seçeneği işaretleyin ya da localhost'a bağlayın.",
+      "actions": [
+        "localhost'a bağla",
+        "Bilerek dışa aç"
+      ]
+    },
+    "_comment_host-key-unknown": "SECURITY-CRITICAL. A tunnel has no window in which to ask about an unknown host key, so the sentence sends the reader to a session where the fingerprint can be reviewed. A translation must not suggest the key can be accepted from here, and must keep the instruction to review the fingerprint.",
+    "host-key-unknown": {
+      "message": "O sunucu, Remoter'a güvenilmesi söylenmemiş bir sunucu anahtarı sundu; tünelin ise soracağı bir penceresi yok. Önce ona bir oturum açın, parmak izini inceleyin ve orada kabul edin.",
+      "actions": [
+        "Bu bağlantıya bir oturum aç",
+        "Sunucu anahtarını orada incele"
+      ]
+    }
+  },
+  "update": {
+    "failed": {
+      "message": "Güncelleme denetimi tamamlanmadı.",
+      "actions": [
+        "Yeniden dene",
+        "Ya da sürüm sayfasını tarayıcıda aç"
+      ]
+    },
+    "unreachable": {
+      "message": "Remoter, daha yeni bir sürüm aramak için github.com'a ulaşamadı.",
+      "actions": [
+        "Bu makinenin ağ bağlantısını denetle",
+        "Yeniden dene",
+        "Ya da sürüm sayfasını tarayıcıda aç"
+      ]
+    },
+    "unreadable": {
+      "message": "GitHub yanıt verdi ama Remoter'ın okuyabileceği bir sürüm listesiyle değil.",
+      "actions": [
+        "Yeniden dene",
+        "Ya da sürüm sayfasını tarayıcıda aç"
+      ]
+    },
+    "rate-limited": {
+      "message": "GitHub şimdilik bu ağdan gelen başka güncelleme denetimlerini yanıtlamıyor.",
+      "actions": [
+        "Daha sonra yeniden dene",
+        "Ya da sürüm sayfasını tarayıcıda aç"
+      ]
+    },
+    "no-releases": {
+      "message": "GitHub'da Remoter için yayımlanmış bir sürüm listesi yok.",
+      "actions": [
+        "Depoyu tarayıcıda aç"
+      ]
+    },
+    "refused": {
+      "message": "GitHub güncelleme denetimini reddetti.",
+      "actions": [
+        "Daha sonra yeniden dene",
+        "Ya da sürüm sayfasını tarayıcıda aç"
+      ]
+    }
+  },
+  "keyfile": {
+    "_comment_unprotected": "SECURITY-CRITICAL. The refusal exists because a key file that every account on the machine can read is not a second factor at all. A translation must keep the reason and the consequence — it was not written — and must not present this as a permissions warning the user may wave away.",
+    "unprotected": {
+      "message": "O anahtar dosyası yalnızca sizin hesabınıza kısıtlanamaz: bulunduğu dosya sistemi izinleri taşımıyor, yani bu makinedeki her hesap onu okuyabilir. Herkesin okuyabildiği bir anahtar dosyası ikinci bir etken değildir; bu yüzden yazılmadı.",
+      "actions": [
+        "Dosya izinlerini koruyan bir diskte konum seç",
+        "Çıkarılabilir sürücüyü şifreleyip anahtar dosyasını ona yaz"
+      ]
+    }
+  },
+  "slot": {
+    "label-empty": {
+      "message": "Anahtar yuvasının bir adı olmalı ki listede bunun hangi anahtar olduğu görülebilsin.",
+      "actions": [
+        "Bu yuva için bir ad yaz"
+      ]
+    }
+  },
+  "shortcut": {
+    "terminal-reserved": {
+      "message": "O bileşim uzak sunucuya aittir: odaktaki terminalin onu alması gerekir, burada bir kısayola bağlamak kabuğa ulaşmasını engeller.",
+      "actions": [
+        "Başka bir bileşim seç",
+        "Terminal ön ekiyle erişilen bir uygulama kısayolu olarak bağla"
+      ]
+    }
+  },
+  "audit": {
+    "export-encode": {
+      "message": "Denetim kayıtları kodlanamadı; bu yüzden hiçbir şey yazılmadı.",
+      "actions": []
+    }
+  },
+  "recents": {
+    "encode": {
+      "message": "Son kullanılan kasalar listesi kodlanamadı; bu yüzden yazılmadı.",
+      "actions": []
+    }
+  },
+  "settings": {
+    "encode": {
+      "message": "Ayarlarınız kodlanamadı; bu yüzden kaydedilmedi.",
+      "actions": []
+    }
+  },
+  "_comment_action": "The shared action lexicon: one entry per action sentence that cannot be labelled where the failure is, translated once. Two kinds of action end up here: the ones the core composes for a session failure (`action_text` in session.rs), which turn up under dozens of codes in an order that depends on what failed; and the ones belonging to a code the core raises from several places with a different button each time, where a label at a fixed position would be the wrong sentence for every other arm. `src/i18n/failures.ts` holds the English sentence for each key and looks an action up here when the failure's own entry has no label at that position; `failures.catalogue.test.ts` checks that list against the Rust, so a wording change there fails the build here. These are button labels: keep them short, and keep them in the imperative or verbal-noun form the rest of this file uses.",
+  "action": {
+    "open-connection-settings": "Bu bağlantının ayarlarını aç",
+    "edit-gateway-chain": "Ağ geçidi zincirini düzenle",
+    "check-address": "Adresi ya da onu bilmesi gereken DNS sunucusunu denetle",
+    "check-service": "Hizmetin o portu dinlediğini denetle",
+    "check-firewall": "Güvenlik duvarını ya da önündeki ağ geçidini denetle",
+    "check-network": "Ağ bağlantısını denetle",
+    "retry": "Yeniden dene",
+    "reconnect": "Yeniden bağlan",
+    "choose-different-credential": "Başka bir kimlik bilgisi seç",
+    "enter-credential": "Bu deneme için kimlik bilgisi gir",
+    "choose-auth-method": "Başka bir kimlik doğrulama yöntemi seç",
+    "review-host-key": "Sunucu anahtarını incele",
+    "verify-fingerprint-out-of-band": "Başka bir şey yapmadan önce parmak izini sunucu yöneticisiyle doğrula",
+    "pin-certificate": "Sertifikayı bu bağlantıya sabitle",
+    "close-another-session-or-raise-limit": "Başka bir oturumu kapat ya da sınırı yükselt",
+    "contact-server-administrator": "Sunucu yöneticisine başvur",
+    "report-defect": "Bunu bildir — bu, Remoter'da bir kusur",
+    "choose-credential": "Bir kimlik bilgisi seç",
+    "open-credential-settings": "Kimlik bilgisinin ayarlarını aç",
+    "choose-gateway-credential": "Ağ geçidi için bir kimlik bilgisi seç",
+    "open-its-settings": "Ayarlarını aç",
+    "verify-fingerprint": "Parmak izini başka bir kanaldan doğrula",
+    "contact-administrator": "Yöneticiye başvur",
+    "close-another-session": "Başka bir oturumu kapat",
+    "open-settings": "Ayarları aç",
+    "refresh-list": "Listeyi yenile",
+    "try-connecting-again": "Yeniden bağlanmayı dene",
+    "close-tab": "Sekmeyi kapat",
+    "use-ssh-or-sftp": "SSH ya da SFTP bağlantısı kullan",
+    "report-this": "Bunu bildir",
+    "unlock-vault": "Kasanın kilidini aç",
+    "select-connection-or-credential": "Bir bağlantı ya da kimlik bilgisi seç",
+    "create-credential-for-connection": "Bir kimlik bilgisi oluştur ve bu bağlantıyı ona yönlendir",
+    "select-connection-or-folder": "Bir bağlantı ya da klasör seç",
+    "edit-connection-instead": "Bunun yerine bağlantıyı düzenle",
+    "edit-connection-or-folder-instead": "Bunun yerine bir bağlantı ya da klasör düzenle",
+    "unlock-with-password-or-recovery-key": "Parola ya da kurtarma anahtarı kullan",
+    "use-password-or-recovery-slot": "Parola ya da kurtarma yuvası kullan",
+    "change-lock-policy": "Kasa ayarlarından ilkeyi değiştir"
+  }
+}

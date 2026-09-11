@@ -1,0 +1,153 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/remoter-core",
+    "crates/remoter-vault",
+    "crates/remoter-plugin-abi",
+    "crates/remoter-plugin-sdk",
+    "crates/remoter-import",
+    "crates/remoter-proto",
+    "crates/remoter-proto-ssh",
+    "crates/remoter-proto-rdp",
+    "crates/remoter-proto-vnc",
+    "crates/remoter-ipc",
+    "apps/desktop/src-tauri",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+# THIS NUMBER IS WRONG AND IS KNOWINGLY LEFT WRONG FOR ONE MORE CHANGE.
+#
+# Nothing here has built on 1.85 since the RDP adapter landed: `ironrdp` 0.17
+# and every `ironrdp-*` crate under it declare `rust-version = "1.89"`, and
+# `keyring` 4.2 declares 1.88. `docs/development/verified-apis.md` already
+# recorded the gap and called the bump the honest fix.
+#
+# It is not only cosmetic, either. Resolver v3 is MSRV-aware: it refuses any
+# dependency version declaring a `rust-version` above this one, and *says
+# nothing* while doing it — `cargo update -p time` answered "Locking 0
+# packages" rather than naming a constraint. That is how `time` sat at the
+# vulnerable 0.3.45 (RUSTSEC-2026-0009) with 0.3.55 published: the fix declares
+# 1.88, so this line vetoed it. `time` is now at 0.3.55 in Cargo.lock, put
+# there under a corrected floor and left there — the lock is authoritative for
+# a build, and `cargo deny check advisories` in CI fails the moment a
+# regenerated lock walks it back.
+#
+# The bump was made, measured and reverted rather than shipped blind. Correcting
+# it to 1.89 un-gates clippy's MSRV-conditional lints, and they are not
+# theoretical: 10 `collapsible_if` (let chains, stable in 1.88) in
+# remoter-core, 2 `manual_is_multiple_of` in remoter-import, and 8
+# `chunks_exact`/`useless_vec` in remoter-proto-rdp and remoter-proto-vnc. With
+# `-D warnings` that is a red workspace in four crates, two of them under
+# active edit elsewhere. The bump belongs in its own change, with those fixes,
+# not smuggled in behind an advisory.
+rust-version = "1.85"
+authors = ["The Remoter contributors"]
+repository = "https://github.com/bbesli/Remoter"
+homepage = "https://github.com/bbesli/Remoter"
+
+[workspace.dependencies]
+# --- workspace crates ---
+remoter-core = { path = "crates/remoter-core" }
+remoter-vault = { path = "crates/remoter-vault" }
+remoter-plugin-abi = { path = "crates/remoter-plugin-abi" }
+remoter-import = { path = "crates/remoter-import" }
+remoter-proto = { path = "crates/remoter-proto" }
+remoter-proto-ssh = { path = "crates/remoter-proto-ssh" }
+remoter-proto-rdp = { path = "crates/remoter-proto-rdp" }
+remoter-proto-vnc = { path = "crates/remoter-proto-vnc" }
+remoter-ipc = { path = "crates/remoter-ipc" }
+
+# --- cryptography ---
+# API signatures verified against these exact versions; see
+# docs/development/verified-apis.md before changing any of them.
+argon2 = "0.6"
+chacha20poly1305 = "0.11"
+hkdf = "0.13"
+sha2 = "0.11"
+blake3 = "1.8"
+zeroize = { version = "1.9", features = ["derive"] }
+subtle = "2.6"
+getrandom = "0.4"
+
+# --- storage & serialisation ---
+rusqlite = { version = "0.40", features = ["bundled", "serialize", "uuid"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+ciborium = "0.2"
+uuid = { version = "1.26", features = ["v7", "serde"] }
+data-encoding = "2.11"
+# 0.41 is the fix for RUSTSEC-2026-0194 (quadratic duplicate-attribute scan)
+# and RUSTSEC-2026-0195 (unbounded namespace-declaration allocation in
+# `NsReader`). Both are denial of service on hostile input, and `remoter-import`
+# parses exactly that — a confCons.xml handed over by someone else. Do not drop
+# below 0.41.
+#
+# 0.41 and not 0.42: 0.42 replaces the byte-slice comparisons this crate's
+# reader is written against with a `ByteStr` type, which is a rewrite of
+# `remoter-import/src/xml.rs`, not a version bump. `plist` (under tauri) pulls
+# 0.42 in on its own, so the graph carries two quick-xml copies until that
+# rewrite happens; `multiple-versions = "warn"` in deny.toml is what allows it.
+# Both copies are past the advisory, which is the property that mattered.
+quick-xml = "0.41"
+aes = "0.9"
+cbc = "0.2"
+pbkdf2 = "0.13"
+sha1 = "0.11"
+md-5 = "0.11"
+flate2 = "1"
+# MIT OR Apache-2.0, both GPL-3.0 compatible and already allowed in deny.toml.
+# Needed for the NFKC normalisation `docs/security/vault-format.md` promises.
+unicode-normalization = "0.1"
+
+# --- platform ---
+keyring = "4"
+directories = "6"
+
+# --- runtime & diagnostics ---
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros"] }
+parking_lot = "0.12"
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# --- dev ---
+proptest = "1"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+unreachable_pub = "warn"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+dbg_macro = "deny"
+print_stdout = "deny"
+print_stderr = "deny"
+
+[profile.dev]
+# Line tables rather than full DWARF. A workspace this size builds a separate
+# test binary per crate, each statically linking ironrdp, russh and the rest
+# and carrying a full copy of their debug info — which took `target/debug`
+# past sixty gigabytes in a day of repeated test runs. Line tables keep the
+# file and line numbers a panic trace needs; what is lost is variable
+# inspection in a debugger, which is a deliberate trade for a build directory
+# that fits on the disk. Use `--profile release-debug` when a debugger is
+# actually needed.
+debug = "line-tables-only"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+strip = true
+panic = "unwind"          # deliberate — see ADR-0011
+
+[profile.release-debug]
+inherits = "release"
+strip = false
+debug = true

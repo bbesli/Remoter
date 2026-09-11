@@ -33,12 +33,36 @@ The sidebar collapses to icons or hides entirely. The inspector — connection
 properties, inheritance provenance, session statistics — opens on the right as a
 third column or as an overlay on narrow windows.
 
+The session area draws whichever of the three kinds of content the session
+itself reports — terminal, framebuffer, file grid — never a guess from the
+protocol name, so a plugin protocol is treated exactly as a built-in one. The
+file grid reaches it two ways, and both of them are a session rather than a
+screen of their own:
+
+- an `sftp` connection opened from the tree fills its whole tab with it;
+- a session that is already connected and carries files — SSH — docks a pane
+  under its terminal from the tab strip's Files control. That pane is one more
+  channel on the connection the tab already authenticated (RFC 4254 §6.5), not
+  a second sign-in, which is why the control is offered per session and not as
+  a destination in the title bar.
+
+A docked pane belongs to its tab and keeps running while another tab is in
+front: it holds a transfer queue, and a tab switch must not cancel a copy.
+
+Between the tab strip and the session content sit the rows of chrome that belong
+to the session — the warning count, a refused keystroke, and for a graphical
+session its own toolbar: Ctrl+Alt+Del, Alt+Tab and the scale controls. They are
+rows, not overlays, and that is a rule rather than a preference: **a remote
+desktop uses all four of its edges and all four of its corners**, so nothing of
+ours is drawn on top of one. `docs/ui/design-system.md` gives the reasoning and
+the three blocking questions that are allowed to cover a session.
+
 ## Screens
 
 | Screen | Purpose |
 |---|---|
 | **Vault picker** | Shown at launch. Recent vaults, open from file, create new |
-| **Unlock** | Slot selection and credential entry |
+| **Unlock** | Slot selection and credential entry. Also where a vault that locks while open lands — the file is already known, so it asks for one credential rather than for a file, and says why it locked and what became of the open sessions |
 | **Main window** | The layout above — the application's home |
 | **Connection editor** | Modal or inspector; form generated from the protocol's settings schema |
 | **Vault settings** | Key slots, auto-lock, recording policy, backups |
@@ -74,6 +98,16 @@ and the small set of universal shortcuts — lock the vault, the command palette
 
 Every action is keyboard-reachable, every shortcut is user-editable, and the
 current bindings are visible in a searchable cheat sheet (`?`).
+
+**A grid is driven like a grid.** The file manager's listing carries a roving
+tabindex — one row in the tab order, the arrows move which — and the map every
+file manager has: Enter opens, Alt+Enter shows properties, Space selects, Shift
+extends the selection, Ctrl adds a row, Backspace goes up a folder, F2 renames,
+Delete removes, and typing a few letters jumps to a name. The map is written on
+screen under the listing rather than left to be discovered, because a keyboard
+model nobody is told about is a keyboard model nobody uses. It was also, for a
+while, the counter-example to the claim above: the rows were not focusable and
+the grid had no key handler at all.
 
 ## States that must be designed, not defaulted
 

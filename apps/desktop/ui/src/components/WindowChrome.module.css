@@ -1,0 +1,70 @@
+/*
+ * Pinned to the window's top-right, over whatever title bar the screen draws
+ * for itself. Sized to sit inside a --titlebar-h bar without changing it.
+ */
+.controls {
+  position: fixed;
+  inset-block-start: 0;
+  inset-inline-end: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  block-size: var(--titlebar-h);
+  inline-size: var(--window-controls-w);
+  justify-content: flex-end;
+  padding-inline-end: var(--space-2);
+  /* Never part of the drag region: clicking a control must not move the
+     window instead of acting. */
+  -webkit-app-region: no-drag;
+  /* The container is a positioning frame, not a click target. Without this it
+     covers a 100x38 rectangle of whatever screen is behind it, and a control
+     that lands there is silently unreachable — the click closes the window
+     instead. That happened on the settings screen, then on the audit header,
+     then on a dialog protecting a one-shot recovery key. Reserving padding on
+     every screen was the documented remedy and it kept being forgotten, so the
+     overlay stops swallowing clicks it is not going to act on. */
+  pointer-events: none;
+}
+
+.controls > * {
+  pointer-events: auto;
+}
+
+.control {
+  display: grid;
+  place-items: center;
+  inline-size: 28px;
+  block-size: 24px;
+  border-radius: var(--radius-sm);
+  color: var(--fg-muted);
+  transition:
+    background var(--motion-fast) var(--ease),
+    color var(--motion-fast) var(--ease);
+}
+
+.control:hover {
+  background: var(--bg-elevated);
+  color: var(--fg-default);
+}
+
+.close:hover {
+  background: var(--danger);
+  color: var(--fg-on-danger);
+}
+
+/* Sits inline with the three controls, so the explanation is beside the button
+   that produced it. Truncated to keep the overlay off the title bar's text;
+   the tooltip carries the whole sentence. */
+.failure {
+  max-inline-size: 34ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-inline: var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--danger-tint);
+  font-size: var(--text-xs);
+  line-height: 20px;
+  color: var(--danger-text);
+}

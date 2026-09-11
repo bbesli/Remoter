@@ -44,8 +44,34 @@ HID.
 
 ### Windows
 
-- Visual Studio Build Tools with the C++ workload
+- **[Build Tools for Visual Studio 2022](https://aka.ms/vs/17/release/vs_BuildTools.exe)**,
+  with the **Desktop development with C++** workload ticked. Rust links through
+  the MSVC linker on Windows and cannot build anything without it.
 - WebView2 runtime (present on Windows 11; installable on Windows 10)
+
+Tick the workload, not just the individual compiler: a Visual Studio install
+can carry `link.exe` without the C++ libraries beside it, and the failure comes
+much later and says nothing useful —
+
+```text
+LINK : fatal error LNK1104: cannot open file 'msvcrt.lib'
+```
+
+The frontend will have built, several hundred crates will have downloaded, and
+then every link step fails. Confirm the libraries exist before spending a build
+on it:
+
+```powershell
+Get-ChildItem "C:\Program Files*\Microsoft Visual Studio\*\*\VC\Tools\MSVC\*\lib\x64\msvcrt.lib" |
+  Select-Object -First 3 FullName
+```
+
+A path means the toolchain is complete. Nothing printed means the workload is
+missing, whatever the installer's summary said.
+
+Prefer the released Build Tools over a Visual Studio preview or Insiders build:
+Rust finds the toolchain through `vswhere` and expects the layout a released
+install has. The two can sit side by side.
 
 ### macOS
 
@@ -67,7 +93,20 @@ git clone https://github.com/bbesli/Remoter.git
 cd Remoter
 npm install --prefix apps/desktop/ui
 cargo build --workspace
-npm run tauri dev
+cd apps/desktop && ./ui/node_modules/.bin/tauri dev
+```
+
+The Tauri CLI searches for `tauri.conf.json` in the directories **below** the
+one it runs from, and this workspace keeps it in `apps/desktop/src-tauri`. So
+the CLI runs from `apps/desktop`, while npm installed it under
+`apps/desktop/ui/node_modules` — hence the two different paths on one line.
+Running it from `apps/desktop/ui` fails with "Couldn't recognize the current
+folder as a Tauri project", which is the same mistake with a confusing message.
+
+On Windows, in PowerShell:
+
+```powershell
+cd apps\desktop; .\ui\node_modules\.bin\tauri.cmd dev
 ```
 
 ## The loop
@@ -90,9 +129,12 @@ npm test
 
 Full application:
 
+From `apps/desktop`, not from `apps/desktop/ui` — see **First build** above:
+
 ```bash
-npm run tauri dev    # hot reload for the frontend, rebuild for Rust changes
-npm run tauri build  # release bundle for the current platform
+./ui/node_modules/.bin/tauri dev              # hot reload for the frontend
+./ui/node_modules/.bin/tauri build            # installer for this platform
+./ui/node_modules/.bin/tauri build --no-bundle  # the executable alone
 ```
 
 ## Integration fixtures
@@ -150,7 +192,7 @@ time.
 distribution above. Note the `4.1` — Tauri v2 does not use 4.0.
 
 **Blank window on Linux.** Usually a WebKitGTK compositing problem. Try
-`WEBKIT_DISABLE_DMABUF_RENDERER=1 npm run tauri dev`. If that fixes it, hardware
+`WEBKIT_DISABLE_DMABUF_RENDERER=1 ./ui/node_modules/.bin/tauri dev`. If that fixes it, hardware
 acceleration is not working — worth reporting, because it directly affects
 framebuffer rendering performance.
 

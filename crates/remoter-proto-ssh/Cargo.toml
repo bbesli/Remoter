@@ -1,0 +1,64 @@
+[package]
+name = "remoter-proto-ssh"
+description = "SSH and SFTP sessions"
+license = "GPL-3.0-or-later"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[features]
+default = []
+# Algorithms current OpenSSH no longer enables: SHA-1 signatures and MACs,
+# CBC ciphers, small DH groups. Off by default so they are not compiled into
+# the ordinary binary at all; see `docs/security/transport-security.md`.
+legacy-crypto = ["russh/des"]
+# Tests that need the Docker fixtures from `docs/development/getting-started.md`.
+integration-tests = []
+
+[dependencies]
+remoter-core.workspace = true
+remoter-proto = { path = "../remoter-proto", version = "0.1.0" }
+
+# `default-features = false` drops `aws-lc-rs`, whose `aws-lc-sys` build needs a
+# full C toolchain and CMake. `russh` requires one of the two backends, so the
+# smaller one is chosen: see the crate documentation for the deviation note.
+russh = { version = "0.63", default-features = false, features = [
+    "ring",
+    "rsa",
+    "flate2",
+] }
+russh-sftp = "3"
+async-trait = "0.1"
+bytes = "1"
+tokio = { workspace = true, features = [
+    "rt-multi-thread",
+    "sync",
+    "time",
+    "macros",
+    "net",
+    "io-util",
+    # Needed by the SFTP transfer path. Its absence was hidden by
+    # `--all-targets`: the dev-dependency below enables the full feature set,
+    # and cargo unions features per package, so only a build WITHOUT test
+    # targets — the release build — actually failed.
+    "fs",
+] }
+tokio-util = { version = "0.7", features = ["rt"] }
+# Registries the forwarding layer takes and releases without awaiting.
+parking_lot.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+zeroize.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full"] }
+# Test fixtures only: the PuTTY `.ppk` writer the format tests build their
+# inputs with, so that no key material is committed to the repository.
+sha1.workspace = true
+sha2.workspace = true
+data-encoding.workspace = true
+
+[lints]
+workspace = true

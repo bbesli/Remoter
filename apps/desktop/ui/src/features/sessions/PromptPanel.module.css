@@ -1,0 +1,216 @@
+/* Two things live here, and they are deliberately different weights.
+
+   The unanswerable prompt is a notice over the session: the attempt is stuck,
+   nothing can be done about it here, and it uses the same overlay the ended and
+   failed panels do.
+
+   The certificate question is a dialog. It is a trust decision with two real
+   outcomes, so it takes the screen the way the host key dialog does — the same
+   backdrop, the same footer, the same audit line. That resemblance is on
+   purpose: it is the same decision about a different kind of key, and a user who
+   has learned to read one should not have to learn the other. */
+
+/* Anything drawn on the terminal ground inherits dark foregrounds, for the
+   reason SessionSurface.module.css sets out at length: the app's light theme
+   puts near-black text on a card that sits over a permanently dark terminal. */
+.overlay {
+  --fg-default: #e6e8ea;
+  --fg-strong: #c8ced4;
+  --fg-muted: #9aa1a9;
+  --fg-subtle: #8a929a;
+  --bg-surface: #1c1e22;
+  --bg-elevated: #23262b;
+  --bg-inset: #101114;
+  --border-default: #2a2e34;
+  --border-strong: #3a4048;
+
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  background: var(--bg-overlay);
+  overflow-y: auto;
+}
+
+.notice {
+  width: 100%;
+  max-width: 36rem;
+}
+
+.noticeBody {
+  margin: 0 0 var(--space-2);
+  text-wrap: pretty;
+}
+
+.noticeActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+/* Remote text — a keyboard-interactive challenge, or the address a certificate
+   was offered for. Preformatted so its own line breaks survive, and it is text,
+   never markup. */
+.serverText {
+  margin: 0 0 var(--space-2);
+  padding: var(--space-2);
+  font-family: var(--font-mono);
+  font-variant-ligatures: none;
+  font-size: var(--text-xs);
+  color: var(--fg-strong);
+  background: var(--bg-inset);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 12rem;
+  overflow-y: auto;
+  user-select: text;
+}
+
+/* ---------------------------------------------- the certificate decision --- */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  background: var(--bg-overlay);
+  overflow-y: auto;
+}
+
+.dialog {
+  width: 100%;
+  max-width: 34rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-3);
+  display: flex;
+  flex-direction: column;
+  max-height: 100%;
+  min-height: 0;
+}
+
+.header {
+  padding: var(--space-5) var(--space-5) var(--space-3);
+}
+
+.session {
+  margin: 0 0 var(--space-1);
+  font-family: var(--font-mono);
+  font-variant-ligatures: none;
+  font-size: var(--text-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: var(--leading-tight);
+  color: var(--fg-default);
+  overflow-wrap: anywhere;
+}
+
+.lead {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--fg-muted);
+  text-wrap: pretty;
+  max-width: 68ch;
+}
+
+.body {
+  padding: 0 var(--space-5) var(--space-4);
+  overflow-y: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-2) var(--space-4);
+  align-items: baseline;
+}
+
+.factLabel {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--fg-subtle);
+  white-space: nowrap;
+}
+
+.factValue {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--fg-strong);
+  overflow-wrap: anywhere;
+}
+
+/* A fingerprint is a byte string, not a sentence. `direction: ltr` is pinned
+   for the reason HostKeyDialog.module.css spells out over the same rule: the
+   `SHA256:` colon and any trailing `=` are bidi-neutral, and in an RTL
+   paragraph they move to the other end — leaving the user comparing two
+   differently-shaped strings against one `ssh-keygen` printed. */
+.fingerprint {
+  margin: 0;
+  padding: var(--space-3);
+  font-family: var(--font-mono);
+  font-variant-ligatures: none;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--fg-strong);
+  background: var(--bg-inset);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  overflow-wrap: anywhere;
+  user-select: text;
+  direction: ltr;
+}
+
+.compareNote {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--fg-muted);
+  text-wrap: pretty;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-5) var(--space-5);
+  border-top: 1px solid var(--border-default);
+}
+
+.audited {
+  margin: 0;
+  flex: 1;
+  min-width: 14rem;
+  font-size: var(--text-xs);
+  color: var(--fg-subtle);
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}

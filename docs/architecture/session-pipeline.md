@@ -212,8 +212,37 @@ Every failure maps to a distinct message with a suggested next step.
 | Authenticate | Method unavailable | "The server does not accept password authentication. It offers: public key, keyboard-interactive." |
 | Run | Disconnected | "The server closed the connection." + reconnect |
 | Run | Network lost | "Network unreachable. Retrying in 4 s." + cancel |
+| Run | Path not found | "There is nothing at that path on the server. It may have been moved, renamed or deleted since this folder was last read." |
+| Run | Path permission denied | "The server refused access to that path. This is a file-permission refusal, not a sign-in problem." |
+| Run | File operation refused | "The server could not complete that operation on this file and did not say why. A full disk, a quota, a read-only filesystem, a lock, or a rename across two filesystems all arrive in exactly this form." |
 
 The pattern: name what failed, name where, and offer the next action. A message
 that only says something went wrong forces the user to reproduce the problem
 with a command-line tool, which is a small admission that the application is not
 doing its job.
+
+### A file-manager failure is not a connection failure
+
+The last three rows are the taxonomy's newest, and they exist because borrowing
+a neighbouring variant told the user something false about a connection that was
+working perfectly.
+
+`SSH_FX_NO_SUCH_FILE` was reported as `SettingInvalid { key: "path" }`, which
+the interface renders as "the setting `path` is not usable" and points at the
+connection editor. There is no `path` setting; the file had been moved since the
+folder was last listed.
+
+`SSH_FX_PERMISSION_DENIED` was reported as `AuthRejected`, which reads "the
+server rejected these credentials" and offers a credential picker — on a session
+that authenticated minutes earlier. "Who you are" and "what this file allows"
+are different questions, and blurring them sends the reader off to re-check an
+SSH key that is fine.
+
+`SSH_FX_FAILURE`, version 3's single catch-all, fell through to
+`ProtocolViolation`, which accuses the server of breaking the protocol when all
+it did was run out of disk. Its message names the likely causes and admits it
+cannot tell them apart, because the protocol genuinely cannot.
+
+None of the three is an identity failure, none suspends the pipeline, and none
+offers a credential action. They belong to stage 8 because the connection is up
+and one operation on one path failed.

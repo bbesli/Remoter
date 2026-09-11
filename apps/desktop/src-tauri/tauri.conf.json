@@ -1,0 +1,54 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Remoter",
+  "version": "0.1.0",
+  "identifier": "io.github.bbesli.remoter",
+  "build": {
+    "frontendDist": "../ui/dist",
+    "devUrl": "http://localhost:5273",
+    "beforeDevCommand": "npm run dev --prefix ../ui",
+    "beforeBuildCommand": "npm run build --prefix ../ui"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [
+      {
+        "title": "Remoter",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 960,
+        "minHeight": 620,
+        "resizable": true,
+        "decorations": false,
+        "transparent": false,
+        "dragDropEnabled": false,
+        "center": true,
+        "theme": null,
+        "backgroundColor": "#16171a"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' data: asset: http://asset.localhost; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["appimage", "deb", "rpm"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "category": "Utility",
+    "shortDescription": "Remote connection manager",
+    "longDescription": "A modern, cross-platform remote connection manager for RDP, SSH, VNC and SFTP, with an encrypted credential vault.",
+    "licenseFile": "../../../LICENSE",
+    "linux": {
+      "deb": {
+        "depends": ["libwebkit2gtk-4.1-0", "libgtk-3-0"]
+      }
+    }
+  }
+}

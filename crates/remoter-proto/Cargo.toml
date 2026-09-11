@@ -1,0 +1,41 @@
+[package]
+name = "remoter-proto"
+description = "The Protocol trait, transports, and the session supervisor"
+license = "GPL-3.0-or-later"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+remoter-core.workspace = true
+remoter-plugin-abi = { path = "../remoter-plugin-abi", version = "0.1.0" }
+
+async-trait = "0.1"
+bytes = "1"
+tokio = { workspace = true, features = ["rt-multi-thread", "sync", "time", "macros", "net", "io-util"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+thiserror.workspace = true
+tracing.workspace = true
+serde.workspace = true
+zeroize.workspace = true
+# The session registry is a lock the supervisor takes and releases without
+# awaiting; `parking_lot` because the coding standards forbid reasoning about
+# poisoning in this layer (ADR-0011).
+parking_lot.workspace = true
+# Host key fingerprints. SHA-256 and unpadded base64 are what `ssh-keygen -l`
+# prints, and the same `Fingerprint` type serves TLS and RDP certificate
+# pinning later — so it belongs here rather than in one protocol's crate.
+sha2.workspace = true
+data-encoding.workspace = true
+
+[dev-dependencies]
+# One test parses a `SettingsSchema` written by an older build, to prove the
+# fields added since then default rather than failing the parse. Serialising
+# the schema is not a test-only capability — a plugin manifest carries one —
+# so the guard belongs in this crate rather than in whoever reads it next.
+serde_json.workspace = true
+
+[lints]
+workspace = true

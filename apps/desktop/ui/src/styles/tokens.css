@@ -1,0 +1,280 @@
+/*
+ * Design tokens.
+ *
+ * Components reference tokens, never literals. That is what makes theming a
+ * data change rather than a code change, and it is checked in review.
+ *
+ * Dark values are taken from ui_parts/project_ui_design. The constraint that
+ * decided the palette: the accent cannot look like any session state.
+ * Connected is green, connecting amber, failed red, so the accent sits outside
+ * that range — a phosphor cyan, which belongs to terminals by heritage.
+ *
+ * Light values are derived from the same relationships; the design supplied
+ * the accent shift (#3bb6c4 -> #17808f) and the ground, and the rest follows
+ * the dark theme's contrast ratios.
+ */
+
+:root {
+  /* ---- spacing, 4px base ---- */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+
+  /* ---- type ---- */
+  --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", "SF Mono", "DejaVu Sans Mono", Consolas, monospace;
+  --text-xs: 0.6875rem;   /* 11px — badges, meta */
+  --text-sm: 0.8125rem;   /* 13px — dense lists, the tree */
+  --text-base: 0.875rem;  /* 14px — interface default */
+  --text-lg: 1rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --leading-tight: 1.25;
+  --leading-normal: 1.55;
+
+  /* ---- radius ---- */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-full: 999px;
+
+  /* ---- elevation ---- */
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.24);
+  --shadow-2: 0 4px 12px rgb(0 0 0 / 0.32);
+  --shadow-3: 0 16px 48px rgb(0 0 0 / 0.44);
+
+  /* ---- motion: 120-200ms, purposeful ---- */
+  --motion-fast: 120ms;
+  --motion-base: 160ms;
+  --motion-slow: 200ms;
+  --ease: cubic-bezier(0.2, 0, 0.13, 1);
+
+  /* ---- chrome dimensions, from the design's chrome budget ---- */
+  --titlebar-h: 38px;
+  --tabstrip-h: 36px;
+  --statusbar-h: 28px;
+  --footer-h: 26px;
+  --sidebar-w: 268px;
+  --inspector-w: 320px;
+  /* Width of the frameless window's control overlay (minimise/maximise/close).
+     Any screen that draws its own header must reserve this much at the inline
+     end, or its rightmost control sits underneath the overlay — which has a
+     higher z-index, so the click closes the application instead. */
+  --window-controls-w: 100px;
+
+  /* ---- direction ----
+
+     Layout direction is a `dir` attribute on <html> and nothing else: every
+     rule in the application is written in logical properties, so the sidebar,
+     the tab strip's edges, the inspector and the window-control reservation
+     all mirror without a second stylesheet. These two tokens cover the cases
+     that logical properties do not reach.
+
+     `--dir-flip` is the horizontal sign, for a transform. Multiply an X
+     translation by it — `translateX(calc(var(--dir-flip) * 8px))` — and a
+     panel that slides in from the inline start slides the right way in both
+     directions. Never write a bare `translateX(8px)` on a chrome element.
+
+     `--dir-arrow` is the glyph a chain of hops is joined with. It is a token
+     rather than a literal so that a right-to-left interface joins with an
+     arrow pointing the way its reader reads. It belongs to CSS content and
+     the equivalent for interface copy is `common.punctuation.chainSeparator`
+     in the catalogue, which a translator can change on its own. */
+  --dir-flip: 1;
+  --dir-arrow: "\2192";                /* U+2192 RIGHTWARDS ARROW */
+}
+
+:root[dir="rtl"] {
+  --dir-flip: -1;
+  --dir-arrow: "\2190";                /* U+2190 LEFTWARDS ARROW */
+}
+
+/* ---------------------------------------------------------------- dark ---- */
+:root,
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg-canvas: #16171a;
+  --bg-surface: #1c1e22;
+  --bg-elevated: #23262b;
+  --bg-inset: #101114;
+  --bg-terminal: #131417;
+  --bg-overlay: rgb(8 9 11 / 0.72);
+
+  --fg-default: #e6e8ea;
+  --fg-strong: #c8ced4;   /* mono: hostnames, fingerprints, code */
+  --fg-muted: #9aa1a9;
+  --fg-subtle: #8a929a;
+  --fg-on-accent: #08181b;
+
+  --border-default: #2a2e34;
+  --border-strong: #3a4048;
+  --border-focus: #3bb6c4;
+
+  --accent: #3bb6c4;
+  --accent-hover: #4fd0de;
+  --accent-tint: rgb(59 182 196 / 0.12);
+
+  /* Session state. Never reused for anything else — see the design's rule. */
+  --state-connected: #4bb47b;
+  --state-connecting: #e0a33d;
+  --state-failed: #e05252;
+  --state-locked: #8a929a;
+  --state-recording: #e05252;
+
+  --success: #4bb47b;
+  --success-tint: rgb(75 180 123 / 0.12);
+  --warning: #e0a33d;
+  --warning-tint: rgb(224 163 61 / 0.12);
+  --danger: #e05252;        /* fills only */
+  --danger-text: #f07b78;   /* on a tint, where the fill would fail contrast */
+  --danger-tint: rgb(224 82 82 / 0.12);
+  --fg-on-danger: #ffffff;
+  --info: #7f9df0;
+  --info-text: #8fa0f5;
+  --info-tint: rgb(127 157 240 / 0.12);
+}
+
+/* --------------------------------------------------------------- light ---- */
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --bg-canvas: #f7f8f9;
+  --bg-surface: #ffffff;
+  --bg-elevated: #ffffff;
+  --bg-inset: #eef0f2;
+  --bg-terminal: #16171a;   /* terminals stay dark unless the user says otherwise */
+  --bg-overlay: rgb(20 22 25 / 0.42);
+
+  --fg-default: #16171a;
+  --fg-strong: #2a2e34;
+  --fg-muted: #5b636b;
+  --fg-subtle: #6d757d;
+  --fg-on-accent: #ffffff;
+
+  --border-default: #dfe3e7;
+  --border-strong: #c3c9d0;
+  --border-focus: #17808f;
+
+  --accent: #17808f;
+  --accent-hover: #12707d;
+  --accent-tint: rgb(23 128 143 / 0.10);
+
+  --state-connected: #1f7a4d;
+  --state-connecting: #9a6a12;
+  --state-failed: #b52d2d;
+  --state-locked: #5b636b;
+  --state-recording: #b52d2d;
+
+  --success: #1f7a4d;
+  --success-tint: rgb(31 122 77 / 0.10);
+  --warning: #9a6a12;
+  --warning-tint: rgb(154 106 18 / 0.10);
+  --danger: #b52d2d;
+  --danger-text: #9e2424;
+  --danger-tint: rgb(181 45 45 / 0.10);
+  --fg-on-danger: #ffffff;
+  --info: #3a53b8;
+  --info-text: #32499f;
+  --info-tint: rgb(58 83 184 / 0.10);
+}
+
+/* ------------------------------------------------------- high contrast ---- */
+:root[data-theme="hc-dark"] {
+  color-scheme: dark;
+
+  --bg-canvas: #000000;
+  --bg-surface: #0b0c0e;
+  --bg-elevated: #16171a;
+  --bg-inset: #000000;
+  --bg-terminal: #000000;
+  --bg-overlay: rgb(0 0 0 / 0.86);
+
+  --fg-default: #ffffff;
+  --fg-strong: #ffffff;
+  --fg-muted: #d6dade;
+  --fg-subtle: #c3c9d0;
+  --fg-on-accent: #000000;
+
+  --border-default: #6d757d;
+  --border-strong: #ffffff;
+  --border-focus: #ffff00;
+
+  --accent: #63d8e6;
+  --accent-hover: #8ae7f2;
+  --accent-tint: rgb(99 216 230 / 0.20);
+
+  --state-connected: #5ee08f;
+  --state-connecting: #ffc24d;
+  --state-failed: #ff7b7b;
+  --state-locked: #c3c9d0;
+  --state-recording: #ff7b7b;
+
+  --success: #5ee08f;
+  --success-tint: rgb(94 224 143 / 0.20);
+  --warning: #ffc24d;
+  --warning-tint: rgb(255 194 77 / 0.20);
+  --danger: #ff7b7b;
+  --danger-text: #ff9b9b;
+  --danger-tint: rgb(255 123 123 / 0.20);
+  --fg-on-danger: #000000;
+  --info: #9db4ff;
+  --info-text: #b6c6ff;
+  --info-tint: rgb(157 180 255 / 0.20);
+}
+
+:root[data-theme="hc-light"] {
+  color-scheme: light;
+
+  --bg-canvas: #ffffff;
+  --bg-surface: #ffffff;
+  --bg-elevated: #ffffff;
+  --bg-inset: #f2f3f5;
+  --bg-terminal: #000000;
+  --bg-overlay: rgb(0 0 0 / 0.55);
+
+  --fg-default: #000000;
+  --fg-strong: #000000;
+  --fg-muted: #2a2e34;
+  --fg-subtle: #3a4048;
+  --fg-on-accent: #ffffff;
+
+  --border-default: #3a4048;
+  --border-strong: #000000;
+  --border-focus: #0033cc;
+
+  --accent: #0c5f6b;
+  --accent-hover: #094a54;
+  --accent-tint: rgb(12 95 107 / 0.14);
+
+  --state-connected: #14603b;
+  --state-connecting: #7a5205;
+  --state-failed: #8f1f1f;
+  --state-locked: #3a4048;
+  --state-recording: #8f1f1f;
+
+  --success: #14603b;
+  --success-tint: rgb(20 96 59 / 0.14);
+  --warning: #7a5205;
+  --warning-tint: rgb(122 82 5 / 0.14);
+  --danger: #8f1f1f;
+  --danger-text: #7a1f1f;
+  --danger-tint: rgb(143 31 31 / 0.14);
+  --fg-on-danger: #ffffff;
+  --info: #23368c;
+  --info-text: #1b2a70;
+  --info-tint: rgb(35 54 140 / 0.14);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0ms;
+    --motion-base: 0ms;
+    --motion-slow: 0ms;
+  }
+}

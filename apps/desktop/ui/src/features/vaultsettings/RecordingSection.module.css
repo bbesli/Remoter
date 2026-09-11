@@ -1,0 +1,47 @@
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 45rem;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.description {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--fg-muted);
+  text-wrap: pretty;
+}
+
+/* The heading above already names the group; the legend is for the radio
+   group's accessible name and would be a second copy of it on screen. */
+.hiddenLegend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+/* The two footnotes are one block: what "required" would mean, and where
+   recordings will be kept. At the section's own gap they read as two unrelated
+   remarks, which is how a caveat gets skipped. */
+.notes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}

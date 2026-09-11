@@ -1,0 +1,266 @@
+# Licence, advisory and dependency policy. See CLAUDE.md §8.
+#
+# Remoter is GPL-3.0-or-later. GPL-3.0 permits incorporating MIT, Apache-2.0,
+# BSD, ISC and MPL-2.0 code. It does not permit GPL-incompatible terms.
+
+[licenses]
+allow = [
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "MIT",
+    "MIT-0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "MPL-2.0",
+    "Unicode-3.0",
+    "Zlib",
+    "CC0-1.0",
+    "0BSD",
+    # Remoter's own crates. `cargo deny` checks every node in the graph,
+    # workspace members included, so the workspace's own expression has to be
+    # allowed or the policy rejects the project it exists to protect.
+    #
+    # This entry used to read "GPL-3.0", which is not the expression any
+    # manifest in this workspace carries — every one of them says
+    # "GPL-3.0-or-later". SPDX treats the two as different licences, so the
+    # allowance matched nothing and all nine workspace crates were rejected,
+    # which meant `cargo deny check` could never exit zero and CLAUDE.md §8's
+    # record of "licences were checked" recorded nothing. Do not shorten it
+    # back: keep this string byte-identical to the manifests' `license` field.
+    "GPL-3.0-or-later",
+    # `webpki-roots`, the Mozilla CA root store the update check verifies
+    # github.com against. CDLA-Permissive-2.0 is a permissive data licence with
+    # no copyleft and no further obligations, so it imposes nothing on a
+    # GPL-3.0 work that ships it.
+    "CDLA-Permissive-2.0",
+    # `async_io_stream`, reached only through `vnc-rs`. The Unlicense is a
+    # public domain dedication with a permissive fallback licence; the FSF
+    # lists it as GPL-compatible, and a dedication imposes no condition a
+    # GPL-3.0 work could conflict with. Note that it is the *sole* licence on
+    # that crate — `Unlicense OR MIT`, which several other dependencies carry,
+    # already resolved through the MIT arm.
+    "Unlicense",
+]
+confidence-threshold = 0.9
+
+# Protocol implementations, checked against GPL-3.0 before they were added
+# (CLAUDE.md §8.1). Recorded here rather than only in a commit message because
+# this file is where the next person looks.
+#
+#   ironrdp 0.17 and every `ironrdp-*` crate it re-exports  MIT OR Apache-2.0
+#   vnc-rs 0.5                                              MIT OR Apache-2.0
+#
+# Both offer an Apache-2.0 arm, which GPL-3.0 permits incorporating, and an MIT
+# arm, which it also permits. Neither carries an additional restriction, a
+# non-commercial clause or a source-availability obligation, so neither
+# conflicts with distributing Remoter under GPL-3.0-or-later. Their transitive
+# trees resolved to licences already allowed above, with the single exception
+# of `async_io_stream` under the Unlicense, noted in the allow list.
+
+# The RDP adapter's own dependencies, checked before they were added
+# (CLAUDE.md §8.1). Only one of them is new to the dependency graph:
+#
+#   tokio-rustls 0.26    MIT OR Apache-2.0    NEW
+#   rustls 0.23          Apache-2.0 OR ISC OR MIT   already present via russh
+#   rustls-pki-types 1   MIT OR Apache-2.0    already present
+#   webpki-roots 1       CDLA-Permissive-2.0  already present, noted above
+#   x509-cert 0.2        Apache-2.0 OR MIT    already present via ironrdp-pdu
+#   hmac 0.13            MIT OR Apache-2.0    already present
+#
+# Every one offers a permissive arm GPL-3.0 permits incorporating, and none
+# carries an additional restriction, a non-commercial clause or a
+# source-availability obligation.
+#
+# The keyboard layout default (CLAUDE.md §8.1). One crate, Windows only:
+#
+#   winreg 0.55          MIT                  already present as a build
+#                                             dependency of tauri-build, via
+#                                             embed-resource
+#
+# `crates/remoter-proto-rdp/src/layout.rs` reads the user's configured layout
+# out of `HKCU\Keyboard Layout\Preload`, because a hard-coded US English
+# identifier types the wrong characters on every other keyboard and reports no
+# fault while doing it. The alternative, `GetKeyboardLayoutNameW`, is FFI, and
+# the workspace sets `unsafe_code = "forbid"`. MIT is permissive and imposes
+# nothing on a GPL-3.0 work; the crate is already in the graph, so the
+# dependency tree does not grow.
+
+# Two crates were deliberately *not* added, and the reasons are recorded in
+# `crates/remoter-proto-rdp/src/lib.rs` rather than only here:
+#
+#   ironrdp-connector    pins `picky =7.0.0-rc.25`, whose default features pin
+#                        `aes-gcm =0.11.0-rc.4`, which contradicts
+#                        `remoter-import`'s released `aes-gcm ^0.11`
+#   sspi                 pins `curve25519-dalek =5.0.0-rc.1` on Apple targets,
+#                        which contradicts `russh`'s released `^5`; cargo
+#                        resolves target-specific dependencies for every target
+#
+# Both are resolver conflicts, not licence problems: adding either fails every
+# cargo command in the repository. MS-CSSP, MS-NLMP and the MS-RDPBCGR
+# connection sequence are implemented in-crate as a result.
+
+[[licenses.clarify]]
+crate = "ring"
+expression = "MIT AND ISC AND OpenSSL"
+license-files = [{ path = "LICENSE", hash = 0xbd0eed23 }]
+
+[bans]
+multiple-versions = "warn"
+# Every dependency between workspace crates is `{ path = "..." }` with no
+# version, which cargo-deny counts as a wildcard. `wildcards = "deny"` therefore
+# fired eight times on this workspace — on nothing but internal path edges,
+# which carry none of the supply-chain risk the check exists for, because they
+# resolve to a directory in this repository and never to a registry.
+#
+# `allow-wildcard-paths` is the intended exemption, but cargo-deny only applies
+# it to crates marked `publish = false`; none of Remoter's manifests are, so the
+# exemption alone does not clear them. Downgrading to "warn" is what lets the
+# rest of the policy run today.
+#
+# The property this drops — no `foo = "*"` pulled from crates.io — is not lost:
+# the "No wildcard registry dependencies" step in .github/workflows/ci.yml fails
+# the build on one, and it is precise where this check is not. Restore
+# `wildcards = "deny"` (keeping allow-wildcard-paths) the moment the workspace
+# members gain `publish = false`, and drop that CI step then.
+wildcards = "warn"
+allow-wildcard-paths = true
+
+# ADR-0009: the plugin ABI and SDK crates are Apache-2.0 OR MIT so that plugin
+# authors compile against nothing copyleft. A GPL dependency in either silently
+# breaks the licence exception in LICENSE-EXCEPTION.
+#
+# `wrappers` is an allow list of the crates that may depend on the banned crate;
+# anything else that reaches it fails the check. It used to read `wrappers = []`,
+# which allows no dependent at all — that bans remoter-core outright, so the
+# check reported the whole workspace rather than the edge it was written to
+# forbid, and `cargo deny check bans` could not pass. Listing the legitimate
+# dependents is what makes it an edge ban: remoter-plugin-abi and
+# remoter-plugin-sdk are deliberately absent, so the day either one grows a
+# dependency on GPL-3.0-or-later remoter-core, this fails.
+#
+# A new workspace crate that legitimately depends on remoter-core has to be
+# added to this list or the check fails. That is the intended direction: the
+# list fails closed, and the cost of adding a line is smaller than the cost of
+# a plugin ABI that quietly stopped being permissively licensed.
+#
+# It only covers the one workspace crate. Any *other* copyleft dependency
+# appearing under the ABI or the SDK is caught by the "No copyleft in the plugin
+# ABI or SDK" job in .github/workflows/ci.yml, which reads real licence
+# expressions out of the dependency graph.
+[[bans.deny]]
+crate = "remoter-core"
+wrappers = [
+    "remoter-vault",
+    "remoter-proto",
+    "remoter-proto-ssh",
+    "remoter-proto-rdp",
+    "remoter-proto-vnc",
+    "remoter-import",
+    "remoter-ipc",
+]
+
+[advisories]
+yanked = "deny"
+# Vulnerabilities stay at cargo-deny's default, which is "deny". Nothing below
+# relaxes that, and every entry in `ignore` carries a `# REVIEW-BY:` line that
+# the "Advisory exceptions must expire" step in .github/workflows/ci.yml turns
+# into a build failure on the stated date. An advisory silenced here is an
+# advisory nobody reads again, unless something makes them read it.
+#
+# "workspace" narrows *unmaintained* advisories to crates this workspace chose
+# itself. The five that fire today — proc-macro-error and four `unic-*` crates —
+# arrive under tauri, several levels down, and every one says "No safe upgrade
+# is available". Failing on them means the security job is red forever for
+# something no change to this repository can fix, and a permanently red check is
+# a check people learn to skip. An unmaintained crate we add on purpose still
+# fails, which is the case where the warning is actionable.
+unmaintained = "workspace"
+
+# Three of the four vulnerabilities that were open here were fixed by taking a
+# newer dependency, not by an entry in this list:
+#
+#   RUSTSEC-2026-0194, RUSTSEC-2026-0195  quick-xml 0.38.4 -> 0.41
+#       Quadratic duplicate-attribute scanning and unbounded
+#       namespace-declaration allocation, both denial of service on hostile
+#       input. `remoter-import` is the crate that parses files handed over by
+#       someone else, so this was the worst place in the graph to carry a
+#       parser advisory. Requirement raised in the root Cargo.toml, which also
+#       took a one-line change in `remoter-import/src/xml.rs`: 0.41 deprecates
+#       `decode_and_unescape_value`, and `-D warnings` makes a deprecation a
+#       build failure. The replacement is the same call with the XML version
+#       spelled out.
+#   RUSTSEC-2026-0194, RUSTSEC-2026-0195  plist 1.8.0 -> 1.10.1
+#       The same two advisories again, on the *second* quick-xml in the graph:
+#       `plist`, under tauri, carried its own 0.38.4. Raising the workspace
+#       requirement does nothing for a version a dependency picks for itself;
+#       the crate that holds it has to move.
+#   RUSTSEC-2026-0009                     time 0.3.45 -> 0.3.55
+#       Stack exhaustion parsing RFC 2822 dates, reached through tauri.
+#
+# The last two are held in Cargo.lock rather than derivable from the manifests:
+# both plist 1.10 and time 0.3.55 declare `rust-version = "1.88.0"`, the v3
+# resolver is MSRV-aware, and this workspace still understates its floor as
+# 1.85 — so it had been vetoing those releases in silence. They were resolved
+# under a corrected floor and left in the lock; the note on `rust-version` in
+# the root Cargo.toml says why the floor itself is a separate change, CI passes
+# `--locked` so it tests that lock, and this check is the backstop if a
+# regenerated lock ever walks them back.
+#
+# What is left is one advisory with no fixed release in existence.
+#
+# REVIEW-BY: 2026-12-11  RUSTSEC-2023-0071
+ignore = [
+    # RUSTSEC-2023-0071, the "Marvin Attack": the `rsa` crate's private-key
+    # operation is not constant time, so timing observed over the network can
+    # leak the private key. It reaches this workspace as
+    # `rsa 0.10.0-rc.18` under `russh 0.63.1` and under `ssh-key 0.7.0-rc.11`.
+    #
+    # WHY IT IS NOT UPGRADED. There is nothing to upgrade to. The advisory
+    # records "No safe upgrade is available!" — no released `rsa` version is
+    # patched, the constant-time rewrite is still open upstream
+    # (RustCrypto/RSA#626). The version is not ours to pick either: russh's
+    # manifest says `rsa = "=0.10.0-rc.18"`, an exact pin, so no bump inside
+    # russh 0.63 moves it, and russh is a pinned major choice (CLAUDE.md §8).
+    #
+    # WHAT THE EXPOSURE IS FOR THIS APPLICATION. Remoter is an SSH client, and
+    # the reachable private-key path is narrower than the advisory's worst
+    # case:
+    #
+    #   * No RSA decryption happens anywhere. The Marvin attack's oracle is a
+    #     chosen-ciphertext decryption oracle; SSH-2 performs no RSA
+    #     decryption, and the key exchange list in
+    #     `crates/remoter-proto-ssh/src/algorithms.rs` is ML-KEM/X25519, plain
+    #     X25519 and finite-field DH — no RSA kex at any feature setting.
+    #     `ssh-key`'s RSA keypair constructs only a `pkcs1v15::SigningKey`.
+    #   * Host key verification is a public-key operation. No secret exponent
+    #     is involved, so the side channel does not exist on that path.
+    #   * What remains is signing the publickey authentication request with the
+    #     user's own RSA key (rsa-sha2-256/512, RFC 8332). A hostile server —
+    #     which `docs/security/threat-model.md` assumes — can influence the
+    #     signed session identifier and time the reply. That is a genuine
+    #     oracle, but a slow one: one signature per connection, each preceded
+    #     by a TCP connect and a full key exchange, against an attack that
+    #     needs a very large number of high-precision samples on one key.
+    #     Users with Ed25519 or ECDSA keys never touch this code at all.
+    #
+    # WHETHER IT CAN BE WORKED AROUND. Yes, at a cost we are not paying today:
+    # `russh`'s `rsa` feature is optional, and dropping it from
+    # `crates/remoter-proto-ssh/Cargo.toml` removes the crate from the graph
+    # outright. It also removes RSA public-key authentication, RSA host keys
+    # and PKCS#1/PKCS#8 RSA key import — all supported deliberately
+    # (`algorithms.rs`, `keyfmt.rs`), and all still common on real servers. An
+    # SSH client that cannot use an RSA key is not one people can use, so the
+    # trade is only worth making if the exposure grows or the fix never lands.
+    #
+    # ON REVIEW: check whether `rsa` has shipped the constant-time
+    # implementation and whether russh has taken it. If it has, delete this
+    # entry — do not extend the date without re-reading the two paragraphs
+    # above.
+    { id = "RUSTSEC-2023-0071", reason = "no patched `rsa` release exists; pinned exactly by russh 0.63. Reachable only when signing with a user's own RSA key — no RSA decryption and no RSA kex in this client. Removing russh's optional `rsa` feature is the workaround, at the cost of all RSA key support. Reviewed by 2026-12-11." },
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

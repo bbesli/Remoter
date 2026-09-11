@@ -23,6 +23,7 @@ New to the project? Read in this order:
 | [data-model.md](architecture/data-model.md) | Node tree, credentials, property inheritance |
 | [session-pipeline.md](architecture/session-pipeline.md) | From click to live session, hop by hop |
 | [rendering.md](architecture/rendering.md) | Terminal and framebuffer rendering, IPC transport |
+| [sftp-command-surface.md](architecture/sftp-command-surface.md) | What the file manager needs from `remoter-ipc` |
 | [plugin-system.md](architecture/plugin-system.md) | WebAssembly ABI, capabilities, sandbox |
 | [storage.md](architecture/storage.md) | SQLite schema, migrations, sync-readiness |
 | [decisions/](architecture/decisions/) | Architecture Decision Records (0001–0012) |

@@ -1,0 +1,62 @@
+/*
+ * Ordinary modal geometry, shared by the file manager's dialogs.
+ *
+ * The one thing worth noting is `max-height`: a removal preview can list six
+ * sample paths and a report can list a dozen failures, so the body scrolls
+ * inside the dialog rather than the dialog growing past the window and taking
+ * its own buttons with it.
+ */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  background: var(--bg-overlay);
+}
+
+.dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: min(34rem, 100%);
+  max-height: 100%;
+  padding: var(--space-5);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-3);
+}
+
+.title {
+  flex: none;
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  line-height: var(--leading-tight);
+  color: var(--fg-default);
+  /* A dialog titled after a remote file name must wrap rather than push its
+     own close button off the edge; the name can be arbitrarily long. */
+  overflow-wrap: anywhere;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-height: 0;
+  overflow-y: auto;
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  color: var(--fg-default);
+}
+
+.footer {
+  display: flex;
+  flex: none;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}

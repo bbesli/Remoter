@@ -1,0 +1,290 @@
+{
+  "_comment_file": "The application settings screen and its six sections. Loaded when the screen opens, not before. Section titles double as the navigation labels, so they stay short; the descriptions underneath carry the explanation.",
+
+  "screen": {
+    "title": "Настройки",
+    "close": "Закрыть настройки",
+    "_comment_closeHint": "Esc is a key name and is not translated.",
+    "closeHint": "Закрыть настройки (Esc)",
+    "sections": "Разделы настроек",
+    "navAppearance": "Оформление",
+    "navTerminal": "Терминал",
+    "navLanguage": "Язык",
+    "navShortcuts": "Сочетания клавиш",
+    "navUpdates": "Обновления",
+    "navAbout": "О программе",
+    "loading": "Читаются ваши настройки…",
+    "loadFailed": "Не удалось прочитать ваши настройки."
+  },
+
+  "appearance": {
+    "title": "Тема",
+    "description": "Тема — это файл, переопределяющий токены оформления. Пара высококонтрастных тем удовлетворяет WCAG 2.2 AA на любом кегле, а не только для основного текста.",
+    "light": "Светлая",
+    "dark": "Тёмная",
+    "hcLight": "Высококонтрастная светлая",
+    "hcDark": "Высококонтрастная тёмная",
+    "system": "Как в системе",
+    "_comment_systemNow": "{resolved} is systemLight or systemDark below, so the whole sentence is one message rather than two halves joined at run time.",
+    "systemNow": "Сейчас система сообщает: {resolved}.",
+    "systemLight": "светлая тема",
+    "systemDark": "тёмная тема",
+    "previewUnavailable": "Предпросмотр недоступен",
+    "saving": "Тема сохраняется…",
+    "saveFailed": "Тема не сохранена.",
+    "terminalNote": "У терминала свои цвета и шрифт — на вкладке «Терминал»: восемь палитр, правка отдельных цветов и проверка контраста. Его палитра следует за выбранной здесь темой, пока вы не выберете палитру там."
+  },
+
+  "language": {
+    "title": "Язык",
+    "description": "К версии 1.0 запланировано десять языков. Языки с письмом справа налево зеркалят всю раскладку экрана, а не только текст.",
+    "_comment_progress": "PLURAL, on the number of languages that actually have catalogues. The count is measured from the locales/ directory rather than hardcoded, so the sentence follows the directory instead of a hand-maintained flag. The second sentence is deliberately conditional — 'any language still being translated' — because every language listed is selectable today, and the wording has to stay true both now and if an eleventh language is listed before its catalogue exists. Do not turn it back into a claim that some of the languages shown cannot be chosen: that claim was true once, was translated faithfully into nine languages, and was wrong in all ten by the time anyone read it. RUSSIAN NOTE: the English source keyed its 'only English' wording to the `one` category, which in Russian also matches 21, 31, 101 and so on. It is written here as an exact `=1` match instead, and the four Russian plural categories carry the counted wording.",
+    "progress": "{available, plural, =1 {Пока переведён только английский.} one {Переведён # язык, и его уже можно выбрать.} few {Переведено # языка, и любой из них уже можно выбрать.} many {Переведено # языков, и любой из них уже можно выбрать.} other {Переведено # языка, и любой из них уже можно выбрать.}} Любой язык, перевод которого ещё идёт, тоже есть в списке и станет доступен для выбора, как только будет готов его каталог.",
+    "notReady": "Пока недоступен",
+    "_comment_unavailableLabel": "The accessible name of a row that cannot be chosen. {name} is the language's own name, in its own script, and is never translated.",
+    "unavailableLabel": "{name} — пока недоступен",
+    "_comment_rtl": "A badge on right-to-left languages. Abbreviation; expand it if the language has no equivalent short form.",
+    "rtl": "RTL",
+    "saving": "Язык сохраняется…",
+    "saveFailed": "Язык не сохранён.",
+    "_comment_storedUnavailable": "Shown when the settings file names a language with no catalogue — a downgrade, or a translation withdrawn. {locale} is a BCP 47 tag such as pt-BR and is not translated.",
+    "storedUnavailable": "В ваших настройках запрошен {locale}, но каталога для него пока нет, поэтому интерфейс остаётся на английском."
+  },
+
+  "terminal": {
+    "paletteTitle": "Палитра терминала",
+    "paletteDescription": "Цвета, которыми рисуется каждый сеанс в этом окне. Не связаны с темой интерфейса, поэтому у светлого интерфейса может быть тёмный терминал. Изменения доходят до уже открытых сеансов — переподключаться не нужно.",
+    "auto": "Следовать теме интерфейса",
+    "autoCredit": "Remoter Dark при тёмном интерфейсе, Remoter Light при светлом и высококонтрастная палитра, когда интерфейс высококонтрастный",
+    "_comment_autoResolved": "{name} is a palette's name, taken from the palettes block below — so whatever you call 'Remoter Dark' there is what appears here.",
+    "autoResolved": "Сейчас это {name}.",
+
+    "_comment_palettes": "One entry per palette this build ships, keyed by the palette's id. The name heads its card in the picker; the credit says whose design it is, because a palette is somebody's published work. Solarized, Gruvbox, Nord and Tomorrow Night are published works with names of their own, and the person names and licence abbreviations in their credits are not translated — translate only the words around them, and transliterate a name only if your script gives a reader no way to read the Latin one. The two Remoter entries and 'High contrast' are this application's own copy and should read naturally in your language.",
+    "palettes": {
+      "remoter-dark": {
+        "name": "Remoter Dark",
+        "credit": "Remoter — палитра, с которой это приложение вышло"
+      },
+      "remoter-light": {
+        "name": "Remoter Light",
+        "credit": "Remoter — светлый аналог, настроенный так, чтобы проходить AA на своём фоне"
+      },
+      "solarized-dark": {
+        "name": "Solarized Dark",
+        "credit": "Ethan Schoonover, MIT"
+      },
+      "solarized-light": {
+        "name": "Solarized Light",
+        "credit": "Ethan Schoonover, MIT"
+      },
+      "gruvbox-dark": {
+        "name": "Gruvbox Dark",
+        "credit": "Pavel Pertsev, MIT"
+      },
+      "nord": {
+        "name": "Nord",
+        "credit": "Arctic Ice Studio и Sven Greb, MIT"
+      },
+      "tomorrow-night": {
+        "name": "Tomorrow Night",
+        "credit": "Chris Kempson, MIT"
+      },
+      "high-contrast": {
+        "name": "Высокая контрастность",
+        "credit": "Remoter — палитра, которую используют высококонтрастные темы интерфейса"
+      }
+    },
+
+    "_comment_paletteLabel": "The accessible name of one palette's radio button: the palette's name, then who made it. Both values come from the palettes block above. The dash is a separator, not a word — use whatever separates a title from its attribution in your language.",
+    "paletteLabel": "{name} — {credit}",
+
+    "previewLabel": "Предпросмотр",
+    "previewNote": "Настоящий вывод — в палитре и шрифте, которые сейчас будут применены.",
+
+    "contrastTitle": "Контраст",
+    "contrastDescription": "Каждый цвет, которым программа печатает текст, измерен относительно вашего фона. WCAG 2.2 AA требует 4,5:1 при этом кегле. Ничего не запрещается — это ваш терминал, — но именно эти цвета будет трудно читать.",
+    "contrastClear": "Все цвета проходят порог 4,5:1 на этом фоне.",
+    "_comment_contrastSample": "The two letters drawn in each failing colour, as a specimen. Replace them with characters representative of the script this locale is read in — the point is to show what that colour looks like as text a reader would actually meet. Keep it to two or three characters.",
+    "contrastSample": "Аа",
+    "contrastHard": "Трудно читать",
+    "contrastUnreadable": "Нечитаемо",
+    "_comment_contrastRatio": "A contrast ratio, already formatted to one decimal by Intl. The ':1' is notation, not words.",
+    "contrastRatio": "{ratio}:1",
+    "contrastAgainstBackground": "{ratio} относительно фона",
+    "_comment_contrastCount": "PLURAL. 4.5:1 is a WCAG threshold and stays a numeral in every language.",
+    "contrastCount": "{count, plural, one {# цвет не дотягивает до 4,5:1} few {# цвета не дотягивают до 4,5:1} many {# цветов не дотягивают до 4,5:1} other {# цвета не дотягивают до 4,5:1}}",
+    "contrastWarning": "Смените цвет, смените фон или оставьте как есть — это измерение, а не отказ.",
+    "contrastBlacks": "Цвет 0 и цвет 8 — те два, которые оболочка обычно использует как фон или как приглушённое оформление, а не как текст. Поэтому они не дотягивают почти в каждой когда-либо опубликованной палитре, включая эту.",
+
+    "_comment_colours": "What each editable colour is called, in the order the editor lists them. The leading number is the ANSI colour index and stays a numeral; the word after it is translated. 'Bright black' is the conventional name for ANSI 8 even though it is usually dark grey — keep the convention rather than describing the colour.",
+    "colours": {
+      "background": "Фон",
+      "foreground": "Текст",
+      "cursor": "Курсор",
+      "cursorAccent": "Текст под курсором",
+      "selection": "Выделение",
+      "black": "0 Чёрный",
+      "red": "1 Красный",
+      "green": "2 Зелёный",
+      "yellow": "3 Жёлтый",
+      "blue": "4 Синий",
+      "magenta": "5 Пурпурный",
+      "cyan": "6 Голубой",
+      "white": "7 Белый",
+      "brightBlack": "8 Яркий чёрный",
+      "brightRed": "9 Яркий красный",
+      "brightGreen": "10 Яркий зелёный",
+      "brightYellow": "11 Яркий жёлтый",
+      "brightBlue": "12 Яркий синий",
+      "brightMagenta": "13 Яркий пурпурный",
+      "brightCyan": "14 Яркий голубой",
+      "brightWhite": "15 Яркий белый"
+    },
+    "coloursTitle": "Отдельные цвета",
+    "coloursDescription": "Выберите цвет или вставьте шестнадцатеричное значение — принимаются #rgb, #rrggbb и #rrggbbaa. Рядом с изменённым цветом появляется кнопка сброса. В системном выборе цвета нет прозрачности, поэтому цвет, у которого она была, её сохраняет; менять прозрачность нужно в поле hex, в виде #rrggbbaa.",
+    "_comment_hexLabel": "{name} is a colour's name, such as 'Red' or 'Bright black'. These are the ANSI colour names and are translated.",
+    "hexLabel": "{name}, шестнадцатеричное значение",
+    "pickLabel": "{name}, выбор цвета",
+    "resetOne": "Вернуть «{name}» к собственному цвету палитры",
+    "resetAll": "Сбросить все цвета",
+    "resetAllNone": "Ничего не переопределено",
+    "overridden": "Изменён",
+    "_comment_overriddenCount": "PLURAL.",
+    "overriddenCount": "{count, plural, one {# цвет отличается от палитры} few {# цвета отличаются от палитры} many {# цветов отличаются от палитры} other {# цвета отличаются от палитры}}",
+    "invalidHex": "Это не цвет. Запишите его так: #1a1c20.",
+
+    "fontTitle": "Шрифт терминала",
+    "fontDescription": "Не связан со шрифтом интерфейса. При изменении этого значения интерфейс сохраняет свой кегль.",
+    "fontFamilyLabel": "Гарнитура",
+    "_comment_fontFamilyPlaceholder": "A font name. Not translated.",
+    "fontFamilyPlaceholder": "JetBrains Mono",
+    "fontFamilyHelp": "Название шрифта, установленного на этой машине. Remoter не может перечислить ваши шрифты и не может сообщить, найден ли этот: предпросмотр выше набран им, поэтому изменение, которое ничего не поменяло, означает, что название не совпало. Что бы вы ни ввели, при неудаче применяется моноширинный набор интерфейса, так что опечатка никогда не оставит вас без моноширинного терминала.",
+    "fontFamilyDefault": "Оставьте поле пустым, чтобы использовать моноширинный набор интерфейса.",
+    "fontSizeLabel": "Кегль",
+    "_comment_fontSizeHelp": "{min} and {max} are the bounds the build enforces, so the sentence cannot drift out of step with the control.",
+    "fontSizeHelp": "В пикселях, от {min} до {max}. Сеанс меняет свой размер и сообщает удалённому хосту новую геометрию.",
+
+    "scope": "Эти настройки принадлежат этой машине, а не хранилищу, и применяются ко всем сеансам, а не к одному подключению.",
+    "saving": "Оформление терминала сохраняется…",
+    "saveFailed": "Оформление терминала не сохранено."
+  },
+
+  "shortcuts": {
+    "title": "Сочетания клавиш",
+    "description": "Каждое сочетание ниже — то, что приложение действительно слушает. Активный терминал должен получать почти каждое нажатие, поэтому внутри сеанса сочетания приложения вызываются через префикс.",
+    "loading": "Читается ваша карта сочетаний…",
+    "loadFailed": "Не удалось прочитать вашу карту сочетаний.",
+    "loadFallback": "Это сочетания из поставки. Изменённые вами не показаны и не могут быть изменены здесь, пока файл настроек не удаётся прочитать.",
+
+    "prefixTitle": "Префикс терминала",
+    "_comment_prefixBody": "Ctrl+C, Ctrl+D and Alt+F are key names. Translate the sentence, not the keys.",
+    "prefixBody": "Ctrl+C, Ctrl+D и Alt+F принадлежат удалённому хосту, поэтому Remoter их не занимает. Внутри сеанса удерживайте ещё и префикс.",
+    "prefixLegend": "Префикс, удерживаемый вместе с сочетанием приложения внутри сеанса",
+    "prefixSaving": "Префикс сохраняется…",
+    "prefixFailed": "Префикс не изменён.",
+
+    "searchLabel": "Поиск по сочетаниям",
+    "searchPlaceholder": "Фильтр по действию или клавише",
+
+    "caption": "Сочетания клавиш и то, до чего каждое из них достаёт и не достаёт",
+    "colAction": "Действие",
+    "colShortcut": "Сочетание",
+    "colScope": "Где работает",
+
+    "scopeUniversal": "Везде",
+    "scopeApplication": "Через префикс в сеансе",
+    "scopeContext": "Только там, где набрано",
+    "scopeNowhere": "Нигде",
+
+    "_comment_inSession": "{keys} is a key combination such as 'Ctrl+B then T'. Key names are not translated.",
+    "inSession": "Внутри активного сеанса: {keys}",
+
+    "edit": "Изменить сочетание для действия «{action}», сейчас {keys}",
+    "capturing": "Нажмите клавиши…",
+    "capturingHint": "Нажмите нужное сочетание или Esc для отмены.",
+    "fixed": "Сочетание для действия «{action}» изменить нельзя",
+    "saving": "Сохранение…",
+
+    "reset": "Вернуть действию «{action}» сочетание из поставки",
+    "resetAll": "Сбросить все сочетания",
+    "resetAllBusy": "Сброс…",
+    "resetAllNone": "Все изменяемые сочетания уже соответствуют поставке.",
+    "saveFailed": "Сочетание не сохранено.",
+
+    "_comment_count": "PLURAL on {shown}, with {total} inside it. Filtering a table down to one row is common enough that the singular is worth having.",
+    "count": "{shown, plural, one {Показано # из {total} сочетаний.} few {Показано # из {total} сочетаний.} many {Показано # из {total} сочетаний.} other {Показано # из {total} сочетаний.}}",
+    "empty": "Под это условие не подходит ни одно сочетание.",
+
+    "_comment_conflictDuplicate": "{holders} is a locale-joined list of action names, built with Intl.ListFormat.",
+    "conflictDuplicate": "Уже занято: {holders}. Сработать может только одно из них, поэтому измените одно из двух.",
+    "conflictReservedUniversal": "Удалённой оболочке нужны эти клавиши, поэтому активный сеанс оставляет их себе, и там это сочетание не срабатывает никогда.",
+    "conflictReservedApplication": "Эти клавиши принадлежат удалённой оболочке, а также копированию и вставке. Внутри сеанса префикс оставляет их свободными, но вне сеанса Remoter их занимает.",
+    "conflictDesktop": "Некоторые рабочие среды забирают это сочетание для собственного переключателя окон и выигрывают. Там, где это происходит, нажатие до Remoter не доходит.",
+
+    "refusedInvalid": "Такое сочетание Remoter назначить не может.",
+    "refusedReserved": "{keys} принадлежит удалённому хосту: активный терминал обязан его получать, поэтому назначение здесь перекрыло бы ему путь к оболочке.",
+    "refusedDuplicate": "Сочетание {keys} уже занято действием «{action}». Ничего не изменено — сначала освободите его там или выберите другое сочетание.",
+    "refusedUnknown": "В этой сборке такого действия нет."
+  },
+
+  "updates": {
+    "title": "Обновления",
+    "description": "Remoter может проверять, вышел ли более новый выпуск. Он его не устанавливает и ни с чем не связывается, пока вы не попросите.",
+
+    "switchLabel": "Автоматически проверять наличие нового выпуска",
+    "_comment_consent": "SECURITY-CRITICAL. This is the consent notice for the only outbound request the application makes. Every clause is a commitment: what is contacted, how often, and exactly what is sent. Do not shorten it, and do not generalise 'one thing: this build's version string' into 'some information'.",
+    "consent": "Когда это включено, Remoter обращается к github.com не чаще раза в сутки — один раз при включении, а дальше при открытии этого экрана — и отправляет одно: строку версии этой сборки. Ни идентификатора, ни локали, ни телеметрии, ни данных об использовании. Когда выключено, никаких обращений не происходит, пока вы не нажмёте «Проверить сейчас».",
+    "switchSaving": "Сохранение…",
+    "switchFailed": "Эта настройка не сохранена.",
+
+    "checkNow": "Проверить сейчас",
+    "checking": "У GitHub запрашивается список выпусков…",
+    "lastCheckedNever": "Эта машина ещё ни разу не проверяла.",
+    "_comment_lastChecked": "{when} is a relative time from Intl.RelativeTimeFormat — 'yesterday', '3 hours ago'.",
+    "lastChecked": "Последняя проверка: {when}.",
+
+    "checkFailed": "Проверка обновлений не завершилась.",
+
+    "_comment_current": "{version} here and in the three messages below is a version string such as 0.1.0. Never translated, and never localised as a number — 0.1.0 does not become 0,1,0.",
+    "current": "У вас {version} — это самый новый выпуск.",
+    "none": "Ни одного выпуска ещё не опубликовано. У вас {version}.",
+    "unknown": "Эта сборка сообщает о своей версии как {version}, а такую версию невозможно сравнить. Откройте страницу выпусков и проверьте глазами.",
+
+    "updateHeading": "Доступна версия {version}",
+    "updateRunning": "У вас {version}.",
+    "published": "Опубликовано: {when}.",
+    "notesHeading": "Что изменилось",
+    "notesNone": "Этот выпуск опубликован без описания изменений.",
+    "openRelease": "Открыть страницу выпуска",
+    "openReleases": "Открыть страницу выпусков",
+
+    "_comment_noSelfUpdate": "SECURITY-CRITICAL. It states why the application will not install its own updates. Keep the reason — unsigned releases — rather than reducing it to 'for safety'.",
+    "noSelfUpdate": "Remoter не устанавливает обновления сам. Выпуски пока не подписываются, а запуск неподписанного двоичного файла — не то, о чём менеджер учётных данных вправе вас просить. Поэтому кнопка открывает страницу выпуска в браузере, а установку вы выполняете сами.",
+
+    "openFailed": "Системный браузер не открылся.",
+
+    "promiseTitle": "Remoter не звонит домой",
+    "_comment_promiseTelemetry": "SECURITY-CRITICAL, as are the two promises after it. Three absolute statements about what the application does not do. A translator who hedges any of them turns a commitment into marketing.",
+    "promiseTelemetry": "Никакой телеметрии. Никаких отчётов об использовании. Никакой аналитики любого рода, ни при каких настройках.",
+    "promiseCrash": "Никакой отправки отчётов о сбоях. Отчёт о сбое записывается на вашу машину, и вы сами решаете, прикладывать ли его к обращению, — а значит, можете сначала его прочитать, что важно, когда процесс держит учётные данные.",
+    "promiseCheck": "Проверка обновлений — единственное обращение Remoter наружу, которое не является открытым вами сеансом. Она читает публичный список выпусков и отправляет строку версии этой сборки. Она ничего не скачивает."
+  },
+
+  "about": {
+    "title": "О программе",
+    "description": "Что это за сборка и на каких условиях она распространяется.",
+    "versionLabel": "Версия",
+    "versionReading": "Чтение…",
+    "versionUnavailable": "Недоступно",
+    "licenceLabel": "Лицензия",
+    "_comment_licenceValue": "The licence's own name and SPDX identifier. Not translated: it is the legal name of the document.",
+    "licenceValue": "GNU General Public License, version 3 or later (GPL-3.0-or-later)",
+    "exceptionLabel": "Плагины",
+    "exceptionValue": "Эта сборка не умеет загружать плагины. Хоста плагинов в ней пока нет — есть только ABI, который будет использовать будущий. Когда он появится: плагин на WebAssembly, который общается с Remoter только через опубликованный ABI плагинов, можно лицензировать на любых условиях по вашему выбору — это исключение для интерфейса, описанное в LICENSE-EXCEPTION.",
+    "updatesLabel": "Обновления",
+    "updatesValue": "Remoter проверяет наличие нового выпуска, только если вы включите проверку, и никогда его не устанавливает. См. раздел «Обновления».",
+    "repositoryLabel": "Исходный код",
+    "repositoryOpen": "Открыть репозиторий",
+    "repositoryFailed": "Системный браузер не открылся."
+  }
+}

@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"><style>html,body{margin:0;padding:0;background:#0d0e10}a{color:#3bb6c4;text-decoration:none}a:hover{color:#4fd0de}@keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}</style></helmet>
+<div style="min-height:100vh;background:#0d0e10;padding:28px 24px 64px;box-sizing:border-box;font-family:system-ui,-apple-system,'Segoe UI',Roboto,'Noto Sans',sans-serif;display:flex;flex-direction:column;align-items:flex-start;gap:18px">
+
+<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+<span style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#8a929a">07 · Audit &amp; recording</span>
+<div style="display:flex;gap:6px" onClick="{{ onBar }}">
+<button type="button" data-view="audit" style="appearance:none;border:1px solid #2a2e34;background:#1c1e22;color:#9aa1a9;font:500 12px system-ui,sans-serif;padding:5px 10px;border-radius:6px;cursor:pointer" style-hover="border-color:#3bb6c4;color:#e6e8ea">Audit log</button>
+<button type="button" data-view="player" style="appearance:none;border:1px solid #2a2e34;background:#1c1e22;color:#9aa1a9;font:500 12px system-ui,sans-serif;padding:5px 10px;border-radius:6px;cursor:pointer" style-hover="border-color:#3bb6c4;color:#e6e8ea">Recording player</button>
+</div>
+</div>
+
+<sc-if value="{{ showAudit }}" hint-placeholder-val="{{ true }}">
+<div style="width:1160px;flex:none;height:680px;background:#16171a;border:1px solid #2a2e34;border-radius:10px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.55);display:flex;flex-direction:column;color:#e6e8ea;font-size:14px">
+
+<div style="height:44px;flex:none;display:flex;align-items:center;gap:10px;padding:0 8px 0 18px;background:#1c1e22;border-bottom:1px solid #2a2e34">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9aa1a9" stroke-width="1.8" stroke-linecap="round"><path d="M5 4h11l3 3v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"></path><path d="M8 10h8M8 14h8M8 18h5"></path></svg>
+<span style="font-size:14px;font-weight:600">Audit log</span>
+<span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#4bb47b;background:rgba(75,180,123,.1);border:1px solid rgba(75,180,123,.3);border-radius:3px;padding:1px 6px">append-only · local</span>
+<div style="flex:1"></div>
+<button type="button" style="appearance:none;border:1px solid #2a2e34;background:#23262b;color:#c8ced4;font:500 12px system-ui,sans-serif;padding:6px 12px;border-radius:6px;cursor:pointer" style-hover="border-color:#3bb6c4;color:#e6e8ea">Export…</button>
+<button type="button" style="width:28px;height:28px;border:none;background:transparent;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0" style-hover="background:#23262b"><svg width="14" height="14" viewBox="0 0 24 24" stroke="#9aa1a9" stroke-width="2" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"></path></svg></button>
+</div>
+
+<div style="height:46px;flex:none;display:flex;align-items:center;gap:8px;padding:0 18px;background:#131417;border-bottom:1px solid #2a2e34">
+<div style="flex:1;max-width:420px;height:29px;background:#101114;border:1px solid #2a2e34;border-radius:6px;display:flex;align-items:center;gap:8px;padding:0 10px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8a929a" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg><span style="font-family:'JetBrains Mono',monospace;font-size:12.5px;color:#c8ced4">host:db-01</span><span style="display:inline-block;width:7px;height:14px;background:#3bb6c4;animation:blink 1.1s step-end infinite"></span></div>
+<div style="display:flex;gap:5px">
+<span style="font-size:11.5px;color:#08181b;background:#3bb6c4;border-radius:5px;padding:4px 10px;font-weight:600;cursor:pointer">All</span>
+<span style="font-size:11.5px;color:#9aa1a9;border:1px solid #2a2e34;border-radius:5px;padding:4px 10px;cursor:pointer">Connections</span>
+<span style="font-size:11.5px;color:#9aa1a9;border:1px solid #2a2e34;border-radius:5px;padding:4px 10px;cursor:pointer">Secrets</span>
+<span style="font-size:11.5px;color:#9aa1a9;border:1px solid #2a2e34;border-radius:5px;padding:4px 10px;cursor:pointer">Vault</span>
+<span style="font-size:11.5px;color:#f07b78;border:1px solid rgba(224,82,82,.35);border-radius:5px;padding:4px 10px;cursor:pointer">Warnings</span>
+</div>
+<div style="flex:1"></div>
+<span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#8a929a">last 30 days · 4,182 entries</span>
+</div>
+
+<div style="display:grid;grid-template-columns:150px 130px 1fr 128px 96px;background:#131417;border-bottom:1px solid #2a2e34;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#8a929a">
+<div style="padding:9px 14px">When</div><div style="padding:9px 10px">Event</div><div style="padding:9px 10px">What</div><div style="padding:9px 10px">Where</div><div style="padding:9px 10px">Duration</div></div>
+
+<div style="flex:1;min-height:0;overflow:auto;font-size:13px">
+
+<div style="display:grid;grid-template-columns:150px 130px 1fr 128px 96px;align-items:center;border-bottom:1px solid #1c1e22;background:rgba(224,82,82,.06)" style-hover="background:rgba(224,82,82,.1)">
+<div style="padding:10px 14px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#c8ced4">10 Sep 09:41:12</div>
+<div style="padding:10px 10px;display:flex;align-items:center;gap:6px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#e05252" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5L22 20H2z"></path><path d="M12 10v4M12 17h.01"></path></svg><span style="font-size:12px;color:#f07b78;font-weight:600">host key changed</span></div>
+<div style="padding:10px 10px;color:#e6e8ea">Refused to connect. Offered key did not match the pin.</div>
+<div style="padding:10px 10px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#9aa1a9">db-01</div>
+<div style="padding:10px 10px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#8a929a">—</div>
+</div>
+
+<div style="display:grid;grid-template-columns:150px 130px 1fr 128px 96px;align-items:center;border-bottom:1px solid #1c1e22" style-hover="background:#1c1e22">
+<div style="padding:10px 14px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#c8ced4">10 Sep 09:38:04</div>
+<div style="padding:10px 10px;display:flex;align-items:center;gap:6px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#4bb47b" stroke-width="2" stroke-linecap="round"><path d="M4 8l4 4-4 4"></path><path d="M12 16h8"></path></svg><span style="font-size:12px;color:#9aa1a9">session opened</span></div>
+<div style="padding:10px 10px;color:#c8ced4">SSH as <span style="font-family:'JetBrains Mono',monospace;font-size:12px">svc-deploy</span> via bastion → jump-eu · recorded</div>
+<div style="padding:10px 10px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#9aa1a9">db-01</div>
+<div style="padding:10px 10px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#9aa1a9">3h 12m</div>
+</div>
+
+<div style="display:grid;grid-template-columns:150px 130px 1fr 128px 96px;align-items:center;border-bottom:1px solid #1c1e22;background:rgba(224,163,61,.05)" style-hover="background:rgba(224,163,61,.09)">
+<div style="padding:10px 14px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#c8ced4">10 Sep 09:22:47</div>
+<div style="padding:10px 10px;display:flex;align-items:center;gap:6px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#e0a33d" stroke-width="2" stroke-linecap="round"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6z"></path><circle cx="12" cy="12" r="2.6"></circle></svg><span style="font-size:12px;color:#e0a33d">secret revealed</span></div>
+<div style="padding:10px 10px;color:#c8ced4">Password for <span style="font-family:'JetBrains Mono',monospace;font-size:12px">svc-deploy</span> shown on screen · clipboard cleared after 30 s</div>
+<div style="padding:10px 10px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#9aa1a9">—</div>
+<div style="padding:10px 10px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#8a929a">—</div>
+</div>
+
+<div style="display:grid;grid-template-columns:150px 130px 1fr 128px 96px;align-items:center;border-bottom:1px solid #1c1e22;background:rgba(224,82,82,.06)" style-hover="background:rgba(224,82,82,.1)">
+<div style="padding:10px 14px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#c8ced4">10 Sep 08:55:30</div>
+<div style="padding:10px 10px;display:flex;align-items:center;gap:6px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#e05252" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="2.5"></circle><path d="M7.8 7.8a6 6 0 0 0 0 8.4M16.2 7.8a6 6 0 0 1 0 8.4"></path></svg><span style="font-size:12px;color:#f07b78;font-weight:600">broadcast typing</span></div>
+<div style="padding:10px 10px;color:#e6e8ea">Enabled across 4 sessions in <span style="font-family:'JetBrains Mono',monospace;font-size:12px">Web tier</span> · all four recorded</div>
+<div style="padding:10px 10px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#9aa1a9">web-01…04</div>
+<div style="padding:10px 10px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#9aa1a9">4m 18s</div>
+</div>
+
+<div style="display:grid;grid-template-columns:150px 130px 1fr 128px 96px;align-items:center;border-bottom:1px solid #1c1e22" style-hover="background:#1c1e22">
+<div style="padding:10px 14px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#c8ced4">10 Sep 08:41:02</div>
+<div style="padding:10px 10px;display:flex;align-items:center;gap:6px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9aa1a9" stroke-width="2" stroke-linecap="round"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg><span style="font-size:12px;color:#9aa1a9">vault unlocked</span></div>
+<div style="padding:10px 10px;color:#c8ced4">Slot 2 · security key <span style="font-family:'JetBrains Mono',monospace;font-size:12px">YubiKey 5C</span></div>
+<div style="padding:10px 10px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#9aa1a9">this machine</div>
+<div style="padding:10px 10px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#8a929a">—</div>
+</div>
+
+<div style="display:grid;grid-template-columns:150px 130px 1fr 128px 96px;align-items:center;border-bottom:1px solid #1c1e22" style-hover="background:#1c1e22">
+<div style="padding:10px 14px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#c8ced4">09 Sep 22:41:07</div>
+<div style="padding:10px 10px;display:flex;align-items:center;gap:6px"><svg width="12" height="12" viewBox="0 0 24 24" stroke="#e05252" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"></path></svg><span style="font-size:12px;color:#9aa1a9">connect failed</span></div>
+<div style="padding:10px 10px;color:#c8ced4">Hop 2 of 3 timed out · <span style="font-family:'JetBrains Mono',monospace;font-size:12px">jump-eu.internal:22</span></div>
+<div style="padding:10px 10px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#9aa1a9">web-03</div>
+<div style="padding:10px 10px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#9aa1a9">30 s</div>
+</div>
+
+<div style="display:grid;grid-template-columns:150px 130px 1fr 128px 96px;align-items:center;border-bottom:1px solid #1c1e22" style-hover="background:#1c1e22">
+<div style="padding:10px 14px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#c8ced4">09 Sep 17:12:55</div>
+<div style="padding:10px 10px;display:flex;align-items:center;gap:6px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9aa1a9" stroke-width="2" stroke-linecap="round"><circle cx="8" cy="12" r="3.5"></circle><path d="M11.5 12H21M18 12v3"></path></svg><span style="font-size:12px;color:#9aa1a9">credential borrowed</span></div>
+<div style="padding:10px 10px;color:#c8ced4"><span style="font-family:'JetBrains Mono',monospace;font-size:12px">svc-deploy</span> for <span style="font-family:'JetBrains Mono',monospace;font-size:12px">Purpose::Connect { ssh }</span></div>
+<div style="padding:10px 10px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#9aa1a9">web-01</div>
+<div style="padding:10px 10px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#8a929a">—</div>
+</div>
+
+<div style="display:grid;grid-template-columns:150px 130px 1fr 128px 96px;align-items:center;border-bottom:1px solid #1c1e22;background:rgba(224,82,82,.06)" style-hover="background:rgba(224,82,82,.1)">
+<div style="padding:10px 14px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#c8ced4">08 Sep 11:03:19</div>
+<div style="padding:10px 10px;display:flex;align-items:center;gap:6px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#e05252" stroke-width="2" stroke-linecap="round"><path d="M12 3v11M8 10l4 4 4-4"></path><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"></path></svg><span style="font-size:12px;color:#f07b78;font-weight:600">plaintext export</span></div>
+<div style="padding:10px 10px;color:#e6e8ea">31 credentials written unencrypted to <span style="font-family:'JetBrains Mono',monospace;font-size:12px">~/Desktop/acme.csv</span></div>
+<div style="padding:10px 10px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#9aa1a9">this machine</div>
+<div style="padding:10px 10px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#8a929a">—</div>
+</div>
+
+</div>
+
+<div style="height:42px;flex:none;display:flex;align-items:center;gap:12px;padding:0 18px;background:#1c1e22;border-top:1px solid #2a2e34;font-size:12px;color:#8a929a">
+<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8a929a" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5M12 16h.01"></path></svg>
+<span>Entries are appended and never edited. Exporting copies them; it does not remove them.</span>
+<div style="flex:1"></div>
+<span style="font-family:'JetBrains Mono',monospace">virtualised · 8 of 4,182 shown</span></div>
+</div>
+</sc-if>
+
+<sc-if value="{{ showPlayer }}" hint-placeholder-val="{{ false }}">
+<div style="width:1160px;flex:none;height:680px;background:#16171a;border:1px solid #2a2e34;border-radius:10px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.55);display:flex;flex-direction:column;color:#e6e8ea;font-size:14px">
+
+<div style="height:44px;flex:none;display:flex;align-items:center;gap:10px;padding:0 8px 0 18px;background:#1c1e22;border-bottom:1px solid #2a2e34">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#e05252" stroke-width="1.9"><circle cx="12" cy="12" r="8"></circle><path d="M10.5 9.5l4.5 2.5-4.5 2.5z" fill="#e05252" stroke="none"></path></svg>
+<span style="font-size:14px;font-weight:600">db-01 · 10 Sep 2026, 09:38</span>
+<span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#8a929a;border:1px solid #2a2e34;border-radius:3px;padding:1px 6px">asciicast v2 · 2.1 MB</span>
+<div style="flex:1"></div>
+<button type="button" style="appearance:none;border:1px solid #2a2e34;background:#23262b;color:#c8ced4;font:500 12px system-ui,sans-serif;padding:6px 12px;border-radius:6px;cursor:pointer" style-hover="border-color:#3bb6c4;color:#e6e8ea">Export .cast</button>
+<button type="button" style="width:28px;height:28px;border:none;background:transparent;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0" style-hover="background:#23262b"><svg width="14" height="14" viewBox="0 0 24 24" stroke="#9aa1a9" stroke-width="2" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"></path></svg></button>
+</div>
+
+<div style="flex:1;min-height:0;display:flex">
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;background:#101114">
+<div style="flex:1;min-height:0;padding:14px 18px;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.55;color:#c8ced4;overflow:hidden">
+<div><span style="color:#4bb47b">svc-deploy@db-01</span><span style="color:#8a929a">:</span><span style="color:#7f9df0">~</span><span style="color:#8a929a">$ </span>sudo -u postgres psql -c '\l'</div>
+<div style="color:#9aa1a9">                                  List of databases</div>
+<div style="color:#9aa1a9">    Name     |  Owner   | Encoding |   Collate   |    Ctype    |   Access</div>
+<div style="color:#8a929a">-------------+----------+----------+-------------+-------------+----------</div>
+<div style="color:#9aa1a9"> acme_prod   | postgres | UTF8     | en_GB.UTF-8 | en_GB.UTF-8 |</div>
+<div style="color:#9aa1a9"> acme_shadow | postgres | UTF8     | en_GB.UTF-8 | en_GB.UTF-8 |</div>
+<div style="color:#9aa1a9"> postgres    | postgres | UTF8     | en_GB.UTF-8 | en_GB.UTF-8 |</div>
+<div style="color:#8a929a">(3 rows)</div>
+<div style="height:8px"></div>
+<div><span style="color:#4bb47b">svc-deploy@db-01</span><span style="color:#8a929a">:</span><span style="color:#7f9df0">~</span><span style="color:#8a929a">$ </span><span style="background:rgba(224,163,61,.3);color:#e6e8ea">pg_dump</span> acme_prod | gzip &gt; /backup/acme_prod.sql.gz</div>
+<div><span style="color:#4bb47b">svc-deploy@db-01</span><span style="color:#8a929a">:</span><span style="color:#7f9df0">~</span><span style="color:#8a929a">$ </span><span style="display:inline-block;width:8px;height:16px;background:#3bb6c4;vertical-align:text-bottom;animation:blink 1.1s step-end infinite"></span></div>
+</div>
+
+<div style="flex:none;background:#16171a;border-top:1px solid #2a2e34;padding:12px 18px 14px;display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;align-items:center;gap:10px">
+<div style="flex:1;height:5px;border-radius:3px;background:#2a2e34;position:relative;cursor:pointer">
+<div style="position:absolute;left:0;top:0;bottom:0;width:34%;background:#3bb6c4;border-radius:3px"></div>
+<div style="position:absolute;left:34%;top:50%;width:13px;height:13px;border-radius:7px;background:#3bb6c4;border:2px solid #16171a;transform:translate(-50%,-50%)"></div>
+<div style="position:absolute;left:18%;top:-4px;width:2px;height:13px;background:#e0a33d;border-radius:1px" title="pg_dump"></div>
+<div style="position:absolute;left:61%;top:-4px;width:2px;height:13px;background:#e0a33d;border-radius:1px" title="sudo"></div>
+<div style="position:absolute;left:78%;top:-4px;width:2px;height:13px;background:#e05252;border-radius:1px" title="rm -rf"></div>
+</div>
+</div>
+<div style="display:flex;align-items:center;gap:12px">
+<button type="button" style="width:32px;height:32px;border-radius:16px;border:none;background:#3bb6c4;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0" style-hover="background:#4fd0de"><svg width="14" height="14" viewBox="0 0 24 24" fill="#08181b"><rect x="7" y="5" width="3.6" height="14" rx="1"></rect><rect x="13.4" y="5" width="3.6" height="14" rx="1"></rect></svg></button>
+<button type="button" style="width:28px;height:28px;border-radius:6px;border:none;background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0" style-hover="background:#23262b"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9aa1a9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L5 12l6 7M19 5l-6 7 6 7"></path></svg></button>
+<button type="button" style="width:28px;height:28px;border-radius:6px;border:none;background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0" style-hover="background:#23262b"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9aa1a9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 5l6 7-6 7M5 5l6 7-6 7"></path></svg></button>
+<span style="font-family:'JetBrains Mono',monospace;font-size:12.5px;color:#c8ced4">01:04:22 / 03:12:04</span>
+<div style="display:flex;gap:4px;margin-left:6px">
+<span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#8a929a;border:1px solid #2a2e34;border-radius:4px;padding:3px 8px;cursor:pointer">1×</span>
+<span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#08181b;background:#3bb6c4;border-radius:4px;padding:3px 8px;font-weight:600;cursor:pointer">4×</span>
+<span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#8a929a;border:1px solid #2a2e34;border-radius:4px;padding:3px 8px;cursor:pointer">16×</span>
+<span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#8a929a;border:1px solid #2a2e34;border-radius:4px;padding:3px 8px;cursor:pointer">skip idle</span>
+</div>
+<div style="flex:1"></div>
+<span style="font-size:11.5px;color:#8a929a">Replay is local. Nothing is sent anywhere.</span>
+</div>
+</div>
+</div>
+
+<div style="width:330px;flex:none;background:#1c1e22;border-left:1px solid #2a2e34;display:flex;flex-direction:column;min-height:0">
+<div style="flex:none;padding:14px 15px 10px;border-bottom:1px solid #2a2e34">
+<div style="height:29px;background:#101114;border:1px solid #3bb6c4;border-radius:6px;display:flex;align-items:center;gap:8px;padding:0 10px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8a929a" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg><span style="font-family:'JetBrains Mono',monospace;font-size:12.5px;color:#c8ced4">pg_dump</span><div style="flex:1"></div><span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#8a929a">3 hits</span></div>
+</div>
+<div style="flex:1;min-height:0;overflow:auto;padding:12px 15px;display:flex;flex-direction:column;gap:14px">
+<div style="display:flex;flex-direction:column;gap:8px">
+<div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#8a929a">Matches</div>
+<div style="display:flex;flex-direction:column;gap:4px">
+<div style="display:flex;gap:9px;align-items:baseline;padding:7px 9px;background:rgba(59,182,196,.1);border-left:2px solid #3bb6c4;border-radius:0 5px 5px 0;cursor:pointer"><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#3bb6c4;flex:none">34:18</span><span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#c8ced4;word-break:break-all"><span style="background:rgba(224,163,61,.3)">pg_dump</span> acme_prod | gzip</span></div>
+<div style="display:flex;gap:9px;align-items:baseline;padding:7px 9px;border-radius:5px;cursor:pointer" style-hover="background:#23262b"><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#8a929a;flex:none">1:52:07</span><span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#9aa1a9;word-break:break-all">ls -la /backup/</span></div>
+<div style="display:flex;gap:9px;align-items:baseline;padding:7px 9px;border-radius:5px;cursor:pointer" style-hover="background:#23262b"><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#8a929a;flex:none">2:41:33</span><span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#9aa1a9;word-break:break-all"><span style="background:rgba(224,163,61,.3)">pg_dump</span> --schema-only</span></div>
+</div>
+</div>
+<div style="height:1px;background:#2a2e34"></div>
+<div style="display:flex;flex-direction:column;gap:8px">
+<div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#8a929a">Session</div>
+<div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px"><span style="font-size:12px;color:#9aa1a9">User</span><span style="font-family:'JetBrains Mono',monospace;font-size:12px">svc-deploy</span></div>
+<div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px"><span style="font-size:12px;color:#9aa1a9">Route</span><span style="font-family:'JetBrains Mono',monospace;font-size:12px">bastion → jump-eu</span></div>
+<div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px"><span style="font-size:12px;color:#9aa1a9">Terminal</span><span style="font-family:'JetBrains Mono',monospace;font-size:12px">80 × 24</span></div>
+<div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px"><span style="font-size:12px;color:#9aa1a9">Keystrokes</span><span style="font-family:'JetBrains Mono',monospace;font-size:12px">4,118</span></div>
+</div>
+<div style="height:1px;background:#2a2e34"></div>
+<div style="display:flex;flex-direction:column;gap:8px">
+<div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#8a929a">Marked commands</div>
+<div style="display:flex;align-items:center;gap:8px"><span style="width:2px;height:13px;background:#e0a33d;border-radius:1px;flex:none"></span><span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#c8ced4">pg_dump</span><span style="font-size:11px;color:#8a929a">34:18</span></div>
+<div style="display:flex;align-items:center;gap:8px"><span style="width:2px;height:13px;background:#e0a33d;border-radius:1px;flex:none"></span><span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#c8ced4">sudo systemctl</span><span style="font-size:11px;color:#8a929a">1:58:44</span></div>
+<div style="display:flex;align-items:center;gap:8px"><span style="width:2px;height:13px;background:#e05252;border-radius:1px;flex:none"></span><span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#f07b78">rm -rf /tmp/build</span><span style="font-size:11px;color:#8a929a">2:29:11</span></div>
+<div style="font-size:11.5px;color:#8a929a;line-height:1.5;margin-top:2px">Marks come from a pattern list you can edit. They are hints for finding things, not a security control.</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</sc-if>
+
+<div style="width:1160px;display:flex;flex-wrap:wrap;gap:10px">
+<div style="flex:1;min-width:250px;background:#131417;border:1px solid #23262b;border-radius:8px;padding:13px 15px;display:flex;flex-direction:column;gap:5px"><div style="font-size:12px;font-weight:600;color:#c8ced4">Three events get a coloured row</div><div style="font-size:12px;color:#8a929a;line-height:1.5">A changed host key, broadcast typing, and a plaintext export. These are the entries someone reviewing an incident is looking for, so they are findable while scrolling fast.</div></div>
+<div style="flex:1;min-width:250px;background:#131417;border:1px solid #23262b;border-radius:8px;padding:13px 15px;display:flex;flex-direction:column;gap:5px"><div style="font-size:12px;font-weight:600;color:#c8ced4">The recording is text</div><div style="font-size:12px;color:#8a929a;line-height:1.5">asciicast v2 means the search box searches the session, not a video. Matches are timestamps you can jump to, which no screen recording can offer.</div></div>
+<div style="flex:1;min-width:250px;background:#131417;border:1px solid #23262b;border-radius:8px;padding:13px 15px;display:flex;flex-direction:column;gap:5px"><div style="font-size:12px;font-weight:600;color:#c8ced4">Graphical recordings need a different player</div><div style="font-size:12px;color:#8a929a;line-height:1.5">RDP and VNC recordings have no text to search. That player — frame scrubbing, dirty-rectangle heatmap — is not drawn here. Say if you want it.</div></div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1220,&quot;height&quot;:860},&quot;view&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;audit&quot;,&quot;player&quot;],&quot;default&quot;:&quot;audit&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Prototype&quot;}}">
+class Component extends DCLogic {
+  state = { view: 'audit' };
+  renderVals() {
+    return {
+      showAudit: this.state.view === 'audit',
+      showPlayer: this.state.view === 'player',
+      onBar: (e) => {
+        const b = e.target.closest && e.target.closest('[data-view]');
+        if (b) this.setState({ view: b.getAttribute('data-view') });
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>

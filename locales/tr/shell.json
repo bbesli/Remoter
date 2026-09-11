@@ -1,0 +1,174 @@
+{
+  "_comment_file": "The application shell: title bar, tab strip, status bar, footer, inspector, and the two full-area states (empty vault, locked vault). Loaded before the first paint, because it is on screen whenever the window is.",
+
+  "titleBar": {
+    "_comment_": "A 38px bar. Every label here is also a tooltip, so short wins — but a disabled control's tooltip says WHY, because 'why not?' is the only question a dead button raises.",
+    "noVault": "Açık kasa yok",
+    "unlocked": "kilidi açık",
+    "locked": "kilitli",
+    "lock": "Kasayı kilitle",
+    "lockAlreadyLocked": "Kilitlenecek, kilidi açık bir kasa yok.",
+    "lockInProgress": "Kasa kilitleniyor…",
+    "_comment_lockingShort": "Shown in the bar itself, where there is room for one word. The tooltip carries lockInProgress.",
+    "lockingShort": "Kilitleniyor…",
+    "settings": "Ayarlar",
+    "vaultSettings": "Kasa ayarları",
+    "audit": "Denetim günlüğü",
+    "importer": "Bağlantıları içe aktar",
+    "_comment_needsVault": "{action} is one of the four labels above. Interpolated rather than concatenated: languages differ on where the subject of this sentence goes.",
+    "needsVault": "{action} için kilidi açılmış bir kasa gerekir.",
+    "minimise": "Küçült",
+    "maximise": "Büyüt",
+    "restore": "Önceki boyut",
+    "close": "Kapat",
+    "_comment_controlFailed": "SECURITY-ADJACENT. The window controls are the one place where doing nothing is indistinguishable from being broken. Do not soften this into 'something went wrong'.",
+    "controlFailed": "{action} isteği pencere yöneticisi tarafından reddedildi.",
+    "noWindow": "Bu sayfa Remoter penceresinin içinde çalışmıyor, bu yüzden pencere denetimleri burada bir işe yaramaz."
+  },
+
+  "tabStrip": {
+    "sidebarShow": "Bağlantı ağacını göster",
+    "sidebarHide": "Bağlantı ağacını gizle",
+    "noSessions": "Açık oturum yok — başlatmak için bir bağlantıya çift tıklayın",
+    "_comment_inspector": "Ctrl-free: F4 is a bare function key and is written as-is in every language.",
+    "inspector": "Etkin değerler · F4",
+    "_comment_filesOpen": "The control that opens a file pane under the session in front. The four 'filesNo…' / 'filesNot…' sentences are the reasons it is doing nothing, one per reason: a disabled control has to say WHY, and 'unavailable' is not a reason. A file pane is one more channel on a connection that has already authenticated, never a second sign-in, which is why three of the four are about the session rather than about the pane.",
+    "filesOpen": "Bu oturumdaki dosyalara gözat",
+    "filesClose": "Dosya bölmesini kapat",
+    "filesNoSession": "Dosyalara gözatmak için açık bir oturum gerekir. Bir oturum başlatmak için bir bağlantıya çift tıklayın.",
+    "filesNotRunning": "Bu oturum bağlı değil; bu yüzden üzerinden gözatılacak bir bağlantı yok.",
+    "_comment_filesNoFileChannel": "SSH and SFTP are never translated. Names the reason rather than saying the button is unavailable.",
+    "filesNoFileChannel": "Bu oturum dosya taşımaz. SFTP, SSH üzerinde çalışır; bir RDP ya da VNC oturumunda dosya kanalı yoktur.",
+    "filesIsFileSession": "Bu sekme zaten bir dosya oturumu."
+  },
+
+  "statusBar": {
+    "nothingSelected": "Seçili bir şey yok",
+    "noSession": "Oturum yok",
+    "resolving": "Devralınan değerler çözümleniyor…",
+    "unresolved": "Etkin değerler henüz çözümlenmedi",
+    "_comment_protocolUnset": "Sits where SSH, RDP, VNC or SFTP would. Lower case: it is the absence of a protocol, not the name of one.",
+    "protocolUnset": "protokol yok",
+    "showDetail": "Hatayı inceleyicide göster"
+  },
+
+  "footer": {
+    "_comment_": "Counts. Every one is a plural: Russian needs four forms here and Arabic six, and the zero case is worth its own wording in the languages that have one.",
+    "sessions": "{count, plural, =0 {oturum yok} one {# oturum} other {# oturum}}",
+    "tunnels": "{count, plural, =0 {tünel yok} one {# tünel} other {# tünel}}",
+    "connections": "{count, plural, =0 {bağlantı yok} one {# bağlantı} other {# bağlantı}}",
+    "credentials": "{count, plural, =0 {kimlik bilgisi yok} one {# kimlik bilgisi} other {# kimlik bilgisi}}",
+    "openPanels": "Oturumlar ve tüneller panelini aç",
+    "_comment_locksIn": "{clock} is mm:ss, produced by formatClock() so the digits follow the locale's numbering system.",
+    "locksIn": "kasa {clock} sonra kilitlenir",
+    "noAutoLock": "otomatik kilit kapalı",
+    "_comment_vaultLocked": "SECURITY-ADJACENT. Sits where the auto-lock countdown goes. It exists because the countdown is null in two different situations - auto-lock switched off, and the vault LOCKED - and the footer used to say 'auto-lock is off' at the exact moment auto-lock had just fired. Lower case, like the counts beside it.",
+    "vaultLocked": "kasa kilitli"
+  },
+
+  "inspector": {
+    "title": "Etkin değerler",
+    "close": "İnceleyiciyi kapat",
+    "nothingSelected": "Seçili bir şey yok",
+    "nothingSelectedBody": "Çözümlenmiş ayarlarını görmek için ağaçtan bir bağlantı seçin.",
+    "notAConnection": "Klasörlerin kendilerine ait etkin değerleri olmaz.",
+    "notAConnectionBody": "Bir klasörün belirlediği değerler, devralınan değerin kaynağı olarak altındaki bağlantılarda görünür.",
+    "resolving": "Çözümleniyor",
+    "failed": "Bu bağlantı çözümlenemedi",
+    "retry": "Yeniden çözümle",
+    "notAsked": "Etkin değerler istenmedi",
+    "notAskedBody": "Çözümleme, açık bir kasa üzerinde çalışır. Bu kasa kilitli, dolayısıyla henüz üzerinde çözümleme yapılacak bir şey yok.",
+    "_comment_unset": "The value of a field nobody has set, anywhere in the inheritance chain.",
+    "unset": "ayarlanmamış",
+    "_comment_setHere": "Provenance labels, shown under a resolved field. 'set here' means this connection's own value; the others name where an inherited value came from. Lower case: they are fragments under a value, not sentences.",
+    "setHere": "burada ayarlandı",
+    "fromDefault": "protokol varsayılanı",
+    "inherited": "devralındı",
+    "_comment_fromSource": "{source} is a folder or connection name — user data, in any script, isolated before it arrives.",
+    "fromSource": "{source} öğesinden",
+    "_comment_overridesInherited": "{field} is a field name such as 'port' or 'username'. This is the case worth calling out: the tree above says something different from what will actually be used.",
+    "overridesInherited": "devralınan {field} değerini geçersiz kılar",
+    "credentialOwn": "bu bağlantıya ait",
+    "credentialShared": "burada ayarlandı · başka kayıtlarla paylaşılıyor",
+    "gateway": "Geçit zinciri",
+    "tags": "Etiketler",
+    "noFields": "Bu bağlantı hiçbir alana çözümlenmiyor."
+  },
+
+  "emptyVault": {
+    "title": "Bu kasa boş",
+    "_comment_body": "{vault} is the vault file's name, which is user data and may be in any script. It is wrapped in a Unicode isolate before it gets here, so the sentence keeps its own direction whatever the name contains.",
+    "body": "{vault} içinde henüz hiçbir şey saklanmıyor. Çoğu kişi işe, elindekileri buraya aktararak başlar.",
+    "unnamedVault": "bu kasa",
+    "importTitle": "Başka bir araçtan içe aktar",
+    "_comment_importBody": "Product and file names. Not translated.",
+    "importBody": "mRemoteNG, ~/.ssh/config, CSV",
+    "createTitle": "İlk bağlantıyı oluştur",
+    "createBody": "Başlamak için bir sunucu, bir protokol ve bir kimlik bilgisi yeter.",
+    "createBusy": "Bağlantı düzenleyicisi açılıyor…",
+    "openTitle": "Başka bir kasa aç",
+    "openBody": "Bu kasayı kilitler ve kasa seçiciye döner.",
+    "openBusy": "Bu kasa kilitleniyor…",
+    "openFailed": "Bu kasa kilitlenmedi, bu yüzden seçici açılmadı."
+  },
+
+  "main": {
+    "nothingSelected": "Seçili bir şey yok",
+    "_comment_nothingSelectedBody": "Ctrl+K is a key name. Translate the sentence around it, not the key.",
+    "nothingSelectedBody": "Ağaçtan bir bağlantı seçin ya da aramak için Ctrl+K tuşlarına basın.",
+    "noProtocol": "protokol yok",
+    "_comment_sidebarLabel": "The accessible name of the connection tree's landmark region. Read aloud when a screen reader lists the regions of the window.",
+    "sidebarLabel": "Bağlantılar",
+    "_comment_nodeKind": "What a selected tree entry is, shown above its name where a connection shows its protocol. These are the node kinds from the domain model; they are shown to the user, so they are translated, unlike the protocol names beside them.",
+    "nodeKind": {
+      "folder": "klasör",
+      "connection": "bağlantı",
+      "credential": "kimlik bilgisi",
+      "group": "grup",
+      "separator": "ayırıcı"
+    },
+    "connectHint": "Ağaçta çift tıklayın, palette Enter'a basın ya da bağlam menüsünden Bağlan'ı kullanın.",
+    "folderSelected": "Klasörler, altlarındaki bağlantıların devraldığı ayarları tutar.",
+
+    "vaultStateFailed": "Remoter, açık bir kasa olup olmadığını anlayamıyor.",
+    "treeFailed": "Bağlantı ağacı okunamadı.",
+    "lockFailed": "Kasa kilitlenmedi.",
+
+    "fullscreenFailedTitle": "Pencere tam ekrana geçmedi.",
+    "fullscreenFailedBody": "Pencere yöneticisi bunu reddetti ya da bu sayfa Remoter penceresinin içinde çalışmıyor. Oturumla ilgili hiçbir şey değişmedi.",
+
+    "checkingVault": "Açık bir kasa olup olmadığı denetleniyor…",
+    "readingTree": "Bağlantılar kasadan okunuyor…",
+    "_comment_lockedLeaving": "The one frame between the application noticing the vault has locked and the unlock screen replacing this window. Nothing of the vault is drawn behind it, which is the point: this is what the shell says while it is taking the connection tree off the screen.",
+    "lockedLeaving": "Kasanın içeriği bu pencereden temizleniyor…"
+  },
+
+  "kdfUpgrade": {
+    "_comment_": "SECURITY-CRITICAL SECTION. This is the offer to strengthen a vault's key derivation. Do not soften 'weaker than the current standard' into 'could be improved', and do not drop the sentence explaining why the password is asked for again — a credential prompt without a stated reason is exactly what a phishing dialog looks like.",
+    "offer": "Bu kasanın anahtar türetmesi güncel standarttan daha zayıf. Güçlendirmek kısa sürer ve yeni bir parola gerektirmez.",
+    "strengthen": "Güçlendir",
+    "notNow": "Şimdi değil",
+    "dismissLabel": "Bu öneriyi bir sonraki kilit açılışına kadar gizle",
+
+    "password": "Ana parola",
+    "passwordHelp": "Az önce kilidi açtığınız parolanın aynısı. Her anahtar yuvası bu parolanın etrafında yeniden kurulacağı için parolanın yeniden girilmesi gerekir.",
+    "confirm": "Güçlendir",
+    "_comment_working": "Short enough that reserving room for it does not widen the idle button.",
+    "working": "Güçlendiriliyor…",
+    "workingStage": "Anahtar, daha yüksek maliyetle yeniden türetiliyor…",
+
+    "reading": "Kasa başlığı okunuyor…",
+    "readFailed": "Bu kasanın başlığı okunamadı, dolayısıyla anahtar yuvaları güçlendirilemez.",
+
+    "keyfile": "Anahtar dosyası",
+    "keyfileMissing": "Bu kasanın parola yuvası anahtar dosyasını da ister.",
+    "keyfileDialog": "Bu kasanın anahtar dosyasını seçin",
+    "keyfileDialogFailed": "Sistemin dosya tarayıcısı açılmadı, bu yüzden hiçbir anahtar dosyası seçilemedi. Kasaya hiçbir şey gönderilmedi.",
+
+    "failed": "Anahtar yuvaları güçlendirilmedi.",
+    "done": "Tamam. Bu kasanın anahtar yuvaları güncel maliyette.",
+
+    "blockedPassword": "Ana parolayı yazın.",
+    "blockedKeyfile": "Bu kasanın istediği anahtar dosyasını seçin."
+  }
+}

@@ -1,0 +1,274 @@
+/*
+ * Steps 1–3 of the creation wizard. The card frame, the step heading and the
+ * recovery panel are in RecoveryKeyScreen.module.css, which owns the surface
+ * both entry points share.
+ */
+
+.step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.failure {
+  margin-bottom: var(--space-5);
+}
+
+.calloutBody {
+  margin: 0;
+  line-height: var(--leading-normal);
+  text-wrap: pretty;
+}
+
+.calloutFoot {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-xs);
+  color: var(--fg-subtle);
+}
+
+/* ------------------------------------------------------------- paths ---- */
+
+.pathRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.pathInput {
+  flex: 1;
+  min-width: 0;
+}
+
+.derivedName {
+  margin-top: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--fg-subtle);
+}
+
+.locationOk,
+.locationWarn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+}
+
+.locationOk {
+  color: var(--success);
+}
+
+.locationWarn {
+  color: var(--warning);
+}
+
+/* ---------------------------------------------------------- strength ---- */
+
+.strength {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.meterRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.meter {
+  flex: 1;
+  display: flex;
+  gap: var(--space-1);
+}
+
+.segment {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border-default);
+  transition: background var(--motion-fast) var(--ease);
+}
+
+.segment[data-on="true"][data-tone="weak"] {
+  background: var(--danger);
+}
+
+.segment[data-on="true"][data-tone="fair"] {
+  background: var(--warning);
+}
+
+.segment[data-on="true"][data-tone="strong"] {
+  background: var(--success);
+}
+
+.strengthLabel {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.strengthLabel[data-tone="weak"] {
+  color: var(--danger-text);
+}
+
+.strengthLabel[data-tone="fair"] {
+  color: var(--warning);
+}
+
+.strengthLabel[data-tone="strong"] {
+  color: var(--success);
+}
+
+.entropy {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--fg-subtle);
+  white-space: nowrap;
+}
+
+.explanation {
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--fg-muted);
+  text-wrap: pretty;
+}
+
+.matchOk {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--success);
+  white-space: nowrap;
+}
+
+.matchPending {
+  font-size: var(--text-xs);
+  color: var(--fg-subtle);
+  white-space: nowrap;
+}
+
+.generateRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.generateHint {
+  font-size: var(--text-xs);
+  color: var(--fg-subtle);
+}
+
+.inlineError {
+  font-size: var(--text-sm);
+  color: var(--danger-text);
+}
+
+/* ---------------------------------------------------------- key file ---- */
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.option {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  color: var(--fg-muted);
+  cursor: pointer;
+  transition:
+    border-color var(--motion-fast) var(--ease),
+    background var(--motion-fast) var(--ease);
+}
+
+.option:hover {
+  border-color: var(--border-strong);
+}
+
+.option[data-selected="true"] {
+  background: var(--accent-tint);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.option:focus-within {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+/* The native input carries the semantics and keyboard behaviour; the dot is
+   only paint. */
+.radioInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.optionText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 1;
+  min-width: 0;
+}
+
+.optionTitle {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--fg-default);
+}
+
+.optionHint {
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+}
+
+.radioDot {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  border: 2px solid var(--border-strong);
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.option[data-selected="true"] .radioDot {
+  border-color: var(--accent);
+}
+
+.option[data-selected="true"] .radioDot::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+}
+
+/* A note, not a warning: the location is the user's choice and the wizard
+   does not gate on it. Muted, no icon, no colour that reads as an error. */
+.locationNote {
+  margin-block-start: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+}

@@ -1,0 +1,30 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Permissions the Remoter window needs. Tauri v2 denies every command that is not granted here, and a denial arrives in the interface as an ordinary rejected promise — so an omission is not a visible error, it is a control that fails and then explains itself wrongly. Full screen was exactly that: MainWindow.tsx's F11 handler calls is_fullscreen and then set_fullscreen, only the first was granted, and the catch told the user there was no window to resize. Callers, so that a grant is traceable to the thing that needs it: start-dragging is every data-tauri-drag-region title bar; minimize, maximize, unmaximize, toggle-maximize, is-maximized, close and start-resize-dragging are the window controls in TitleBar.tsx and WindowChrome.tsx; set-fullscreen and is-fullscreen are the full-screen shortcut; set-focus and set-title are for the shell to raise and label the window. is-fullscreen and is-maximized are already inside core:window:default and are named again so that the read half of a pair is as visible as the write half. dialog open and save are the file pickers in the vault, import, audit-export and file-manager screens — save is also how the recovery-key step writes its sheet, which used to be an <a download> and did nothing at all on Windows, so a missing grant here is again a control that fails silently on the one screen that cannot afford it; message and confirm are granted for the dialog plugin's own prompts and have no caller in this build. opener open-url is About, Updates and a hyperlink clicked in a terminal.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+
+    "core:window:allow-start-dragging",
+    "core:window:allow-minimize",
+    "core:window:allow-maximize",
+    "core:window:allow-unmaximize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-is-maximized",
+    "core:window:allow-close",
+    "core:window:allow-set-focus",
+    "core:window:allow-set-title",
+    "core:window:allow-start-resize-dragging",
+
+    "core:window:allow-set-fullscreen",
+    "core:window:allow-is-fullscreen",
+
+    "dialog:allow-open",
+    "dialog:allow-save",
+    "dialog:allow-message",
+    "dialog:allow-confirm",
+
+    "opener:allow-open-url"
+  ]
+}

@@ -1,0 +1,115 @@
+.tabs {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.tab {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  max-width: 210px;
+  min-width: 0;
+  flex: 0 1 auto;
+  border-inline-end: 1px solid var(--border-default);
+  /* The connection's colour is set on this edge from the tree. Transparent by
+     default so an uncoloured connection keeps the strip's own line. */
+  border-block-start: 2px solid transparent;
+  background: transparent;
+  color: var(--fg-muted);
+  transition: background var(--motion-fast) var(--ease);
+}
+
+.tab:hover {
+  background: var(--bg-elevated);
+}
+
+.active {
+  background: var(--bg-canvas);
+  color: var(--fg-default);
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+
+.body {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-inline: var(--space-3) var(--space-1);
+  min-width: 0;
+  color: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-full);
+}
+
+.dot[data-state="connected"] {
+  background: var(--state-connected);
+}
+
+.dot[data-state="connecting"] {
+  background: var(--state-connecting);
+  animation: tab-pulse 1.4s ease-in-out infinite;
+}
+
+.dot[data-state="failed"] {
+  background: var(--state-failed);
+}
+
+.dot[data-state="locked"] {
+  background: var(--state-locked);
+}
+
+@keyframes tab-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dot[data-state="connecting"] {
+    animation: none;
+  }
+}
+
+.control {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  color: var(--fg-subtle);
+  border-radius: var(--radius-sm);
+  transition: background var(--motion-fast) var(--ease), color var(--motion-fast) var(--ease);
+}
+
+.control:hover:not(:disabled) {
+  background: var(--bg-inset);
+  color: var(--fg-default);
+}
+
+.control:disabled {
+  cursor: default;
+}

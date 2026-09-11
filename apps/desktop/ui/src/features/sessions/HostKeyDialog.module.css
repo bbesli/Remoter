@@ -1,0 +1,300 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  background: var(--bg-overlay);
+  overflow-y: auto;
+}
+
+/* The changed-key backdrop is tinted, so the difference between the two
+   decisions is visible before a single word is read. */
+.backdropAlarm {
+  background: color-mix(in srgb, var(--danger) 22%, var(--bg-overlay));
+}
+
+.dialog {
+  width: 100%;
+  background: var(--bg-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-3);
+  display: flex;
+  flex-direction: column;
+  max-height: 100%;
+  min-height: 0;
+}
+
+.unknown {
+  max-width: 34rem;
+  border: 1px solid var(--border-strong);
+}
+
+/* Three signals, not one colour: a heavier border, the alarm glyph, and the
+   tinted ground behind the whole dialog. */
+.changed {
+  max-width: 56rem;
+  border: 2px solid var(--danger);
+}
+
+.header {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-5) var(--space-3);
+}
+
+.alarmGlyph {
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  color: var(--danger-text);
+  padding-top: var(--space-1);
+}
+
+.headings {
+  min-width: 0;
+}
+
+.session {
+  margin: 0 0 var(--space-1);
+  font-family: var(--font-mono);
+  font-variant-ligatures: none;
+  font-size: var(--text-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: var(--leading-tight);
+  color: var(--fg-default);
+  overflow-wrap: anywhere;
+}
+
+.changed .title {
+  color: var(--danger-text);
+}
+
+.lead {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--fg-muted);
+  text-wrap: pretty;
+  max-width: 68ch;
+}
+
+.body {
+  padding: 0 var(--space-5) var(--space-4);
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.single {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-2) var(--space-4);
+  align-items: baseline;
+}
+
+.factLabel {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--fg-subtle);
+  white-space: nowrap;
+}
+
+.factValue {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-variant-ligatures: none;
+  font-size: var(--text-sm);
+  color: var(--fg-strong);
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+/* Side by side, because the difference between two fingerprints is what the
+   user is here to see. It stacks below the width where they would wrap. */
+.compare {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr));
+  gap: var(--space-3);
+}
+
+.key {
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-default);
+  background: var(--bg-inset);
+  min-width: 0;
+}
+
+.keyTrusted {
+  border-color: var(--border-default);
+}
+
+.keyOffered {
+  border-color: var(--danger);
+  background: var(--danger-tint);
+}
+
+.keyLabel {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+}
+
+.keyOffered .keyLabel {
+  color: var(--danger-text);
+}
+
+/* A fingerprint is a byte string, not a sentence.
+
+   `SHA256:` and the base64 that follows are strongly LTR characters, so most of
+   this survives an RTL page on content alone — but not all of it. The colon
+   after the algorithm name and any trailing `=` padding are bidi-neutral, and
+   in an RTL paragraph neutrals at the edge of a run take the paragraph's
+   direction: the colon jumps to the far side and the padding leads instead of
+   trails. A user comparing this against a fingerprint printed by `ssh-keygen`
+   would be comparing two differently-shaped strings.
+
+   Pinned here rather than isolated at the call site because this is not a value
+   interpolated into a translated sentence — it is a block of its own, and a
+   block's own `direction` is what its neutrals resolve against. */
+.fingerprint {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-variant-ligatures: none;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--fg-strong);
+  overflow-wrap: anywhere;
+  user-select: text;
+  direction: ltr;
+}
+
+.keyMeta {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+}
+
+.randomartBlock {
+  min-width: 0;
+}
+
+/* Randomart is a picture, and this is the line that keeps it one.
+
+   Every glyph in the art — `+`, `-`, `|`, `.`, `o`, `E`, space — is bidi
+   neutral. A run of neutrals has no direction of its own, so the bidi algorithm
+   hands it the direction of the paragraph it sits in; inside `dir="rtl"` that
+   means each row is reordered end-for-end and the whole box right-aligns. The
+   result is still a valid-looking picture, which is what makes it dangerous.
+
+   The entire security value of randomart is that a human recognises the same
+   shape twice. A user who compares today's art against the art they remember
+   from yesterday has to be told "this is a different key" by a difference in
+   the picture — and only by that. If the art mirrors because the interface is
+   in Arabic, every comparison fails, and the user has no way to tell a changed
+   host key from a rendering artefact. They learn to ignore the difference,
+   which is exactly the habit the prompt exists to prevent.
+
+   `white-space: pre` already stops the rows being re-wrapped; `direction: ltr`
+   is what stops them being re-ordered. Both are required, and neither implies
+   the other. */
+.randomart {
+  direction: ltr;
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2);
+  font-family: var(--font-mono);
+  font-variant-ligatures: none;
+  font-size: var(--text-xs);
+  line-height: 1.15;
+  color: var(--fg-muted);
+  background: var(--bg-canvas);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  overflow-x: auto;
+  user-select: text;
+  white-space: pre;
+}
+
+.compareNote {
+  margin: var(--space-4) 0 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--fg-muted);
+  text-wrap: pretty;
+}
+
+.compareNoteAlarm {
+  composes: compareNote;
+  color: var(--danger-text);
+  font-weight: 500;
+}
+
+.confirm {
+  margin-top: var(--space-4);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--danger);
+  background: var(--bg-inset);
+}
+
+.confirmLabel {
+  display: block;
+  margin-bottom: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--fg-default);
+}
+
+.confirmHint {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-xs);
+  color: var(--fg-subtle);
+}
+
+.failure {
+  margin-top: var(--space-4);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-5) var(--space-5);
+  border-top: 1px solid var(--border-default);
+}
+
+.audited {
+  margin: 0;
+  flex: 1;
+  min-width: 14rem;
+  font-size: var(--text-xs);
+  color: var(--fg-subtle);
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}

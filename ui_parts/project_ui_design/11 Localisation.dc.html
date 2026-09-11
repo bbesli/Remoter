@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+Arabic:wght@400;500;600&display=swap" rel="stylesheet"><style>html,body{margin:0;padding:0;background:#0d0e10}a{color:#3bb6c4;text-decoration:none}a:hover{color:#4fd0de}@keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}</style></helmet>
+<div style="min-height:100vh;background:#0d0e10;padding:28px 24px 64px;box-sizing:border-box;font-family:system-ui,-apple-system,'Segoe UI',Roboto,'Noto Sans',sans-serif;display:flex;flex-direction:column;align-items:flex-start;gap:18px">
+
+<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+<span style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#8a929a">11 · Türkçe &amp; RTL</span>
+<div style="display:flex;gap:6px" onClick="{{ onBar }}">
+<button type="button" data-lang="tr" style="appearance:none;border:1px solid #2a2e34;background:#1c1e22;color:#9aa1a9;font:500 12px system-ui,sans-serif;padding:5px 10px;border-radius:6px;cursor:pointer" style-hover="border-color:#3bb6c4;color:#e6e8ea">Türkçe</button>
+<button type="button" data-lang="ar" style="appearance:none;border:1px solid #2a2e34;background:#1c1e22;color:#9aa1a9;font:500 12px system-ui,sans-serif;padding:5px 10px;border-radius:6px;cursor:pointer" style-hover="border-color:#3bb6c4;color:#e6e8ea">العربية · RTL</button>
+</div>
+</div>
+
+<sc-if value="{{ isTr }}" hint-placeholder-val="{{ true }}">
+<div style="width:1180px;flex:none;height:600px;background:#16171a;border:1px solid #2a2e34;border-radius:10px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.55);display:flex;flex-direction:column;color:#e6e8ea;font-size:14px">
+<div style="height:38px;flex:none;display:flex;align-items:center;gap:10px;padding:0 6px 0 12px;background:#1c1e22;border-bottom:1px solid #2a2e34">
+<div style="width:18px;height:18px;border-radius:5px;background:#3bb6c4;display:flex;align-items:center;justify-content:center;color:#08181b;font-family:'JetBrains Mono',monospace;font-weight:600;font-size:11px;flex:none">R</div>
+<span style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">Remoter</span><span style="color:#3a4048">—</span><span style="font-size:13px;color:#c8ced4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">Acme Üretim</span>
+<div style="flex:1"></div>
+<div style="display:flex;align-items:center;gap:6px;height:22px;padding:0 9px;border-radius:11px;background:rgba(75,180,123,.12);border:1px solid rgba(75,180,123,.32)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#4bb47b" stroke-width="2.2" stroke-linecap="round"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0"></path></svg><span style="font-size:11.5px;font-weight:500;color:#4bb47b">kilit açık</span></div>
+<div style="width:8px"></div>
+<div style="display:flex;align-items:center;gap:2px">
+<button type="button" style="width:26px;height:26px;border:none;background:transparent;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0" style-hover="background:#23262b"><svg width="13" height="13" viewBox="0 0 24 24" stroke="#9aa1a9" stroke-width="2" stroke-linecap="round"><path d="M6 12h12"></path></svg></button>
+<button type="button" style="width:26px;height:26px;border:none;background:transparent;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0" style-hover="background:#23262b"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9aa1a9" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="1.5"></rect></svg></button>
+<button type="button" style="width:26px;height:26px;border:none;background:transparent;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0" style-hover="background:#e05252"><svg width="13" height="13" viewBox="0 0 24 24" stroke="#9aa1a9" stroke-width="2" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"></path></svg></button></div>
+</div>
+
+<div style="flex:1;min-height:0;display:flex">
+<div style="width:268px;flex:none;background:#1c1e22;border-right:1px solid #2a2e34;display:flex;flex-direction:column;min-height:0">
+<div style="padding:8px 10px 6px;flex:none"><div style="height:30px;display:flex;align-items:center;gap:8px;padding:0 9px;background:#16171a;border:1px solid #2a2e34;border-radius:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8a929a" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg><span style="flex:1;font-size:13px;color:#8a929a">Bağlantılarda ara…</span><span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#8a929a;border:1px solid #2a2e34;border-radius:4px;padding:1px 5px">Ctrl K</span></div></div>
+<div style="flex:1;min-height:0;padding:2px 6px 8px;display:flex;flex-direction:column;gap:1px">
+<div style="display:flex;align-items:center;gap:6px;height:24px;padding:0 6px;margin-top:4px"><svg width="12" height="12" viewBox="0 0 24 24" fill="#e0a33d"><path d="M12 3l2.6 5.4 5.9.8-4.3 4.1 1 5.9L12 16.4 6.8 19.2l1-5.9L3.5 9.2l5.9-.8z"></path></svg><span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#8a929a">Sık kullanılanlar</span></div>
+<div style="display:flex;align-items:center;gap:7px;height:26px;padding:0 8px 0 22px;border-radius:5px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4fd0de" stroke-width="1.9" stroke-linecap="round" style="flex:none"><path d="M4 8l4 4-4 4"></path><path d="M12 16h8"></path></svg><span style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">web-01</span><span style="width:6px;height:6px;border-radius:3px;background:#4bb47b"></span></div>
+<div style="height:10px"></div>
+<div style="display:flex;align-items:center;gap:6px;height:26px;padding:0 8px;border-radius:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9aa1a9" stroke-width="2.4" stroke-linecap="round" style="flex:none"><path d="M8 5l7 7-7 7" transform="rotate(90 12 12)"></path></svg><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#e0a33d" stroke-width="1.8" stroke-linejoin="round" style="flex:none"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg><span style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">Veri Merkezi EU-West</span><div style="flex:1"></div><span style="font-family:'JetBrains Mono',monospace;font-size:9.5px;color:#8a929a;border:1px solid #2a2e34;border-radius:3px;padding:1px 4px;white-space:nowrap;flex:none">3 devralınan</span></div>
+<div style="display:flex;align-items:center;gap:6px;height:26px;padding:0 8px 0 20px;border-radius:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9aa1a9" stroke-width="2.4" stroke-linecap="round" style="flex:none"><path d="M8 5l7 7-7 7" transform="rotate(90 12 12)"></path></svg><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#e0a33d" stroke-width="1.8" stroke-linejoin="round" style="flex:none"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg><span style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">Web katmanı</span></div>
+<div style="display:flex;align-items:center;gap:7px;height:26px;padding:0 8px 0 40px;border-radius:5px;background:rgba(59,182,196,.13);border-left:2px solid #3bb6c4;box-sizing:border-box"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4fd0de" stroke-width="1.9" stroke-linecap="round" style="flex:none"><path d="M4 8l4 4-4 4"></path><path d="M12 16h8"></path></svg><span style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">web-01</span><div style="flex:1"></div><span style="font-size:10px;color:#4bb47b;font-family:'JetBrains Mono',monospace;white-space:nowrap;flex:none">1g 6s</span><span style="width:6px;height:6px;border-radius:3px;background:#4bb47b"></span></div>
+<div style="display:flex;align-items:center;gap:7px;height:26px;padding:0 8px 0 40px;border-radius:5px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4fd0de" stroke-width="1.9" stroke-linecap="round" style="flex:none"><path d="M4 8l4 4-4 4"></path><path d="M12 16h8"></path></svg><span style="font-size:13px;color:#c8ced4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">web-02</span></div>
+<div style="display:flex;align-items:center;gap:6px;height:26px;padding:0 8px 0 20px;border-radius:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9aa1a9" stroke-width="2.4" stroke-linecap="round" style="flex:none"><path d="M8 5l7 7-7 7" transform="rotate(90 12 12)"></path></svg><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#e0a33d" stroke-width="1.8" stroke-linejoin="round" style="flex:none"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg><span style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">Veritabanı katmanı</span><div style="flex:1"></div><span style="font-family:'JetBrains Mono',monospace;font-size:9.5px;color:#f07b78;background:rgba(224,82,82,.12);border:1px solid rgba(224,82,82,.35);border-radius:3px;padding:1px 4px;white-space:nowrap;flex:none">üretim</span></div>
+<div style="display:flex;align-items:center;gap:7px;height:26px;padding:0 8px 0 40px;border-radius:5px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4fd0de" stroke-width="1.9" stroke-linecap="round" style="flex:none"><path d="M4 8l4 4-4 4"></path><path d="M12 16h8"></path></svg><span style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">db-01</span><div style="flex:1"></div><svg width="10" height="10" viewBox="0 0 24 24" fill="#e05252"><circle cx="12" cy="12" r="7"></circle></svg><span style="width:6px;height:6px;border-radius:3px;background:#4bb47b"></span></div>
+<div style="display:flex;align-items:center;gap:7px;height:26px;padding:0 8px 0 20px;border-radius:5px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c8ced4" stroke-width="1.9" stroke-linecap="round" style="flex:none"><circle cx="8" cy="12" r="3.5"></circle><path d="M11.5 12H21M18 12v3M15 12v2.4"></path></svg><span style="font-size:13px;color:#c8ced4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">svc-deploy</span><div style="flex:1"></div><span style="font-family:'JetBrains Mono',monospace;font-size:9.5px;color:#8a929a;white-space:nowrap;flex:none">14 yerde</span></div>
+</div>
+<div style="flex:none;border-top:1px solid #2a2e34;padding:6px"><button type="button" style="width:100%;height:28px;display:flex;align-items:center;justify-content:center;gap:6px;background:#23262b;border:1px solid #2a2e34;border-radius:6px;color:#c8ced4;font:500 12.5px system-ui,sans-serif;cursor:pointer" style-hover="border-color:#3bb6c4;color:#e6e8ea"><svg width="13" height="13" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round"><path d="M12 6v12M6 12h12"></path></svg>Yeni bağlantı</button></div>
+</div>
+
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;background:#16171a">
+<div style="height:36px;flex:none;display:flex;align-items:stretch;background:#1c1e22;border-bottom:1px solid #2a2e34;padding-left:2px">
+<div style="display:flex;align-items:center;gap:8px;padding:0 12px;background:#16171a;box-shadow:inset 0 2px 0 #3bb6c4;border-right:1px solid #2a2e34"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4fd0de" stroke-width="2" stroke-linecap="round"><path d="M4 8l4 4-4 4"></path><path d="M12 16h8"></path></svg><span style="font-size:12.5px">web-01</span><span style="width:6px;height:6px;border-radius:3px;background:#4bb47b"></span><svg width="13" height="13" viewBox="0 0 24 24" stroke="#8a929a" stroke-width="2" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"></path></svg></div>
+<div style="display:flex;align-items:center;gap:8px;padding:0 12px;color:#9aa1a9;border-right:1px solid #2a2e34;position:relative"><span style="position:absolute;left:0;top:0;bottom:0;width:2px;background:#e05252"></span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4fd0de" stroke-width="2" stroke-linecap="round"><path d="M4 8l4 4-4 4"></path><path d="M12 16h8"></path></svg><span style="font-size:12.5px">db-01</span><span style="font-family:'JetBrains Mono',monospace;font-size:9.5px;color:#f07b78;background:rgba(224,82,82,.14);border-radius:3px;padding:1px 4px;white-space:nowrap;flex:none">üretim</span></div>
+</div>
+<div style="flex:1;min-height:0;background:#101114;padding:12px 16px;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.55;color:#c8ced4;overflow:hidden">
+<div style="color:#8a929a">Last login: Tue Sep  8 09:14:22 2026 from 10.0.4.2</div>
+<div><span style="color:#4bb47b">deploy@web-01</span><span style="color:#8a929a">:</span><span style="color:#7f9df0">~</span><span style="color:#8a929a">$ </span>systemctl status nginx --no-pager</div>
+<div><span style="color:#4bb47b">●</span> nginx.service - A high performance web server</div>
+<div style="color:#9aa1a9">     Active: <span style="color:#4bb47b">active (running)</span> since Mon 2026-09-07 03:11:47 UTC</div>
+<div><span style="color:#4bb47b">deploy@web-01</span><span style="color:#8a929a">:</span><span style="color:#7f9df0">~</span><span style="color:#8a929a">$ </span><span style="display:inline-block;width:8px;height:16px;background:#3bb6c4;vertical-align:text-bottom;animation:blink 1.1s step-end infinite"></span></div>
+</div>
+<div style="height:28px;flex:none;display:flex;align-items:center;gap:14px;padding:0 14px;background:#1c1e22;border-top:1px solid #2a2e34;font-size:12px;color:#9aa1a9">
+<div style="display:flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:4px;background:#4bb47b"></span><span style="color:#c8ced4;font-weight:500">Bağlı</span></div>
+<span style="color:#2a2e34">·</span><span style="font-family:'JetBrains Mono',monospace;font-size:11.5px">10.0.4.12:22</span>
+<span style="color:#2a2e34">·</span><span style="font-family:'JetBrains Mono',monospace;font-size:11.5px">14 ms</span>
+<span style="color:#2a2e34">·</span><span style="font-family:'JetBrains Mono',monospace;font-size:11.5px">↓ 2,1 MB  ↑ 340 KB</span>
+<div style="flex:1"></div>
+<div style="display:flex;align-items:center;gap:5px;color:#f07b78"><svg width="9" height="9" viewBox="0 0 24 24" fill="#e05252"><circle cx="12" cy="12" r="8"></circle></svg><span style="font-size:11.5px;font-weight:500">Kaydediliyor · 06:14</span></div>
+<span style="color:#2a2e34">·</span><div style="display:flex;align-items:center;gap:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#4bb47b" stroke-width="2" stroke-linecap="round"><path d="M4 12h6M14 12h6"></path><circle cx="12" cy="12" r="2"></circle></svg><span style="font-size:11.5px">Sunucu anahtarı doğrulandı</span></div>
+</div>
+</div>
+</div>
+<div style="height:26px;flex:none;display:flex;align-items:center;gap:12px;padding:0 14px;background:#101114;border-top:1px solid #2a2e34;font-size:11.5px;color:#8a929a">
+<span><span style="color:#9aa1a9;font-family:'JetBrains Mono',monospace">3</span> oturum</span><span style="color:#2a2e34">·</span>
+<span><span style="color:#9aa1a9;font-family:'JetBrains Mono',monospace">2</span> tünel</span><span style="color:#2a2e34">·</span>
+<span>kasa <span style="color:#e0a33d;font-family:'JetBrains Mono',monospace">12:04</span> içinde kilitlenecek</span>
+<div style="flex:1"></div><span>Terminalde <span style="font-family:'JetBrains Mono',monospace">Ctrl+Alt</span> ön eki etkin</span>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isAr }}" hint-placeholder-val="{{ false }}">
+<div dir="rtl" style="width:1180px;flex:none;height:600px;background:#16171a;border:1px solid #2a2e34;border-radius:10px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.55);display:flex;flex-direction:column;color:#e6e8ea;font-size:14px;font-family:'Noto Sans Arabic',system-ui,sans-serif">
+<div style="height:38px;flex:none;display:flex;align-items:center;gap:10px;padding:0 12px 0 6px;background:#1c1e22;border-bottom:1px solid #2a2e34">
+<div style="width:18px;height:18px;border-radius:5px;background:#3bb6c4;display:flex;align-items:center;justify-content:center;color:#08181b;font-family:'JetBrains Mono',monospace;font-weight:600;font-size:11px;flex:none">R</div>
+<span style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">Remoter</span><span style="color:#3a4048">—</span><span style="font-size:13px;color:#c8ced4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">Acme Production</span>
+<div style="flex:1"></div>
+<div style="display:flex;align-items:center;gap:6px;height:22px;padding:0 9px;border-radius:11px;background:rgba(75,180,123,.12);border:1px solid rgba(75,180,123,.32)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#4bb47b" stroke-width="2.2" stroke-linecap="round"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0"></path></svg><span style="font-size:11.5px;font-weight:500;color:#4bb47b">غير مقفل</span></div>
+<div style="width:8px"></div>
+<div style="display:flex;align-items:center;gap:2px">
+<button type="button" style="width:26px;height:26px;border:none;background:transparent;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0" style-hover="background:#23262b"><svg width="13" height="13" viewBox="0 0 24 24" stroke="#9aa1a9" stroke-width="2" stroke-linecap="round"><path d="M6 12h12"></path></svg></button>
+<button type="button" style="width:26px;height:26px;border:none;background:transparent;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0" style-hover="background:#23262b"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9aa1a9" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="1.5"></rect></svg></button>
+<button type="button" style="width:26px;height:26px;border:none;background:transparent;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0" style-hover="background:#e05252"><svg width="13" height="13" viewBox="0 0 24 24" stroke="#9aa1a9" stroke-width="2" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"></path></svg></button></div>
+</div>
+
+<div style="flex:1;min-height:0;display:flex">
+<div style="width:268px;flex:none;background:#1c1e22;border-left:1px solid #2a2e34;display:flex;flex-direction:column;min-height:0">
+<div style="padding:8px 10px 6px;flex:none"><div style="height:30px;display:flex;align-items:center;gap:8px;padding:0 9px;background:#16171a;border:1px solid #2a2e34;border-radius:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8a929a" stroke-width="2" stroke-linecap="round" style="transform:scaleX(-1)"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg><span style="flex:1;font-size:13px;color:#8a929a">ابحث في الاتصالات…</span><span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#8a929a;border:1px solid #2a2e34;border-radius:4px;padding:1px 5px" dir="ltr">Ctrl K</span></div></div>
+<div style="flex:1;min-height:0;padding:2px 6px 8px;display:flex;flex-direction:column;gap:1px">
+<div style="display:flex;align-items:center;gap:6px;height:24px;padding:0 6px;margin-top:4px"><svg width="12" height="12" viewBox="0 0 24 24" fill="#e0a33d"><path d="M12 3l2.6 5.4 5.9.8-4.3 4.1 1 5.9L12 16.4 6.8 19.2l1-5.9L3.5 9.2l5.9-.8z"></path></svg><span style="font-size:11px;font-weight:600;color:#8a929a">المفضلة</span></div>
+<div style="display:flex;align-items:center;gap:7px;height:26px;padding:0 22px 0 8px;border-radius:5px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4fd0de" stroke-width="1.9" stroke-linecap="round" style="flex:none;transform:scaleX(-1)"><path d="M4 8l4 4-4 4"></path><path d="M12 16h8"></path></svg><span style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0" dir="ltr">web-01</span><span style="width:6px;height:6px;border-radius:3px;background:#4bb47b"></span></div>
+<div style="height:10px"></div>
+<div style="display:flex;align-items:center;gap:6px;height:26px;padding:0 8px;border-radius:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9aa1a9" stroke-width="2.4" stroke-linecap="round" style="flex:none"><path d="M8 5l7 7-7 7" transform="rotate(90 12 12)"></path></svg><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#e0a33d" stroke-width="1.8" stroke-linejoin="round" style="flex:none;transform:scaleX(-1)"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg><span style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">مركز البيانات <span dir="ltr">EU-West</span></span><div style="flex:1"></div><span style="font-family:'JetBrains Mono',monospace;font-size:9.5px;color:#8a929a;border:1px solid #2a2e34;border-radius:3px;padding:1px 4px;white-space:nowrap;flex:none" dir="ltr">3</span></div>
+<div style="display:flex;align-items:center;gap:6px;height:26px;padding:0 20px 0 8px;border-radius:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9aa1a9" stroke-width="2.4" stroke-linecap="round" style="flex:none"><path d="M8 5l7 7-7 7" transform="rotate(90 12 12)"></path></svg><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#e0a33d" stroke-width="1.8" stroke-linejoin="round" style="flex:none;transform:scaleX(-1)"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg><span style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">طبقة الويب</span></div>
+<div style="display:flex;align-items:center;gap:7px;height:26px;padding:0 40px 0 8px;border-radius:5px;background:rgba(59,182,196,.13);border-right:2px solid #3bb6c4;box-sizing:border-box"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4fd0de" stroke-width="1.9" stroke-linecap="round" style="flex:none;transform:scaleX(-1)"><path d="M4 8l4 4-4 4"></path><path d="M12 16h8"></path></svg><span style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0" dir="ltr">web-01</span><div style="flex:1"></div><span style="width:6px;height:6px;border-radius:3px;background:#4bb47b"></span></div>
+<div style="display:flex;align-items:center;gap:7px;height:26px;padding:0 40px 0 8px;border-radius:5px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4fd0de" stroke-width="1.9" stroke-linecap="round" style="flex:none;transform:scaleX(-1)"><path d="M4 8l4 4-4 4"></path><path d="M12 16h8"></path></svg><span style="font-size:13px;color:#c8ced4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0" dir="ltr">web-02</span></div>
+<div style="display:flex;align-items:center;gap:6px;height:26px;padding:0 20px 0 8px;border-radius:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9aa1a9" stroke-width="2.4" stroke-linecap="round" style="flex:none"><path d="M8 5l7 7-7 7" transform="rotate(90 12 12)"></path></svg><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#e0a33d" stroke-width="1.8" stroke-linejoin="round" style="flex:none;transform:scaleX(-1)"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg><span style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">طبقة قواعد البيانات</span><div style="flex:1"></div><span style="font-size:9.5px;color:#f07b78;background:rgba(224,82,82,.12);border:1px solid rgba(224,82,82,.35);border-radius:3px;padding:1px 5px;white-space:nowrap;flex:none">إنتاج</span></div>
+<div style="display:flex;align-items:center;gap:7px;height:26px;padding:0 40px 0 8px;border-radius:5px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4fd0de" stroke-width="1.9" stroke-linecap="round" style="flex:none;transform:scaleX(-1)"><path d="M4 8l4 4-4 4"></path><path d="M12 16h8"></path></svg><span style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0" dir="ltr">db-01</span><div style="flex:1"></div><svg width="10" height="10" viewBox="0 0 24 24" fill="#e05252"><circle cx="12" cy="12" r="7"></circle></svg><span style="width:6px;height:6px;border-radius:3px;background:#4bb47b"></span></div>
+</div>
+<div style="flex:none;border-top:1px solid #2a2e34;padding:6px"><button type="button" style="width:100%;height:28px;display:flex;align-items:center;justify-content:center;gap:6px;background:#23262b;border:1px solid #2a2e34;border-radius:6px;color:#c8ced4;font:500 12.5px 'Noto Sans Arabic',sans-serif;cursor:pointer" style-hover="border-color:#3bb6c4;color:#e6e8ea"><svg width="13" height="13" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round"><path d="M12 6v12M6 12h12"></path></svg>اتصال جديد</button></div>
+</div>
+
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;background:#16171a">
+<div style="height:36px;flex:none;display:flex;align-items:stretch;background:#1c1e22;border-bottom:1px solid #2a2e34;padding-right:2px">
+<div style="display:flex;align-items:center;gap:8px;padding:0 12px;background:#16171a;box-shadow:inset 0 2px 0 #3bb6c4;border-left:1px solid #2a2e34"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4fd0de" stroke-width="2" stroke-linecap="round" style="transform:scaleX(-1)"><path d="M4 8l4 4-4 4"></path><path d="M12 16h8"></path></svg><span style="font-size:12.5px" dir="ltr">web-01</span><span style="width:6px;height:6px;border-radius:3px;background:#4bb47b"></span><svg width="13" height="13" viewBox="0 0 24 24" stroke="#8a929a" stroke-width="2" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"></path></svg></div>
+<div style="display:flex;align-items:center;gap:8px;padding:0 12px;color:#9aa1a9;border-left:1px solid #2a2e34;position:relative"><span style="position:absolute;right:0;top:0;bottom:0;width:2px;background:#e05252"></span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4fd0de" stroke-width="2" stroke-linecap="round" style="transform:scaleX(-1)"><path d="M4 8l4 4-4 4"></path><path d="M12 16h8"></path></svg><span style="font-size:12.5px" dir="ltr">db-01</span><span style="font-size:9.5px;color:#f07b78;background:rgba(224,82,82,.14);border-radius:3px;padding:1px 5px;white-space:nowrap;flex:none">إنتاج</span></div>
+</div>
+<div dir="ltr" style="flex:1;min-height:0;background:#101114;padding:12px 16px;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.55;color:#c8ced4;overflow:hidden;text-align:left">
+<div style="color:#8a929a">Last login: Tue Sep  8 09:14:22 2026 from 10.0.4.2</div>
+<div><span style="color:#4bb47b">deploy@web-01</span><span style="color:#8a929a">:</span><span style="color:#7f9df0">~</span><span style="color:#8a929a">$ </span>systemctl status nginx --no-pager</div>
+<div><span style="color:#4bb47b">●</span> nginx.service - A high performance web server</div>
+<div style="color:#9aa1a9">     Active: <span style="color:#4bb47b">active (running)</span> since Mon 2026-09-07 03:11:47 UTC</div>
+<div><span style="color:#4bb47b">deploy@web-01</span><span style="color:#8a929a">:</span><span style="color:#7f9df0">~</span><span style="color:#8a929a">$ </span><span style="display:inline-block;width:8px;height:16px;background:#3bb6c4;vertical-align:text-bottom;animation:blink 1.1s step-end infinite"></span></div>
+</div>
+<div style="height:28px;flex:none;display:flex;align-items:center;gap:14px;padding:0 14px;background:#1c1e22;border-top:1px solid #2a2e34;font-size:12px;color:#9aa1a9">
+<div style="display:flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:4px;background:#4bb47b"></span><span style="color:#c8ced4;font-weight:500">متصل</span></div>
+<span style="color:#2a2e34">·</span><span style="font-family:'JetBrains Mono',monospace;font-size:11.5px" dir="ltr">10.0.4.12:22</span>
+<span style="color:#2a2e34">·</span><span style="font-family:'JetBrains Mono',monospace;font-size:11.5px" dir="ltr">14 ms</span>
+<div style="flex:1"></div>
+<div style="display:flex;align-items:center;gap:5px;color:#f07b78"><svg width="9" height="9" viewBox="0 0 24 24" fill="#e05252"><circle cx="12" cy="12" r="8"></circle></svg><span style="font-size:11.5px;font-weight:500">يسجّل · <span dir="ltr">06:14</span></span></div>
+</div>
+</div>
+</div>
+<div style="height:26px;flex:none;display:flex;align-items:center;gap:12px;padding:0 14px;background:#101114;border-top:1px solid #2a2e34;font-size:11.5px;color:#8a929a">
+<span><span style="color:#9aa1a9;font-family:'JetBrains Mono',monospace">3</span> جلسات</span><span style="color:#2a2e34">·</span>
+<span><span style="color:#9aa1a9;font-family:'JetBrains Mono',monospace">2</span> أنفاق</span><span style="color:#2a2e34">·</span>
+<span>يُقفل الخزان خلال <span style="color:#e0a33d;font-family:'JetBrains Mono',monospace" dir="ltr">12:04</span></span>
+</div>
+</div>
+</sc-if>
+
+<div style="width:1180px;display:flex;gap:12px;flex-wrap:wrap">
+<div style="flex:1;min-width:330px;background:#131417;border:1px solid #23262b;border-radius:9px;padding:16px 18px;display:flex;flex-direction:column;gap:11px">
+<div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#8a929a;white-space:nowrap;flex:none">What mirrors under RTL</div>
+<div style="display:flex;gap:11px;align-items:flex-start"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4bb47b" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:3px"><path d="M5 12.5l4.5 4.5L19 7"></path></svg><div style="font-size:12.5px;color:#c8ced4;line-height:1.5"><span style="font-weight:600">Layout and directional icons.</span> The sidebar moves right, tree indentation runs right-to-left, and the chevron, the SSH prompt glyph, the folder tab and the magnifier all flip.</div></div>
+<div style="display:flex;gap:11px;align-items:flex-start"><svg width="13" height="13" viewBox="0 0 24 24" stroke="#e05252" fill="none" stroke-width="2.6" stroke-linecap="round" style="flex:none;margin-top:3px"><path d="M7 7l10 10M17 7L7 17"></path></svg><div style="font-size:12.5px;color:#c8ced4;line-height:1.5"><span style="font-weight:600">Object icons do not.</span> The monitor, the key, the record dot and the close cross look the same in every direction — mirroring them just makes them look wrong.</div></div>
+<div style="display:flex;gap:11px;align-items:flex-start"><svg width="13" height="13" viewBox="0 0 24 24" stroke="#e05252" fill="none" stroke-width="2.6" stroke-linecap="round" style="flex:none;margin-top:3px"><path d="M7 7l10 10M17 7L7 17"></path></svg><div style="font-size:12.5px;color:#c8ced4;line-height:1.5"><span style="font-weight:600">The terminal never mirrors.</span> It is a fixed grid of remote output. It stays LTR inside an RTL window, and so do hostnames, ports, IPs and timestamps.</div></div>
+</div>
+<div style="flex:1;min-width:330px;background:#131417;border:1px solid #23262b;border-radius:9px;padding:16px 18px;display:flex;flex-direction:column;gap:11px">
+<div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#8a929a;white-space:nowrap;flex:none">What Turkish exposed</div>
+<div style="display:flex;gap:11px;align-items:flex-start"><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#e0a33d;flex:none;margin-top:2px">1</span><div style="font-size:12.5px;color:#c8ced4;line-height:1.5">"Veritabanı katmanı" is 20 characters against "DB tier"'s 7. Tree rows must truncate with an ellipsis and never wrap; the sidebar is resizable for exactly this reason.</div></div>
+<div style="display:flex;gap:11px;align-items:flex-start"><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#e0a33d;flex:none;margin-top:2px">2</span><div style="font-size:12.5px;color:#c8ced4;line-height:1.5">"kasa 12:04 içinde kilitlenecek" puts the number in the middle of the sentence. No string may be assembled from fragments; each is one translatable unit with a placeholder.</div></div>
+<div style="display:flex;gap:11px;align-items:flex-start"><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#e0a33d;flex:none;margin-top:2px">3</span><div style="font-size:12.5px;color:#c8ced4;line-height:1.5">Decimal comma: <span style="font-family:'JetBrains Mono',monospace">2,1 MB</span> in Turkish, <span style="font-family:'JetBrains Mono',monospace">2.1 MB</span> in English. Durations abbreviate differently too — <span style="font-family:'JetBrains Mono',monospace">1g 6s</span>, not <span style="font-family:'JetBrains Mono',monospace">1d 6h</span>.</div></div>
+<div style="display:flex;gap:11px;align-items:flex-start"><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#e0a33d;flex:none;margin-top:2px">4</span><div style="font-size:12.5px;color:#c8ced4;line-height:1.5">Turkish lowercases <span style="font-family:'JetBrains Mono',monospace">I</span> to <span style="font-family:'JetBrains Mono',monospace">ı</span>. Search folds diacritics and uses locale-aware casing, so <span style="font-family:'JetBrains Mono',monospace">sunucu</span> finds <span style="font-family:'JetBrains Mono',monospace">Sunucu</span> and <span style="font-family:'JetBrains Mono',monospace">munchen</span> finds <span style="font-family:'JetBrains Mono',monospace">München</span>.</div></div>
+</div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1240,&quot;height&quot;:860},&quot;lang&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;tr&quot;,&quot;ar&quot;],&quot;default&quot;:&quot;tr&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Prototype&quot;}}">
+class Component extends DCLogic {
+  state = { lang: 'tr' };
+  renderVals() {
+    return {
+      isTr: this.state.lang === 'tr',
+      isAr: this.state.lang === 'ar',
+      onBar: (e) => {
+        const b = e.target.closest && e.target.closest('[data-lang]');
+        if (b) this.setState({ lang: b.getAttribute('data-lang') });
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>

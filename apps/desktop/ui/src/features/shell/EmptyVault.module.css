@@ -1,0 +1,141 @@
+.wrap {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-10);
+  overflow-y: auto;
+}
+
+.card {
+  width: 560px;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.heading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: var(--leading-tight);
+  color: var(--fg-default);
+}
+
+.body {
+  margin: 0;
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  color: var(--fg-muted);
+  text-wrap: pretty;
+}
+
+/* `.path` used to set the vault's file name in mono inside the sentence above.
+   It went when the sentence became one translatable message: a name styled
+   mid-sentence has to sit at a fixed position in it, and languages do not
+   agree on where that position is. The name is still the recognisable part of
+   the sentence; it is no longer the differently-typeset part. */
+
+.choices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  text-align: start;
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  color: inherit;
+  transition: background var(--motion-fast) var(--ease), border-color var(--motion-fast) var(--ease);
+}
+
+.choice:hover:not(:disabled) {
+  background: var(--bg-elevated);
+  border-color: var(--border-strong);
+}
+
+.choicePrimary {
+  border-color: var(--accent);
+}
+
+.choicePending {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.choiceIcon,
+.choiceIconPrimary {
+  display: flex;
+  flex: none;
+}
+
+.choiceIcon {
+  color: var(--fg-muted);
+}
+
+.choiceIconPrimary {
+  color: var(--accent);
+}
+
+.choiceText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.choiceTitle {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--fg-default);
+}
+
+.choiceBody {
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--fg-muted);
+  text-wrap: pretty;
+}
+
+.choiceChevron {
+  display: flex;
+  flex: none;
+  color: var(--fg-subtle);
+}
+
+.pendingTag {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--fg-subtle);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  padding: 1px var(--space-2);
+}
+
+/* Why the choice above it cannot be pressed. Quieter than the body copy, but
+   present: a disabled control with no stated reason reads as a defect. */
+.choiceReason {
+  margin-top: var(--space-1);
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--fg-subtle);
+  text-wrap: pretty;
+}

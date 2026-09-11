@@ -1,0 +1,382 @@
+{
+  "_comment_file": "The SFTP file manager: a remote directory browser, a local side driven by the system file picker, a transfer queue, and the dialogs that create, rename and delete. Almost every value this screen shows comes from a machine the user does not control — file names, owner names, group names, paths — so several strings below tell the reader that a name has been escaped and why. Those sentences are marked SECURITY-CRITICAL and must not be softened into 'this name looks unusual'. Protocol names (SSH, SFTP), POSIX mode strings (drwxr-xr-x) and paths are never translated.",
+
+  "header": {
+    "_comment_title": "The screen's name. A plural noun, not a verb.",
+    "title": "Archivos",
+    "_comment_on": "Names the host the remote pane is browsing. {name} is the connection's own name from the vault, wrapped in a bidi isolate at the call site.",
+    "on": "en {name}",
+    "_comment_close": "Puts the pane away again. Only on a pane docked under a session that also has a shell — a file session's own tab is closed by closing the tab, and shows no such control. The word is also the tooltip and the accessible name, so it says what closes rather than only 'Close'.",
+    "close": "Cerrar el panel de archivos"
+  },
+
+  "host": {
+    "_comment_label": "The accessible name of the tab area an SFTP session fills, so a screen reader moving between tabs is told which host's files these are. {name} is the connection's own name, wrapped in a bidi isolate at the call site.",
+    "label": "Archivos en {name}"
+  },
+
+  "pane": {
+    "_comment_opening": "While the file pane is being attached. Shown as a spinner's label and read aloud.",
+    "opening": "Abriendo el panel de archivos…",
+    "_comment_openFailed": "The heading over the core's failure. The sentence and the suggested actions come from the errors catalogue, keyed by the failure's code.",
+    "openFailed": "No se pudo abrir el panel de archivos",
+    "_comment_notConnectedTitle": "An SFTP tab that is still connecting, or one whose session has ended. A file pane is a channel on an authenticated connection; before there is one there is nothing to browse, and an empty browser would read as an empty server.",
+    "notConnectedTitle": "Todavía sin conexión",
+    "notConnectedBody": "El panel de archivos se abre en cuanto esta conexión se haya autenticado. Funciona sobre esa conexión en lugar de abrir una segunda.",
+
+    "remote": {
+      "_comment_title": "The heading of the remote half of the browser. {name} is the connection's name.",
+      "title": "Remoto",
+      "empty": "Esta carpeta está vacía.",
+      "loading": "Leyendo la carpeta…",
+      "_comment_tooMany": "HONESTY. The core will hand over a folder of a quarter of a million entries rather than pretend it is empty, but the listing is not virtualised yet and drawing that many rows would freeze the window. {shown} is how many are being drawn, {total} how many there are. Do not soften this into 'showing some results' — the number is the point, and so is the way out.",
+      "tooMany": "Esta carpeta tiene {total} entradas y Remoter está dibujando las {shown} primeras. Acótela con el filtro para ver el resto.",
+      "_comment_listFailed": "Heading over the core's failure for a directory listing. A listing can fail because the folder is larger than the cap the core enforces; the catalogue sentence for that code names the limit, which is why this heading does not try to.",
+      "listFailed": "No se pudo leer esa carpeta"
+    },
+
+    "local": {
+      "_comment_title": "The heading of the local half of the browser.",
+      "title": "Este equipo",
+      "_comment_noBrowserTitle": "SECURITY-ADJACENT HONESTY. This build has no command that lists the local filesystem, so the local pane cannot show a folder's contents the way the remote one does. Saying so is the point: an empty pane with column headings reads as a bug or as an empty disk. Do not soften this into 'coming soon' and do not imply the files are unreadable — the system picker reads them perfectly well.",
+      "noBrowserTitle": "Este panel no lista sus archivos",
+      "noBrowserBody": "Remoter todavía no tiene ningún comando para leer sus propios directorios, así que el lado local funciona a través del selector de archivos del sistema. Elija una carpeta en la que descargar, o elija archivos para enviar.",
+      "_comment_folderLabel": "The label of the chosen download destination.",
+      "folderLabel": "Descargar en",
+      "noFolder": "Todavía no se ha elegido ninguna carpeta.",
+      "chooseFolder": "Elegir carpeta",
+      "changeFolder": "Cambiar de carpeta",
+      "chooseFiles": "Elegir archivos para enviar",
+      "_comment_staged": "The heading over files the user picked but has not sent yet. ICU plural.",
+      "staged": "{count, plural, =0 {No se ha elegido nada} one {# archivo listo para enviar} many {# de archivos listos para enviar} other {# archivos listos para enviar}}",
+      "clearStaged": "Vaciar la lista",
+      "_comment_remove": "Removes one file from that list. The accessible name; {name} is a local path.",
+      "remove": "Quitar {name}",
+      "_comment_pickerFailed": "The system picker refused to open. Every other route into this screen still works, so this is an inconvenience rather than a dead end — but it must be said, because a button that opens nothing reads as broken.",
+      "pickerFailed": "El selector de archivos del sistema no se abrió. No se ha enviado ni descargado nada.",
+      "_comment_chooseFolders": "Stages whole folders to send, beside the control that stages files. Two controls rather than one because the platform file dialogs choose files or folders, not either.",
+      "chooseFolders": "Elegir carpetas para enviar",
+      "_comment_defaultFolder": "Shown under the destination when it is the platform's own downloads folder rather than one anybody chose. 'Remoter picked this for you' and 'you picked this' are different promises, and the pane says which one it is making. The folder works either way.",
+      "defaultFolder": "Sugerencia de Remoter: la carpeta de descargas de tu sistema.",
+      "_comment_rememberedFolder": "Shown under the destination when it is the folder chosen last. It is remembered for every file pane and across restarts, which is worth saying once so nobody chooses it again out of doubt.",
+      "rememberedFolder": "Recordada de la última vez, para todos los paneles de archivos."
+    }
+  },
+
+  "nav": {
+    "home": "Ir a la carpeta inicial",
+    "up": "Ir a la carpeta de arriba",
+    "refresh": "Volver a leer esta carpeta",
+    "_comment_pathLabel": "The accessible name of the editable path field. Paths are never translated.",
+    "pathLabel": "Ruta de la carpeta",
+    "go": "Ir",
+    "_comment_breadcrumb": "The accessible name of the trail of folders above the listing.",
+    "breadcrumb": "Carpetas por encima de esta",
+    "_comment_atRoot": "The title of the control that goes up, when there is nowhere above to go.",
+    "atRoot": "Esto es lo más alto del sistema de archivos",
+    "_comment_back": "Retraces the folders this pane has been through, and goes forward again. Words rather than arrow glyphs: the icon set has one arrow per direction and it already means 'go to the folder above', and an icon language stops meaning anything the moment a mark is borrowed for a second job.",
+    "back": "Atrás",
+    "forward": "Adelante",
+    "_comment_noBack": "The title of Back when this pane has not been anywhere else yet, and of Forward when it is already at the most recent folder. A disabled control that says nothing is a control the reader has to guess about.",
+    "noBack": "Todavía no hay adonde volver",
+    "noForward": "Estás en la carpeta más reciente",
+    "_comment_goHint": "Under the path field. The field used to refuse anything that did not begin with a slash by disabling its button and saying nothing, so `..` and a bare folder name both looked like a broken control. Both are now sent to the server, which is the only thing that knows what they mean from here. The slash and the two dots are path syntax and are never translated.",
+    "goHint": "Una ruta que empieza por / se usa tal cual; cualquier otra cosa se toma desde la carpeta en la que estás. .. sube un nivel.",
+    "_comment_keyboardHint": "SAID ONCE, UNDER THE LISTING. The listing is a grid and now behaves like one; a keyboard map nobody is told about is a keyboard map nobody uses. The key names are the ones printed on the keys and are translated the way that platform's keyboards label them, never transliterated.",
+    "keyboardHint": "En la lista: las flechas mueven, Intro abre, Espacio selecciona, Mayús amplía la selección, Ctrl añade una fila, Retroceso sube una carpeta, F2 renombra, Supr elimina, y escribir unas letras salta a un nombre."
+  },
+
+  "columns": {
+    "_comment_": "The listing's column headings. Each is also a sort control, so each is a short noun.",
+    "name": "Nombre",
+    "size": "Tamaño",
+    "modified": "Modificado",
+    "permissions": "Permisos",
+    "owner": "Propietario"
+  },
+
+  "sort": {
+    "_comment_": "Announced on the column header that is currently sorting. 'A to Z' is deliberately about order and not about the alphabet — the collation follows the reader's language, and several languages this ships in do not use A or Z.",
+    "ascending": "Ordenado del primero al último. Elíjalo de nuevo para invertirlo.",
+    "descending": "Ordenado del último al primero. Elíjalo de nuevo para invertirlo.",
+    "inactive": "Ordenar por esta columna",
+    "_comment_foldersFirst": "A toggle. Folders above files is what every file manager does, and turning it off is occasionally what a user wants.",
+    "foldersFirst": "Carpetas primero"
+  },
+
+  "filter": {
+    "_comment_label": "The accessible name of the box that narrows the listing.",
+    "label": "Filtrar esta carpeta",
+    "placeholder": "Filtrar por nombre",
+    "clear": "Limpiar el filtro",
+    "_comment_matches": "How much of the folder is showing. ICU plural on the number of rows that matched.",
+    "matches": "{count, plural, =0 {Ningún nombre coincide} one {# de {total} nombres} many {# de {total} nombres} other {# de {total} nombres}}",
+    "none": "Ningún nombre de esta carpeta coincide con lo que ha escrito.",
+    "_comment_note": "Explains why filtering here does not fold letters the way search elsewhere in Remoter does. A file name is a string a machine chose; folding it under Turkish rules turns a capital I in a machine name into a letter that is not in it. See docs/features/i18n.md.",
+    "note": "Los nombres se comparan exactamente como los escribió el servidor, ignorando solo mayúsculas y minúsculas."
+  },
+
+  "kind": {
+    "_comment_": "What a row is. Used as the accessible name of the row's icon, so the reader is told 'folder' rather than hearing nothing.",
+    "file": "Archivo",
+    "directory": "Carpeta",
+    "symlink": "Enlace",
+    "other": "Archivo especial"
+  },
+
+  "value": {
+    "_comment_unknown": "Stands in for a field the server did not report — a size, a timestamp, an owner. Not 'none' and not a dash: the value exists on the server, it was simply not sent.",
+    "unknown": "No informado"
+  },
+
+  "risk": {
+    "_comment_": "SECURITY-CRITICAL. A file name may carry characters that make it read as something it is not: a right-to-left override can make report.exe draw itself as report.pdf, a control character can cut a row short, a zero-width character can make two different files look identical. Remoter shows such a name escaped, keeps the row visible, and marks it. Do not soften 'disguise' into 'look unusual', and do not imply the file is malicious — it may be perfectly ordinary and simply named strangely.",
+    "badge": "Nombre disfrazado",
+    "_comment_explain": "The tooltip on that badge. {reasons} is a list of the sentences below, joined with Intl.ListFormat.",
+    "explain": "Este nombre se muestra con los caracteres ocultos escritos a la vista, para que no pueda disfrazar lo que es el archivo. {reasons}",
+    "control": "Contiene un carácter de control.",
+    "bidi": "Contiene un carácter que invierte el sentido de lectura.",
+    "invisible": "Contiene un carácter que no ocupa espacio.",
+    "separator": "No es un único nombre de archivo.",
+    "_comment_separatorNote": "Shown instead of the row's actions when the name is not a single path component. The core refuses to build a path from it, so there is nothing to offer.",
+    "separatorNote": "Remoter no abrirá, moverá ni eliminará esta entrada: el servidor envió un nombre que no es un único nombre de archivo, que es la forma de conseguir que un clic dado en una carpeta toque otra."
+  },
+
+  "action": {
+    "newFolder": "Nueva carpeta",
+    "rename": "Renombrar",
+    "delete": "Eliminar",
+    "_comment_download": "Verb, imperative: copy the chosen remote entries to this computer.",
+    "download": "Descargar",
+    "_comment_upload": "Verb, imperative: copy the chosen local files to the server.",
+    "upload": "Enviar",
+    "_comment_selected": "How many rows are chosen. ICU plural.",
+    "selected": "{count, plural, =0 {Nada seleccionado} one {# seleccionado} many {# seleccionados} other {# seleccionados}}",
+    "_comment_filesOnly": "HONESTY. On the disabled checkbox of a row that is neither a file nor a folder — a socket, a device, a named pipe. Folders *can* be transferred: the core walks one and queues a transfer per file underneath. What cannot be copied is an entry with no contents to copy.",
+    "filesOnly": "Los sockets, los dispositivos y las tuberías con nombre no se pueden transferir: no hay nada dentro que copiar.",
+    "selectAll": "Seleccionar todo lo de esta carpeta",
+    "clearSelection": "Vaciar la selección",
+    "_comment_properties": "The row action that opens the entry's own facts. A noun, because the dialog shows rather than does — the one thing it changes is named on its own button.",
+    "properties": "Propiedades"
+  },
+
+  "drop": {
+    "_comment_": "The overlay shown while something is being dragged over a pane.",
+    "toRemote": "Suelte aquí para enviar al servidor",
+    "toLocal": "Suelte aquí para descargar",
+    "_comment_needFolder": "Shown instead, when a download is dragged in and no destination folder has been chosen. A drop that silently picked a folder would be a drop that wrote somewhere the user did not choose.",
+    "needFolder": "Elija antes una carpeta de descarga",
+    "_comment_noOsFiles": "HONESTY. Dragging a file in from the desktop cannot work here: a browser drop gives Remoter the file's contents, not its path on disk, and the transfer engine sends a path. Say what does work.",
+    "noOsFiles": "Los archivos arrastrados desde su escritorio no se pueden enviar: Remoter necesita la ruta del archivo, y un arrastre no la lleva. Use Elegir archivos para enviar."
+  },
+
+  "newFolder": {
+    "title": "Nueva carpeta",
+    "label": "Nombre de la carpeta",
+    "_comment_in": "Says where it will be created. {path} is a remote path, isolated at the call site.",
+    "in": "Dentro de {path}",
+    "create": "Crear carpeta"
+  },
+
+  "rename": {
+    "_comment_title": "{name} is the escaped display form of the entry being renamed.",
+    "title": "Renombrar {name}",
+    "label": "Nombre nuevo",
+    "apply": "Renombrar",
+    "_comment_escapedWarning": "SECURITY-CRITICAL. Shown when the entry's current name carries hidden characters. The field is pre-filled with the escaped form, which is NOT the name on the server — typing over it renames the file to whatever was typed, which is usually what the user wants, but they must know the two differ.",
+    "escapedWarning": "El nombre actual contiene caracteres ocultos y aquí se muestra escrito a la vista. Lo que usted escriba se usa exactamente tal cual."
+  },
+
+  "name": {
+    "_comment_": "Why a typed name was refused, shown under the field. Each states the rule, not the mechanism.",
+    "empty": "Escriba un nombre.",
+    "_comment_separator": "The slash is the path separator on every SFTP server, whatever the server runs on.",
+    "separator": "Un nombre no puede contener una barra.",
+    "dots": "Un nombre no puede ser un punto ni dos puntos.",
+    "control": "Un nombre no puede contener caracteres de control.",
+    "unchanged": "Ese es el nombre que ya tiene."
+  },
+
+  "delete": {
+    "_comment_title": "{name} is the escaped display form.",
+    "title": "¿Eliminar {name}?",
+    "_comment_permanent": "SECURITY-CRITICAL. There is no trash on the far side and no undo anywhere. Do not soften 'cannot be undone' into a hedge; it is literally true.",
+    "permanent": "Esto lo elimina en el servidor. No hay papelera de la que sacarlo de vuelta, y esto no se puede deshacer.",
+    "_comment_scanning": "A recursive delete counts what it is about to remove before it removes anything. This is that count running.",
+    "scanning": "Mirando lo que hay dentro…",
+    "_comment_summary": "What the removal will take. Two ICU plurals in one sentence, because the counts are independent.",
+    "summary": "Se eliminarán {files, plural, one {# archivo} many {# de archivos} other {# archivos}} y {folders, plural, one {# carpeta} many {# de carpetas} other {# carpetas}}.",
+    "_comment_sample": "Heading over the first few paths, so the user can recognise what they are pointing at.",
+    "sample": "Por ejemplo:",
+    "_comment_more": "Follows that sample. ICU plural.",
+    "more": "{count, plural, one {y # más} many {y # más} other {y # más}}",
+    "_comment_truncated": "The preview stops at its own limit. It says so rather than implying the count is the whole of it — a removal that turns out to be ten times bigger than the number on the confirmation is the failure this dialog exists to prevent.",
+    "truncated": "Por debajo de esta carpeta hay más de {limit} entradas. La cuenta de arriba es solo lo que se llegó a mirar; se eliminará todo lo que haya debajo.",
+    "_comment_links": "A real guarantee from the engine, not a reassurance: the walk unlinks a symbolic link rather than descending into it, so a link into a home directory cannot turn a folder delete into a much larger one.",
+    "links": "Los enlaces se eliminan, no se siguen. Aquello a lo que apuntan se queda intacto.",
+    "_comment_scanFailed": "Heading over the core's failure when the preview itself could not be read. The removal is not offered, because a removal whose extent is unknown is exactly what this dialog refuses to do.",
+    "scanFailed": "No se pudo leer lo que hay dentro",
+    "scanFailedNote": "No se ha eliminado nada. Sin saber qué hay ahí dentro, Remoter no se ofrece a eliminarlo.",
+    "_comment_confirm": "The confirming button. Names the act, not 'OK'.",
+    "confirm": "Eliminar",
+    "confirmTree": "Eliminar todo lo que contiene",
+    "_comment_emptyDirHint": "Shown when a folder with contents was chosen without the recursive option. SFTP refuses to remove a folder that is not empty, and the core says so by name.",
+    "emptyDirHint": "Una carpeta tiene que estar vacía para poder eliminarla por sí sola.",
+    "running": "Eliminando…",
+
+    "report": {
+      "_comment_": "What the removal actually did. The core reports rather than returning nothing, because a walk that is interrupted leaves the tree half-removed and 'done' would be a lie.",
+      "complete": "Eliminados: {files, plural, =0 {ningún archivo} one {# archivo} many {# de archivos} other {# archivos}} y {folders, plural, =0 {ninguna carpeta} one {# carpeta} many {# de carpetas} other {# carpetas}}.",
+      "_comment_partial": "Some of it is still there. This is the sentence the report exists for.",
+      "partial": "Una parte sigue ahí. Eliminados: {files, plural, =0 {ningún archivo} one {# archivo} many {# de archivos} other {# archivos}} y {folders, plural, =0 {ninguna carpeta} one {# carpeta} many {# de carpetas} other {# carpetas}}.",
+      "cancelled": "Usted lo detuvo a medio camino.",
+      "limitReached": "Se detuvo en el límite que Remoter pone a cuánto puede tocar una sola eliminación.",
+      "_comment_failures": "Heading over the list of what could not be removed. Each row carries a path and the sentence for its failure code from the errors catalogue.",
+      "failures": "Esto no se eliminó:"
+    }
+  },
+
+  "queue": {
+    "_comment_": "The transfer queue. Every entry has its own progress and its own cancel, and the list outlives leaving the screen — a two-gigabyte copy with no progress cannot be told from a hang.",
+    "title": "Transferencias",
+    "_comment_active": "ICU plural on how many transfers are still moving or waiting.",
+    "active": "{count, plural, =0 {Nada en curso} one {# en curso} many {# en curso} other {# en curso}}",
+    "empty": "Todavía no se ha transferido nada en este panel.",
+    "cancelAll": "Detener todo",
+    "_comment_showFinished": "A local toggle. Finished entries are kept on purpose so the history of what happened stays readable; this only hides them from view.",
+    "showFinished": "Mostrar las terminadas",
+    "_comment_directionUpload": "Read aloud as the row's first fact, and drawn as a short label.",
+    "directionUpload": "Enviando",
+    "directionDownload": "Descargando",
+    "_comment_toLocal": "The destination line under a row's name. {path} is escaped and isolated at the call site.",
+    "toLocal": "a {path}",
+    "toRemote": "a {path}",
+
+    "state": {
+      "queued": "En espera",
+      "running": "Transfiriendo",
+      "completed": "Terminada",
+      "cancelled": "Detenida",
+      "failed": "Fallida"
+    },
+
+    "_comment_progress": "{done} and {total} are byte counts already formatted for the reader's locale. The pair is deliberate: a percentage alone tells you nothing about whether it is worth waiting for.",
+    "progress": "{done} de {total}",
+    "_comment_progressUnknown": "The server did not report a size. Common on a growing file and on some servers for every file.",
+    "progressUnknown": "{done} hasta ahora — no se informó del tamaño total",
+    "completedBytes": "{bytes} transferidos",
+
+    "cancel": "Detener esta transferencia",
+    "_comment_retry": "Queues a fresh transfer from this one's request. The finished entry stays where it is, so what happened stays readable.",
+    "retry": "Reintentar",
+    "_comment_failedTitle": "Heading over the core's failure for one transfer.",
+    "failedTitle": "Esta transferencia falló",
+
+    "_comment_resumeToggle": "The control that asks for an interrupted transfer to be continued rather than started over. Off by default, and the sentence under it says why.",
+    "resumeToggle": "Continuar las transferencias interrumpidas",
+    "_comment_resumeExplain": "SECURITY-ADJACENT HONESTY. There is no checksum: SFTP has no standard way to ask a server for one. A resumed transfer trusts that what is already on disk is the beginning of the same file. Do not soften this into 'resume is safe'.",
+    "resumeExplain": "Una transferencia continuada da por supuesto que lo que ya hay en disco es el principio del mismo archivo. Nada lo comprueba, así que deje esto desactivado salvo que sepa que el archivo parcial salió de esta misma copia.",
+
+    "resume": {
+      "_comment_": "What the transfer decided about continuing, composed here from the facts the core reported rather than printed from the core's own sentence. {offset} is a formatted byte count.",
+      "continued": "Continuada desde {offset}.",
+      "_comment_declinedDownloadNotShorter": "A resume was asked for and refused. The core refuses more often than a user expects, and a bar that quietly restarted would be a bar that lied. Four sentences rather than one with a placeholder, because 'local' and 'remote' swap places with the direction and several languages inflect around them.",
+      "declinedDownloadNotShorter": "Se empezó de cero: el archivo de este equipo no es más corto que el del servidor, así que continuarlo podría haberlo corrompido.",
+      "declinedUploadNotShorter": "Se empezó de cero: el archivo del servidor no es más corto que el de este equipo, así que continuarlo podría haberlo corrompido.",
+      "declinedDownloadUnknownSize": "Se empezó de cero: el servidor no informó del tamaño del archivo, así que no había ningún desplazamiento en el que confiar.",
+      "declinedUploadUnknownSize": "Se empezó de cero: no se pudo leer el tamaño del archivo de este equipo, así que no había ningún desplazamiento en el que confiar."
+    },
+
+    "_comment_enqueueFailed": "Heading over the core's failure when a batch was refused. The batch is resolved before any of it is queued, so nothing has started.",
+    "enqueueFailed": "No se puso nada en cola",
+    "enqueueFailedNote": "Todo el lote se comprobó antes de que empezara ninguna parte de él, así que no hay ninguna transferencia en marcha.",
+    "_comment_collapse": "Rolls the list of transfers away. The panel keeps its heading and its counts when collapsed — a queue that hides how many failed is a queue that hides a failure — and the preference is remembered per pane, because on a laptop the queue takes a third of the pane it shares with the listing.",
+    "collapse": "Plegar la lista de transferencias",
+    "expand": "Mostrar la lista de transferencias",
+    "_comment_failedCount": "Shown beside the heading, including while the list is rolled up. A failure nobody can see is one they will read as nothing having happened. ICU plural.",
+    "failedCount": "{count, plural, one {# falló} many {# fallaron} other {# fallaron}}",
+    "_comment_speed": "HONEST ESTIMATE. Measured by the interface from the clock the core puts on each transfer, over this attempt rather than over the whole file — a resumed transfer moves at the speed of what it has actually fetched. {rate} is a byte count already formatted for the reader; the unit mark after it is a per-second, not a word.",
+    "speed": "{rate}/s",
+    "_comment_remainingHours": "How much longer, at the measured rate. Rounded to the leading unit on purpose: the difference between four minutes and four minutes twelve seconds is precision the measurement does not have, and a figure that looks precise and is not teaches people to distrust the one beside it. Three keys rather than one with a unit placeholder, because the number and its unit inflect together in several languages.",
+    "remainingHours": "quedan {hours, plural, one {# hora} many {# horas} other {# horas}}",
+    "remainingMinutes": "quedan {minutes, plural, one {# minuto} many {# minutos} other {# minutos}}",
+    "remainingSeconds": "quedan {seconds, plural, one {# segundo} many {# segundos} other {# segundos}}",
+    "_comment_elapsedHours": "How long it has been running, or how long it took once it finished. The same three units and the same rounding as the estimate above, for the same reason.",
+    "elapsedHours": "{hours, plural, one {# hora} many {# horas} other {# horas}} hasta ahora",
+    "elapsedMinutes": "{minutes, plural, one {# minuto} many {# minutos} other {# minutos}} hasta ahora",
+    "elapsedSeconds": "{seconds, plural, one {# segundo} many {# segundos} other {# segundos}} hasta ahora",
+    "_comment_stalled": "Said in words rather than shown as a speed of zero, because this is the answer the person watching the bar actually needs. It is not a failure: the transfer is still open and may move again, and the threshold is deliberately generous because progress is reported in 512 KiB steps and a slow link is not a stalled one.",
+    "stalled": "Hace un rato que no se mueve nada. La transferencia sigue abierta."
+  },
+
+  "transferTo": {
+    "_comment_needFolder": "Blocks a download with no destination. A download that chose its own folder would be a download that wrote somewhere the user did not choose.",
+    "needFolder": "Elija una carpeta de este equipo en la que descargar.",
+    "_comment_needFiles": "Blocks a send with nothing staged.",
+    "needFiles": "Elija archivos de este equipo para enviar.",
+    "_comment_needSelection": "Blocks a download with no rows chosen.",
+    "needSelection": "Elija algo de la carpeta remota para descargar."
+  },
+  "overwrite": {
+    "_comment_title": "DESTRUCTIVE. A transfer writes over whatever is at its destination — an upload truncates the remote file and a download truncates the local one — and there is no trash on either side. ICU plural on how many files already exist at their destinations. The =0 case is reachable: a batch where nothing is known to be there still reaches this dialog when something could not be checked, or when a folder is being merged.",
+    "title": "{count, plural, =0 {¿Enviar estos archivos?} one {¿Reemplazar # archivo?} many {¿Reemplazar # archivos?} other {¿Reemplazar # archivos?}}",
+    "_comment_permanent": "SECURITY-CRITICAL WORDING. There is no trash on the server and none on this side either — a transfer truncates. Do not soften 'written over' into 'updated', and do not soften 'cannot be undone'.",
+    "permanent": "Lo que hay ahora en estas rutas se sobrescribe. No hay papelera en ninguno de los dos lados y esto no se puede deshacer.",
+    "_comment_listHeading": "Heading over the paths that already have something at them. Each is followed by the size and the date of what is there now, so the reader can tell a stale copy from the one they meant to keep.",
+    "listHeading": "Estos se reemplazarán:",
+    "_comment_existing": "The facts about the file that is already there, under its path. {size} and {when} are already formatted for the reader, and either may read 'Not reported' when the server did not say.",
+    "existing": "{size}, modificado por última vez el {when}",
+    "_comment_resumeNote": "Shown when 'Continue interrupted transfers' is on. The core continues only where the destination is strictly shorter than a source of known size, and starts over everywhere else — so the same batch can both append and truncate, and the dialog says so rather than implying one rule.",
+    "resumeNote": "Continuar está activado. Donde el archivo de aquí sea más corto que el que se copia, se le añade el resto; en los demás casos se reemplaza.",
+    "_comment_blockedHeading": "A destination that is a folder. A transfer cannot replace one, so those requests are dropped from the batch rather than queued to fail one at a time against a server that will refuse each of them. ICU plural.",
+    "blockedHeading": "{count, plural, one {# de estos es una carpeta} many {# de estos son carpetas} other {# de estos son carpetas}}:",
+    "blockedNote": "Una transferencia no puede reemplazar una carpeta, así que estos no se envían. No se cambia nada en ellos.",
+    "_comment_uncheckedHeading": "A destination Remoter could not look at. 'Nothing is there' and 'nobody could look' are different answers and must not be shown as the same one. These are still sent: a destination nobody could inspect is a reason not to claim anything about it, not a reason to refuse the transfer. ICU plural.",
+    "uncheckedHeading": "{count, plural, one {# no se pudo comprobar} many {# no se pudieron comprobar} other {# no se pudieron comprobar}}:",
+    "uncheckedNote": "Remoter no pudo determinar si estos ya existen. Se envían igualmente, y lo que haya en esas rutas se reemplaza.",
+    "_comment_sending": "The last line before the buttons: what pressing the confirming button actually queues, after the folders have been dropped from the batch. ICU plural.",
+    "sending": "{count, plural, =0 {No se enviará nada.} one {Comenzará # transferencia.} many {Comenzarán # transferencias.} other {Comenzarán # transferencias.}}",
+    "_comment_confirm": "The confirming button. Names the act, never 'OK'. This general form is used when the batch replaces nothing, or when it mixes both directions; the two below name which side loses the file and are used whenever the batch goes one way. ICU plural.",
+    "confirm": "{count, plural, =0 {Enviarlos de todos modos} one {Reemplazarlo} many {Reemplazarlos} other {Reemplazarlos}}",
+    "confirmDownload": "{count, plural, one {Reemplazar el archivo de este equipo} many {Reemplazar # archivos de este equipo} other {Reemplazar # archivos de este equipo}}",
+    "confirmUpload": "{count, plural, one {Reemplazar el archivo del servidor} many {Reemplazar # archivos del servidor} other {Reemplazar # archivos del servidor}}",
+    "_comment_folderHeading": "A source that is a folder. It expands into one transfer per file underneath it and merges into whatever is at the destination, which is neither 'this file will be replaced' nor 'nothing is there'. ICU plural.",
+    "folderHeading": "{count, plural, one {# de estos es una carpeta y se combinará} many {# de estos son carpetas y se combinarán} other {# de estos son carpetas y se combinarán}}:",
+    "_comment_folderNote": "DESTRUCTIVE, in part. A folder transfer does not replace the destination folder; it copies into it, and only the files whose names collide are written over. Do not soften 'written over' into 'updated'.",
+    "folderNote": "Cada carpeta se copia dentro del destino en lugar de reemplazarlo. Solo se sobrescriben los archivos cuyos nombres ya existen allí; todo lo demás en el destino se deja intacto."
+  },
+  "enqueue": {
+    "_comment_partialTitle": "HONESTY. Heading over what a folder transfer would not queue. A transfer that queued 996 of 1000 files has not done what was asked, and a queue showing 996 healthy rows is exactly how that goes unnoticed until somebody needs the other four.",
+    "partialTitle": "No se puso todo en la cola",
+    "_comment_limitReached": "The folder walk stopped at Remoter's own limit for how many transfers one folder may expand into. It says the count is a floor rather than the whole of it, and points at the way out — taking a subfolder at a time.",
+    "limitReached": "Esta carpeta contiene más archivos de los que una transferencia puede abarcar, así que el recorrido se detuvo antes de tiempo. Lo encontrado está en la cola; abre una subcarpeta y envíala aparte para llegar al resto.",
+    "_comment_skipped": "Heading over the list of entries a folder walk refused, each with the sentence for its failure code from the errors catalogue. A symbolic link is the common case: the walk does not follow one, because descending a link to / would copy the whole filesystem. ICU plural.",
+    "skipped": "{count, plural, one {# elemento no se puso en la cola} many {# elementos no se pusieron en la cola} other {# elementos no se pusieron en la cola}}:"
+  },
+  "properties": {
+    "_comment_title": "The dialog's heading. {name} is the escaped display form of the entry, isolated at the call site.",
+    "title": "Propiedades de {name}",
+    "_comment_reading": "While the entry's own metadata is being read. The listing already showed some of these facts; this dialog asks the server again, which is what makes a permission change verifiable.",
+    "reading": "Leyendo este elemento…",
+    "_comment_readFailed": "Heading over the core's failure when the fresh read did not come back. The facts from the listing are still shown, so this says which of the two the reader is looking at.",
+    "readFailed": "No se pudo volver a leer este elemento. Lo de abajo procede del listado de la carpeta.",
+    "_comment_path": "The row's full path, escaped. Paths are never translated; this is the label beside one.",
+    "path": "Ruta",
+    "_comment_group": "The owning group. Server-supplied text, escaped by the core like every other name here.",
+    "group": "Grupo",
+    "_comment_linkTarget": "Where a symbolic link points, read without following it. Shown only for a link, and beside the facts about what it points at — the two are different questions and the dialog answers both.",
+    "linkTarget": "El enlace apunta a",
+    "_comment_permissionsLabel": "The editable POSIX mode, in octal. Octal rather than nine checkboxes because the people who use this know 755 and 640, and reaching those through a grid of boxes is slower than typing three digits.",
+    "permissionsLabel": "Permisos (octal)",
+    "_comment_permissionsHint": "Under the field. Names the range and says that the symbolic form beside it is the same value, so the two can be checked against each other. The digits and the letters are notation and are never translated.",
+    "permissionsHint": "Hasta cuatro dígitos octales, como 755 o 4755. La forma que aparece al lado es el mismo valor escrito como lo muestra ls.",
+    "_comment_invalidMode": "Why a typed mode was refused, under the field. States the rule rather than the mechanism.",
+    "invalidMode": "Eso no es un modo octal. Usa hasta cuatro dígitos del 0 al 7.",
+    "_comment_apply": "The button that writes the mode. Names the act, never 'OK'. There is no undo on a server, so it is deliberately not the dialog's default-looking control until the value has actually changed.",
+    "apply": "Cambiar permisos",
+    "_comment_applied": "After a successful change. The field and the symbolic form beside it are re-read from the server, so this confirms what the reader can already see rather than standing in for it.",
+    "applied": "El servidor aceptó los nuevos permisos y se han vuelto a leer.",
+    "_comment_applyFailed": "Heading over the core's failure when the mode could not be written. Nothing changed; the sentence and the buttons come from the errors catalogue, keyed by the code.",
+    "applyFailed": "Los permisos no se cambiaron"
+  }
+}

@@ -1,0 +1,60 @@
+/**
+ * The application shell.
+ *
+ * Routing is a discriminated union in the store rather than a URL router:
+ * this is a desktop application with a fixed set of top-level screens and no
+ * addressable history, so a router would be ceremony without benefit.
+ *
+ * The window is frameless. `MainWindow` draws its own title bar with controls;
+ * the other screens draw their own bars too, so they get the window controls
+ * as an overlay rather than a second stacked bar.
+ */
+
+import { useEffect } from "react";
+
+import { WindowControls } from "@/components/WindowChrome";
+import { useApp } from "@/stores/app";
+import { useSystemTheme } from "@/hooks/useSystemTheme";
+import { VaultPicker } from "@/features/vault/VaultPicker";
+import { CreateVaultWizard } from "@/features/vault/CreateVaultWizard";
+import { RecoveryKeyScreen } from "@/features/vault/RecoveryKeyScreen";
+import { UnlockScreen } from "@/features/vault/UnlockScreen";
+import { MainWindow } from "@/features/shell/MainWindow";
+import { AppSettings } from "@/features/settings/AppSettings";
+import { VaultSettings } from "@/features/vaultsettings/VaultSettings";
+import { AuditViewer } from "@/features/audit/AuditViewer";
+import { ImportWizard } from "@/features/import/ImportWizard";
+
+export function App() {
+  const screen = useApp((state) => state.screen);
+  const theme = useApp((state) => state.theme);
+  const systemTheme = useSystemTheme();
+
+  useEffect(() => {
+    const resolved = theme === "system" ? systemTheme : theme;
+    document.documentElement.dataset["theme"] = resolved;
+  }, [theme, systemTheme]);
+
+  if (screen.name === "main") {
+    return <MainWindow />;
+  }
+
+  return (
+    <>
+      <WindowControls />
+      {screen.name === "picker" && <VaultPicker />}
+      {screen.name === "create" && <CreateVaultWizard />}
+      {screen.name === "recovery" && <RecoveryKeyScreen result={screen.result} />}
+      {screen.name === "unlock" && <UnlockScreen path={screen.path} relock={screen.relock} />}
+      {screen.name === "settings" && <AppSettings />}
+      {/* Each of these three draws its own header and leaves through
+          `goBack()`, so they get the window controls as an overlay exactly as
+          the settings screen does. Their headers reserve
+          `--window-controls-w` at the inline end; the overlay sits above them
+          and a control underneath it closes the application. */}
+      {screen.name === "vault-settings" && <VaultSettings />}
+      {screen.name === "audit" && <AuditViewer />}
+      {screen.name === "import" && <ImportWizard />}
+    </>
+  );
+}

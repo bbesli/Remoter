@@ -126,13 +126,24 @@ entity expansion, zip files with traversal paths, INI files with unbounded keys.
 - Auto-lock on configurable idle timeout, on OS screen lock, and on suspend
 - Locking clears the Vault Master Key and every derived key from memory and
   requires a full unlock; it does not merely blank the window
-- Optional: disconnect or freeze all sessions on lock
+- The interface drops what it read out of the vault at the same moment — the
+  connection tree, the session list, the inspector, the audit view, every
+  cached answer — and replaces the shell with the unlock screen. Clearing the
+  keys while the folder names and addresses stay rendered from a client-side
+  cache protects the key material and none of the estate, which is the whole
+  of what an unattended screen exposes
+- Optional: disconnect or freeze all sessions on lock. Whichever the policy
+  is, the unlock screen states what became of the sessions before the password
+  is asked for
 - Passwords are never shown in clear by default; revealing one requires an
   explicit action and is written to the audit log
 
 ### T8 — Local unprivileged process
 
-- Vault file permissions `0600` on Unix, owner-only ACL on Windows
+- Vault file permissions `0600` on Unix — the vault, its temporary image and
+  every rolling backup, set at creation so there is no world-readable instant.
+  On Windows they currently inherit the containing directory's ACL; an
+  explicit owner-only ACL is **not yet implemented**
 - No secrets in command-line arguments (visible in `/proc` and Task Manager),
   no secrets in environment variables, no secrets in temporary files
 - When Remoter must hand a credential to an external helper, it uses a pipe or

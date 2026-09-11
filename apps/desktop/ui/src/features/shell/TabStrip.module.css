@@ -1,0 +1,58 @@
+.strip {
+  height: var(--tabstrip-h);
+  flex: none;
+  display: flex;
+  align-items: stretch;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-default);
+  min-width: 0;
+}
+
+.edgeButton {
+  width: 34px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg-muted);
+  transition: background var(--motion-fast) var(--ease), color var(--motion-fast) var(--ease);
+}
+
+.edgeButton:hover:not(:disabled) {
+  background: var(--bg-elevated);
+  color: var(--fg-default);
+}
+
+/* A control with nothing to act on — the Files toggle with no session that
+   carries files. Its tooltip says which of the reasons applies; this only has
+   to make the refusal visible before the click. */
+.edgeButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.rightEdge {
+  border-inline-start: 1px solid var(--border-default);
+}
+
+.active {
+  background: var(--accent-tint);
+  color: var(--accent);
+}
+
+.placeholder {
+  display: flex;
+  align-items: center;
+  padding-inline: var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--fg-subtle);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.spacer {
+  flex: 1;
+  min-width: var(--space-2);
+}

@@ -1,0 +1,103 @@
+/*
+ * The busy vocabulary: a button that keeps its width while it works, a line of
+ * words explaining the wait, and a placeholder shaped like the content that is
+ * on its way.
+ */
+
+/*
+ * Both labels occupy the same grid cell, so the button is always as wide as the
+ * wider of the two and swapping to the spinner cannot make the row reflow.
+ * The hidden one keeps its box — `visibility`, not `display`.
+ */
+.swap {
+  display: inline-grid;
+  align-items: center;
+  justify-items: center;
+}
+
+.face {
+  grid-area: 1 / 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+
+.faceHidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------- status ---- */
+
+.status {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+}
+
+.statusText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.statusLabel {
+  line-height: var(--leading-tight);
+}
+
+/* The reason a long wait is long. Quieter than the stage it explains. */
+.statusNote {
+  font-size: var(--text-xs);
+  color: var(--fg-subtle);
+  line-height: var(--leading-tight);
+  text-wrap: pretty;
+}
+
+.compact {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* ----------------------------------------------------------- skeleton ---- */
+
+.skeleton {
+  display: block;
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+  animation: pulse 1400ms var(--ease) infinite;
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/*
+ * Reduced motion leaves the placeholder as a static block. It still says "there
+ * is content coming here", which is the whole of its job.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+    opacity: 0.7;
+  }
+}

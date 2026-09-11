@@ -1,0 +1,290 @@
+{
+  "_comment_file": "The application settings screen and its six sections. Loaded when the screen opens, not before. Section titles double as the navigation labels, so they stay short; the descriptions underneath carry the explanation.",
+
+  "screen": {
+    "title": "Configuración",
+    "close": "Cerrar la configuración",
+    "_comment_closeHint": "Esc is a key name and is not translated.",
+    "closeHint": "Cerrar la configuración (Esc)",
+    "sections": "Secciones de la configuración",
+    "navAppearance": "Apariencia",
+    "navTerminal": "Terminal",
+    "navLanguage": "Idioma",
+    "navShortcuts": "Atajos",
+    "navUpdates": "Actualizaciones",
+    "navAbout": "Acerca de",
+    "loading": "Leyendo la configuración…",
+    "loadFailed": "No se pudo leer la configuración."
+  },
+
+  "appearance": {
+    "title": "Tema",
+    "description": "Un tema es un archivo que redefine los tokens de diseño. El par de alto contraste cumple WCAG 2.2 AA en todos los tamaños, no solo en el texto corrido.",
+    "light": "Claro",
+    "dark": "Oscuro",
+    "hcLight": "Alto contraste claro",
+    "hcDark": "Alto contraste oscuro",
+    "system": "Seguir al sistema",
+    "_comment_systemNow": "{resolved} is systemLight or systemDark below, so the whole sentence is one message rather than two halves joined at run time.",
+    "systemNow": "Ahora mismo el escritorio informa del modo {resolved}.",
+    "systemLight": "claro",
+    "systemDark": "oscuro",
+    "previewUnavailable": "Vista previa no disponible",
+    "saving": "Guardando el tema…",
+    "saveFailed": "El tema no se guardó.",
+    "terminalNote": "La terminal tiene sus propios colores y su propia tipografía, en la pestaña Terminal: ocho paletas, edición color por color y una comprobación de contraste. Su paleta sigue al tema que elija aquí hasta que elija una allí."
+  },
+
+  "language": {
+    "title": "Idioma",
+    "description": "Para la versión 1.0 están previstos diez idiomas. Los idiomas que se escriben de derecha a izquierda invierten toda la disposición, no solo el texto.",
+    "_comment_progress": "PLURAL, on the number of languages that actually have catalogues. The count is measured from the locales/ directory rather than hardcoded, so the sentence follows the directory instead of a hand-maintained flag. The second sentence is deliberately conditional — 'any language still being translated' — because every language listed is selectable today, and the wording has to stay true both now and if an eleventh language is listed before its catalogue exists. Do not turn it back into a claim that some of the languages shown cannot be chosen: that claim was true once, was translated faithfully into nine languages, and was wrong in all ten by the time anyone read it.",
+    "progress": "{available, plural, one {Por ahora solo está traducido el inglés.} many {Hay # de idiomas traducidos y cualquiera de ellos se puede elegir ahora mismo.} other {Hay # idiomas traducidos y cualquiera de ellos se puede elegir ahora mismo.}} Cualquier idioma que todavía se esté traduciendo aparece también en la lista, y se podrá elegir en cuanto su catálogo esté completo.",
+    "notReady": "Todavía no disponible",
+    "_comment_unavailableLabel": "The accessible name of a row that cannot be chosen. {name} is the language's own name, in its own script, and is never translated.",
+    "unavailableLabel": "{name} — todavía no disponible",
+    "_comment_rtl": "A badge on right-to-left languages. Abbreviation; expand it if the language has no equivalent short form.",
+    "rtl": "RTL",
+    "saving": "Guardando el idioma…",
+    "saveFailed": "El idioma no se guardó.",
+    "_comment_storedUnavailable": "Shown when the settings file names a language with no catalogue — a downgrade, or a translation withdrawn. {locale} is a BCP 47 tag such as pt-BR and is not translated.",
+    "storedUnavailable": "La configuración pide {locale}, que todavía no tiene catálogo, así que la interfaz se queda en inglés."
+  },
+
+  "terminal": {
+    "paletteTitle": "Paleta de la terminal",
+    "paletteDescription": "Los colores con los que se dibuja cada sesión de esta ventana. Son independientes del tema de la interfaz, así que una interfaz clara puede tener una terminal oscura. Los cambios llegan a las sesiones ya abiertas: no hace falta reconectar nada.",
+    "auto": "Seguir al tema de la interfaz",
+    "autoCredit": "Remoter Dark con una interfaz oscura, Remoter Light con una clara, y la paleta de alto contraste cuando la interfaz es de alto contraste",
+    "_comment_autoResolved": "{name} is a palette's name, taken from the palettes block below — so whatever you call 'Remoter Dark' there is what appears here.",
+    "autoResolved": "Ahora mismo es {name}.",
+
+    "_comment_palettes": "One entry per palette this build ships, keyed by the palette's id. The name heads its card in the picker; the credit says whose design it is, because a palette is somebody's published work. Solarized, Gruvbox, Nord and Tomorrow Night are published works with names of their own, and the person names and licence abbreviations in their credits are not translated — translate only the words around them, and transliterate a name only if your script gives a reader no way to read the Latin one. The two Remoter entries and 'High contrast' are this application's own copy and should read naturally in your language.",
+    "palettes": {
+      "remoter-dark": {
+        "name": "Remoter Dark",
+        "credit": "Remoter — la paleta con la que se publicó esta aplicación"
+      },
+      "remoter-light": {
+        "name": "Remoter Light",
+        "credit": "Remoter — la contraparte clara, ajustada para superar AA sobre su fondo"
+      },
+      "solarized-dark": {
+        "name": "Solarized Dark",
+        "credit": "Ethan Schoonover, MIT"
+      },
+      "solarized-light": {
+        "name": "Solarized Light",
+        "credit": "Ethan Schoonover, MIT"
+      },
+      "gruvbox-dark": {
+        "name": "Gruvbox Dark",
+        "credit": "Pavel Pertsev, MIT"
+      },
+      "nord": {
+        "name": "Nord",
+        "credit": "Arctic Ice Studio y Sven Greb, MIT"
+      },
+      "tomorrow-night": {
+        "name": "Tomorrow Night",
+        "credit": "Chris Kempson, MIT"
+      },
+      "high-contrast": {
+        "name": "Alto contraste",
+        "credit": "Remoter — la paleta que usan los temas de interfaz de alto contraste"
+      }
+    },
+
+    "_comment_paletteLabel": "The accessible name of one palette's radio button: the palette's name, then who made it. Both values come from the palettes block above. The dash is a separator, not a word — use whatever separates a title from its attribution in your language.",
+    "paletteLabel": "{name} — {credit}",
+
+    "previewLabel": "Vista previa",
+    "previewNote": "Salida real, con la paleta y la tipografía que se van a aplicar.",
+
+    "contrastTitle": "Contraste",
+    "contrastDescription": "Cada color con el que un programa imprime texto, medido contra el fondo. WCAG 2.2 AA pide 4,5:1 a este tamaño. Aquí no se bloquea nada —la terminal es suya—, pero estos son los colores que costará leer.",
+    "contrastClear": "Todos los colores superan el 4,5:1 sobre este fondo.",
+    "_comment_contrastSample": "The two letters drawn in each failing colour, as a specimen. Replace them with characters representative of the script this locale is read in — the point is to show what that colour looks like as text a reader would actually meet. Keep it to two or three characters.",
+    "contrastSample": "Aa",
+    "contrastHard": "Difícil de leer",
+    "contrastUnreadable": "Ilegible",
+    "_comment_contrastRatio": "A contrast ratio, already formatted to one decimal by Intl. The ':1' is notation, not words.",
+    "contrastRatio": "{ratio}:1",
+    "contrastAgainstBackground": "{ratio} contra el fondo",
+    "_comment_contrastCount": "PLURAL. 4.5:1 is a WCAG threshold and stays a numeral in every language.",
+    "contrastCount": "{count, plural, one {# color queda por debajo de 4,5:1} many {# de colores quedan por debajo de 4,5:1} other {# colores quedan por debajo de 4,5:1}}",
+    "contrastWarning": "Cambie el color, cambie el fondo o déjelo como está: esto es una medición, no una prohibición.",
+    "contrastBlacks": "El color 0 y el color 8 son los dos que un shell suele usar como fondo o como decoración atenuada, no como texto, y por eso se quedan cortos en casi todas las paletas publicadas, incluida esta.",
+
+    "_comment_colours": "What each editable colour is called, in the order the editor lists them. The leading number is the ANSI colour index and stays a numeral; the word after it is translated. 'Bright black' is the conventional name for ANSI 8 even though it is usually dark grey — keep the convention rather than describing the colour.",
+    "colours": {
+      "background": "Fondo",
+      "foreground": "Texto",
+      "cursor": "Cursor",
+      "cursorAccent": "Texto bajo el cursor",
+      "selection": "Selección",
+      "black": "0 Negro",
+      "red": "1 Rojo",
+      "green": "2 Verde",
+      "yellow": "3 Amarillo",
+      "blue": "4 Azul",
+      "magenta": "5 Magenta",
+      "cyan": "6 Cian",
+      "white": "7 Blanco",
+      "brightBlack": "8 Negro brillante",
+      "brightRed": "9 Rojo brillante",
+      "brightGreen": "10 Verde brillante",
+      "brightYellow": "11 Amarillo brillante",
+      "brightBlue": "12 Azul brillante",
+      "brightMagenta": "13 Magenta brillante",
+      "brightCyan": "14 Cian brillante",
+      "brightWhite": "15 Blanco brillante"
+    },
+    "coloursTitle": "Colores individuales",
+    "coloursDescription": "Elija un color o pegue un valor hexadecimal: se aceptan #rgb, #rrggbb y #rrggbbaa. Un color que haya cambiado muestra un botón para restablecerlo al lado. El selector de color de la plataforma no maneja transparencia, así que un color que la tuviera la conserva; la transparencia se cambia en el campo hexadecimal, como #rrggbbaa.",
+    "_comment_hexLabel": "{name} is a colour's name, such as 'Red' or 'Bright black'. These are the ANSI colour names and are translated.",
+    "hexLabel": "{name}, valor hexadecimal",
+    "pickLabel": "{name}, selector de color",
+    "resetOne": "Restablecer {name} al color propio de la paleta",
+    "resetAll": "Restablecer todos los colores",
+    "resetAllNone": "No hay ningún color cambiado",
+    "overridden": "Cambiado",
+    "_comment_overriddenCount": "PLURAL.",
+    "overriddenCount": "{count, plural, one {# color difiere de la paleta} many {# de colores difieren de la paleta} other {# colores difieren de la paleta}}",
+    "invalidHex": "Eso no es un color. Escríbalo así: #1a1c20.",
+
+    "fontTitle": "Tipografía de la terminal",
+    "fontDescription": "Independiente de la tipografía de la interfaz. La interfaz conserva su propio tamaño cuando cambie esto.",
+    "fontFamilyLabel": "Familia tipográfica",
+    "_comment_fontFamilyPlaceholder": "A font name. Not translated.",
+    "fontFamilyPlaceholder": "JetBrains Mono",
+    "fontFamilyHelp": "El nombre de una tipografía instalada en esta máquina. Remoter no puede listar las que hay ni decir si ha encontrado esta: la vista previa de arriba se dibuja con ella, así que un cambio que no parece cambiar nada significa que el nombre no coincidió. Se escriba lo que se escriba, se recurre a la pila monoespaciada de la interfaz, de modo que una errata nunca deja la terminal sin tipografía monoespaciada.",
+    "fontFamilyDefault": "Déjelo vacío para usar la pila monoespaciada de la interfaz.",
+    "fontSizeLabel": "Tamaño",
+    "_comment_fontSizeHelp": "{min} and {max} are the bounds the build enforces, so the sentence cannot drift out of step with the control.",
+    "fontSizeHelp": "Píxeles, de {min} a {max}. La sesión se redimensiona sola y le comunica la nueva geometría al host remoto.",
+
+    "scope": "Estos ajustes pertenecen a esta máquina, no a la bóveda, y se aplican a todas las sesiones, no a una conexión concreta.",
+    "saving": "Guardando la apariencia de la terminal…",
+    "saveFailed": "La apariencia de la terminal no se guardó."
+  },
+
+  "shortcuts": {
+    "title": "Atajos",
+    "description": "Cada combinación de abajo es la que la aplicación escucha realmente. Una terminal con el foco tiene que recibir casi todas las pulsaciones, así que dentro de una sesión los atajos de la aplicación pasan por un prefijo.",
+    "loading": "Leyendo el mapa de atajos…",
+    "loadFailed": "No se pudo leer el mapa de atajos.",
+    "loadFallback": "Estos son los valores por defecto de fábrica. Las combinaciones que haya cambiado no se muestran, y no se pueden cambiar aquí mientras no se pueda leer el archivo de configuración.",
+
+    "prefixTitle": "Prefijo de la terminal",
+    "_comment_prefixBody": "Ctrl+C, Ctrl+D and Alt+F are key names. Translate the sentence, not the keys.",
+    "prefixBody": "Ctrl+C, Ctrl+D y Alt+F pertenecen al host remoto, así que Remoter no los toma. Dentro de una sesión, mantenga pulsado también el prefijo.",
+    "prefixLegend": "El prefijo que se mantiene pulsado junto a un atajo de la aplicación dentro de una sesión",
+    "prefixSaving": "Guardando el prefijo…",
+    "prefixFailed": "El prefijo no se cambió.",
+
+    "searchLabel": "Buscar atajos",
+    "searchPlaceholder": "Filtrar por acción o por tecla",
+
+    "caption": "Atajos de teclado, con lo que alcanza y lo que no alcanza cada uno",
+    "colAction": "Acción",
+    "colShortcut": "Atajo",
+    "colScope": "Dónde funciona",
+
+    "scopeUniversal": "En todas partes",
+    "scopeApplication": "Con prefijo dentro de una sesión",
+    "scopeContext": "Solo donde se escribe",
+    "scopeNowhere": "En ningún sitio",
+
+    "_comment_inSession": "{keys} is a key combination such as 'Ctrl+B then T'. Key names are not translated.",
+    "inSession": "Dentro de una sesión con el foco: {keys}",
+
+    "edit": "Cambiar el atajo de {action}, ahora {keys}",
+    "capturing": "Pulse las teclas…",
+    "capturingHint": "Pulse la combinación que quiera, o Esc para cancelar.",
+    "fixed": "El atajo de {action} no se puede cambiar",
+    "saving": "Guardando…",
+
+    "reset": "Restablecer {action} a las teclas de fábrica",
+    "resetAll": "Restablecer todos los atajos",
+    "resetAllBusy": "Restableciendo…",
+    "resetAllNone": "Todos los atajos editables ya están en su valor de fábrica.",
+    "saveFailed": "El atajo no se guardó.",
+
+    "_comment_count": "PLURAL on {shown}, with {total} inside it. Filtering a table down to one row is common enough that the singular is worth having.",
+    "count": "{shown, plural, one {Se muestra # de {total} atajos.} many {Se muestran # de {total} atajos.} other {Se muestran # de {total} atajos.}}",
+    "empty": "Ningún atajo coincide con eso.",
+
+    "_comment_conflictDuplicate": "{holders} is a locale-joined list of action names, built with Intl.ListFormat.",
+    "conflictDuplicate": "Ya la tiene asignada {holders}. Solo una de las dos puede dispararse, así que cambie una.",
+    "conflictReservedUniversal": "El shell remoto necesita estas teclas, así que una sesión con el foco se las queda y este atajo nunca se dispara ahí.",
+    "conflictReservedApplication": "Estas teclas pertenecen al shell remoto y a copiar y pegar. El prefijo las deja libres dentro de una sesión, pero fuera de una sesión Remoter se las queda.",
+    "conflictDesktop": "Algunos escritorios se quedan con esta combinación para su propio cambiador de ventanas y ganan. Donde eso ocurre, la pulsación nunca llega a Remoter.",
+
+    "refusedInvalid": "Esa no es una combinación que Remoter pueda asignar.",
+    "refusedReserved": "{keys} pertenece al host remoto: una terminal con el foco tiene que recibirla, así que asignarla aquí impediría que llegara al shell.",
+    "refusedDuplicate": "{keys} ya la tiene asignada {action}. No se cambió nada: libérela allí primero o elija otra combinación.",
+    "refusedUnknown": "Esta compilación no incluye esa acción."
+  },
+
+  "updates": {
+    "title": "Actualizaciones",
+    "description": "Remoter puede buscar una versión más reciente. No la instala, y no contacta con nada salvo que se lo pida.",
+
+    "switchLabel": "Buscar automáticamente una versión más reciente",
+    "_comment_consent": "SECURITY-CRITICAL. This is the consent notice for the only outbound request the application makes. Every clause is a commitment: what is contacted, how often, and exactly what is sent. Do not shorten it, and do not generalise 'one thing: this build's version string' into 'some information'.",
+    "consent": "Con esto activado, Remoter contacta con github.com como mucho una vez al día —una vez al activarlo y, a partir de ahí, al abrir esta pantalla— y envía una sola cosa: la cadena de versión de esta compilación. Ningún identificador, ningún idioma, ninguna telemetría, ningún dato de uso. Con esto desactivado, no se contacta con nada hasta que pulse Buscar ahora.",
+    "switchSaving": "Guardando…",
+    "switchFailed": "Esa preferencia no se guardó.",
+
+    "checkNow": "Buscar ahora",
+    "checking": "Preguntando a GitHub qué se ha publicado…",
+    "lastCheckedNever": "Esta máquina no ha buscado nunca.",
+    "_comment_lastChecked": "{when} is a relative time from Intl.RelativeTimeFormat — 'yesterday', '3 hours ago'.",
+    "lastChecked": "Última búsqueda: {when}.",
+
+    "checkFailed": "La búsqueda de actualizaciones no llegó a terminar.",
+
+    "_comment_current": "{version} here and in the three messages below is a version string such as 0.1.0. Never translated, and never localised as a number — 0.1.0 does not become 0,1,0.",
+    "current": "Está usando la versión {version}, que es la más reciente publicada.",
+    "none": "Todavía no se ha publicado ninguna versión. Está usando la {version}.",
+    "unknown": "Esta compilación declara la versión {version}, que no es una versión comparable. Abra la página de versiones y compruébelo a ojo.",
+
+    "updateHeading": "La versión {version} está disponible",
+    "updateRunning": "Está usando la {version}.",
+    "published": "Publicada {when}.",
+    "notesHeading": "Qué ha cambiado",
+    "notesNone": "Esta versión se publicó sin notas.",
+    "openRelease": "Abrir la página de esta versión",
+    "openReleases": "Abrir la página de versiones",
+
+    "_comment_noSelfUpdate": "SECURITY-CRITICAL. It states why the application will not install its own updates. Keep the reason — unsigned releases — rather than reducing it to 'for safety'.",
+    "noSelfUpdate": "Remoter no instala las actualizaciones por su cuenta. Las versiones todavía no están firmadas, y ejecutar un binario sin firmar no es algo que un gestor de credenciales deba pedirle que haga; por eso el botón abre la página de la versión en el navegador y la instalación la hace usted.",
+
+    "openFailed": "El navegador del sistema no se abrió.",
+
+    "promiseTitle": "Remoter no llama a casa",
+    "_comment_promiseTelemetry": "SECURITY-CRITICAL, as are the two promises after it. Three absolute statements about what the application does not do. A translator who hedges any of them turns a commitment into marketing.",
+    "promiseTelemetry": "Sin telemetría. Sin informes de uso. Sin analítica de ningún tipo, con ninguna configuración.",
+    "promiseCrash": "Sin envío de informes de fallos. Un informe de fallo se escribe en su máquina y usted decide si lo adjunta a una incidencia, lo que significa que puede leerlo antes, y eso importa cuando el proceso maneja credenciales.",
+    "promiseCheck": "La búsqueda de actualizaciones es la única petición que hace Remoter que no sea una sesión abierta por usted. Lee la lista pública de versiones y envía la versión de esta compilación. No descarga nada."
+  },
+
+  "about": {
+    "title": "Acerca de",
+    "description": "Qué es esta compilación y bajo qué términos se distribuye.",
+    "versionLabel": "Versión",
+    "versionReading": "Leyendo…",
+    "versionUnavailable": "No disponible",
+    "licenceLabel": "Licencia",
+    "_comment_licenceValue": "The licence's own name and SPDX identifier. Not translated: it is the legal name of the document.",
+    "licenceValue": "GNU General Public License, version 3 or later (GPL-3.0-or-later)",
+    "exceptionLabel": "Complementos",
+    "exceptionValue": "Esta compilación no puede cargar complementos. Todavía no incluye un anfitrión de complementos: solo la ABI que usará el futuro. Cuando lo incluya: un complemento WebAssembly que hable con Remoter únicamente a través de la ABI de complementos publicada puede licenciarse en los términos que usted elija, que es la excepción de interfaz recogida en LICENSE-EXCEPTION.",
+    "updatesLabel": "Actualizaciones",
+    "updatesValue": "Remoter busca una versión más reciente solo si activa la búsqueda, y nunca instala ninguna. Vea la sección Actualizaciones.",
+    "repositoryLabel": "Código fuente",
+    "repositoryOpen": "Abrir el repositorio",
+    "repositoryFailed": "El navegador del sistema no se abrió."
+  }
+}

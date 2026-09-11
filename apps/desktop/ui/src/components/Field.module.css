@@ -1,0 +1,29 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--fg-default);
+  line-height: var(--leading-tight);
+}
+
+.help,
+.error {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  text-wrap: pretty;
+}
+
+.help {
+  color: var(--fg-muted);
+}
+
+.error {
+  color: var(--danger-text);
+}

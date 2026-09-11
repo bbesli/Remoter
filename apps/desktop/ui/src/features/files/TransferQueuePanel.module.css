@@ -1,0 +1,210 @@
+/*
+ * The transfer queue.
+ *
+ * The bar is a width rather than an animation, and there is a second class for
+ * a transfer whose total nobody reported: an indeterminate bar that slides
+ * along claims knowledge of a total the server never sent, and a full-width one
+ * claims it has finished.
+ */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: 0;
+  padding: var(--space-3);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+.head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--fg-default);
+}
+
+.count {
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+}
+
+.spacer {
+  flex: 1 1 auto;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
+
+.note {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--fg-muted);
+}
+
+.notice {
+  flex: none;
+}
+
+.empty {
+  margin: 0;
+  padding: var(--space-3);
+  text-align: center;
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: 0;
+  max-block-size: 18rem;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  background: var(--bg-inset);
+  border-radius: var(--radius-sm);
+}
+
+.itemHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--fg-default);
+}
+
+.state {
+  flex: none;
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+}
+
+.destination {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-xs);
+  color: var(--fg-subtle);
+}
+
+.bar {
+  block-size: 4px;
+  inline-size: 100%;
+  overflow: hidden;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-full);
+}
+
+.fill {
+  display: block;
+  block-size: 100%;
+  background: var(--accent);
+  transition: inline-size var(--motion-base) var(--ease);
+}
+
+/* No total was reported, so the bar shows that something is happening without
+   claiming to know how much is left. */
+.fillUnknown {
+  display: block;
+  block-size: 100%;
+  inline-size: 25%;
+  background: var(--fg-subtle);
+}
+
+.figures {
+  display: flex;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-muted);
+}
+
+.percent {
+  color: var(--fg-default);
+}
+
+.resume {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--warning);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fill {
+    transition: none;
+  }
+}
+
+/*
+ * The collapse control's chevron, and the figures beside a progress bar.
+ *
+ * The chevron is turned over rather than swapped for a sideways one: a
+ * directional icon mirrors in a right-to-left layout, and "open" is not a
+ * direction. `rotate` rather than `transform: rotate(...)` so a future
+ * transform on the same element does not silently cancel it.
+ */
+.chevron {
+  display: inline-flex;
+  rotate: 0deg;
+  transition: rotate var(--motion-fast) ease;
+}
+
+.chevronCollapsed {
+  display: inline-flex;
+  rotate: -90deg;
+  transition: rotate var(--motion-fast) ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chevron,
+  .chevronCollapsed {
+    transition: none;
+  }
+}
+
+/*
+ * A rate, an estimate or an elapsed time, beside the byte count. Muted because
+ * the byte count is the fact and these are measurements of it.
+ */
+.rate {
+  margin-inline-start: var(--space-2);
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+}

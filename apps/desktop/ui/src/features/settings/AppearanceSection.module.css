@@ -1,0 +1,282 @@
+/*
+ * Appearance.
+ *
+ * Proportions follow ui_parts/project_ui_design/09 App Settings.dc.html: four
+ * previews in a row, each a 96px-tall miniature of the window.
+ *
+ * Inside `.preview` the palette tokens are overridden by an inline style, so
+ * the rules there resolve against the theme being previewed rather than the
+ * theme in use. That is deliberate and is the only place in this feature where
+ * a token means something other than "the current theme".
+ */
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+@media (max-width: 52rem) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  cursor: pointer;
+}
+
+/* The native control stays in the accessibility tree and keeps arrow-key
+   behaviour; the card draws its own state from it. */
+.radio {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.preview,
+.previewMissing {
+  height: 96px;
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  transition: border-color var(--motion-fast) var(--ease);
+}
+
+.preview {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-canvas);
+}
+
+.previewMissing {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-2);
+  background: var(--bg-inset);
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  text-align: center;
+}
+
+.radio:checked ~ .preview,
+.radio:checked ~ .previewMissing {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.radio:focus-visible ~ .preview,
+.radio:focus-visible ~ .previewMissing {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+.card:hover .preview,
+.card:hover .previewMissing {
+  border-color: var(--border-strong);
+}
+
+.previewBar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+  height: 16px;
+  padding-inline: var(--space-2);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.previewDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.previewBarLine {
+  width: 26px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border-strong);
+}
+
+.previewBody {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.previewSidebar {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 3px;
+  width: 34px;
+  padding: var(--space-1);
+  background: var(--bg-surface);
+  border-inline-end: 1px solid var(--border-default);
+}
+
+.previewContent {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  padding: var(--space-1);
+  background: var(--bg-inset);
+}
+
+.previewLine,
+.previewLineAccent,
+.previewLineStrong {
+  height: 4px;
+  border-radius: 2px;
+}
+
+.previewLine {
+  background: var(--border-default);
+}
+
+.previewLineStrong {
+  background: var(--border-strong);
+}
+
+.previewLineAccent {
+  background: var(--accent);
+}
+
+/* Positional widths: the miniature is a shape, so the lengths live here. */
+.previewSidebar > :nth-child(1) {
+  width: 80%;
+}
+.previewSidebar > :nth-child(2) {
+  width: 60%;
+}
+.previewSidebar > :nth-child(3) {
+  width: 70%;
+}
+.previewContent > :nth-child(1) {
+  width: 56%;
+}
+.previewContent > :nth-child(2) {
+  width: 76%;
+}
+.previewContent > :nth-child(3) {
+  width: 40%;
+}
+
+/* --------------------------------------------------------------- labels -- */
+
+.cardLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.cardName {
+  font-size: var(--text-sm);
+  color: var(--fg-strong);
+}
+
+.radio:checked ~ .cardLabel .cardName {
+  font-weight: 600;
+  color: var(--fg-default);
+}
+
+/* The selection is a filled ring as well as a colour — never colour alone. */
+.mark {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border-strong);
+  border-radius: var(--radius-full);
+}
+
+.radio:checked ~ .cardLabel .mark,
+.radio:checked ~ .mark {
+  border-color: var(--accent);
+}
+
+.radio:checked ~ .cardLabel .mark::after,
+.radio:checked ~ .mark::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+}
+
+.systemRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  flex-wrap: wrap;
+}
+
+.systemRow:hover {
+  border-color: var(--border-strong);
+}
+
+.radio:checked ~ .systemName {
+  font-weight: 600;
+}
+
+.systemRow:has(.radio:checked) {
+  border-color: var(--accent);
+  background: var(--accent-tint);
+}
+
+.systemRow:has(.radio:focus-visible) {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+.systemName {
+  font-size: var(--text-sm);
+}
+
+.systemHint {
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+}
+
+/* ------------------------------------------------------------- feedback -- */
+
+.saving {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+}
+
+.note {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--fg-muted);
+}

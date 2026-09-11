@@ -1,0 +1,266 @@
+/* One host per open session, all stacked in the session area. The inactive
+   ones keep their layout — the fit addon measures the element, so a terminal
+   with no dimensions comes back at the wrong size. */
+/* Anything drawn on the terminal ground.
+   The ground is dark in EVERY theme — that is deliberate, and tokens.css says
+   so. But a component on top of it inherits the app's foregrounds, which in
+   the light theme are near-black: the connect-failure card came out as the
+   least readable text in the tab, at exactly the moment the user most needs to
+   read it. Rather than patching that one card, the ground redefines the tokens
+   for everything inside it, so a component dropped here later is legible
+   without knowing where it is. */
+.terminal,
+.overlay {
+  --fg-default: #e6e8ea;
+  --fg-strong: #c8ced4;
+  --fg-muted: #9aa1a9;
+  --fg-subtle: #8a929a;
+  --bg-surface: #1c1e22;
+  --bg-elevated: #23262b;
+  --bg-inset: #101114;
+  --border-default: #2a2e34;
+  --border-strong: #3a4048;
+}
+
+/* The area the terminal is attached into.
+
+   `direction: ltr` is not a style choice, it is the terminal's contract. The
+   grid belongs to the remote host: the server counts columns from the left,
+   puts the cursor back to column zero on `\r`, and draws its box art assuming
+   both. Inheriting `dir="rtl"` from the document would right-align every row
+   and mirror a shell prompt into a shape the server's own escape sequences no
+   longer describe. docs/features/i18n.md: terminal content is never mirrored.
+
+   terminals.ts pins the same thing on the host div it creates, because that div
+   is built outside React and has to carry its direction with it. This rule is
+   what covers the container — anything xterm or an addon appends here, and any
+   future container content, starts from LTR rather than from the chrome's
+   direction. The two are deliberately redundant: neither one alone survives a
+   change to the other file. */
+.terminal {
+  position: absolute;
+  inset: 0;
+  padding: var(--space-2);
+  background: var(--bg-terminal);
+  overflow: hidden;
+  direction: ltr;
+}
+
+.terminalHidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* Everything that interrupts a session sits above it, dimming what is behind
+   so the terminal underneath is visible but plainly not the subject. */
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  background: var(--bg-overlay);
+  overflow-y: auto;
+}
+
+.panel {
+  width: 100%;
+  max-width: 40rem;
+  padding: var(--space-5);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-2);
+}
+
+.panelHead {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.panelHeadings {
+  min-width: 0;
+}
+
+.panelTitle {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--fg-default);
+  overflow-wrap: anywhere;
+}
+
+.panelTarget {
+  margin: var(--space-1) 0 0;
+  font-family: var(--font-mono);
+  font-variant-ligatures: none;
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  overflow-wrap: anywhere;
+}
+
+.stages {
+  list-style: none;
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.stage {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+  min-width: 0;
+}
+
+.stage[data-state="done"] {
+  color: var(--fg-default);
+}
+
+.stage[data-state="active"] {
+  color: var(--fg-default);
+  font-weight: 500;
+}
+
+.stage[data-state="suspended"] {
+  color: var(--warning);
+  font-weight: 500;
+}
+
+.stage[data-state="pending"] {
+  color: var(--fg-subtle);
+}
+
+.stage[data-state="abandoned"] {
+  color: var(--danger-text);
+}
+
+.stageGlyph {
+  flex: none;
+  width: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  color: currentColor;
+}
+
+.stage[data-state="done"] .stageGlyph {
+  color: var(--success);
+}
+
+/* An empty ring, so a stage that has not started reads as "not yet" rather
+   than as "nothing here". */
+.stagePending {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-strong);
+}
+
+.stageLabel {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  text-wrap: pretty;
+}
+
+.stagePipeline {
+  font-family: var(--font-mono);
+  font-variant-ligatures: none;
+  font-size: var(--text-xs);
+  color: var(--fg-subtle);
+  font-weight: 400;
+}
+
+.stageTime {
+  flex: none;
+  font-family: var(--font-mono);
+  font-variant-ligatures: none;
+  font-size: var(--text-xs);
+  color: var(--fg-subtle);
+  white-space: nowrap;
+}
+
+.recording {
+  margin: var(--space-4) 0 0;
+  font-size: var(--text-sm);
+  color: var(--state-recording);
+}
+
+.panelNote {
+  margin: var(--space-4) 0 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--fg-subtle);
+  text-wrap: pretty;
+}
+
+.panelActions {
+  margin-top: var(--space-4);
+  display: flex;
+  gap: var(--space-2);
+}
+
+.notice {
+  width: 100%;
+  max-width: 36rem;
+}
+
+.noticeBody {
+  margin: 0 0 var(--space-2);
+  text-wrap: pretty;
+}
+
+.noticeActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+/* The remote-text block that used to live here moved to
+   PromptPanel.module.css with the panel that drew it. */
+
+/* The session's own chrome, between the tab strip and the picture.
+
+   In the flow, with height of its own, and that is the whole point: a refused
+   keystroke and a session warning used to float over the session area, and over
+   a remote desktop there is no corner to float in — Windows puts its taskbar
+   along one edge and a maximised window's controls in a corner, macOS has a
+   menu bar and a dock, a Linux panel can be anywhere. Chrome that has height
+   cannot cover anything.
+
+   Drawn only when it has something in it, so a session with nothing to report
+   — every terminal, most of the time — does not grow an empty strip. It takes
+   the window's theme rather than the dark terminal tokens: it is beside the
+   session now, not on it. */
+.chrome {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-surface);
+  border-block-end: 1px solid var(--border-default);
+}
+
+/* The positioned box the session hosts fill. They are `position: absolute;
+   inset: 0`, so this — not the chrome above it — is what they are measured
+   against. */
+.stack {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  position: relative;
+}

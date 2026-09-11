@@ -1,0 +1,1183 @@
+{
+  "_comment_file": "Every failure the core can hand the interface, keyed by the stable `code` on `IpcError`. The codes are raised all over `crates/remoter-ipc` — error.rs, session.rs, sftp.rs, tunnel.rs, commands.rs, state.rs, bridge.rs, vault_admin.rs, import.rs, recents.rs, audit.rs — and `src/i18n/failures.catalogue.test.ts` reads every one of those files, so a code with no entry here is a failing build rather than a sentence that turns up in English months later. The code is the join: the core sends a code, a sentence, an optional diagnostic and an ordered list of next actions, and this file supplies the sentence and the actions in the reader's language. Six rules for anyone editing this file. (1) `actions` is positional: the order is the order the core offered, and a label is used only when the entry has one at that position. (2) The `action` object at the end of this file is the shared lexicon, keyed by what the action means rather than by the failure it belongs to. Two kinds of entry rely on it and carry no `actions` of their own: every `session.*` failure, whose actions the core composes from a fixed set (`action_text` in session.rs) in an order that depends on what actually failed; and a code the core raises from several places with a different button each time, where one positional label would be the wrong sentence for every other arm. The lexicon labels those by the sentence the core sent. Positional labels still win where an entry has them. (3) No sentence here may quote a password, a passphrase, a key or any other secret — a failure is the one moment an implementation is tempted to say what it was given. (4) The sentences carry no placeholders. The core fills its own sentence with the specifics (a path, a slot number, a byte offset) and those cannot be recovered from the finished string, so each sentence here is written to stay true without them; an English reader is shown the core's own sentence, specifics and all, and every other language is shown this one. (5) A message says what failed and what the reader can do about it. 'An error occurred' is never an acceptable translation of anything below. (6) A few entries deliberately carry no `message` at all, and say so in a `_comment_`: for those the core composes the only description of what happened, so the reader is shown that sentence rather than a generalisation of it.",
+  "unknown": {
+    "_comment_": "Not a code the core sends: `asFailure` in apps/desktop/ui/src/lib/ipc.ts uses it when a rejection arrives with no shape at all — a panic inside a command, or a transport failure below Tauri. It is the last sentence in the application and should never be reached.",
+    "message": "Algo ha ido mal."
+  },
+  "vault": {
+    "locked": {
+      "message": "No hay ninguna bóveda abierta. Desbloquea una para ver tus conexiones.",
+      "actions": [
+        "Desbloquear una bóveda"
+      ]
+    },
+    "auto-locked": {
+      "message": "La bóveda se bloqueó sola tras el tiempo de inactividad que configuraste. Desbloquéala para continuar.",
+      "actions": [
+        "Desbloquear la bóveda",
+        "Cambiar el tiempo de espera en los ajustes"
+      ]
+    },
+    "locked-by-trigger": {
+      "message": "La bóveda se bloqueó sola porque ocurrió un evento que elegiste para bloquearla. Desbloquéala para continuar.",
+      "actions": [
+        "Desbloquear la bóveda",
+        "Cambiar qué la bloquea en los ajustes de la bóveda"
+      ]
+    },
+    "_comment_unlock-failed": "SECURITY-CRITICAL. This sentence must not say which factor was wrong, and a translation must not add that either: before a key slot has unwrapped the master key, naming the password or the key file as the wrong one tells an attacker which half they have already guessed. See the module docs in crates/remoter-ipc/src/error.rs.",
+    "unlock-failed": {
+      "message": "Eso no ha desbloqueado la bóveda.",
+      "actions": [
+        "Reintentar",
+        "Comprobar el archivo de clave, si esta bóveda usa uno",
+        "Usar tu clave de recuperación"
+      ]
+    },
+    "header-tampered": {
+      "message": "La cabecera de esta bóveda se ha modificado desde que se escribió, así que no se puede confiar en su contenido.",
+      "actions": [
+        "Abrir una copia de seguridad junto a la bóveda",
+        "Comprobar si un cliente de sincronización reescribió el archivo"
+      ]
+    },
+    "body-corrupt": {
+      "message": "El contenido de esta bóveda no se ha podido descifrar. El archivo está dañado.",
+      "actions": [
+        "Abrir una copia de seguridad junto a la bóveda",
+        "Comprobar la unidad donde se guarda la bóveda"
+      ]
+    },
+    "no-such-method": {
+      "message": "Esta bóveda no ofrece ese método de desbloqueo.",
+      "actions": [
+        "Elegir uno de los métodos que ofrece esta bóveda"
+      ]
+    },
+    "_comment_fido2-unsupported": "The core sends this code both when a hardware key is offered as a way in and when one is added as a key slot, so the sentence has to stay true of both. It has no `actions` of its own for the same reason: the two arms offer differently worded buttons, and the shared `action` lexicon at the end of this file labels whichever one the core sent.",
+    "fido2-unsupported": {
+      "message": "El desbloqueo con llave física no está implementado en esta versión de Remoter."
+    },
+    "not-a-vault": {
+      "message": "Ese archivo no es una bóveda de Remoter.",
+      "actions": [
+        "Elegir un archivo .rvault",
+        "Crear una bóveda nueva"
+      ]
+    },
+    "unsupported-format": {
+      "message": "Esa bóveda usa una versión del formato de bóveda que esta compilación de Remoter no lee.",
+      "actions": [
+        "Actualizar Remoter",
+        "Abrir la bóveda en la máquina que la escribió"
+      ]
+    },
+    "corrupt": {
+      "message": "Esta bóveda está dañada: no se ha podido leer su estructura.",
+      "actions": [
+        "Abrir una copia de seguridad junto a la bóveda"
+      ]
+    },
+    "corrupt-row": {
+      "message": "Esta bóveda contiene un registro que esta compilación de Remoter no sabe leer.",
+      "actions": [
+        "Abrir una copia de seguridad junto a la bóveda",
+        "Actualizar Remoter"
+      ]
+    },
+    "header-encode": {
+      "message": "La cabecera de esta bóveda no se ha podido codificar, así que no se escribió.",
+      "actions": [
+        "Informar de esto — la bóveda en disco no ha cambiado"
+      ]
+    },
+    "crypto": {
+      "message": "Un paso criptográfico sobre esta bóveda falló, así que se abandonó la operación.",
+      "actions": [
+        "Reintentar",
+        "Informar de esto si persiste"
+      ]
+    },
+    "kdf-too-weak": {
+      "message": "Esos parámetros de Argon2id están por debajo del mínimo que acepta Remoter, y una bóveda más débil no es un intercambio aceptable por un desbloqueo más rápido.",
+      "actions": [
+        "Usar los parámetros calibrados"
+      ]
+    },
+    "kdf-params-refused": {
+      "message": "Esta bóveda declara parámetros de Argon2id por encima de lo que esta compilación intentará. No se derivó nada.",
+      "actions": [
+        "Abrir la bóveda en la máquina que la escribió",
+        "Actualizar Remoter",
+        "Abrir una copia de seguridad junto a la bóveda"
+      ]
+    },
+    "no-such-slot": {
+      "message": "Esta bóveda no tiene esa ranura de clave.",
+      "actions": [
+        "Recargar la lista de ranuras"
+      ]
+    },
+    "no-slot-of-kind": {
+      "message": "Esta bóveda no tiene ninguna ranura de ese tipo.",
+      "actions": [
+        "Añadir antes ese método de desbloqueo"
+      ]
+    },
+    "slot-table-full": {
+      "message": "Esta bóveda ya contiene el número máximo de ranuras de clave.",
+      "actions": [
+        "Quitar un método de desbloqueo que ya no uses"
+      ]
+    },
+    "last-slot": {
+      "message": "Esa es la única forma de entrar en esta bóveda; quitarla te dejaría fuera de forma permanente.",
+      "actions": [
+        "Añadir antes otro método de desbloqueo"
+      ]
+    },
+    "wrong-slot-kind": {
+      "message": "Esa ranura de clave es de otro tipo, así que la operación no se le aplica.",
+      "actions": [
+        "Recargar la lista de ranuras",
+        "Elegir una ranura del tipo correcto"
+      ]
+    },
+    "slot-credential-missing": {
+      "message": "Esa ranura de clave no puede volver a envolverse sin su contraseña, y descartarla en silencio le quitaría a alguien su forma de entrar. No se ha cambiado nada.",
+      "actions": [
+        "Introducir la contraseña de esa ranura",
+        "Sacar esa ranura de la rotación deliberadamente"
+      ]
+    },
+    "slot-credential-rejected": {
+      "message": "Eso no abre la ranura de clave, así que la ranura quedó exactamente como estaba.",
+      "actions": [
+        "Reintentar",
+        "Comprobar el archivo de clave, si esa ranura usa uno",
+        "Usar tu clave de recuperación"
+      ]
+    },
+    "keychain": {
+      "message": "El almacén de credenciales de esta máquina no está disponible, o no guarda ningún token para esta bóveda.",
+      "actions": [
+        "Desbloquear con tu contraseña",
+        "Volver a registrar este dispositivo después"
+      ]
+    },
+    "recovery-key-malformed": {
+      "message": "Eso no es una clave de recuperación: una clave de recuperación son catorce grupos de cuatro caracteres.",
+      "actions": [
+        "Comprobar que has pegado la clave entera"
+      ]
+    },
+    "recovery-key-checksum": {
+      "message": "Esa clave de recuperación parece mal escrita — su grupo de comprobación no concuerda con el resto.",
+      "actions": [
+        "Compararla con la copia que guardaste",
+        "Reintentar"
+      ]
+    },
+    "keyfile": {
+      "message": "No se ha podido leer el archivo de clave.",
+      "actions": [
+        "Comprobar que el archivo sigue donde estaba al crear la bóveda",
+        "Montar la unidad donde se encuentra"
+      ]
+    },
+    "database": {
+      "message": "La base de datos dentro de esta bóveda rechazó la operación.",
+      "actions": [
+        "Reintentar",
+        "Abrir una copia de seguridad junto a la bóveda"
+      ]
+    },
+    "schema-too-new": {
+      "message": "Esta bóveda la escribió una versión más nueva de Remoter: su versión de esquema no la entiende esta compilación.",
+      "actions": [
+        "Actualizar Remoter"
+      ]
+    },
+    "migration-failed": {
+      "message": "Esta bóveda no se ha podido migrar al esquema más nuevo; el archivo quedó como estaba.",
+      "actions": [
+        "Abrir una copia de seguridad junto a la bóveda",
+        "Informar de esto"
+      ]
+    },
+    "label-empty": {
+      "message": "Una bóveda necesita un nombre.",
+      "actions": [
+        "Escribir un nombre para esta bóveda"
+      ]
+    },
+    "_comment_password-empty": "The core raises this both for a vault's master password and for a key slot's password, so the sentence has to stay true of both.",
+    "password-empty": {
+      "message": "Esa contraseña está vacía, y de una vacía no puede derivarse nada.",
+      "actions": [
+        "Escribir una contraseña",
+        "Generar una frase de contraseña"
+      ]
+    },
+    "_comment_password-too-weak": "SECURITY-CRITICAL. The refusal must keep its reason: a weak password is not rescued by the key derivation function, and a vault is only as strong as its weakest slot. A translation that softens this into 'consider a stronger password' invites the user to keep the one they typed.",
+    "password-too-weak": {
+      "message": "Esa contraseña es demasiado fácil de adivinar, y una bóveda solo es tan fuerte como su ranura más débil. Argon2id encarece cada intento, pero no puede salvar una contraseña que un atacante prueba pronto.",
+      "actions": [
+        "Generar una frase de contraseña",
+        "Usar una contraseña más larga y menos predecible"
+      ]
+    },
+    "kdf-upgrade-refused": {
+      "message": "Eso no abre la ranura que necesita reforzarse, así que la ranura se ha dejado exactamente como estaba.",
+      "actions": [
+        "Introducir la contraseña con la que se creó esta bóveda",
+        "Dejarlo por ahora — la bóveda sigue abriéndose"
+      ]
+    },
+    "_comment_locked-unsaved": "SECURITY-CRITICAL in the data-loss sense: the vault is safe, the keys are gone from memory, and unsaved changes are gone with them. A translation must keep both facts. Do not imply the changes can be recovered.",
+    "locked-unsaved": {
+      "message": "La bóveda está bloqueada y sus claves borradas, pero el archivo no se ha podido escribir, así que todo lo cambiado desde el último guardado correcto se ha perdido.",
+      "actions": [
+        "Comprobar la unidad o el recurso compartido donde se guarda la bóveda",
+        "Desbloquearla de nuevo y comprobar qué falta"
+      ]
+    },
+    "_comment_unlock-throttled": "SECURITY-CRITICAL. Like vault.unlock-failed, this sentence must not say which factor was wrong. It must also keep its reassurance: the wait is a delay, not a lockout, and a translation that reads like the vault has been sealed will send people looking for their recovery key when they do not need it.",
+    "unlock-throttled": {
+      "message": "Demasiados intentos de desbloqueo seguidos no han funcionado, así que el siguiente espera. No se ha bloqueado nada: la bóveda se abre en cuanto termine la espera.",
+      "actions": [
+        "Esperar a la cuenta atrás",
+        "Usar tu clave de recuperación",
+        "Comprobar el archivo de clave, si esta bóveda usa uno"
+      ]
+    }
+  },
+  "request": {
+    "invalid": {
+      "_comment_": "A bug in the interface, not something the reader did: the frontend sent the core a field it cannot read. Keep the sentence blameless and keep the action pointing at a bug report.",
+      "message": "Un valor de esa petición no es utilizable.",
+      "actions": [
+        "Informar de esto — la interfaz envió algo que el núcleo no sabe leer"
+      ]
+    }
+  },
+  "path": {
+    "unusable": {
+      "message": "Esa ubicación no se puede usar.",
+      "actions": [
+        "Elegir otra ubicación"
+      ]
+    }
+  },
+  "io": {
+    "failed": {
+      "message": "Ese archivo no se ha podido leer ni escribir.",
+      "actions": [
+        "Comprobar que la ruta existe y se puede escribir",
+        "Elegir otra ubicación"
+      ]
+    }
+  },
+  "system": {
+    "csprng": {
+      "message": "El generador de números aleatorios del sistema operativo no está disponible, así que nada aleatorio se puede generar con seguridad.",
+      "actions": [
+        "Reiniciar Remoter",
+        "Informar de esto si persiste"
+      ]
+    }
+  },
+  "key": {
+    "not-a-private-key": {
+      "message": "Ese archivo no es una clave privada. Una clave pública, un certificado o un archivo sin relación no pueden autenticar una conexión.",
+      "actions": [
+        "Elegir la clave privada en lugar de su archivo .pub",
+        "Usar en su lugar el agente SSH de la plataforma"
+      ]
+    },
+    "_comment_unsupported-format": "The refusal is a real limitation, not a conversion the user can perform: no protocol in this build can authenticate with a key of that kind, so the actions must not suggest converting the file. The three algorithm names in the first action are algorithm names, not words; leave them exactly as they are.",
+    "unsupported-format": {
+      "message": "Esa es una clave privada de un tipo con el que ningún protocolo de esta versión puede autenticarse. No se escribió nada.",
+      "actions": [
+        "Usar una clave Ed25519, ECDSA o RSA en su lugar",
+        "Usar el agente SSH del sistema en su lugar"
+      ]
+    },
+    "_comment_legacy-encrypted": "Different from unsupported-format: the key itself is fine, it is the PEM container that is encrypted, and Remoter has to read the container before it can store the key. The first action quotes two commands. Translate the sentence around them if there is one; never translate the commands themselves, and keep `<file>` and `<copy>` exactly as they are. The word 'copy' is load-bearing: `ssh-keygen -p` rewrites the file it is given, and the user's key file is very often shared with other tools.",
+    "legacy-encrypted": {
+      "message": "Esa clave está cifrada dentro de su propio contenedor PEM, y Remoter necesita poder leer el contenedor antes de poder guardar la clave. No se escribió nada.",
+      "actions": [
+        "Convertir una copia: `cp <file> <copy>` y luego `ssh-keygen -p -m PKCS8 -f <copy>`",
+        "Usar el agente SSH del sistema en su lugar"
+      ]
+    },
+    "passphrase-required": {
+      "message": "Esa clave está protegida con frase de contraseña, y sin ella Remoter no puede usarla para autenticarse.",
+      "actions": [
+        "Introducir la frase de contraseña de la clave",
+        "Elegir una clave sin frase de contraseña"
+      ]
+    }
+  },
+  "credential": {
+    "not-a-private-key": {
+      "message": "Ese elemento no es una credencial con una clave privada, así que no hay ninguna clave que leer o sustituir en él.",
+      "actions": [
+        "Seleccionar una credencial",
+        "Elegir antes un archivo de clave para ella"
+      ]
+    },
+    "purpose-refused": {
+      "message": "La restricción de esta credencial no cubre el uso que se le iba a dar, así que la bóveda no la abrió. Amplía la restricción en los ajustes de la credencial o elige una credencial que ya permita ese uso.",
+      "actions": [
+        "Elegir otra credencial",
+        "Ampliar la restricción de la credencial"
+      ]
+    }
+  },
+  "node": {
+    "_comment_not-found": "Sent both for an item missing from the vault and for one missing from the tree on screen. Either way the item is gone and the tree on screen is stale, which is what the sentence says.",
+    "not-found": {
+      "message": "Ese elemento ya no está en el árbol; probablemente se borró en otra ventana.",
+      "actions": [
+        "Recargar el árbol"
+      ]
+    },
+    "parent-not-found": {
+      "message": "La carpeta en la que lo soltaste ya no existe.",
+      "actions": [
+        "Recargar el árbol",
+        "Elegir otra carpeta"
+      ]
+    },
+    "duplicate": {
+      "message": "Ya hay en el árbol un elemento con ese identificador.",
+      "actions": [
+        "Recargar el árbol"
+      ]
+    },
+    "not-a-container": {
+      "message": "Solo las carpetas pueden contener otros elementos.",
+      "actions": [
+        "Soltarlo dentro de una carpeta",
+        "Soltarlo en el nivel superior"
+      ]
+    },
+    "cycle": {
+      "message": "Una carpeta no se puede mover dentro de sí misma.",
+      "actions": [
+        "Elegir un destino fuera de esa carpeta"
+      ]
+    },
+    "too-deep": {
+      "message": "Ese movimiento anidaría el árbol más profundamente de lo que permite el límite.",
+      "actions": [
+        "Moverlo más cerca del nivel superior",
+        "Aplanar las carpetas que hay encima"
+      ]
+    },
+    "parent-changed": {
+      "message": "Una edición no puede cambiar el padre de un elemento; muévelo en su lugar.",
+      "actions": [
+        "Arrastrarlo a la carpeta nueva"
+      ]
+    },
+    "not-a-connection": {
+      "message": "Solo las conexiones tienen ajustes resueltos que mostrar.",
+      "actions": [
+        "Seleccionar una conexión"
+      ]
+    },
+    "_comment_field-not-applicable": "No `actions` of its own: the core raises this from seven places with a different instruction each time — select a credential, create one, edit the connection, edit a folder — so a label at position 0 would be the wrong sentence six times out of seven. The shared `action` lexicon at the end of this file translates each of them by what the core actually sent.",
+    "field-not-applicable": {
+      "message": "Ese campo no se aplica a este tipo de elemento."
+    }
+  },
+  "tree": {
+    "corrupt": {
+      "message": "El árbol de elementos de esta bóveda no termina: una cadena de padres se cierra en bucle.",
+      "actions": [
+        "Abrir una copia de seguridad junto a la bóveda",
+        "Informar de esto"
+      ]
+    }
+  },
+  "secret": {
+    "not-found": {
+      "message": "Esa credencial no tiene guardado ese secreto.",
+      "actions": [
+        "Introducirlo ahora",
+        "Elegir otra credencial"
+      ]
+    },
+    "stale": {
+      "message": "El secreto guardado no coincide con la versión actual de su registro, así que se rechazó en lugar de usarse.",
+      "actions": [
+        "Volver a introducir el secreto",
+        "Abrir una copia de seguridad junto a la bóveda"
+      ]
+    }
+  },
+  "import": {
+    "too-large": {
+      "message": "Ese archivo es más grande de lo que lee esta compilación. No se ha analizado nada.",
+      "actions": [
+        "Dividir el archivo",
+        "Importar las partes por separado"
+      ]
+    },
+    "not-utf8": {
+      "message": "Ese archivo no es texto UTF-8.",
+      "actions": [
+        "Volver a guardar el archivo como UTF-8",
+        "Comprobar que es el archivo que querías elegir"
+      ]
+    },
+    "malformed-xml": {
+      "message": "Ese archivo no es XML bien formado.",
+      "actions": [
+        "Volver a exportar el archivo desde la aplicación que lo escribió",
+        "Comprobar que es el archivo que querías elegir"
+      ]
+    },
+    "doctype-refused": {
+      "message": "Ese archivo lleva una declaración de tipo de documento, que Remoter se niega a procesar: así es como se hace que un archivo XML lea otros archivos de esta máquina.",
+      "actions": [
+        "Quitar la línea DOCTYPE y reintentar",
+        "Volver a exportar el archivo desde la aplicación que lo escribió"
+      ]
+    },
+    "entity-refused": {
+      "message": "Ese archivo define sus propias entidades XML, que Remoter se niega a expandir: esa es la forma de un archivo escrito para agotar la memoria.",
+      "actions": [
+        "Volver a exportar el archivo desde la aplicación que lo escribió"
+      ]
+    },
+    "too-deep": {
+      "message": "Ese archivo anida carpetas más profundamente de lo que lee esta compilación.",
+      "actions": [
+        "Aplanar las carpetas más profundas en la aplicación de origen"
+      ]
+    },
+    "too-many-items": {
+      "message": "Ese archivo contiene más elementos de los que lee esta compilación.",
+      "actions": [
+        "Dividir el archivo",
+        "Importar las partes por separado"
+      ]
+    },
+    "value-too-long": {
+      "message": "Ese archivo contiene un valor más largo de lo que lee esta compilación.",
+      "actions": [
+        "Acortarlo en la aplicación de origen y volver a exportar"
+      ]
+    },
+    "truncated": {
+      "message": "Ese archivo termina en mitad de un registro: el archivo está incompleto.",
+      "actions": [
+        "Copiar el archivo otra vez desde donde vino",
+        "Volver a exportarlo desde la aplicación que lo escribió"
+      ]
+    },
+    "wrong-format": {
+      "message": "Ese archivo no es lo que lee ese importador.",
+      "actions": [
+        "Elegir tú mismo el formato de origen",
+        "Elegir otro archivo"
+      ]
+    },
+    "password-required": {
+      "message": "Ese archivo está cifrado y necesita su contraseña de documento para poder leerse.",
+      "actions": [
+        "Introducir la contraseña del documento",
+        "Elegir otro archivo"
+      ]
+    },
+    "wrong-password": {
+      "message": "Esa no es la contraseña con la que se cifró el archivo.",
+      "actions": [
+        "Reintentar",
+        "Comprobar si el archivo usa la contraseña predeterminada de la aplicación de origen"
+      ]
+    },
+    "unsupported-cipher": {
+      "message": "Ese archivo está cifrado con un algoritmo que Remoter no sabe leer.",
+      "actions": [
+        "Volver a exportar el archivo sin cifrado y luego importarlo",
+        "Volver a guardarlo desde una versión más nueva de la aplicación de origen"
+      ]
+    },
+    "malformed-ciphertext": {
+      "message": "La parte cifrada de ese archivo está dañada: no se descifra en nada utilizable.",
+      "actions": [
+        "Copiar el archivo otra vez desde donde vino",
+        "Volver a exportarlo desde la aplicación que lo escribió"
+      ]
+    },
+    "too-many-nodes": {
+      "message": "Ese archivo crearía más elementos de los que permite el límite.",
+      "actions": [
+        "Dividir el archivo",
+        "Importar las partes por separado"
+      ]
+    },
+    "missing-column": {
+      "message": "A ese archivo le falta una columna que el importador necesita.",
+      "actions": [
+        "Añadir la cabecera de la columna y reintentar",
+        "Comprobar que la primera fila es la de cabecera"
+      ]
+    },
+    "duplicate-column": {
+      "message": "Ese archivo nombra una columna dos veces, así que no se puede decidir cuál contiene el valor.",
+      "actions": [
+        "Quitar o renombrar la columna repetida"
+      ]
+    },
+    "read-failed": {
+      "message": "No se ha podido leer un archivo al seguir una inclusión.",
+      "actions": [
+        "Comprobar que el archivo existe y se puede leer",
+        "Quitar la línea Include y volver a importar"
+      ]
+    },
+    "include-too-deep": {
+      "message": "Ese archivo incluye archivos más profundamente de lo que sigue esta compilación.",
+      "actions": [
+        "Aplanar la cadena de inclusiones y volver a importar"
+      ]
+    },
+    "failed": {
+      "message": "Ese archivo no se ha podido importar.",
+      "actions": [
+        "Elegir otro archivo",
+        "Informar de esto"
+      ]
+    },
+    "unknown-format": {
+      "message": "Ese archivo no está en un formato que Remoter importe: no es un documento de mRemoteNG, ni una configuración de OpenSSH, ni una exportación CSV.",
+      "actions": [
+        "Elegir tú mismo el formato de origen",
+        "Volver a exportar las conexiones como CSV"
+      ]
+    },
+    "orphaned-nodes": {
+      "message": "Ese archivo ha producido elementos cuya carpeta no está en la importación, así que no se ha podido construir el árbol. No se ha escrito nada.",
+      "actions": [
+        "Importar el archivo entero",
+        "Informar de esto"
+      ]
+    },
+    "no-such-preview": {
+      "message": "Esa vista previa de importación ya no se conserva: se confirmó, se canceló o se descartó al bloquearse la bóveda. No se ha escrito nada.",
+      "actions": [
+        "Elegir el archivo de nuevo"
+      ]
+    }
+  },
+  "validation": {
+    "_comment_file": "The reader's own input being wrong. Each sentence names the rule rather than the value, because the core has already put the value in the sentence it sends and this one has to read correctly without it.",
+    "name-empty": {
+      "message": "Este elemento necesita un nombre.",
+      "actions": [
+        "Escribir un nombre"
+      ]
+    },
+    "name-too-long": {
+      "message": "Ese nombre supera el límite.",
+      "actions": [
+        "Acortar el nombre"
+      ]
+    },
+    "control-char": {
+      "message": "Ese valor contiene caracteres de control, que no se pueden almacenar.",
+      "actions": [
+        "Escribirlo de nuevo",
+        "Pegarlo como texto sin formato"
+      ]
+    },
+    "description-too-long": {
+      "message": "Esa descripción supera el límite.",
+      "actions": [
+        "Acortar la descripción"
+      ]
+    },
+    "host-empty": {
+      "message": "Esta conexión no tiene dirección. Añade un nombre de host o una dirección IP.",
+      "actions": [
+        "Introducir un nombre de host o una dirección IP"
+      ]
+    },
+    "host-invalid": {
+      "message": "Eso no es un nombre de host, ni una dirección IPv4, ni una dirección IPv6 entre corchetes.",
+      "actions": [
+        "Comprobar la escritura",
+        "Poner una dirección IPv6 entre [corchetes]"
+      ]
+    },
+    "port": {
+      "message": "Un puerto tiene que estar entre 1 y 65535.",
+      "actions": [
+        "Introducir un puerto dentro del rango",
+        "Dejarlo vacío para usar el predeterminado del protocolo"
+      ]
+    },
+    "tag": {
+      "message": "Esa no es una etiqueta utilizable.",
+      "actions": [
+        "Usar letras, dígitos, guiones y puntos"
+      ]
+    },
+    "protocol": {
+      "message": "Ese no es un protocolo que Remoter reconozca.",
+      "actions": [
+        "Elegir un protocolo de la lista"
+      ]
+    },
+    "setting-key": {
+      "message": "Ese no es un nombre utilizable para un ajuste de protocolo.",
+      "actions": [
+        "Usar letras, dígitos, guiones y puntos"
+      ]
+    },
+    "custom-field-key": {
+      "message": "Ese no es un nombre utilizable para un campo personalizado.",
+      "actions": [
+        "Usar letras, dígitos, guiones y puntos"
+      ]
+    },
+    "_comment_colour": "The two patterns are syntax, not words: leave #rrggbb and #rrggbbaa exactly as they are in every language.",
+    "colour": {
+      "message": "Eso no es un color; se esperaba #rrggbb o #rrggbbaa.",
+      "actions": [
+        "Elegir un color de las muestras"
+      ]
+    },
+    "icon": {
+      "message": "Esa referencia de icono está vacía o contiene caracteres de control.",
+      "actions": [
+        "Elegir un icono de la lista"
+      ]
+    },
+    "gateway-too-long": {
+      "message": "Esa cadena de pasarelas tiene más saltos de los que permite el límite.",
+      "actions": [
+        "Quitar un salto"
+      ]
+    },
+    "gateway-cycle": {
+      "message": "La cadena de pasarelas se cierra en bucle: un host aparece dos veces.",
+      "actions": [
+        "Quitar el salto repetido"
+      ]
+    },
+    "gateway-hop-unknown": {
+      "message": "Uno de los saltos de pasarela apunta a un elemento que ya no está en esta bóveda.",
+      "actions": [
+        "Elegir otra pasarela",
+        "Conectar directamente"
+      ]
+    },
+    "gateway-hop-kind": {
+      "message": "Un salto de pasarela tiene que ser una conexión; una carpeta no puede reenviar tráfico.",
+      "actions": [
+        "Elegir una conexión como pasarela"
+      ]
+    },
+    "credential-unknown": {
+      "message": "La credencial que usa esto se ha borrado. Elige otra, o introduce una ahora.",
+      "actions": [
+        "Elegir otra credencial",
+        "Introducir una ahora"
+      ]
+    },
+    "credential-kind": {
+      "message": "Ese elemento no es una credencial.",
+      "actions": [
+        "Elegir una credencial"
+      ]
+    },
+    "credential-attached": {
+      "message": "Esa credencial pertenece a otra conexión. Compartirla significaría que editarla en un sitio cambia la otra.",
+      "actions": [
+        "Elegir una credencial compartida",
+        "Escribir aquí un usuario y una contraseña en su lugar"
+      ]
+    },
+    "credential-attachment": {
+      "message": "Una credencial de esta bóveda pertenece a una conexión que no está. No se ha cambiado nada.",
+      "actions": [
+        "Recargar la bóveda",
+        "Restaurar desde una copia de seguridad"
+      ]
+    },
+    "credential-purpose": {
+      "message": "Esta credencial está restringida y no puede usarse para ese protocolo.",
+      "actions": [
+        "Elegir otra credencial",
+        "Ampliar la restricción de la credencial"
+      ]
+    },
+    "username-too-long": {
+      "message": "Ese nombre de usuario supera el límite.",
+      "actions": [
+        "Acortar el nombre de usuario"
+      ]
+    },
+    "external-credential": {
+      "message": "Una credencial externa necesita tanto un proveedor como una referencia.",
+      "actions": [
+        "Rellenar los dos campos"
+      ]
+    },
+    "secret-empty": {
+      "message": "Una credencial necesita un secreto; un sobre vacío no es una credencial.",
+      "actions": [
+        "Introducir una contraseña",
+        "Elegir un archivo de clave"
+      ]
+    },
+    "layout": {
+      "message": "Una disposición en cuadrícula necesita al menos una fila y una columna.",
+      "actions": [
+        "Poner filas y columnas en 1 o más"
+      ]
+    },
+    "group-member": {
+      "message": "Uno de los miembros de este grupo ya no está en la bóveda.",
+      "actions": [
+        "Quitar el miembro que falta"
+      ]
+    },
+    "empty-action": {
+      "message": "Una acción de conexión o desconexión no puede ser una línea vacía.",
+      "actions": [
+        "Quitar la línea en blanco"
+      ]
+    },
+    "reconnect-policy": {
+      "message": "La reconexión automática necesita al menos un intento y una espera que no se reduzca.",
+      "actions": [
+        "Poner la espera máxima igual o por encima de la primera"
+      ]
+    },
+    "interval": {
+      "message": "Los tiempos de espera y los intervalos de keep-alive tienen que ser mayores que cero.",
+      "actions": [
+        "Introducir un número positivo",
+        "Vaciar el campo para heredarlo"
+      ]
+    },
+    "protocol-missing": {
+      "message": "Una conexión necesita un protocolo: SSH, RDP, VNC o SFTP.",
+      "actions": [
+        "Elegir un protocolo"
+      ]
+    }
+  },
+  "session": {
+    "no-address": {
+      "message": "Esta conexión no tiene dirección. Abre sus ajustes para añadir una."
+    },
+    "invalid-host": {
+      "message": "Esa no es una dirección que Remoter pueda usar. Compruébala en los ajustes de la conexión."
+    },
+    "invalid-port": {
+      "message": "Esta conexión no tiene un puerto utilizable. Abre sus ajustes y define uno entre 1 y 65535."
+    },
+    "gateway-cycle": {
+      "message": "La cadena de pasarelas se repliega sobre sí misma: uno de sus saltos aparece dos veces."
+    },
+    "gateway-too-long": {
+      "message": "Esta cadena de pasarelas tiene más saltos de los que Remoter recorre."
+    },
+    "gateway-deleted": {
+      "message": "Un salto de esta cadena de pasarelas apunta a una conexión que se ha borrado."
+    },
+    "gateway-credential-required": {
+      "message": "Un salto de esta cadena de pasarelas no tiene credencial con la que autenticarse."
+    },
+    "gateway-not-a-connection": {
+      "message": "Un salto de esta cadena de pasarelas apunta a algo que no es una conexión."
+    },
+    "limit": {
+      "message": "Tienes tantas sesiones abiertas como permite el límite. Cierra una, o sube el límite en los ajustes."
+    },
+    "credential-deleted": {
+      "message": "La credencial que usaba esta conexión se ha borrado. Elige otra, o introduce una ahora."
+    },
+    "credential-purpose": {
+      "message": "Esta credencial está restringida a otros usos y no puede utilizarse aquí."
+    },
+    "credential-required": {
+      "message": "No hay ninguna credencial disponible para esta conexión, y SSH no tiene acceso anónimo."
+    },
+    "credential-no-username": {
+      "message": "Esa credencial no tiene nombre de cuenta, y SSH no tiene acceso anónimo."
+    },
+    "credential-not-a-credential": {
+      "message": "Aquello a lo que apunta esta conexión no es una credencial, así que no puede usarse para iniciar sesión."
+    },
+    "credential-external": {
+      "message": "Esa credencial la custodia otro proveedor, y esta compilación no tiene ningún complemento que pueda obtenerla."
+    },
+    "credential-unsupported": {
+      "message": "Esa credencial es un certificado, y las sesiones de este protocolo no usan certificados."
+    },
+    "dns": {
+      "message": "Esa dirección no se ha podido resolver. Comprueba el nombre, o tu DNS."
+    },
+    "refused": {
+      "message": "El servidor ha rechazado la conexión. ¿Está el servicio en marcha?"
+    },
+    "timeout": {
+      "message": "El servidor no ha respondido a tiempo. Comprueba el cortafuegos, o la pasarela."
+    },
+    "unreachable": {
+      "message": "Esa dirección es inalcanzable desde esta máquina. Comprueba la red."
+    },
+    "hop-failed": {
+      "message": "No se ha podido llegar al destino a través de la cadena de pasarelas: uno de sus saltos ha fallado. Los detalles dicen cuál y por qué."
+    },
+    "io": {
+      "message": "La conexión ha fallado en una lectura o una escritura. Los detalles dicen en cuál."
+    },
+    "host-key-unknown": {
+      "message": "El servidor ha ofrecido una clave de host que Remoter no ha visto nunca, y la sesión no ha podido preguntar por ella."
+    },
+    "_comment_host-key-changed": "SECURITY-CRITICAL. The reader decides from this sentence whether to trust the server in front of them, and a changed host key is what an interception looks like (docs/security/threat-model.md, T3). A translation must keep all three parts: the key is not the one that was trusted, this can mean someone is intercepting, and the two keys are in the details. Do not soften it into a routine warning, and do not suggest accepting the key.",
+    "host-key-changed": {
+      "message": "La clave que ha ofrecido este servidor no es la que Remoter tiene por suya. Esto puede significar que alguien está interceptando la conexión. Los detalles muestran la clave de confianza y la ofrecida."
+    },
+    "host-key-rejected": {
+      "message": "La clave ofrecida por el servidor no se ha aceptado, así que la sesión no ha continuado."
+    },
+    "host-key-nothing-to-replace": {
+      "message": "Todavía no hay nada guardado para este host, así que no hay ninguna clave que reemplazar. Revisa la huella y acéptala, o recházala."
+    },
+    "fingerprint-malformed": {
+      "message": "Eso no es una huella SHA-256, así que no se ha podido comparar con la que ofreció el servidor."
+    },
+    "confirmation-mismatch": {
+      "message": "Esa no es la confirmación que aparece en pantalla, así que la clave de host guardada se ha dejado intacta."
+    },
+    "no-shared-algorithm": {
+      "message": "El servidor solo ofrece algoritmos que Remoter ya no acepta. Los detalles los enumeran."
+    },
+    "_comment_certificate-untrusted": "SECURITY-CRITICAL. This is the sentence a reader decides from when a server's certificate cannot be validated. A translation must keep the last clause: until the reason is resolved, there is no proof this is the intended server. Do not soften it, and do not imply the session may be continued safely.",
+    "certificate-untrusted": {
+      "message": "El certificado que ha ofrecido este servidor no es de confianza. Los detalles dicen por qué. Hasta que eso se resuelva, no hay prueba de que este sea el servidor al que querías llegar."
+    },
+    "handshake-failed": {
+      "message": "El saludo inicial no se ha completado, así que la sesión no se ha abierto. Los detalles dicen hasta dónde llegó."
+    },
+    "trust-store": {
+      "message": "La bóveda no ha podido registrar la decisión sobre la clave de host, así que no se ha guardado."
+    },
+    "auth-rejected": {
+      "message": "El servidor ha rechazado estas credenciales."
+    },
+    "auth-method-unavailable": {
+      "message": "El servidor no acepta ese método de autenticación. Los detalles enumeran los que ofrece."
+    },
+    "auth-cancelled": {
+      "message": "El inicio de sesión se ha cancelado, así que la sesión no se ha abierto."
+    },
+    "agent-unavailable": {
+      "message": "El agente SSH no está en marcha, o este proceso no puede alcanzar su socket."
+    },
+    "setting-invalid": {
+      "message": "Uno de los ajustes de esta conexión no es utilizable. Los detalles dicen cuál y qué valor debe tener."
+    },
+    "setting-required": {
+      "message": "Uno de los ajustes de esta conexión no tiene valor, y sin él la conexión no puede abrirse."
+    },
+    "protocol-unsupported": {
+      "message": "Esta compilación solo abre sesiones SSH y SFTP."
+    },
+    "unsupported": {
+      "message": "Las sesiones de este protocolo no admiten eso."
+    },
+    "disconnected": {
+      "message": "El servidor ha cerrado la conexión."
+    },
+    "network-lost": {
+      "message": "Se ha perdido la conexión de red."
+    },
+    "protocol-violation": {
+      "message": "El servidor ha enviado algo que el protocolo no permite."
+    },
+    "_comment_path-not-found": "A file-manager failure on a session that is connected and working. It used to be reported as `setting-invalid`, which sent the reader to the connection editor to fix a setting that was never wrong. Keep the second sentence: the commonest cause by far is a listing that is a few seconds out of date, and the way out is to read the folder again.",
+    "path-not-found": {
+      "message": "No hay nada en esa ruta del servidor. Es posible que se haya movido, renombrado o eliminado desde la última vez que se leyó esta carpeta."
+    },
+    "_comment_path-permission-denied": "SECURITY-ADJACENT. This must not read as a sign-in failure. It used to be reported as `auth-rejected` — 'the server rejected these credentials' — on a connection that had authenticated minutes earlier, which sends the reader off to re-check an SSH key that is working. The distinction between 'who you are' and 'what this file allows' is the whole sentence; a translation that blurs it undoes the fix.",
+    "path-permission-denied": {
+      "message": "El servidor ha denegado el acceso a esa ruta. Es una denegación por permisos de archivo, no un problema de inicio de sesión: la conexión está autenticada y esta cuenta no tiene permiso sobre ese archivo o carpeta."
+    },
+    "_comment_file-operation-refused": "HONESTY. SFTP version 3 has one catch-all status for everything that is not 'missing' or 'not permitted', so a full disk, a quota, a read-only mount, a lock and a cross-device rename are genuinely indistinguishable here. The sentence names the likely causes and admits it cannot tell them apart; do not turn it into a guess at one of them.",
+    "file-operation-refused": {
+      "message": "El servidor no ha podido completar esa operación sobre el archivo y no ha dicho por qué. Un disco lleno, una cuota, un sistema de archivos de solo lectura, un bloqueo o un cambio de nombre entre dos sistemas de archivos llegan exactamente con esta forma."
+    },
+    "cancelled": {
+      "message": "La sesión se ha cancelado antes de abrirse."
+    },
+    "closed": {
+      "message": "Esa sesión ya no está en marcha."
+    },
+    "no-such-session": {
+      "message": "Esa sesión ya no está abierta. Su pestaña se puede cerrar."
+    },
+    "no-such-node": {
+      "message": "Esa conexión ya no está en esta bóveda. Puede que se haya borrado en otra ventana."
+    },
+    "no-such-prompt": {
+      "message": "Esa pregunta sobre la clave de host ya no está abierta. Puede que la sesión haya dejado de esperar."
+    },
+    "frozen": {
+      "message": "La bóveda está bloqueada, y la política de esta bóveda es congelar la entrada de las sesiones hasta que se desbloquee. La sesión sigue conectada."
+    },
+    "event-stream-closed": {
+      "message": "El flujo de salida de la sesión se cerró antes que la sesión, así que esta se ha terminado."
+    },
+    "task-failed": {
+      "message": "La sesión ha fallado con un error interno y se ha cerrado. Nada más se ha visto afectado."
+    },
+    "shutdown-timeout": {
+      "message": "La sesión no se ha cerrado a tiempo y se ha detenido por la fuerza. Es un defecto que merece la pena informar."
+    },
+    "internal": {
+      "message": "Remoter ha encontrado un error interno. Es un defecto que merece la pena informar."
+    },
+    "failed": {
+      "_comment_": "Deliberately has no `message`. The core composes this one at the moment of failure — it is a diagnostic sentence naming what went wrong, with no `detail` beside it — so a generalised translation here would replace the only account of what happened. The reader sees the core's English sentence and translated action buttons. If SessionFailureDto ever carries the taxonomy code instead of this wrapper, give this entry a message and remove the note."
+    }
+  },
+  "sftp": {
+    "session-not-ready": {
+      "message": "Esa sesión no está conectada, así que todavía no hay nada que explorar en ella. Un panel de archivos se abre sobre una conexión que ya se ha autenticado.",
+      "actions": [
+        "Esperar a que conecte",
+        "Abrir la conexión de nuevo"
+      ]
+    },
+    "directory-not-empty": {
+      "message": "Ese directorio no se ha eliminado. Un directorio tiene que estar vacío para poder eliminarse, y puede que este no lo esté.",
+      "actions": [
+        "Borrar también su contenido",
+        "Abrirlo y mirar"
+      ]
+    },
+    "transfer-running": {
+      "message": "Esa transferencia no ha terminado, así que todavía no hay nada que reintentar.",
+      "actions": [
+        "Detenerla primero",
+        "Esperar a que termine"
+      ]
+    },
+    "_comment_unsafe-name": "The name in question came from the remote server. The point of the sentence is that Remoter refused to take the server's word for where a file should land; a translation must not turn it into a complaint about the user's choice of folder.",
+    "unsafe-name": {
+      "message": "Ese archivo no puede guardarse en esa carpeta: el nombre que le ha dado el servidor no es un nombre de archivo simple.",
+      "actions": [
+        "Elegir tú mismo un nombre",
+        "Guardarlo en otro sitio"
+      ]
+    },
+    "no-such-pane": {
+      "message": "Ese panel de archivos ya no está abierto. Puede que su sesión haya terminado.",
+      "actions": [
+        "Cerrar el panel",
+        "Abrir de nuevo un panel de archivos"
+      ]
+    },
+    "no-such-transfer": {
+      "message": "Esa transferencia no está en la cola de este panel.",
+      "actions": [
+        "Actualizar la lista de transferencias"
+      ]
+    },
+    "subsystem-unavailable": {
+      "message": "Este servidor no ha abierto un subsistema SFTP. Algunos servidores lo tienen desactivado, y otros lo restringen a ciertas cuentas.",
+      "actions": [
+        "Pedir al administrador del servidor que active el subsistema SFTP",
+        "Usar el terminal en su lugar"
+      ]
+    },
+    "listing-too-large": {
+      "message": "Ese directorio contiene más de lo que Remoter lee en un solo listado.",
+      "actions": [
+        "Abrir un subdirectorio en su lugar",
+        "Usar el terminal para este directorio"
+      ]
+    },
+    "rename-failed": {
+      "message": "Ese archivo no se ha podido renombrar. En la mayoría de los servidores un renombrado no puede cruzar de un sistema de archivos a otro, y el que lo intenta se rechaza exactamente así.",
+      "actions": [
+        "Copiarlo al otro lado y borrar el original",
+        "Renombrarlo dentro del mismo sistema de archivos"
+      ]
+    },
+    "_comment_local-destination-unreadable": "Raised while checking, before a transfer is queued, whether something is already at the place a download would write. It is deliberately not fatal: the transfer is still offered, and the dialog says which destinations could not be looked at. 'Nothing is there' and 'nobody could look' are different answers and the interface must not show the first when it means the second.",
+    "local-destination-unreadable": {
+      "message": "Remoter no ha podido comprobar si ya hay un archivo en ese lugar de este equipo. La transferencia puede enviarse igualmente, pero no se sabe qué reemplazaría."
+    },
+    "transfer-failed": {
+      "_comment_": "Deliberately has no `message`, for the same reason as session.failed: the sentence is the transfer's own diagnostic, composed when it failed, and there is no detail beside it to fall back on."
+    }
+  },
+  "tunnel": {
+    "no-such-tunnel": {
+      "message": "Ese túnel ya no está abierto.",
+      "actions": [
+        "Actualizar la lista de túneles"
+      ]
+    },
+    "_comment_bind-exposed": "SECURITY-CRITICAL. This is the sentence that stands between a forward bound to localhost and one the whole local network can use. A translation must keep both halves: the address is not loopback, and the forward would therefore be reachable from the local network. Do not soften it into a note about a preference.",
+    "bind-exposed": {
+      "message": "Esa no es una dirección de bucle local, así que este reenvío sería accesible desde la red local. Marca la opción que lo indica, o vincúlalo a localhost.",
+      "actions": [
+        "Vincular a localhost",
+        "Exponerlo deliberadamente"
+      ]
+    },
+    "_comment_host-key-unknown": "SECURITY-CRITICAL. A tunnel has no window in which to ask about an unknown host key, so the sentence sends the reader to a session where the fingerprint can be reviewed. A translation must not suggest the key can be accepted from here, and must keep the instruction to review the fingerprint.",
+    "host-key-unknown": {
+      "message": "Ese servidor ha ofrecido una clave de host que a Remoter no se le ha dicho que confíe, y un túnel no tiene ventana donde preguntar. Abre primero una sesión hacia él, revisa la huella y acéptala allí.",
+      "actions": [
+        "Abrir una sesión hacia esta conexión",
+        "Revisar allí la clave del host"
+      ]
+    }
+  },
+  "update": {
+    "failed": {
+      "message": "La comprobación de actualizaciones no ha terminado.",
+      "actions": [
+        "Reintentar",
+        "O abrir la página de versiones en un navegador"
+      ]
+    },
+    "unreachable": {
+      "message": "Remoter no ha podido acceder a github.com para buscar una versión más reciente.",
+      "actions": [
+        "Comprobar la conexión de red de esta máquina",
+        "Reintentar",
+        "O abrir la página de versiones en un navegador"
+      ]
+    },
+    "unreadable": {
+      "message": "GitHub ha respondido, pero no con una lista de versiones que Remoter pueda leer.",
+      "actions": [
+        "Reintentar",
+        "O abrir la página de versiones en un navegador"
+      ]
+    },
+    "rate-limited": {
+      "message": "GitHub no responde por ahora a más comprobaciones de actualización desde esta red.",
+      "actions": [
+        "Reintentar más tarde",
+        "O abrir la página de versiones en un navegador"
+      ]
+    },
+    "no-releases": {
+      "message": "GitHub no tiene una lista de versiones publicada para Remoter.",
+      "actions": [
+        "Abrir el repositorio en un navegador"
+      ]
+    },
+    "refused": {
+      "message": "GitHub ha rechazado la comprobación de actualizaciones.",
+      "actions": [
+        "Reintentar más tarde",
+        "O abrir la página de versiones en un navegador"
+      ]
+    }
+  },
+  "keyfile": {
+    "_comment_unprotected": "SECURITY-CRITICAL. The refusal exists because a key file that every account on the machine can read is not a second factor at all. A translation must keep the reason and the consequence — it was not written — and must not present this as a permissions warning the user may wave away.",
+    "unprotected": {
+      "message": "Ese archivo de clave no puede restringirse a tu cuenta: el sistema de archivos en el que está no guarda permisos, así que cualquier cuenta de esta máquina podría leerlo. Un archivo de clave que cualquiera puede leer no es un segundo factor, así que no se ha escrito.",
+      "actions": [
+        "Elegir una ubicación en un disco que conserve los permisos de archivo",
+        "Cifrar la unidad extraíble y escribir después el archivo de clave"
+      ]
+    }
+  },
+  "slot": {
+    "label-empty": {
+      "message": "Una ranura de clave necesita un nombre, para que la lista pueda decir de qué clave se trata.",
+      "actions": [
+        "Escribir un nombre para esta ranura"
+      ]
+    }
+  },
+  "shortcut": {
+    "terminal-reserved": {
+      "message": "Esa combinación pertenece al host remoto: un terminal enfocado tiene que recibirla, así que asignarla aquí impediría que llegue al shell.",
+      "actions": [
+        "Elegir otra combinación",
+        "Asignarla como atajo de la aplicación, accesible mediante el prefijo del terminal"
+      ]
+    }
+  },
+  "audit": {
+    "export-encode": {
+      "message": "Las entradas de auditoría no se han podido codificar, así que no se ha escrito nada.",
+      "actions": []
+    }
+  },
+  "recents": {
+    "encode": {
+      "message": "La lista de bóvedas recientes no se ha podido codificar, así que no se ha escrito.",
+      "actions": []
+    }
+  },
+  "settings": {
+    "encode": {
+      "message": "Tus ajustes no se han podido codificar, así que no se han guardado.",
+      "actions": []
+    }
+  },
+  "_comment_action": "The shared action lexicon: one entry per action sentence that cannot be labelled where the failure is, translated once. Two kinds of action end up here: the ones the core composes for a session failure (`action_text` in session.rs), which turn up under dozens of codes in an order that depends on what failed; and the ones belonging to a code the core raises from several places with a different button each time, where a label at a fixed position would be the wrong sentence for every other arm. `src/i18n/failures.ts` holds the English sentence for each key and looks an action up here when the failure's own entry has no label at that position; `failures.catalogue.test.ts` checks that list against the Rust, so a wording change there fails the build here. These are button labels: keep them short, and keep them in the imperative or verbal-noun form the rest of this file uses.",
+  "action": {
+    "open-connection-settings": "Abrir los ajustes de esta conexión",
+    "edit-gateway-chain": "Editar la cadena de pasarelas",
+    "check-address": "Comprobar la dirección, o el servidor DNS que debería conocerla",
+    "check-service": "Comprobar que el servicio escucha en ese puerto",
+    "check-firewall": "Comprobar el cortafuegos, o la pasarela que hay delante",
+    "check-network": "Comprobar la conexión de red",
+    "retry": "Reintentar",
+    "reconnect": "Reconectar",
+    "choose-different-credential": "Elegir otra credencial",
+    "enter-credential": "Introducir una credencial para este intento",
+    "choose-auth-method": "Elegir otro método de autenticación",
+    "review-host-key": "Revisar la clave del host",
+    "verify-fingerprint-out-of-band": "Verificar la huella con el administrador del servidor antes de hacer nada más",
+    "pin-certificate": "Fijar el certificado a esta conexión",
+    "close-another-session-or-raise-limit": "Cerrar otra sesión, o subir el límite",
+    "contact-server-administrator": "Contactar con el administrador del servidor",
+    "report-defect": "Informar de esto — es un defecto de Remoter",
+    "choose-credential": "Elegir una credencial",
+    "open-credential-settings": "Abrir los ajustes de la credencial",
+    "choose-gateway-credential": "Elegir una credencial para la pasarela",
+    "open-its-settings": "Abrir sus ajustes",
+    "verify-fingerprint": "Verificar la huella por otra vía",
+    "contact-administrator": "Contactar con el administrador",
+    "close-another-session": "Cerrar otra sesión",
+    "open-settings": "Abrir los ajustes",
+    "refresh-list": "Actualizar la lista",
+    "try-connecting-again": "Intentar conectar de nuevo",
+    "close-tab": "Cerrar la pestaña",
+    "use-ssh-or-sftp": "Usar una conexión SSH o SFTP",
+    "report-this": "Informar de esto",
+    "unlock-vault": "Desbloquear la bóveda",
+    "select-connection-or-credential": "Seleccionar una conexión o una credencial",
+    "create-credential-for-connection": "Crear una credencial y apuntar esta conexión a ella",
+    "select-connection-or-folder": "Seleccionar una conexión o una carpeta",
+    "edit-connection-instead": "Editar la conexión en su lugar",
+    "edit-connection-or-folder-instead": "Editar una conexión o una carpeta en su lugar",
+    "unlock-with-password-or-recovery-key": "Usar una contraseña o tu clave de recuperación",
+    "use-password-or-recovery-slot": "Usar una contraseña o una ranura de recuperación",
+    "change-lock-policy": "Cambiar la política en los ajustes de la bóveda"
+  }
+}

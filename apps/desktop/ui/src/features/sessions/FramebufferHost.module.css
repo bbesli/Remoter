@@ -1,0 +1,259 @@
+/* The session area for a graphical session.
+
+   The ground is the terminal ground, and the foreground tokens are redefined
+   the way SessionSurface.module.css redefines them: a chip or a notice dropped
+   on top of a dark surface must not inherit the light theme's near-black text.
+   Same reasoning, same values — see that file's comment. */
+.host {
+  position: absolute;
+  inset: 0;
+  background: var(--bg-terminal);
+  overflow: hidden;
+
+  /* A column, and that is the whole fix for the defect this file shipped.
+
+     A remote desktop uses all four of its edges and all four corners: Windows
+     puts its taskbar along one and its window controls in another, macOS has a
+     menu bar and a dock, a Linux panel can be anywhere. There is no safe corner
+     to float our own controls in — the previous version put the send-keys and
+     scale buttons over the top inline-end corner, which is exactly where a
+     maximised window's minimise/maximise/close buttons are, and the desktop
+     size over the bottom inline-start corner, which is exactly where the Start
+     button is. Both were unreachable.
+
+     So the chrome is not over the picture, it is above it: the toolbar and the
+     notices are flex items with their own height, and the stage gets what is
+     left. Nothing overlaps, at any window size, in either direction, and in
+     full screen — where the picture is largest and the temptation to float was
+     strongest — the toolbar simply keeps its row. */
+  display: flex;
+  flex-direction: column;
+
+  --fg-default: #e6e8ea;
+  --fg-strong: #c8ced4;
+  --fg-muted: #9aa1a9;
+  --fg-subtle: #8a929a;
+  --bg-surface: #1c1e22;
+  --bg-elevated: #23262b;
+  --bg-inset: #101114;
+  --border-default: #2a2e34;
+  --border-strong: #3a4048;
+}
+
+/* Kept laid out rather than display:none, for the same reason a hidden
+   terminal is: the stage is measured by a ResizeObserver, and an element with
+   no dimensions reports a viewport of zero — which would make a smart-resize
+   session ask its server for a desktop the size of nothing the moment the tab
+   went to the back. */
+.hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* The scroll container. The canvas inside it is exactly as large as the scale
+   says, so `overflow: auto` is what gives 1:1 its scrollbars and fit its
+   absence of them.
+
+   `direction: ltr` is the same contract the terminal has: the remote host
+   addresses its pixels from its own left edge, and a right-to-left interface
+   must not move that edge. surfaces.ts pins it on the canvas too; neither one
+   alone survives a change to the other file. */
+.stage {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  display: grid;
+  place-items: center;
+  overflow: auto;
+  direction: ltr;
+}
+
+/* The screen takes the keyboard, so it has to show that it can: a region that
+   is in the tab order and does nothing visible when it is reached is a region
+   a keyboard user cannot find. The ring is drawn inside, because the stage is
+   flush against the edges of the tab and an outside outline would be clipped. */
+.stage[data-input="live"]:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--border-focus);
+}
+
+/* A view-only session has to LOOK view-only, not merely be labelled one.
+   The inset rule runs around the whole stage so it is visible whatever part of
+   the desktop is scrolled into view, and it is drawn in the warning tone that
+   the badge beside it uses. */
+.stage[data-view-only="true"] {
+  box-shadow: inset 0 0 0 2px var(--warning);
+}
+
+/* The tab's own toolbar, between the tab strip and the picture.
+
+   It is a row of the application's chrome, not an overlay: it has height, the
+   stage below it is shorter by exactly that much, and a `fit` or `smart` scale
+   recomputes against the smaller viewport on its own because the stage is what
+   `useViewport` measures. Wraps rather than scrolls — a narrow window puts the
+   scale controls on a second line instead of hiding them behind an overflow
+   nobody finds. */
+.toolbar {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  background: var(--bg-surface);
+  border-block-end: 1px solid var(--border-default);
+}
+
+/* Pushes what follows to the inline end. A flex spacer rather than
+   `margin-inline-start: auto`, so the row still collapses sensibly when it
+   wraps. */
+.spacer {
+  flex: 1 1 auto;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 2px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+.option {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: var(--text-xs);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--motion-fast) var(--ease), color var(--motion-fast) var(--ease);
+}
+
+.option:hover {
+  color: var(--fg-default);
+  background: var(--bg-elevated);
+}
+
+.option:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 1px;
+}
+
+/* The state, not a hover. Colour is never the only signal — `aria-pressed`
+   carries it for a screen reader, and the filled ground carries it visually. */
+.option[aria-pressed="true"] {
+  color: var(--fg-on-accent);
+  background: var(--accent);
+}
+
+/* Anything the surface has to say in a sentence rather than on a chip.
+
+   Also in flow, under the toolbar and above the stage, for the same reason: a
+   "waiting for the first frame" panel floating over the top inline-start corner
+   sat on the remote desktop's own menu bar. Bounded, because a server can
+   produce several of these at once and the picture is the point. */
+.notices {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  max-height: 30vh;
+  overflow-y: auto;
+  background: var(--bg-surface);
+  border-block-end: 1px solid var(--border-default);
+}
+
+/* The standing statement that a view-only session sends nothing to the far
+   end. It is a panel rather than a chip because it has to be readable at a
+   glance from across a desk: the failure it prevents is a user typing a
+   command into a window that looks live and is not. */
+.inputNotice {
+  margin: 0;
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--fg-default);
+  background: var(--warning-tint);
+  border: 1px solid var(--warning);
+  border-radius: var(--radius-md);
+  text-wrap: pretty;
+}
+
+.inputNotice > svg {
+  flex: none;
+  margin-block-start: 2px;
+  color: var(--warning);
+}
+
+.problem {
+  margin: 0;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--danger-text);
+  background: var(--danger-tint);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-md);
+  text-wrap: pretty;
+}
+
+/* A chip in the toolbar, not a panel: it is true of every session for its first
+   moment, and a block that appeared and vanished would move the stage's height
+   twice at connect. */
+.waiting {
+  margin: 0;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  background: var(--bg-inset);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+/* Which keys this screen is taking, at the inline end of the toolbar.
+
+   The desktop size that used to sit beside it is gone from here entirely: the
+   status bar below the session already shows it, so the overlay was covering
+   the Start button to repeat a figure that was on screen anyway. One place for
+   one fact. */
+.capture {
+  font-size: var(--text-xs);
+  color: var(--fg-subtle);
+  text-wrap: pretty;
+}
+
+.cursorChip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+}
+
+/* The pointer shape at its own size, with no smoothing: a 16px cursor
+   interpolated up is a smudge, and the point of showing it is that the shape
+   is recognisable. The chequer behind it is how a transparent mask reads as
+   transparent rather than as white. */
+.cursorImage {
+  image-rendering: pixelated;
+  max-width: 24px;
+  max-height: 24px;
+  background-color: var(--bg-inset);
+  background-image:
+    linear-gradient(45deg, var(--border-default) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--border-default) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--border-default) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--border-default) 75%);
+  background-size: 6px 6px;
+  background-position: 0 0, 0 3px, 3px -3px, -3px 0;
+  border-radius: 2px;
+}

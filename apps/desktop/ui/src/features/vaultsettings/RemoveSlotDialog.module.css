@@ -1,0 +1,78 @@
+.subject {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-3);
+  background: var(--bg-inset);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+.kind {
+  grid-column: 1;
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+}
+
+.index {
+  grid-row: 1;
+  grid-column: 2;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--fg-subtle);
+}
+
+.label {
+  grid-column: 1 / -1;
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+.detail {
+  grid-column: 1 / -1;
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--fg-muted);
+}
+
+.note {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--fg-muted);
+  text-wrap: pretty;
+}
+
+.phraseBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.phrasePrompt {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--fg-strong);
+}
+
+/* The sentence itself, set apart so it can be transcribed from the line above
+   the field rather than remembered. */
+.phrase {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  background: var(--danger-tint);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--fg-default);
+  user-select: text;
+}
+
+.phraseHint {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--fg-subtle);
+}

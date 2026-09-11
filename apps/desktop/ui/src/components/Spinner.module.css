@@ -1,0 +1,29 @@
+.spinner {
+  display: inline-flex;
+  flex: none;
+  animation: spin 900ms linear infinite;
+}
+
+.track {
+  stroke: var(--border-default);
+}
+
+.head {
+  stroke: var(--accent);
+  stroke-dasharray: 18 40;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+  .head {
+    stroke-dasharray: 40 18;
+  }
+}

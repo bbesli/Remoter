@@ -1,0 +1,290 @@
+{
+  "_comment_file": "The application settings screen and its six sections. Loaded when the screen opens, not before. Section titles double as the navigation labels, so they stay short; the descriptions underneath carry the explanation.",
+
+  "screen": {
+    "title": "设置",
+    "close": "关闭设置",
+    "_comment_closeHint": "Esc is a key name and is not translated.",
+    "closeHint": "关闭设置（Esc）",
+    "sections": "设置分区",
+    "navAppearance": "外观",
+    "navTerminal": "终端",
+    "navLanguage": "语言",
+    "navShortcuts": "快捷键",
+    "navUpdates": "更新",
+    "navAbout": "关于",
+    "loading": "正在读取您的设置…",
+    "loadFailed": "无法读取您的设置。"
+  },
+
+  "appearance": {
+    "title": "主题",
+    "description": "主题是一份设计令牌覆盖文件。高对比度的那一对在任何字号下都满足 WCAG 2.2 AA，而不只是正文字号。",
+    "light": "浅色",
+    "dark": "深色",
+    "hcLight": "高对比度浅色",
+    "hcDark": "高对比度深色",
+    "system": "跟随系统",
+    "_comment_systemNow": "{resolved} is systemLight or systemDark below, so the whole sentence is one message rather than two halves joined at run time.",
+    "systemNow": "您的桌面目前报告的是{resolved}。",
+    "systemLight": "浅色",
+    "systemDark": "深色",
+    "previewUnavailable": "无法预览",
+    "saving": "正在保存主题…",
+    "saveFailed": "主题没有保存。",
+    "terminalNote": "终端有自己的配色和字体，在“终端”标签页里：八套配色、逐色编辑和对比度检查。在您到那里另选之前，它的配色会跟随您在这里选的主题。"
+  },
+
+  "language": {
+    "title": "语言",
+    "description": "1.0 版计划支持十种语言。从右向左书写的语言会镜像整个布局，而不只是文字。",
+    "_comment_progress": "PLURAL, on the number of languages that actually have catalogues. The count is measured from the locales/ directory rather than hardcoded, so the sentence follows the directory instead of a hand-maintained flag. The second sentence is deliberately conditional — 'any language still being translated' — because every language listed is selectable today, and the wording has to stay true both now and if an eleventh language is listed before its catalogue exists. Do not turn it back into a claim that some of the languages shown cannot be chosen: that claim was true once, was translated faithfully into nine languages, and was wrong in all ten by the time anyone read it.",
+    "progress": "{available, plural, =1 {目前只有英语完成了翻译。} other {已有 # 种语言完成翻译，现在都可以选择。}}仍在翻译中的语言也会列在这里，其词条文件完成后即可选择。",
+    "notReady": "尚不可用",
+    "_comment_unavailableLabel": "The accessible name of a row that cannot be chosen. {name} is the language's own name, in its own script, and is never translated.",
+    "unavailableLabel": "{name} — 尚不可用",
+    "_comment_rtl": "A badge on right-to-left languages. Abbreviation; expand it if the language has no equivalent short form.",
+    "rtl": "RTL",
+    "saving": "正在保存语言…",
+    "saveFailed": "语言没有保存。",
+    "_comment_storedUnavailable": "Shown when the settings file names a language with no catalogue — a downgrade, or a translation withdrawn. {locale} is a BCP 47 tag such as pt-BR and is not translated.",
+    "storedUnavailable": "您的设置要求使用 {locale}，但它还没有词条文件，因此界面仍然是英语。"
+  },
+
+  "terminal": {
+    "paletteTitle": "终端配色",
+    "paletteDescription": "本窗口中每个会话所用的颜色。它与界面主题是分开的，所以浅色界面也可以配深色终端。改动会立即作用于已经打开的会话——不需要重新连接。",
+    "auto": "跟随界面主题",
+    "autoCredit": "界面为深色时用 Remoter Dark，浅色时用 Remoter Light，高对比度界面时用高对比度配色",
+    "_comment_autoResolved": "{name} is a palette's name, taken from the palettes block below — so whatever you call 'Remoter Dark' there is what appears here.",
+    "autoResolved": "现在用的是 {name}。",
+
+    "_comment_palettes": "One entry per palette this build ships, keyed by the palette's id. The name heads its card in the picker; the credit says whose design it is, because a palette is somebody's published work. Solarized, Gruvbox, Nord and Tomorrow Night are published works with names of their own, and the person names and licence abbreviations in their credits are not translated — translate only the words around them, and transliterate a name only if your script gives a reader no way to read the Latin one. The two Remoter entries and 'High contrast' are this application's own copy and should read naturally in your language.",
+    "palettes": {
+      "remoter-dark": {
+        "name": "Remoter Dark",
+        "credit": "Remoter——本应用随附的配色"
+      },
+      "remoter-light": {
+        "name": "Remoter Light",
+        "credit": "Remoter——浅色版本，已调校为在自身背景上达到 AA"
+      },
+      "solarized-dark": {
+        "name": "Solarized Dark",
+        "credit": "Ethan Schoonover, MIT"
+      },
+      "solarized-light": {
+        "name": "Solarized Light",
+        "credit": "Ethan Schoonover, MIT"
+      },
+      "gruvbox-dark": {
+        "name": "Gruvbox Dark",
+        "credit": "Pavel Pertsev, MIT"
+      },
+      "nord": {
+        "name": "Nord",
+        "credit": "Arctic Ice Studio 和 Sven Greb，MIT"
+      },
+      "tomorrow-night": {
+        "name": "Tomorrow Night",
+        "credit": "Chris Kempson, MIT"
+      },
+      "high-contrast": {
+        "name": "高对比度",
+        "credit": "Remoter——高对比度界面主题所用的配色"
+      }
+    },
+
+    "_comment_paletteLabel": "The accessible name of one palette's radio button: the palette's name, then who made it. Both values come from the palettes block above. The dash is a separator, not a word — use whatever separates a title from its attribution in your language.",
+    "paletteLabel": "{name}——{credit}",
+
+    "previewLabel": "预览",
+    "previewNote": "真实输出，用的是即将应用的配色和字体。",
+
+    "contrastTitle": "对比度",
+    "contrastDescription": "程序打印文字时可能用到的每一种颜色，都拿来与您的背景作了测量。WCAG 2.2 AA 在这个字号下要求 4.5:1。这里不会阻止任何选择——这是您的终端——但下面这些颜色会很难辨认。",
+    "contrastClear": "在此背景下，每种颜色都达到了 4.5:1。",
+    "_comment_contrastSample": "The two letters drawn in each failing colour, as a specimen. Replace them with characters representative of the script this locale is read in — the point is to show what that colour looks like as text a reader would actually meet. Keep it to two or three characters.",
+    "contrastSample": "中文",
+    "contrastHard": "难以辨认",
+    "contrastUnreadable": "无法辨认",
+    "_comment_contrastRatio": "A contrast ratio, already formatted to one decimal by Intl. The ':1' is notation, not words.",
+    "contrastRatio": "{ratio}:1",
+    "contrastAgainstBackground": "相对背景为 {ratio}",
+    "_comment_contrastCount": "PLURAL. 4.5:1 is a WCAG threshold and stays a numeral in every language.",
+    "contrastCount": "{count, plural, other {# 种颜色低于 4.5:1}}",
+    "contrastWarning": "您可以改颜色、改背景，也可以就这样放着——这是一次测量，不是一次拒绝。",
+    "contrastBlacks": "颜色 0 和颜色 8 是 shell 通常拿来当背景或暗淡装饰、而不是拿来当正文的两种颜色，所以几乎每一套公开发布过的配色里它们都不达标，这一套也不例外。",
+
+    "_comment_colours": "What each editable colour is called, in the order the editor lists them. The leading number is the ANSI colour index and stays a numeral; the word after it is translated. 'Bright black' is the conventional name for ANSI 8 even though it is usually dark grey — keep the convention rather than describing the colour.",
+    "colours": {
+      "background": "背景",
+      "foreground": "前景",
+      "cursor": "光标",
+      "cursorAccent": "光标下的文字",
+      "selection": "选中区域",
+      "black": "0 黑色",
+      "red": "1 红色",
+      "green": "2 绿色",
+      "yellow": "3 黄色",
+      "blue": "4 蓝色",
+      "magenta": "5 品红",
+      "cyan": "6 青色",
+      "white": "7 白色",
+      "brightBlack": "8 亮黑色",
+      "brightRed": "9 亮红色",
+      "brightGreen": "10 亮绿色",
+      "brightYellow": "11 亮黄色",
+      "brightBlue": "12 亮蓝色",
+      "brightMagenta": "13 亮品红",
+      "brightCyan": "14 亮青色",
+      "brightWhite": "15 亮白色"
+    },
+    "coloursTitle": "单色调整",
+    "coloursDescription": "挑一种颜色，或者粘贴一个十六进制值——#rgb、#rrggbb 和 #rrggbbaa 都能接受。改动过的颜色旁边会出现一个重置按钮。系统取色器不支持透明度，所以原本带透明度的颜色会保留它；要改透明度，请用十六进制输入框，写成 #rrggbbaa。",
+    "_comment_hexLabel": "{name} is a colour's name, such as 'Red' or 'Bright black'. These are the ANSI colour names and are translated.",
+    "hexLabel": "{name}，十六进制值",
+    "pickLabel": "{name}，取色器",
+    "resetOne": "把{name}重置为配色自带的颜色",
+    "resetAll": "重置所有颜色",
+    "resetAllNone": "没有任何颜色被改动过",
+    "overridden": "已改动",
+    "_comment_overriddenCount": "PLURAL.",
+    "overriddenCount": "{count, plural, other {# 种颜色与配色不同}}",
+    "invalidHex": "这不是一个颜色值。请写成 #1a1c20 这样的形式。",
+
+    "fontTitle": "终端字体",
+    "fontDescription": "与界面字体是分开的。您改这里时，界面仍保持它自己的字号。",
+    "fontFamilyLabel": "字体",
+    "_comment_fontFamilyPlaceholder": "A font name. Not translated.",
+    "fontFamilyPlaceholder": "JetBrains Mono",
+    "fontFamilyHelp": "本机上已安装的某个字体的名称。Remoter 无法列出您装了哪些字体，也无法告诉您这个名字是否找到了——上面的预览就是用它渲染的，所以如果看上去没变化，就说明名字没对上。无论您输入什么，都会回退到界面自带的等宽字体栈，所以拼错也绝不会让您失去一个等宽终端。",
+    "fontFamilyDefault": "留空即使用界面自带的等宽字体栈。",
+    "fontSizeLabel": "字号",
+    "_comment_fontSizeHelp": "{min} and {max} are the bounds the build enforces, so the sentence cannot drift out of step with the control.",
+    "fontSizeHelp": "单位为像素，范围 {min} 到 {max}。会话会自行调整大小，并把新的窗口尺寸告知远程主机。",
+
+    "scope": "这些设置属于这台机器，不属于保险库，而且它们作用于每一个会话，而不是某一个连接。",
+    "saving": "正在保存终端外观…",
+    "saveFailed": "终端外观没有保存。"
+  },
+
+  "shortcuts": {
+    "title": "快捷键",
+    "description": "下面的每一条绑定都是应用程序实际监听的内容。获得焦点的终端必须收到几乎所有按键，因此在会话内使用应用程序快捷键要经过一个前缀键。",
+    "loading": "正在读取您的快捷键映射…",
+    "loadFailed": "无法读取您的快捷键映射。",
+    "loadFallback": "这些是随程序发布的默认值。您改过的绑定没有显示出来，而且在设置文件可以读取之前，这里也无法更改。",
+
+    "prefixTitle": "终端前缀键",
+    "_comment_prefixBody": "Ctrl+C, Ctrl+D and Alt+F are key names. Translate the sentence, not the keys.",
+    "prefixBody": "Ctrl+C、Ctrl+D 和 Alt+F 属于远程主机，所以 Remoter 不会去抢。在会话内，请同时按住前缀键。",
+    "prefixLegend": "在会话内与应用程序快捷键一起按住的前缀键",
+    "prefixSaving": "正在保存前缀键…",
+    "prefixFailed": "前缀键没有更改。",
+
+    "searchLabel": "搜索快捷键",
+    "searchPlaceholder": "按操作或按键筛选",
+
+    "caption": "键盘快捷键，以及每一条能够到和够不到的范围",
+    "colAction": "操作",
+    "colShortcut": "快捷键",
+    "colScope": "生效范围",
+
+    "scopeUniversal": "任何地方",
+    "scopeApplication": "会话内需加前缀键",
+    "scopeContext": "仅在按下它的地方",
+    "scopeNowhere": "任何地方都不生效",
+
+    "_comment_inSession": "{keys} is a key combination such as 'Ctrl+B then T'. Key names are not translated.",
+    "inSession": "在获得焦点的会话内：{keys}",
+
+    "edit": "更改“{action}”的快捷键，当前为 {keys}",
+    "capturing": "请按下按键…",
+    "capturingHint": "按下您想要的组合键，或按 Esc 取消。",
+    "fixed": "“{action}”的快捷键无法更改",
+    "saving": "正在保存…",
+
+    "reset": "把“{action}”重置为随程序发布的按键",
+    "resetAll": "重置所有快捷键",
+    "resetAllBusy": "正在重置…",
+    "resetAllNone": "所有可编辑的快捷键都已经是发布时的默认值。",
+    "saveFailed": "快捷键没有保存。",
+
+    "_comment_count": "PLURAL on {shown}, with {total} inside it. Filtering a table down to one row is common enough that the singular is worth having.",
+    "count": "{shown, plural, other {共 {total} 个快捷键，显示其中 # 个。}}",
+    "empty": "没有匹配的快捷键。",
+
+    "_comment_conflictDuplicate": "{holders} is a locale-joined list of action names, built with Intl.ListFormat.",
+    "conflictDuplicate": "已经被 {holders} 占用。两者只有一个会触发，所以请改掉其中一个。",
+    "conflictReservedUniversal": "远程 shell 需要这些按键，所以获得焦点的会话会自己留下它们，这条快捷键在那里永远不会触发。",
+    "conflictReservedApplication": "这些按键属于远程 shell，也属于复制粘贴。前缀键让它们在会话内保持畅通，但在会话之外 Remoter 会接管它们。",
+    "conflictDesktop": "有些桌面环境会把这个组合键用于自己的窗口切换器，并且优先级更高。在那种情况下，按键根本到不了 Remoter。",
+
+    "refusedInvalid": "Remoter 无法绑定这个组合键。",
+    "refusedReserved": "{keys} 属于远程主机：获得焦点的终端必须收到它，因此在这里绑定它会让它到不了 shell。",
+    "refusedDuplicate": "{keys} 已经被“{action}”占用。什么都没有改动——请先在那边释放它，或者另选一个组合键。",
+    "refusedUnknown": "此版本没有这个操作。"
+  },
+
+  "updates": {
+    "title": "更新",
+    "description": "Remoter 可以查看是否有更新的发行版。它不会安装更新，而且除非您主动要求，它不会联系任何服务器。",
+
+    "switchLabel": "自动查看是否有更新的发行版",
+    "_comment_consent": "SECURITY-CRITICAL. This is the consent notice for the only outbound request the application makes. Every clause is a commitment: what is contacted, how often, and exactly what is sent. Do not shorten it, and do not generalise 'one thing: this build's version string' into 'some information'.",
+    "consent": "打开这一项后，Remoter 最多每天联系 github.com 一次——打开时联系一次，之后在您打开此界面时联系——并且只发送一样东西：此版本的版本号字符串。没有标识符，没有语言设置，没有遥测，没有使用数据。关闭这一项后，在您按下“立即检查”之前，不会联系任何地方。",
+    "switchSaving": "正在保存…",
+    "switchFailed": "该偏好设置没有保存。",
+
+    "checkNow": "立即检查",
+    "checking": "正在向 GitHub 询问已发布的版本…",
+    "lastCheckedNever": "这台机器从未检查过。",
+    "_comment_lastChecked": "{when} is a relative time from Intl.RelativeTimeFormat — 'yesterday', '3 hours ago'.",
+    "lastChecked": "上次检查：{when}。",
+
+    "checkFailed": "更新检查没有完成。",
+
+    "_comment_current": "{version} here and in the three messages below is a version string such as 0.1.0. Never translated, and never localised as a number — 0.1.0 does not become 0,1,0.",
+    "current": "您正在运行 {version}，它就是最新的发行版。",
+    "none": "目前还没有发布过任何版本。您正在运行 {version}。",
+    "unknown": "此版本报告的版本号是 {version}，它不是一个能够比较的版本号。请打开发行页面自行查看。",
+
+    "updateHeading": "{version} 版可用",
+    "updateRunning": "您正在运行 {version}。",
+    "published": "发布于 {when}。",
+    "notesHeading": "更新内容",
+    "notesNone": "此发行版发布时没有附带说明。",
+    "openRelease": "打开该发行版页面",
+    "openReleases": "打开发行版列表页面",
+
+    "_comment_noSelfUpdate": "SECURITY-CRITICAL. It states why the application will not install its own updates. Keep the reason — unsigned releases — rather than reducing it to 'for safety'.",
+    "noSelfUpdate": "Remoter 不会自行安装更新。发行版目前还没有签名，而让您运行一个未签名的二进制文件，不是一个凭据管理器应该要求您做的事——所以这个按钮只是在您的浏览器里打开发行页面，由您自己安装。",
+
+    "openFailed": "系统浏览器没有打开。",
+
+    "promiseTitle": "Remoter 不会私自回传数据",
+    "_comment_promiseTelemetry": "SECURITY-CRITICAL, as are the two promises after it. Three absolute statements about what the application does not do. A translator who hedges any of them turns a commitment into marketing.",
+    "promiseTelemetry": "没有遥测。没有使用情况上报。在任何设置下，都没有任何形式的分析统计。",
+    "promiseCrash": "不上传崩溃信息。崩溃报告写在您自己的机器上，由您决定是否把它附到问题反馈里——也就是说您可以先读一遍，而当进程里握着凭据时，这一点很重要。",
+    "promiseCheck": "更新检查是 Remoter 发出的唯一一个不属于您自己打开的会话的请求。它读取公开的发行版列表，并发送此版本的版本号。它不下载任何东西。"
+  },
+
+  "about": {
+    "title": "关于",
+    "description": "此版本是什么，以及它适用的条款。",
+    "versionLabel": "版本",
+    "versionReading": "正在读取…",
+    "versionUnavailable": "不可用",
+    "licenceLabel": "许可证",
+    "_comment_licenceValue": "The licence's own name and SPDX identifier. Not translated: it is the legal name of the document.",
+    "licenceValue": "GNU General Public License, version 3 or later (GPL-3.0-or-later)",
+    "exceptionLabel": "插件",
+    "exceptionValue": "此版本无法加载插件。它里面还没有插件宿主——只有将来那个宿主会用到的 ABI。等到有了之后：一个只通过公开的插件 ABI 与 Remoter 交互的 WebAssembly 插件，可以采用您自己选择的任何许可证，这就是 LICENSE-EXCEPTION 中的接口例外条款。",
+    "updatesLabel": "更新",
+    "updatesValue": "只有在您打开检查开关时，Remoter 才会查看是否有更新的发行版，而且它从不安装更新。详见“更新”一节。",
+    "repositoryLabel": "源代码",
+    "repositoryOpen": "打开代码仓库",
+    "repositoryFailed": "系统浏览器没有打开。"
+  }
+}

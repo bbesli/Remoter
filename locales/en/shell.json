@@ -1,0 +1,174 @@
+{
+  "_comment_file": "The application shell: title bar, tab strip, status bar, footer, inspector, and the two full-area states (empty vault, locked vault). Loaded before the first paint, because it is on screen whenever the window is.",
+
+  "titleBar": {
+    "_comment_": "A 38px bar. Every label here is also a tooltip, so short wins — but a disabled control's tooltip says WHY, because 'why not?' is the only question a dead button raises.",
+    "noVault": "No vault open",
+    "unlocked": "unlocked",
+    "locked": "locked",
+    "lock": "Lock the vault",
+    "lockAlreadyLocked": "There is no unlocked vault to lock.",
+    "lockInProgress": "Locking the vault…",
+    "_comment_lockingShort": "Shown in the bar itself, where there is room for one word. The tooltip carries lockInProgress.",
+    "lockingShort": "Locking…",
+    "settings": "Settings",
+    "vaultSettings": "Vault settings",
+    "audit": "Audit log",
+    "importer": "Import connections",
+    "_comment_needsVault": "{action} is one of the four labels above. Interpolated rather than concatenated: languages differ on where the subject of this sentence goes.",
+    "needsVault": "{action} needs an unlocked vault.",
+    "minimise": "Minimise",
+    "maximise": "Maximise",
+    "restore": "Restore",
+    "close": "Close",
+    "_comment_controlFailed": "SECURITY-ADJACENT. The window controls are the one place where doing nothing is indistinguishable from being broken. Do not soften this into 'something went wrong'.",
+    "controlFailed": "{action} was refused by the window manager.",
+    "noWindow": "This page is not running inside the Remoter window, so the window controls do nothing here."
+  },
+
+  "tabStrip": {
+    "sidebarShow": "Show the connection tree",
+    "sidebarHide": "Hide the connection tree",
+    "noSessions": "No open sessions — double-click a connection to start one",
+    "_comment_inspector": "Ctrl-free: F4 is a bare function key and is written as-is in every language.",
+    "inspector": "Effective values · F4",
+    "_comment_filesOpen": "The control that opens a file pane under the session in front. The four 'filesNo…' / 'filesNot…' sentences are the reasons it is doing nothing, one per reason: a disabled control has to say WHY, and 'unavailable' is not a reason. A file pane is one more channel on a connection that has already authenticated, never a second sign-in, which is why three of the four are about the session rather than about the pane.",
+    "filesOpen": "Browse files on this session",
+    "filesClose": "Close the file pane",
+    "filesNoSession": "Browsing files needs an open session. Double-click a connection to start one.",
+    "filesNotRunning": "This session is not connected, so there is no connection to browse over.",
+    "_comment_filesNoFileChannel": "SSH and SFTP are never translated. Names the reason rather than saying the button is unavailable.",
+    "filesNoFileChannel": "This session carries no files. SFTP runs over SSH; an RDP or VNC session has no file channel.",
+    "filesIsFileSession": "This tab is already a file session."
+  },
+
+  "statusBar": {
+    "nothingSelected": "Nothing selected",
+    "noSession": "No session",
+    "resolving": "Resolving inherited values…",
+    "unresolved": "Effective values have not been resolved yet",
+    "_comment_protocolUnset": "Sits where SSH, RDP, VNC or SFTP would. Lower case: it is the absence of a protocol, not the name of one.",
+    "protocolUnset": "no protocol",
+    "showDetail": "Show the failure in the inspector"
+  },
+
+  "footer": {
+    "_comment_": "Counts. Every one is a plural: Russian needs four forms here and Arabic six, and the zero case is worth its own wording in the languages that have one.",
+    "sessions": "{count, plural, =0 {no sessions} one {# session} other {# sessions}}",
+    "tunnels": "{count, plural, =0 {no tunnels} one {# tunnel} other {# tunnels}}",
+    "connections": "{count, plural, =0 {no connections} one {# connection} other {# connections}}",
+    "credentials": "{count, plural, =0 {no credentials} one {# credential} other {# credentials}}",
+    "openPanels": "Open the sessions and tunnels panel",
+    "_comment_locksIn": "{clock} is mm:ss, produced by formatClock() so the digits follow the locale's numbering system.",
+    "locksIn": "vault locks in {clock}",
+    "noAutoLock": "auto-lock is off",
+    "_comment_vaultLocked": "SECURITY-ADJACENT. Sits where the auto-lock countdown goes. It exists because the countdown is null in two different situations - auto-lock switched off, and the vault LOCKED - and the footer used to say 'auto-lock is off' at the exact moment auto-lock had just fired. Lower case, like the counts beside it.",
+    "vaultLocked": "vault locked"
+  },
+
+  "inspector": {
+    "title": "Effective values",
+    "close": "Close the inspector",
+    "nothingSelected": "Nothing selected",
+    "nothingSelectedBody": "Choose a connection in the tree to see its resolved settings.",
+    "notAConnection": "Folders have no effective values of their own.",
+    "notAConnectionBody": "What a folder sets is shown on the connections beneath it, as the source of an inherited value.",
+    "resolving": "Resolving",
+    "failed": "Could not resolve this connection",
+    "retry": "Resolve again",
+    "notAsked": "Effective values were not requested",
+    "notAskedBody": "Resolution runs against an open vault. This one is locked, so there is nothing to resolve against yet.",
+    "_comment_unset": "The value of a field nobody has set, anywhere in the inheritance chain.",
+    "unset": "not set",
+    "_comment_setHere": "Provenance labels, shown under a resolved field. 'set here' means this connection's own value; the others name where an inherited value came from. Lower case: they are fragments under a value, not sentences.",
+    "setHere": "set here",
+    "fromDefault": "protocol default",
+    "inherited": "inherited",
+    "_comment_fromSource": "{source} is a folder or connection name — user data, in any script, isolated before it arrives.",
+    "fromSource": "from {source}",
+    "_comment_overridesInherited": "{field} is a field name such as 'port' or 'username'. This is the case worth calling out: the tree above says something different from what will actually be used.",
+    "overridesInherited": "overrides inherited {field}",
+    "credentialOwn": "this connection's own",
+    "credentialShared": "set here · shared with other entries",
+    "gateway": "Gateway chain",
+    "tags": "Tags",
+    "noFields": "This connection resolves to no fields."
+  },
+
+  "emptyVault": {
+    "title": "This vault is empty",
+    "_comment_body": "{vault} is the vault file's name, which is user data and may be in any script. It is wrapped in a Unicode isolate before it gets here, so the sentence keeps its own direction whatever the name contains.",
+    "body": "Nothing is stored in {vault} yet. Most people start by bringing across what they already have.",
+    "unnamedVault": "this vault",
+    "importTitle": "Import from another tool",
+    "_comment_importBody": "Product and file names. Not translated.",
+    "importBody": "mRemoteNG, ~/.ssh/config, CSV",
+    "createTitle": "Create the first connection",
+    "createBody": "A host, a protocol and a credential is enough to start.",
+    "createBusy": "Opening the connection editor…",
+    "openTitle": "Open a different vault",
+    "openBody": "Locks this vault and returns to the vault picker.",
+    "openBusy": "Locking this vault…",
+    "openFailed": "This vault was not locked, so the picker did not open."
+  },
+
+  "main": {
+    "nothingSelected": "Nothing selected",
+    "_comment_nothingSelectedBody": "Ctrl+K is a key name. Translate the sentence around it, not the key.",
+    "nothingSelectedBody": "Choose a connection in the tree, or press Ctrl+K to search for one.",
+    "noProtocol": "no protocol",
+    "_comment_sidebarLabel": "The accessible name of the connection tree's landmark region. Read aloud when a screen reader lists the regions of the window.",
+    "sidebarLabel": "Connections",
+    "_comment_nodeKind": "What a selected tree entry is, shown above its name where a connection shows its protocol. These are the node kinds from the domain model; they are shown to the user, so they are translated, unlike the protocol names beside them.",
+    "nodeKind": {
+      "folder": "folder",
+      "connection": "connection",
+      "credential": "credential",
+      "group": "group",
+      "separator": "separator"
+    },
+    "connectHint": "Double-click it in the tree, press Enter in the palette, or use Connect in its context menu.",
+    "folderSelected": "Folders hold settings that the connections beneath them inherit.",
+
+    "vaultStateFailed": "Remoter cannot tell whether a vault is open.",
+    "treeFailed": "The connection tree could not be read.",
+    "lockFailed": "The vault was not locked.",
+
+    "fullscreenFailedTitle": "The window did not go full screen.",
+    "fullscreenFailedBody": "The window manager refused it, or this page is not running inside the Remoter window. Nothing about the session changed.",
+
+    "checkingVault": "Checking whether a vault is open…",
+    "readingTree": "Reading the connections out of the vault…",
+    "_comment_lockedLeaving": "The one frame between the application noticing the vault has locked and the unlock screen replacing this window. Nothing of the vault is drawn behind it, which is the point: this is what the shell says while it is taking the connection tree off the screen.",
+    "lockedLeaving": "Clearing the vault's contents from this window…"
+  },
+
+  "kdfUpgrade": {
+    "_comment_": "SECURITY-CRITICAL SECTION. This is the offer to strengthen a vault's key derivation. Do not soften 'weaker than the current standard' into 'could be improved', and do not drop the sentence explaining why the password is asked for again — a credential prompt without a stated reason is exactly what a phishing dialog looks like.",
+    "offer": "This vault's key derivation is weaker than the current standard. Strengthening it takes a moment and needs no new password.",
+    "strengthen": "Strengthen it",
+    "notNow": "Not now",
+    "dismissLabel": "Dismiss this suggestion until the next unlock",
+
+    "password": "Master password",
+    "passwordHelp": "The same password you just unlocked with. Each key slot is rebuilt around it, so it has to be entered again.",
+    "confirm": "Strengthen",
+    "_comment_working": "Short enough that reserving room for it does not widen the idle button.",
+    "working": "Strengthening…",
+    "workingStage": "Deriving the key again, at the stronger cost…",
+
+    "reading": "Reading the vault header…",
+    "readFailed": "This vault's header could not be read, so the key slots cannot be strengthened.",
+
+    "keyfile": "Key file",
+    "keyfileMissing": "This vault's password slot also needs its key file.",
+    "keyfileDialog": "Choose the key file for this vault",
+    "keyfileDialogFailed": "The system file browser did not open, so no key file could be chosen. Nothing was sent to the vault.",
+
+    "failed": "The key slots were not strengthened.",
+    "done": "Done. This vault's key slots are at the current cost.",
+
+    "blockedPassword": "Type the master password.",
+    "blockedKeyfile": "Choose the key file this vault needs."
+  }
+}

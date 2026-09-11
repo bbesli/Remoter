@@ -136,8 +136,11 @@ npm run typecheck
 npm test
 
 # Full app
-npm run tauri dev
-npm run tauri build
+# The Tauri CLI searches for tauri.conf.json BELOW its working directory, and
+# this workspace keeps it in apps/desktop/src-tauri — so it runs from
+# apps/desktop while the CLI itself lives under apps/desktop/ui/node_modules.
+cd apps/desktop && ./ui/node_modules/.bin/tauri dev
+cd apps/desktop && ./ui/node_modules/.bin/tauri build --no-bundle
 
 # Integration fixtures (Docker: openssh-server, xrdp, tigervnc)
 docker compose -f tests/fixtures/compose.yaml up -d

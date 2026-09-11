@@ -68,3 +68,16 @@ desktop.ini
 # Build output
 /build/
 /out/
+
+# Rust build output (workspace)
+/target/
+/apps/desktop/src-tauri/target/
+
+# Frontend build output
+/apps/desktop/ui/node_modules/
+/apps/desktop/ui/dist/
+
+# Design source: large HTML canvases kept out of the shipped tree.
+# The extracted tokens live in apps/desktop/ui/src/styles/tokens.css and the
+# marks in brand/. Uncomment to track the canvases too.
+# /ui_parts/

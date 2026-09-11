@@ -1,0 +1,119 @@
+/* The warnings, in the session's chrome rather than on the session.
+
+   They used to float at the bottom inline-start of the session area, which on
+   a remote desktop is the Start button and on a maximised window is the
+   taskbar. A remote desktop uses all four of its edges, so there is no corner
+   to float in — see FramebufferHost.module.css. This is a block in the flow
+   above the picture: it has height, the picture is shorter by that much, and
+   it covers nothing.
+
+   It no longer redefines the dark ground tokens either. It is not on the
+   terminal ground any more; it is application chrome, and it takes the theme
+   the rest of the window has. */
+.bar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* The count, and the control that opens the rest.
+
+   The count is the part that is always visible. Moving the warnings out of the
+   picture must not turn into hiding them: a number in the chrome saying how
+   many there are is noticeable without covering anything, and it is what the
+   toggle below opens. */
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+}
+
+.summary[data-tone="danger"] {
+  color: var(--danger-text);
+}
+
+.summary[data-tone="warning"] {
+  color: var(--warning);
+}
+
+.summary[data-tone="info"] {
+  color: var(--info-text);
+}
+
+.toggle {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: var(--text-xs);
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.toggle:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  /* Bounded: a server can send a page of banner, and this is chrome above the
+     picture — it must not push the session out of the window. */
+  max-height: 30vh;
+  overflow-y: auto;
+}
+
+.text {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  text-wrap: pretty;
+}
+
+.unnamed {
+  margin: var(--space-1) 0 0;
+  font-family: var(--font-mono);
+  font-variant-ligatures: none;
+  font-size: var(--text-xs);
+  color: var(--fg-subtle);
+  overflow-wrap: anywhere;
+}
+
+/* A login banner or message of the day: remote, untrusted, and shown verbatim
+   so its own line breaks survive. Bounded, because a server may send a page of
+   it and this notice must not take the session area. */
+.remoteText {
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2);
+  font-family: var(--font-mono);
+  font-variant-ligatures: none;
+  font-size: var(--text-xs);
+  color: var(--fg-strong);
+  background: var(--bg-inset);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 10rem;
+  overflow-y: auto;
+  user-select: text;
+}

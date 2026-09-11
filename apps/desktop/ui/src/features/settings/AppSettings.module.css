@@ -1,0 +1,143 @@
+/*
+ * The settings screen.
+ *
+ * Header, then a fixed navigation column beside a scrolling panel — the layout
+ * in ui_parts/project_ui_design/09 App Settings.dc.html. The screen takes the
+ * whole of whatever it is placed in; the design's window frame belongs to the
+ * shell around it, not here.
+ */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--bg-canvas);
+  color: var(--fg-default);
+}
+
+.header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  height: 44px;
+  padding-inline: var(--space-4) var(--space-2);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-default);
+  /* Keep clear of the window-control overlay, which is fixed at the top-right
+     with a higher z-index. Without this the close button sits underneath it and
+     the click closes the application instead of the settings screen. */
+  padding-inline-end: var(--window-controls-w);
+}
+
+.headerIcon {
+  display: flex;
+  color: var(--fg-muted);
+}
+
+.headerTitle {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+.headerSpacer {
+  flex: 1;
+}
+
+.closeButton {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-md);
+  color: var(--fg-muted);
+}
+
+.closeButton:hover {
+  background: var(--bg-elevated);
+  color: var(--fg-default);
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ------------------------------------------------------------------ nav -- */
+
+.nav {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 2px;
+  width: 12rem;
+  padding: var(--space-3) var(--space-2);
+  background: var(--bg-surface);
+  border-inline-end: 1px solid var(--border-default);
+  overflow-y: auto;
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  height: 30px;
+  padding-inline: var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  text-align: start;
+  color: var(--fg-muted);
+}
+
+.navItem:hover {
+  background: var(--bg-elevated);
+  color: var(--fg-default);
+}
+
+/* Selected carries weight and an edge marker, not colour alone. */
+.navItemActive,
+.navItemActive:hover {
+  position: relative;
+  background: var(--accent-tint);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.navItemActive::before {
+  content: "";
+  position: absolute;
+  inset-block: 6px;
+  inset-inline-start: 0;
+  width: 2px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+}
+
+/* ---------------------------------------------------------------- panel -- */
+
+.panel {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-width: 0;
+  padding: var(--space-6) var(--space-6) var(--space-8);
+  overflow-y: auto;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+}
+
+.loadFailure {
+  max-width: 45rem;
+}

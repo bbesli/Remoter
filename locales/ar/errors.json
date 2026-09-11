@@ -1,0 +1,1183 @@
+{
+  "_comment_file": "Every failure the core can hand the interface, keyed by the stable `code` on `IpcError`. The codes are raised all over `crates/remoter-ipc` — error.rs, session.rs, sftp.rs, tunnel.rs, commands.rs, state.rs, bridge.rs, vault_admin.rs, import.rs, recents.rs, audit.rs — and `src/i18n/failures.catalogue.test.ts` reads every one of those files, so a code with no entry here is a failing build rather than a sentence that turns up in English months later. The code is the join: the core sends a code, a sentence, an optional diagnostic and an ordered list of next actions, and this file supplies the sentence and the actions in the reader's language. Six rules for anyone editing this file. (1) `actions` is positional: the order is the order the core offered, and a label is used only when the entry has one at that position. (2) The `action` object at the end of this file is the shared lexicon, keyed by what the action means rather than by the failure it belongs to. Two kinds of entry rely on it and carry no `actions` of their own: every `session.*` failure, whose actions the core composes from a fixed set (`action_text` in session.rs) in an order that depends on what actually failed; and a code the core raises from several places with a different button each time, where one positional label would be the wrong sentence for every other arm. The lexicon labels those by the sentence the core sent. Positional labels still win where an entry has them. (3) No sentence here may quote a password, a passphrase, a key or any other secret — a failure is the one moment an implementation is tempted to say what it was given. (4) The sentences carry no placeholders. The core fills its own sentence with the specifics (a path, a slot number, a byte offset) and those cannot be recovered from the finished string, so each sentence here is written to stay true without them; an English reader is shown the core's own sentence, specifics and all, and every other language is shown this one. (5) A message says what failed and what the reader can do about it. 'An error occurred' is never an acceptable translation of anything below. (6) A few entries deliberately carry no `message` at all, and say so in a `_comment_`: for those the core composes the only description of what happened, so the reader is shown that sentence rather than a generalisation of it.",
+  "unknown": {
+    "_comment_": "Not a code the core sends: `asFailure` in apps/desktop/ui/src/lib/ipc.ts uses it when a rejection arrives with no shape at all — a panic inside a command, or a transport failure below Tauri. It is the last sentence in the application and should never be reached.",
+    "message": "حدث خطأ ما."
+  },
+  "vault": {
+    "locked": {
+      "message": "لا توجد خزنة مفتوحة. افتح قفل خزنة لرؤية اتصالاتك.",
+      "actions": [
+        "فتح قفل خزنة"
+      ]
+    },
+    "auto-locked": {
+      "message": "أقفلت الخزنة نفسها بعد مدة الخمول التي حددتها. افتح قفلها للمتابعة.",
+      "actions": [
+        "فتح قفل الخزنة",
+        "تغيير المهلة في الإعدادات"
+      ]
+    },
+    "locked-by-trigger": {
+      "message": "أقفلت الخزنة نفسها لأن حدثًا اخترت الإقفال عنده قد وقع. افتح قفلها للمتابعة.",
+      "actions": [
+        "فتح قفل الخزنة",
+        "تغيير ما يقفلها في إعدادات الخزنة"
+      ]
+    },
+    "_comment_unlock-failed": "SECURITY-CRITICAL. This sentence must not say which factor was wrong, and a translation must not add that either: before a key slot has unwrapped the master key, naming the password or the key file as the wrong one tells an attacker which half they have already guessed. See the module docs in crates/remoter-ipc/src/error.rs.",
+    "unlock-failed": {
+      "message": "لم يفتح ذلك قفل الخزنة.",
+      "actions": [
+        "إعادة المحاولة",
+        "التحقق من ملف المفتاح، إن كانت هذه الخزنة تستخدم واحدًا",
+        "استخدام مفتاح الاسترداد"
+      ]
+    },
+    "header-tampered": {
+      "message": "عُدِّلت ترويسة هذه الخزنة بعد كتابتها، لذا لا يمكن الوثوق بمحتواها.",
+      "actions": [
+        "فتح نسخة احتياطية بجوار الخزنة",
+        "التحقق مما إذا كان عميل مزامنة قد أعاد كتابة الملف"
+      ]
+    },
+    "body-corrupt": {
+      "message": "تعذّر فك تشفير محتوى هذه الخزنة. الملف تالف.",
+      "actions": [
+        "فتح نسخة احتياطية بجوار الخزنة",
+        "التحقق من القرص الذي تُخزَّن عليه الخزنة"
+      ]
+    },
+    "no-such-method": {
+      "message": "هذه الخزنة لا تتيح طريقة فتح القفل تلك.",
+      "actions": [
+        "اختيار إحدى الطرق التي تتيحها هذه الخزنة"
+      ]
+    },
+    "_comment_fido2-unsupported": "The core sends this code both when a hardware key is offered as a way in and when one is added as a key slot, so the sentence has to stay true of both. It has no `actions` of its own for the same reason: the two arms offer differently worded buttons, and the shared `action` lexicon at the end of this file labels whichever one the core sent.",
+    "fido2-unsupported": {
+      "message": "فتح القفل بمفتاح عتادي غير مطبَّق في هذه النسخة من Remoter."
+    },
+    "not-a-vault": {
+      "message": "هذا الملف ليس خزنة Remoter.",
+      "actions": [
+        "اختيار ملف .rvault",
+        "إنشاء خزنة جديدة"
+      ]
+    },
+    "unsupported-format": {
+      "message": "تستخدم تلك الخزنة إصدار تنسيق خزنة لا تقرأه هذه النسخة من Remoter.",
+      "actions": [
+        "تحديث Remoter",
+        "فتح الخزنة على الجهاز الذي كتبها"
+      ]
+    },
+    "corrupt": {
+      "message": "هذه الخزنة تالفة: تعذّرت قراءة بنيتها.",
+      "actions": [
+        "فتح نسخة احتياطية بجوار الخزنة"
+      ]
+    },
+    "corrupt-row": {
+      "message": "تحتوي هذه الخزنة على سجل لا تستطيع هذه النسخة من Remoter قراءته.",
+      "actions": [
+        "فتح نسخة احتياطية بجوار الخزنة",
+        "تحديث Remoter"
+      ]
+    },
+    "header-encode": {
+      "message": "تعذّر ترميز ترويسة هذه الخزنة، لذا لم تُكتب.",
+      "actions": [
+        "الإبلاغ عن هذا — الخزنة على القرص لم تتغير"
+      ]
+    },
+    "crypto": {
+      "message": "فشلت خطوة تعمية على هذه الخزنة، لذا تُركت العملية.",
+      "actions": [
+        "إعادة المحاولة",
+        "الإبلاغ عن هذا إن استمر"
+      ]
+    },
+    "kdf-too-weak": {
+      "message": "معاملات Argon2id هذه دون الحد الأدنى الذي يقبله Remoter، وخزنة أضعف ليست مقايضة مقبولة مقابل فتح أسرع.",
+      "actions": [
+        "استخدام المعاملات المعايَرة"
+      ]
+    },
+    "kdf-params-refused": {
+      "message": "تعلن هذه الخزنة معاملات Argon2id تفوق كل ما ستحاوله هذه النسخة. لم يُشتق أي مفتاح.",
+      "actions": [
+        "فتح الخزنة على الجهاز الذي كتبها",
+        "تحديث Remoter",
+        "فتح نسخة احتياطية بجوار الخزنة"
+      ]
+    },
+    "no-such-slot": {
+      "message": "لا توجد في هذه الخزنة فتحة مفتاح كهذه.",
+      "actions": [
+        "إعادة تحميل قائمة الفتحات"
+      ]
+    },
+    "no-slot-of-kind": {
+      "message": "لا توجد في هذه الخزنة فتحة من هذا النوع.",
+      "actions": [
+        "إضافة طريقة فتح القفل تلك أولًا"
+      ]
+    },
+    "slot-table-full": {
+      "message": "تحتوي هذه الخزنة بالفعل على الحد الأقصى من فتحات المفاتيح.",
+      "actions": [
+        "إزالة طريقة فتح قفل لم تعد تستخدمها"
+      ]
+    },
+    "last-slot": {
+      "message": "هذه هي الطريقة الوحيدة للدخول إلى هذه الخزنة؛ إزالتها ستمنعك من الدخول نهائيًا.",
+      "actions": [
+        "إضافة طريقة فتح قفل أخرى أولًا"
+      ]
+    },
+    "wrong-slot-kind": {
+      "message": "فتحة المفتاح تلك من نوع آخر، لذا لا تنطبق عليها العملية.",
+      "actions": [
+        "إعادة تحميل قائمة الفتحات",
+        "اختيار فتحة من النوع الصحيح"
+      ]
+    },
+    "slot-credential-missing": {
+      "message": "لا يمكن إعادة تغليف فتحة المفتاح تلك دون كلمة مرورها، وإسقاطها بصمت يسلب أحدهم طريقه إلى الداخل. لم يتغير شيء.",
+      "actions": [
+        "إدخال كلمة مرور تلك الفتحة",
+        "إخراج تلك الفتحة من التدوير عن قصد"
+      ]
+    },
+    "slot-credential-rejected": {
+      "message": "هذا لا يفتح فتحة المفتاح، لذا بقيت الفتحة كما كانت تمامًا.",
+      "actions": [
+        "إعادة المحاولة",
+        "التحقق من ملف المفتاح، إن كانت تلك الفتحة تستخدم واحدًا",
+        "استخدام مفتاح الاسترداد"
+      ]
+    },
+    "keychain": {
+      "message": "مخزن بيانات الاعتماد في هذا الجهاز غير متاح، أو لا يحتفظ برمز لهذه الخزنة.",
+      "actions": [
+        "فتح القفل بكلمة مرورك",
+        "إعادة تسجيل هذا الجهاز بعد ذلك"
+      ]
+    },
+    "recovery-key-malformed": {
+      "message": "هذا ليس مفتاح استرداد: مفتاح الاسترداد أربع عشرة مجموعة من أربعة محارف.",
+      "actions": [
+        "التحقق من أنك لصقت المفتاح كاملًا"
+      ]
+    },
+    "recovery-key-checksum": {
+      "message": "يبدو أن مفتاح الاسترداد هذا كُتب خطأً — مجموعة التحقق فيه لا تطابق بقيته.",
+      "actions": [
+        "مقارنته بالنسخة التي حفظتها",
+        "إعادة المحاولة"
+      ]
+    },
+    "keyfile": {
+      "message": "تعذّرت قراءة ملف المفتاح.",
+      "actions": [
+        "التحقق من أن الملف في مكانه وقت إنشاء الخزنة",
+        "وصل القرص الذي يوجد عليه"
+      ]
+    },
+    "database": {
+      "message": "رفضت قاعدة البيانات داخل هذه الخزنة العملية.",
+      "actions": [
+        "إعادة المحاولة",
+        "فتح نسخة احتياطية بجوار الخزنة"
+      ]
+    },
+    "schema-too-new": {
+      "message": "كُتبت هذه الخزنة بنسخة أحدث من Remoter: إصدار مخططها لا تفهمه هذه النسخة.",
+      "actions": [
+        "تحديث Remoter"
+      ]
+    },
+    "migration-failed": {
+      "message": "تعذّر ترحيل هذه الخزنة إلى المخطط الأحدث؛ بقي الملف كما كان.",
+      "actions": [
+        "فتح نسخة احتياطية بجوار الخزنة",
+        "الإبلاغ عن هذا"
+      ]
+    },
+    "label-empty": {
+      "message": "تحتاج الخزنة إلى اسم.",
+      "actions": [
+        "كتابة اسم لهذه الخزنة"
+      ]
+    },
+    "_comment_password-empty": "The core raises this both for a vault's master password and for a key slot's password, so the sentence has to stay true of both.",
+    "password-empty": {
+      "message": "كلمة المرور تلك فارغة، ولا يمكن اشتقاق شيء من كلمة فارغة.",
+      "actions": [
+        "كتابة كلمة مرور",
+        "توليد عبارة مرور"
+      ]
+    },
+    "_comment_password-too-weak": "SECURITY-CRITICAL. The refusal must keep its reason: a weak password is not rescued by the key derivation function, and a vault is only as strong as its weakest slot. A translation that softens this into 'consider a stronger password' invites the user to keep the one they typed.",
+    "password-too-weak": {
+      "message": "كلمة المرور تلك يسهل تخمينها أكثر من اللازم، والخزنة بقوة أضعف فتحاتها. يرفع Argon2id كلفة كل تخمين، لكنه لا ينقذ كلمة مرور يجرّبها المهاجم مبكرًا.",
+      "actions": [
+        "توليد عبارة مرور",
+        "استخدام كلمة مرور أطول وأقل قابلية للتوقع"
+      ]
+    },
+    "kdf-upgrade-refused": {
+      "message": "هذا لا يفتح الفتحة التي تحتاج إلى تقوية، فتُركت الفتحة كما هي تمامًا.",
+      "actions": [
+        "إدخال كلمة المرور التي أُنشئت بها هذه الخزنة",
+        "تركها الآن — الخزنة لا تزال تُفتح"
+      ]
+    },
+    "_comment_locked-unsaved": "SECURITY-CRITICAL in the data-loss sense: the vault is safe, the keys are gone from memory, and unsaved changes are gone with them. A translation must keep both facts. Do not imply the changes can be recovered.",
+    "locked-unsaved": {
+      "message": "الخزنة مقفلة ومفاتيحها مُمحاة، لكن تعذّرت كتابة الملف، فضاع كل ما تغيّر منذ آخر حفظ ناجح.",
+      "actions": [
+        "التحقق من القرص أو المشاركة التي تُخزَّن عليها الخزنة",
+        "فتح قفلها من جديد والتحقق مما ينقص"
+      ]
+    },
+    "_comment_unlock-throttled": "SECURITY-CRITICAL. Like vault.unlock-failed, this sentence must not say which factor was wrong. It must also keep its reassurance: the wait is a delay, not a lockout, and a translation that reads like the vault has been sealed will send people looking for their recovery key when they do not need it.",
+    "unlock-throttled": {
+      "message": "أخفقت محاولات فتح كثيرة متتالية، لذا ستنتظر المحاولة التالية. لم يُقفل شيء نهائيًا: تُفتح الخزنة فور انتهاء الانتظار.",
+      "actions": [
+        "انتظار العد التنازلي",
+        "استخدام مفتاح الاسترداد",
+        "التحقق من ملف المفتاح، إن كانت هذه الخزنة تستخدم واحدًا"
+      ]
+    }
+  },
+  "request": {
+    "invalid": {
+      "_comment_": "A bug in the interface, not something the reader did: the frontend sent the core a field it cannot read. Keep the sentence blameless and keep the action pointing at a bug report.",
+      "message": "قيمة في ذلك الطلب غير صالحة للاستخدام.",
+      "actions": [
+        "الإبلاغ عن هذا — أرسلت الواجهة شيئًا لا تستطيع النواة قراءته"
+      ]
+    }
+  },
+  "path": {
+    "unusable": {
+      "message": "لا يمكن استخدام ذلك الموقع.",
+      "actions": [
+        "اختيار موقع آخر"
+      ]
+    }
+  },
+  "io": {
+    "failed": {
+      "message": "تعذّرت قراءة ذلك الملف أو الكتابة إليه.",
+      "actions": [
+        "التحقق من وجود المسار وإمكانية الكتابة فيه",
+        "اختيار موقع آخر"
+      ]
+    }
+  },
+  "system": {
+    "csprng": {
+      "message": "مولّد الأعداد العشوائية في نظام التشغيل غير متاح، لذا لا يمكن توليد أي قيمة عشوائية بأمان.",
+      "actions": [
+        "إعادة تشغيل Remoter",
+        "الإبلاغ عن هذا إن استمر"
+      ]
+    }
+  },
+  "key": {
+    "not-a-private-key": {
+      "message": "هذا الملف ليس مفتاحًا خاصًا. لا يمكن لمفتاح عام أو شهادة أو ملف غير ذي صلة أن يوثّق اتصالًا.",
+      "actions": [
+        "اختيار المفتاح الخاص بدل ملف .pub المرافق",
+        "استخدام وكيل SSH الخاص بالنظام بدلًا من ذلك"
+      ]
+    },
+    "_comment_unsupported-format": "The refusal is a real limitation, not a conversion the user can perform: no protocol in this build can authenticate with a key of that kind, so the actions must not suggest converting the file. The three algorithm names in the first action are algorithm names, not words; leave them exactly as they are.",
+    "unsupported-format": {
+      "message": "هذا مفتاح خاص من نوع لا يستطيع أي بروتوكول في هذه النسخة الاستيثاق به. لم يُكتب شيء.",
+      "actions": [
+        "استخدام مفتاح Ed25519 أو ECDSA أو RSA بدلًا منه",
+        "استخدام وكيل SSH الخاص بالنظام بدلًا من ذلك"
+      ]
+    },
+    "_comment_legacy-encrypted": "Different from unsupported-format: the key itself is fine, it is the PEM container that is encrypted, and Remoter has to read the container before it can store the key. The first action quotes two commands. Translate the sentence around them if there is one; never translate the commands themselves, and keep `<file>` and `<copy>` exactly as they are. The word 'copy' is load-bearing: `ssh-keygen -p` rewrites the file it is given, and the user's key file is very often shared with other tools.",
+    "legacy-encrypted": {
+      "message": "هذا المفتاح مشفَّر داخل حاوية PEM الخاصة به، وعلى Remoter أن يقرأ الحاوية قبل أن يتمكن من تخزين المفتاح. لم يُكتب شيء.",
+      "actions": [
+        "تحويل نسخة: `cp <file> <copy>` ثم `ssh-keygen -p -m PKCS8 -f <copy>`",
+        "استخدام وكيل SSH الخاص بالنظام بدلًا من ذلك"
+      ]
+    },
+    "passphrase-required": {
+      "message": "ذلك المفتاح محمي بعبارة مرور، وبدونها لا يستطيع Remoter استخدامه للاستيثاق.",
+      "actions": [
+        "إدخال عبارة مرور المفتاح",
+        "اختيار مفتاح غير محمي بعبارة مرور"
+      ]
+    }
+  },
+  "credential": {
+    "not-a-private-key": {
+      "message": "هذا العنصر ليس بيانات اعتماد تحمل مفتاحًا خاصًا، فلا يوجد فيه مفتاح يُقرأ أو يُستبدل.",
+      "actions": [
+        "اختيار بيانات اعتماد",
+        "اختيار ملف مفتاح لها أولًا"
+      ]
+    },
+    "purpose-refused": {
+      "message": "قيد بيانات الاعتماد هذه لا يشمل الاستخدام الذي كانت على وشك أن تُستخدم فيه، لذلك رفضت الخزنة فتحها. وسِّع القيد من إعدادات بيانات الاعتماد، أو اختر بيانات اعتماد تسمح بهذا الاستخدام أصلًا.",
+      "actions": [
+        "اختيار بيانات اعتماد أخرى",
+        "توسيع قيد بيانات الاعتماد"
+      ]
+    }
+  },
+  "node": {
+    "_comment_not-found": "Sent both for an item missing from the vault and for one missing from the tree on screen. Either way the item is gone and the tree on screen is stale, which is what the sentence says.",
+    "not-found": {
+      "message": "لم يعد ذلك العنصر في الشجرة؛ على الأرجح حُذف في نافذة أخرى.",
+      "actions": [
+        "إعادة تحميل الشجرة"
+      ]
+    },
+    "parent-not-found": {
+      "message": "المجلد الذي أفلتّه فيه لم يعد موجودًا.",
+      "actions": [
+        "إعادة تحميل الشجرة",
+        "اختيار مجلد آخر"
+      ]
+    },
+    "duplicate": {
+      "message": "يوجد في الشجرة عنصر بهذا المعرّف بالفعل.",
+      "actions": [
+        "إعادة تحميل الشجرة"
+      ]
+    },
+    "not-a-container": {
+      "message": "المجلدات وحدها يمكنها أن تحتوي عناصر أخرى.",
+      "actions": [
+        "إفلاته داخل مجلد",
+        "إفلاته في المستوى الأعلى"
+      ]
+    },
+    "cycle": {
+      "message": "لا يمكن نقل مجلد إلى داخل نفسه.",
+      "actions": [
+        "اختيار وجهة خارج ذلك المجلد"
+      ]
+    },
+    "too-deep": {
+      "message": "هذا النقل سيجعل تداخل الشجرة أعمق مما يسمح به الحد.",
+      "actions": [
+        "نقله أقرب إلى المستوى الأعلى",
+        "تسطيح المجلدات فوقه"
+      ]
+    },
+    "parent-changed": {
+      "message": "التحرير لا يغيّر مجلد العنصر الأب؛ انقله بدل ذلك.",
+      "actions": [
+        "سحبه إلى المجلد الجديد"
+      ]
+    },
+    "not-a-connection": {
+      "message": "الاتصالات وحدها لها إعدادات محسومة تُعرض.",
+      "actions": [
+        "اختيار اتصال"
+      ]
+    },
+    "_comment_field-not-applicable": "No `actions` of its own: the core raises this from seven places with a different instruction each time — select a credential, create one, edit the connection, edit a folder — so a label at position 0 would be the wrong sentence six times out of seven. The shared `action` lexicon at the end of this file translates each of them by what the core actually sent.",
+    "field-not-applicable": {
+      "message": "ذلك الحقل لا ينطبق على هذا النوع من العناصر."
+    }
+  },
+  "tree": {
+    "corrupt": {
+      "message": "شجرة العناصر في هذه الخزنة لا تنتهي: سلسلة الآباء تدور على نفسها.",
+      "actions": [
+        "فتح نسخة احتياطية بجوار الخزنة",
+        "الإبلاغ عن هذا"
+      ]
+    }
+  },
+  "secret": {
+    "not-found": {
+      "message": "بيانات الاعتماد تلك لا تحتفظ بسرّ كهذا.",
+      "actions": [
+        "إدخاله الآن",
+        "اختيار بيانات اعتماد أخرى"
+      ]
+    },
+    "stale": {
+      "message": "السرّ المخزَّن لا يطابق النسخة الحالية من سجلّه، لذا رُفض بدل أن يُستخدم.",
+      "actions": [
+        "إعادة إدخال السرّ",
+        "فتح نسخة احتياطية بجوار الخزنة"
+      ]
+    }
+  },
+  "import": {
+    "too-large": {
+      "message": "هذا الملف أكبر مما تقرأه هذه النسخة. لم يُحلَّل شيء.",
+      "actions": [
+        "تقسيم الملف",
+        "استيراد الأجزاء كلٌّ على حدة"
+      ]
+    },
+    "not-utf8": {
+      "message": "هذا الملف ليس نصًا بترميز UTF-8.",
+      "actions": [
+        "إعادة حفظ الملف بترميز UTF-8",
+        "التأكد من أن هذا هو الملف الذي قصدت اختياره"
+      ]
+    },
+    "malformed-xml": {
+      "message": "هذا الملف ليس XML سليم التكوين.",
+      "actions": [
+        "إعادة تصدير الملف من التطبيق الذي كتبه",
+        "التأكد من أن هذا هو الملف الذي قصدت اختياره"
+      ]
+    },
+    "doctype-refused": {
+      "message": "يحمل هذا الملف إعلان نوع مستند يرفض Remoter معالجته: بهذا يُجعل ملف XML يقرأ ملفات أخرى على هذا الجهاز.",
+      "actions": [
+        "إزالة سطر DOCTYPE ثم إعادة المحاولة",
+        "إعادة تصدير الملف من التطبيق الذي كتبه"
+      ]
+    },
+    "entity-refused": {
+      "message": "يعرّف هذا الملف كيانات XML خاصة به يرفض Remoter توسيعها: هذه هيئة ملف كُتب لاستنزاف الذاكرة.",
+      "actions": [
+        "إعادة تصدير الملف من التطبيق الذي كتبه"
+      ]
+    },
+    "too-deep": {
+      "message": "يداخل هذا الملف المجلدات أعمق مما تقرأه هذه النسخة.",
+      "actions": [
+        "تسطيح أعمق المجلدات في التطبيق المصدر"
+      ]
+    },
+    "too-many-items": {
+      "message": "يحتوي هذا الملف على عناصر أكثر مما تقرأه هذه النسخة.",
+      "actions": [
+        "تقسيم الملف",
+        "استيراد الأجزاء كلٌّ على حدة"
+      ]
+    },
+    "value-too-long": {
+      "message": "يحتوي هذا الملف على قيمة أطول مما تقرأه هذه النسخة.",
+      "actions": [
+        "تقصيرها في التطبيق المصدر ثم إعادة التصدير"
+      ]
+    },
+    "truncated": {
+      "message": "ينتهي هذا الملف في منتصف سجل: الملف ناقص.",
+      "actions": [
+        "نسخ الملف من جديد من مصدره",
+        "إعادة تصديره من التطبيق الذي كتبه"
+      ]
+    },
+    "wrong-format": {
+      "message": "هذا الملف ليس ما يقرأه ذلك المستورد.",
+      "actions": [
+        "اختيار تنسيق المصدر بنفسك",
+        "اختيار ملف آخر"
+      ]
+    },
+    "password-required": {
+      "message": "هذا الملف مشفَّر ويحتاج كلمة مرور المستند لقراءته.",
+      "actions": [
+        "إدخال كلمة مرور المستند",
+        "اختيار ملف آخر"
+      ]
+    },
+    "wrong-password": {
+      "message": "ليست هذه كلمة المرور التي شُفِّر بها الملف.",
+      "actions": [
+        "إعادة المحاولة",
+        "التحقق مما إذا كان الملف يستخدم كلمة المرور الافتراضية للتطبيق المصدر"
+      ]
+    },
+    "unsupported-cipher": {
+      "message": "هذا الملف مشفَّر بخوارزمية لا يستطيع Remoter قراءتها.",
+      "actions": [
+        "إعادة تصدير الملف دون تشفير ثم استيراده",
+        "إعادة حفظه من نسخة أحدث من التطبيق المصدر"
+      ]
+    },
+    "malformed-ciphertext": {
+      "message": "الجزء المشفَّر من هذا الملف تالف: لا يُفَك إلى شيء صالح.",
+      "actions": [
+        "نسخ الملف من جديد من مصدره",
+        "إعادة تصديره من التطبيق الذي كتبه"
+      ]
+    },
+    "too-many-nodes": {
+      "message": "سينشئ هذا الملف عناصر أكثر مما يسمح به الحد.",
+      "actions": [
+        "تقسيم الملف",
+        "استيراد الأجزاء كلٌّ على حدة"
+      ]
+    },
+    "missing-column": {
+      "message": "ينقص هذا الملف عمود يحتاجه المستورد.",
+      "actions": [
+        "إضافة ترويسة العمود ثم إعادة المحاولة",
+        "التحقق من أن الصف الأول هو صف الترويسة"
+      ]
+    },
+    "duplicate-column": {
+      "message": "يسمّي هذا الملف عمودًا مرتين، فلا يمكن تحديد أيهما يحمل القيمة.",
+      "actions": [
+        "إزالة العمود المكرر أو إعادة تسميته"
+      ]
+    },
+    "read-failed": {
+      "message": "تعذّرت قراءة ملف أثناء تتبّع تضمين.",
+      "actions": [
+        "التحقق من وجود الملف وإمكانية قراءته",
+        "إزالة سطر Include ثم إعادة الاستيراد"
+      ]
+    },
+    "include-too-deep": {
+      "message": "يضمّن هذا الملف ملفات أعمق مما تتتبّعه هذه النسخة.",
+      "actions": [
+        "تسطيح سلسلة Include ثم إعادة الاستيراد"
+      ]
+    },
+    "failed": {
+      "message": "تعذّر استيراد هذا الملف.",
+      "actions": [
+        "اختيار ملف آخر",
+        "الإبلاغ عن هذا"
+      ]
+    },
+    "unknown-format": {
+      "message": "هذا الملف ليس بصيغة يستوردها Remoter: فهو ليس مستند mRemoteNG ولا إعداد OpenSSH ولا تصدير CSV.",
+      "actions": [
+        "اختيار صيغة المصدر بنفسك",
+        "تصدير الاتصالات مجددًا بصيغة CSV"
+      ]
+    },
+    "orphaned-nodes": {
+      "message": "أنتج هذا الملف عناصر مجلدها غير موجود في الاستيراد، فتعذّر بناء الشجرة. لم يُكتب شيء.",
+      "actions": [
+        "استيراد الملف كاملًا",
+        "الإبلاغ عن هذا"
+      ]
+    },
+    "no-such-preview": {
+      "message": "لم تعد معاينة الاستيراد تلك محفوظة: فقد نُفِّذت أو أُلغيت أو أُسقطت عند قفل الخزنة. لم يُكتب شيء.",
+      "actions": [
+        "اختيار الملف من جديد"
+      ]
+    }
+  },
+  "validation": {
+    "_comment_file": "The reader's own input being wrong. Each sentence names the rule rather than the value, because the core has already put the value in the sentence it sends and this one has to read correctly without it.",
+    "name-empty": {
+      "message": "يحتاج هذا العنصر إلى اسم.",
+      "actions": [
+        "كتابة اسم"
+      ]
+    },
+    "name-too-long": {
+      "message": "هذا الاسم أطول من الحد.",
+      "actions": [
+        "تقصير الاسم"
+      ]
+    },
+    "control-char": {
+      "message": "تحتوي هذه القيمة على محارف تحكّم لا يمكن تخزينها.",
+      "actions": [
+        "إعادة كتابتها",
+        "لصقها كنص عادي"
+      ]
+    },
+    "description-too-long": {
+      "message": "هذا الوصف أطول من الحد.",
+      "actions": [
+        "تقصير الوصف"
+      ]
+    },
+    "host-empty": {
+      "message": "لا عنوان لهذا الاتصال. أضف اسم مضيف أو عنوان IP.",
+      "actions": [
+        "إدخال اسم مضيف أو عنوان IP"
+      ]
+    },
+    "host-invalid": {
+      "message": "هذا ليس اسم مضيف ولا عنوان IPv4 ولا عنوان IPv6 بين قوسين معقوفين.",
+      "actions": [
+        "التحقق من الإملاء",
+        "وضع عنوان IPv6 بين [قوسين معقوفين]"
+      ]
+    },
+    "port": {
+      "message": "يجب أن يكون المنفذ بين 1 و65535.",
+      "actions": [
+        "إدخال منفذ ضمن المدى",
+        "تركه فارغًا لاستخدام منفذ البروتوكول الافتراضي"
+      ]
+    },
+    "tag": {
+      "message": "هذه ليست وسمًا صالحًا.",
+      "actions": [
+        "استخدام الحروف والأرقام والشرطات والنقاط"
+      ]
+    },
+    "protocol": {
+      "message": "هذا ليس بروتوكولًا يعرفه Remoter.",
+      "actions": [
+        "اختيار بروتوكول من القائمة"
+      ]
+    },
+    "setting-key": {
+      "message": "هذا ليس اسم إعداد بروتوكول صالحًا.",
+      "actions": [
+        "استخدام الحروف والأرقام والشرطات والنقاط"
+      ]
+    },
+    "custom-field-key": {
+      "message": "هذا ليس اسم حقل مخصص صالحًا.",
+      "actions": [
+        "استخدام الحروف والأرقام والشرطات والنقاط"
+      ]
+    },
+    "_comment_colour": "The two patterns are syntax, not words: leave #rrggbb and #rrggbbaa exactly as they are in every language.",
+    "colour": {
+      "message": "هذا ليس لونًا؛ المتوقع #rrggbb أو #rrggbbaa.",
+      "actions": [
+        "اختيار لون من العيّنات"
+      ]
+    },
+    "icon": {
+      "message": "مرجع الأيقونة هذا فارغ أو يحتوي على محارف تحكّم.",
+      "actions": [
+        "اختيار أيقونة من القائمة"
+      ]
+    },
+    "gateway-too-long": {
+      "message": "في سلسلة البوابات هذه قفزات أكثر مما يسمح به الحد.",
+      "actions": [
+        "إزالة قفزة"
+      ]
+    },
+    "gateway-cycle": {
+      "message": "تدور سلسلة البوابات على نفسها: يظهر مضيف واحد مرتين.",
+      "actions": [
+        "إزالة القفزة المكررة"
+      ]
+    },
+    "gateway-hop-unknown": {
+      "message": "تشير إحدى قفزات البوابة إلى عنصر لم يعد في هذه الخزنة.",
+      "actions": [
+        "اختيار بوابة أخرى",
+        "الاتصال مباشرة"
+      ]
+    },
+    "gateway-hop-kind": {
+      "message": "يجب أن تكون قفزة البوابة اتصالًا؛ المجلد لا يمرّر حركة البيانات.",
+      "actions": [
+        "اختيار اتصال ليكون البوابة"
+      ]
+    },
+    "credential-unknown": {
+      "message": "بيانات الاعتماد التي يستخدمها هذا قد حُذفت. اختر غيرها، أو أدخل واحدة الآن.",
+      "actions": [
+        "اختيار بيانات اعتماد أخرى",
+        "إدخال واحدة الآن"
+      ]
+    },
+    "credential-kind": {
+      "message": "هذا العنصر ليس بيانات اعتماد.",
+      "actions": [
+        "اختيار بيانات اعتماد"
+      ]
+    },
+    "credential-attached": {
+      "message": "بيانات الاعتماد تلك تخصّ اتصالًا آخر. مشاركتها تعني أن تحريرها في مكان يغيّر الآخر.",
+      "actions": [
+        "اختيار بيانات اعتماد مشتركة",
+        "كتابة اسم مستخدم وكلمة مرور هنا بدلًا من ذلك"
+      ]
+    },
+    "credential-attachment": {
+      "message": "بيانات اعتماد في هذه الخزنة تخصّ اتصالًا غير موجود. لم يتغير شيء.",
+      "actions": [
+        "إعادة تحميل الخزنة",
+        "الاستعادة من نسخة احتياطية"
+      ]
+    },
+    "credential-purpose": {
+      "message": "بيانات الاعتماد هذه مقيَّدة ولا يمكن استخدامها مع ذلك البروتوكول.",
+      "actions": [
+        "اختيار بيانات اعتماد أخرى",
+        "توسيع قيد بيانات الاعتماد"
+      ]
+    },
+    "username-too-long": {
+      "message": "اسم المستخدم هذا أطول من الحد.",
+      "actions": [
+        "تقصير اسم المستخدم"
+      ]
+    },
+    "external-credential": {
+      "message": "بيانات الاعتماد الخارجية تحتاج مزوّدًا ومرجعًا معًا.",
+      "actions": [
+        "ملء الحقلين"
+      ]
+    },
+    "secret-empty": {
+      "message": "بيانات الاعتماد تحتاج سرًّا؛ الظرف الفارغ ليس بيانات اعتماد.",
+      "actions": [
+        "إدخال كلمة مرور",
+        "اختيار ملف مفتاح"
+      ]
+    },
+    "layout": {
+      "message": "تخطيط الشبكة يحتاج صفًا واحدًا وعمودًا واحدًا على الأقل.",
+      "actions": [
+        "ضبط الصفوف والأعمدة على 1 أو أكثر"
+      ]
+    },
+    "group-member": {
+      "message": "أحد أعضاء هذه المجموعة لم يعد في الخزنة.",
+      "actions": [
+        "إزالة العضو المفقود"
+      ]
+    },
+    "empty-action": {
+      "message": "لا يمكن أن يكون إجراء الاتصال أو قطع الاتصال سطرًا فارغًا.",
+      "actions": [
+        "إزالة السطر الفارغ"
+      ]
+    },
+    "reconnect-policy": {
+      "message": "إعادة الاتصال التلقائية تحتاج محاولة واحدة على الأقل ومهلة تراجع لا تتناقص.",
+      "actions": [
+        "ضبط أقصى مهلة تراجع عند الأولى أو فوقها"
+      ]
+    },
+    "interval": {
+      "message": "يجب أن تكون المهلات وفترات إبقاء الاتصال أكبر من صفر.",
+      "actions": [
+        "إدخال عدد موجب",
+        "إفراغ الحقل للتوريث"
+      ]
+    },
+    "protocol-missing": {
+      "message": "يحتاج الاتصال إلى بروتوكول: SSH أو RDP أو VNC أو SFTP.",
+      "actions": [
+        "اختيار بروتوكول"
+      ]
+    }
+  },
+  "session": {
+    "no-address": {
+      "message": "هذا الاتصال بلا عنوان. افتح إعداداته لإضافة واحد."
+    },
+    "invalid-host": {
+      "message": "هذا ليس عنوانًا يمكن لـ Remoter استخدامه. تحقق منه في إعدادات الاتصال."
+    },
+    "invalid-port": {
+      "message": "لا يملك هذا الاتصال منفذًا صالحًا. افتح إعداداته وحدد منفذًا بين 1 و65535."
+    },
+    "gateway-cycle": {
+      "message": "تلتفّ سلسلة البوابات على نفسها: إحدى قفزاتها تظهر في السلسلة مرتين."
+    },
+    "gateway-too-long": {
+      "message": "في سلسلة البوابات هذه قفزات أكثر مما يسلكه Remoter."
+    },
+    "gateway-deleted": {
+      "message": "تشير إحدى قفزات سلسلة البوابات هذه إلى اتصال محذوف."
+    },
+    "gateway-credential-required": {
+      "message": "إحدى قفزات سلسلة البوابات هذه بلا بيانات اعتماد للاستيثاق."
+    },
+    "gateway-not-a-connection": {
+      "message": "تشير إحدى قفزات سلسلة البوابات هذه إلى شيء ليس اتصالًا."
+    },
+    "limit": {
+      "message": "لديك من الجلسات المفتوحة ما يبلغ الحد المسموح. أغلق واحدة أو ارفع الحد في الإعدادات."
+    },
+    "credential-deleted": {
+      "message": "حُذفت بيانات الاعتماد التي كان يستخدمها هذا الاتصال. اختر غيرها، أو أدخل واحدة الآن."
+    },
+    "credential-purpose": {
+      "message": "بيانات الاعتماد هذه مقيّدة باستخدامات أخرى ولا يمكن استخدامها هنا."
+    },
+    "credential-required": {
+      "message": "لا تتوفر بيانات اعتماد لهذا الاتصال، وSSH لا يتيح دخولًا مجهولًا."
+    },
+    "credential-no-username": {
+      "message": "بيانات الاعتماد تلك بلا اسم حساب، وSSH لا يتيح دخولًا مجهولًا."
+    },
+    "credential-not-a-credential": {
+      "message": "ما يشير إليه هذا الاتصال ليس بيانات اعتماد، فلا يمكن تسجيل الدخول به."
+    },
+    "credential-external": {
+      "message": "بيانات الاعتماد تلك يحتفظ بها مزوّد آخر، وهذه النسخة لا تحوي إضافة تستطيع جلبها."
+    },
+    "credential-unsupported": {
+      "message": "بيانات الاعتماد تلك شهادة، وجلسات هذا البروتوكول لا تستخدم الشهادات."
+    },
+    "dns": {
+      "message": "تعذّر تحليل هذا العنوان. تحقق من الاسم أو من DNS لديك."
+    },
+    "refused": {
+      "message": "رفض الخادم الاتصال. هل الخدمة تعمل؟"
+    },
+    "timeout": {
+      "message": "لم يستجب الخادم في الوقت المحدد. تحقق من الجدار الناري أو من البوابة."
+    },
+    "unreachable": {
+      "message": "هذا العنوان غير قابل للوصول من هذا الجهاز. تحقق من الشبكة."
+    },
+    "hop-failed": {
+      "message": "تعذّر بلوغ الهدف عبر سلسلة البوابات: فشلت إحدى قفزاتها. التفاصيل تبيّن أيها ولماذا."
+    },
+    "io": {
+      "message": "أخفق الاتصال أثناء قراءة أو كتابة. التفاصيل تبيّن أيهما."
+    },
+    "host-key-unknown": {
+      "message": "قدّم الخادم مفتاح مضيف لم يره Remoter من قبل، ولم تستطع الجلسة السؤال عنه."
+    },
+    "_comment_host-key-changed": "SECURITY-CRITICAL. The reader decides from this sentence whether to trust the server in front of them, and a changed host key is what an interception looks like (docs/security/threat-model.md, T3). A translation must keep all three parts: the key is not the one that was trusted, this can mean someone is intercepting, and the two keys are in the details. Do not soften it into a routine warning, and do not suggest accepting the key.",
+    "host-key-changed": {
+      "message": "المفتاح الذي قدّمه هذا الخادم ليس المفتاح الذي يثق به Remoter له. قد يعني هذا أن أحدهم يعترض الاتصال. تعرض التفاصيل المفتاح الموثوق والمفتاح المقدَّم."
+    },
+    "host-key-rejected": {
+      "message": "لم يُقبل المفتاح الذي قدّمه الخادم، فلم تستمر الجلسة."
+    },
+    "host-key-nothing-to-replace": {
+      "message": "لا شيء مخزَّن لهذا المضيف بعد، فلا مفتاح لاستبداله. راجع البصمة واقبلها، أو ارفض."
+    },
+    "fingerprint-malformed": {
+      "message": "هذه ليست بصمة SHA-256، لذا تعذّرت مقارنتها بالبصمة التي قدّمها الخادم."
+    },
+    "confirmation-mismatch": {
+      "message": "هذه ليست عبارة التأكيد المعروضة على الشاشة، لذا تُرك مفتاح المضيف المخزَّن كما هو."
+    },
+    "no-shared-algorithm": {
+      "message": "لا يقدّم الخادم إلا خوارزميات لم يعد Remoter يقبلها. التفاصيل تسردها."
+    },
+    "_comment_certificate-untrusted": "SECURITY-CRITICAL. This is the sentence a reader decides from when a server's certificate cannot be validated. A translation must keep the last clause: until the reason is resolved, there is no proof this is the intended server. Do not soften it, and do not imply the session may be continued safely.",
+    "certificate-untrusted": {
+      "message": "الشهادة التي قدّمها هذا الخادم ليست موثوقة. التفاصيل تبيّن السبب. وإلى أن يُحلّ ذلك، لا دليل على أن هذا هو الخادم الذي قصدته."
+    },
+    "handshake-failed": {
+      "message": "لم تكتمل المصافحة، فلم تُفتح الجلسة. التفاصيل تبيّن إلى أين وصلت."
+    },
+    "trust-store": {
+      "message": "تعذّر على الخزنة تسجيل القرار بشأن مفتاح المضيف، فلم يُحفظ."
+    },
+    "auth-rejected": {
+      "message": "رفض الخادم بيانات الاعتماد هذه."
+    },
+    "auth-method-unavailable": {
+      "message": "لا يقبل الخادم طريقة الاستيثاق تلك. التفاصيل تسرد الطرق التي يتيحها."
+    },
+    "auth-cancelled": {
+      "message": "أُلغي تسجيل الدخول، فلم تُفتح الجلسة."
+    },
+    "agent-unavailable": {
+      "message": "وكيل SSH لا يعمل، أو أن هذه العملية لا تستطيع الوصول إلى مقبسه."
+    },
+    "setting-invalid": {
+      "message": "أحد إعدادات هذا الاتصال غير صالح. التفاصيل تبيّن أيها وما ينبغي أن يكون عليه."
+    },
+    "setting-required": {
+      "message": "أحد إعدادات هذا الاتصال بلا قيمة، ولا يمكن فتح الاتصال بدونه."
+    },
+    "protocol-unsupported": {
+      "message": "هذه النسخة تفتح جلسات SSH وSFTP فقط."
+    },
+    "unsupported": {
+      "message": "جلسات هذا البروتوكول لا تدعم ذلك."
+    },
+    "disconnected": {
+      "message": "أغلق الخادم الاتصال."
+    },
+    "network-lost": {
+      "message": "فُقد اتصال الشبكة."
+    },
+    "protocol-violation": {
+      "message": "أرسل الخادم شيئًا لا يسمح به البروتوكول."
+    },
+    "_comment_path-not-found": "A file-manager failure on a session that is connected and working. It used to be reported as `setting-invalid`, which sent the reader to the connection editor to fix a setting that was never wrong. Keep the second sentence: the commonest cause by far is a listing that is a few seconds out of date, and the way out is to read the folder again.",
+    "path-not-found": {
+      "message": "لا يوجد شيء في هذا المسار على الخادم. ربما نُقل أو أُعيدت تسميته أو حُذف منذ آخر قراءة لهذا المجلد."
+    },
+    "_comment_path-permission-denied": "SECURITY-ADJACENT. This must not read as a sign-in failure. It used to be reported as `auth-rejected` — 'the server rejected these credentials' — on a connection that had authenticated minutes earlier, which sends the reader off to re-check an SSH key that is working. The distinction between 'who you are' and 'what this file allows' is the whole sentence; a translation that blurs it undoes the fix.",
+    "path-permission-denied": {
+      "message": "رفض الخادم الوصول إلى هذا المسار. هذا رفض يتعلق بأذونات الملفات وليس بتسجيل الدخول: الاتصال موثَّق بالفعل، وهذا الحساب لا يملك إذنًا لهذا الملف أو المجلد."
+    },
+    "_comment_file-operation-refused": "HONESTY. SFTP version 3 has one catch-all status for everything that is not 'missing' or 'not permitted', so a full disk, a quota, a read-only mount, a lock and a cross-device rename are genuinely indistinguishable here. The sentence names the likely causes and admits it cannot tell them apart; do not turn it into a guess at one of them.",
+    "file-operation-refused": {
+      "message": "تعذّر على الخادم إتمام هذه العملية على الملف ولم يوضّح السبب. امتلاء القرص، أو حصة تخزين، أو نظام ملفات للقراءة فقط، أو قفل، أو إعادة تسمية بين نظامَي ملفات — كلها تصل بهذا الشكل نفسه."
+    },
+    "cancelled": {
+      "message": "أُلغيت الجلسة قبل أن تُفتح."
+    },
+    "closed": {
+      "message": "تلك الجلسة لم تعد تعمل."
+    },
+    "no-such-session": {
+      "message": "لم تعد تلك الجلسة مفتوحة. يمكن إغلاق علامة تبويبها."
+    },
+    "no-such-node": {
+      "message": "لم يعد ذلك الاتصال في هذه الخزنة. ربما حُذف من نافذة أخرى."
+    },
+    "no-such-prompt": {
+      "message": "لم يعد سؤال مفتاح المضيف ذاك مفتوحًا. ربما كفّت الجلسة عن الانتظار."
+    },
+    "frozen": {
+      "message": "الخزنة مقفلة، وسياسة هذه الخزنة تجميد إدخال الجلسات إلى أن يُفتح قفلها. الجلسة لا تزال متصلة."
+    },
+    "event-stream-closed": {
+      "message": "أُغلق مجرى مخرجات الجلسة قبل الجلسة نفسها، لذا أُنهيت."
+    },
+    "task-failed": {
+      "message": "أخفقت الجلسة بخطأ داخلي وأُغلقت. لم يتأثر شيء آخر."
+    },
+    "shutdown-timeout": {
+      "message": "لم تُغلق الجلسة في الوقت المحدد فأُوقفت قسرًا. هذا خلل يستحق الإبلاغ عنه."
+    },
+    "internal": {
+      "message": "واجه Remoter خطأً داخليًا. هذا خلل يستحق الإبلاغ عنه."
+    },
+    "failed": {
+      "_comment_": "Deliberately has no `message`. The core composes this one at the moment of failure — it is a diagnostic sentence naming what went wrong, with no `detail` beside it — so a generalised translation here would replace the only account of what happened. The reader sees the core's English sentence and translated action buttons. If SessionFailureDto ever carries the taxonomy code instead of this wrapper, give this entry a message and remove the note."
+    }
+  },
+  "sftp": {
+    "session-not-ready": {
+      "message": "تلك الجلسة غير متصلة، فلا شيء لتصفّحه فيها بعد. تُفتح لوحة الملفات على اتصال تم استيثاقه بالفعل.",
+      "actions": [
+        "انتظار اتصالها",
+        "فتح الاتصال من جديد"
+      ]
+    },
+    "directory-not-empty": {
+      "message": "لم يُحذف ذلك الدليل. يجب أن يكون الدليل فارغًا قبل حذفه، وقد لا يكون هذا كذلك.",
+      "actions": [
+        "حذف محتوياته أيضًا",
+        "فتحه وإلقاء نظرة"
+      ]
+    },
+    "transfer-running": {
+      "message": "لم ينتهِ ذلك النقل بعد، فلا شيء لإعادة محاولته حتى الآن.",
+      "actions": [
+        "إيقافه أولًا",
+        "انتظار انتهائه"
+      ]
+    },
+    "_comment_unsafe-name": "The name in question came from the remote server. The point of the sentence is that Remoter refused to take the server's word for where a file should land; a translation must not turn it into a complaint about the user's choice of folder.",
+    "unsafe-name": {
+      "message": "لا يمكن حفظ ذلك الملف في ذلك المجلد: الاسم الذي أعطاه الخادم له ليس اسم ملف عاديًا.",
+      "actions": [
+        "اختيار اسم له بنفسك",
+        "حفظه في مكان آخر"
+      ]
+    },
+    "no-such-pane": {
+      "message": "لم تعد لوحة الملفات تلك مفتوحة. ربما انتهت جلستها.",
+      "actions": [
+        "إغلاق اللوحة",
+        "فتح لوحة ملفات من جديد"
+      ]
+    },
+    "no-such-transfer": {
+      "message": "ذلك النقل ليس في طابور هذه اللوحة.",
+      "actions": [
+        "تحديث قائمة عمليات النقل"
+      ]
+    },
+    "subsystem-unavailable": {
+      "message": "لم يفتح هذا الخادم نظام SFTP الفرعي. بعض الخوادم تعطّله، وبعضها يقصره على حسابات بعينها.",
+      "actions": [
+        "طلب تفعيل نظام SFTP الفرعي من مسؤول الخادم",
+        "استخدام الطرفية بدلًا من ذلك"
+      ]
+    },
+    "listing-too-large": {
+      "message": "يحوي ذلك الدليل أكثر مما يقرأه Remoter في سرد واحد.",
+      "actions": [
+        "فتح دليل فرعي بدلًا من ذلك",
+        "استخدام الطرفية لهذا الدليل"
+      ]
+    },
+    "rename-failed": {
+      "message": "تعذّرت إعادة تسمية ذلك الملف. في معظم الخوادم لا يمكن لإعادة التسمية أن تعبر نظام ملفات إلى آخر، ومن يحاول ذلك يُرفض بهذه الصورة تمامًا.",
+      "actions": [
+        "نسخه إلى هناك وحذف الأصل",
+        "إعادة تسميته داخل نظام الملفات نفسه"
+      ]
+    },
+    "_comment_local-destination-unreadable": "Raised while checking, before a transfer is queued, whether something is already at the place a download would write. It is deliberately not fatal: the transfer is still offered, and the dialog says which destinations could not be looked at. 'Nothing is there' and 'nobody could look' are different answers and the interface must not show the first when it means the second.",
+    "local-destination-unreadable": {
+      "message": "تعذّر على Remoter التحقق مما إذا كان هناك ملف بالفعل في ذلك الموضع على هذا الحاسوب. ما زال بالإمكان بدء النقل، لكن لا يُعرف شيء عمّا سيُستبدل."
+    },
+    "transfer-failed": {
+      "_comment_": "Deliberately has no `message`, for the same reason as session.failed: the sentence is the transfer's own diagnostic, composed when it failed, and there is no detail beside it to fall back on."
+    }
+  },
+  "tunnel": {
+    "no-such-tunnel": {
+      "message": "لم يعد ذلك النفق مفتوحًا.",
+      "actions": [
+        "تحديث قائمة الأنفاق"
+      ]
+    },
+    "_comment_bind-exposed": "SECURITY-CRITICAL. This is the sentence that stands between a forward bound to localhost and one the whole local network can use. A translation must keep both halves: the address is not loopback, and the forward would therefore be reachable from the local network. Do not soften it into a note about a preference.",
+    "bind-exposed": {
+      "message": "هذا ليس عنوان استرجاع محلي، لذا سيكون هذا التمرير متاحًا من الشبكة المحلية. أشّر على الخيار الذي يقرّ بذلك، أو اربطه بـ localhost.",
+      "actions": [
+        "الربط بـ localhost",
+        "كشفه عن قصد"
+      ]
+    },
+    "_comment_host-key-unknown": "SECURITY-CRITICAL. A tunnel has no window in which to ask about an unknown host key, so the sentence sends the reader to a session where the fingerprint can be reviewed. A translation must not suggest the key can be accepted from here, and must keep the instruction to review the fingerprint.",
+    "host-key-unknown": {
+      "message": "قدّم ذلك الخادم مفتاح مضيف لم يُطلب من Remoter الوثوق به، ولا نافذة للنفق كي يسأل فيها. افتح جلسة إليه أولًا، وراجع البصمة، واقبلها هناك.",
+      "actions": [
+        "فتح جلسة إلى هذا الاتصال",
+        "مراجعة مفتاح المضيف هناك"
+      ]
+    }
+  },
+  "update": {
+    "failed": {
+      "message": "لم يكتمل التحقق من التحديثات.",
+      "actions": [
+        "إعادة المحاولة",
+        "أو فتح صفحة الإصدارات في متصفح"
+      ]
+    },
+    "unreachable": {
+      "message": "تعذّر على Remoter الوصول إلى github.com للبحث عن إصدار أحدث.",
+      "actions": [
+        "التحقق من اتصال هذا الجهاز بالشبكة",
+        "إعادة المحاولة",
+        "أو فتح صفحة الإصدارات في متصفح"
+      ]
+    },
+    "unreadable": {
+      "message": "أجاب GitHub، لكن ليس بقائمة إصدارات يستطيع Remoter قراءتها.",
+      "actions": [
+        "إعادة المحاولة",
+        "أو فتح صفحة الإصدارات في متصفح"
+      ]
+    },
+    "rate-limited": {
+      "message": "لم يعد GitHub يجيب حاليًا على مزيد من عمليات التحقق من التحديثات من هذه الشبكة.",
+      "actions": [
+        "إعادة المحاولة لاحقًا",
+        "أو فتح صفحة الإصدارات في متصفح"
+      ]
+    },
+    "no-releases": {
+      "message": "لا توجد في GitHub قائمة إصدارات منشورة لـ Remoter.",
+      "actions": [
+        "فتح المستودع في متصفح"
+      ]
+    },
+    "refused": {
+      "message": "رفض GitHub التحقق من التحديثات.",
+      "actions": [
+        "إعادة المحاولة لاحقًا",
+        "أو فتح صفحة الإصدارات في متصفح"
+      ]
+    }
+  },
+  "keyfile": {
+    "_comment_unprotected": "SECURITY-CRITICAL. The refusal exists because a key file that every account on the machine can read is not a second factor at all. A translation must keep the reason and the consequence — it was not written — and must not present this as a permissions warning the user may wave away.",
+    "unprotected": {
+      "message": "لا يمكن قصر ملف المفتاح ذاك على حسابك: نظام الملفات الذي هو عليه لا يحمل أذونات، فكل حساب على هذا الجهاز يستطيع قراءته. وملف مفتاح يقرأه أي أحد ليس عاملًا ثانيًا، لذلك لم يُكتب.",
+      "actions": [
+        "اختيار موقع على قرص يحفظ أذونات الملفات",
+        "تشفير القرص القابل للإزالة ثم كتابة ملف المفتاح عليه"
+      ]
+    }
+  },
+  "slot": {
+    "label-empty": {
+      "message": "تحتاج فتحة المفتاح إلى اسم، كي تستطيع القائمة بيان أي مفتاح هذا.",
+      "actions": [
+        "كتابة اسم لهذه الفتحة"
+      ]
+    }
+  },
+  "shortcut": {
+    "terminal-reserved": {
+      "message": "ذلك التركيب يخصّ المضيف البعيد: يجب أن تتلقاه الطرفية النشطة، فربطه هنا يمنعه من الوصول إلى الصدفة.",
+      "actions": [
+        "اختيار تركيب آخر",
+        "ربطه كاختصار للتطبيق يُبلغ عبر بادئة الطرفية"
+      ]
+    }
+  },
+  "audit": {
+    "export-encode": {
+      "message": "تعذّر ترميز مدخلات التدقيق، فلم يُكتب شيء.",
+      "actions": []
+    }
+  },
+  "recents": {
+    "encode": {
+      "message": "تعذّر ترميز قائمة الخزائن الأخيرة، فلم تُكتب.",
+      "actions": []
+    }
+  },
+  "settings": {
+    "encode": {
+      "message": "تعذّر ترميز إعداداتك، فلم تُحفظ.",
+      "actions": []
+    }
+  },
+  "_comment_action": "The shared action lexicon: one entry per action sentence that cannot be labelled where the failure is, translated once. Two kinds of action end up here: the ones the core composes for a session failure (`action_text` in session.rs), which turn up under dozens of codes in an order that depends on what failed; and the ones belonging to a code the core raises from several places with a different button each time, where a label at a fixed position would be the wrong sentence for every other arm. `src/i18n/failures.ts` holds the English sentence for each key and looks an action up here when the failure's own entry has no label at that position; `failures.catalogue.test.ts` checks that list against the Rust, so a wording change there fails the build here. These are button labels: keep them short, and keep them in the imperative or verbal-noun form the rest of this file uses.",
+  "action": {
+    "open-connection-settings": "فتح إعدادات هذا الاتصال",
+    "edit-gateway-chain": "تعديل سلسلة البوابات",
+    "check-address": "التحقق من العنوان أو من خادم DNS الذي يُفترض أن يعرفه",
+    "check-service": "التحقق من أن الخدمة تستمع على ذلك المنفذ",
+    "check-firewall": "التحقق من الجدار الناري أو البوابة التي أمامه",
+    "check-network": "التحقق من اتصال الشبكة",
+    "retry": "إعادة المحاولة",
+    "reconnect": "إعادة الاتصال",
+    "choose-different-credential": "اختيار بيانات اعتماد أخرى",
+    "enter-credential": "إدخال بيانات اعتماد لهذه المحاولة",
+    "choose-auth-method": "اختيار طريقة استيثاق أخرى",
+    "review-host-key": "مراجعة مفتاح المضيف",
+    "verify-fingerprint-out-of-band": "التحقق من البصمة مع مسؤول الخادم قبل فعل أي شيء آخر",
+    "pin-certificate": "تثبيت الشهادة على هذا الاتصال",
+    "close-another-session-or-raise-limit": "إغلاق جلسة أخرى أو رفع الحد",
+    "contact-server-administrator": "التواصل مع مسؤول الخادم",
+    "report-defect": "الإبلاغ عن هذا — إنه خلل في Remoter",
+    "choose-credential": "اختيار بيانات اعتماد",
+    "open-credential-settings": "فتح إعدادات بيانات الاعتماد",
+    "choose-gateway-credential": "اختيار بيانات اعتماد للبوابة",
+    "open-its-settings": "فتح إعداداته",
+    "verify-fingerprint": "التحقق من البصمة عبر قناة أخرى",
+    "contact-administrator": "التواصل مع المسؤول",
+    "close-another-session": "إغلاق جلسة أخرى",
+    "open-settings": "فتح الإعدادات",
+    "refresh-list": "تحديث القائمة",
+    "try-connecting-again": "محاولة الاتصال من جديد",
+    "close-tab": "إغلاق علامة التبويب",
+    "use-ssh-or-sftp": "استخدام اتصال SSH أو SFTP",
+    "report-this": "الإبلاغ عن هذا",
+    "unlock-vault": "فتح قفل الخزنة",
+    "select-connection-or-credential": "اختيار اتصال أو بيانات اعتماد",
+    "create-credential-for-connection": "إنشاء بيانات اعتماد وتوجيه هذا الاتصال إليها",
+    "select-connection-or-folder": "اختيار اتصال أو مجلد",
+    "edit-connection-instead": "تعديل الاتصال بدلًا من ذلك",
+    "edit-connection-or-folder-instead": "تعديل اتصال أو مجلد بدلًا من ذلك",
+    "unlock-with-password-or-recovery-key": "استخدام كلمة مرور أو مفتاح الاسترداد",
+    "use-password-or-recovery-slot": "استخدام كلمة مرور أو فتحة استرداد",
+    "change-lock-policy": "تغيير السياسة في إعدادات الخزنة"
+  }
+}
