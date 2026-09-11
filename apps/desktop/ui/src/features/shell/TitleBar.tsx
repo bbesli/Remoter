@@ -29,6 +29,7 @@ import { Icon, type IconName } from "@/components/Icon";
 import { Spinner } from "@/components/Spinner";
 import { isolate, useT } from "@/i18n";
 import type { VaultState } from "@/lib/ipc";
+import { requestCloseWindow } from "@/features/sessions";
 import { useApp, type Screen } from "@/stores/app";
 import s from "./TitleBar.module.css";
 
@@ -144,8 +145,20 @@ export function TitleBar({ vault, onLock, locking = false, onSettings }: TitleBa
     withWindow(maximised ? t("titleBar.restore") : t("titleBar.maximise"), (win) => win.toggleMaximize());
   }, [withWindow, maximised, t]);
 
+  /**
+   * Closing the window ends every session in it, so it asks first.
+   *
+   * One question for all of them, not one per tab: "close the window and
+   * disconnect four sessions?" is the decision being made, and four dialogs in
+   * a row is a thing to click through rather than a thing to read.
+   * `requestCloseWindow` runs the close below only after the core has shut
+   * them down — and calls it straight through when nothing is connected, which
+   * is the ordinary case and must not grow a dialog.
+   */
   const onClose = useCallback(() => {
-    withWindow(t("titleBar.close"), (win) => win.close());
+    requestCloseWindow(() => {
+      withWindow(t("titleBar.close"), (win) => win.close());
+    });
   }, [withWindow, t]);
 
   const unlocked = vault?.unlocked === true;

@@ -56,6 +56,7 @@ import { formatBytes, formatPercent, isolate, isolateLtr, useLocale, useT } from
 import { asFailure, ipc, type IpcFailure, type TransferStatus } from "@/lib/ipc";
 import { invalidateListings, qk } from "@/lib/queryKeys";
 
+import { forgetLiveTransfers, reportLiveTransfers } from "./liveTransfers";
 import { displayTail } from "./path";
 import {
   failureOf,
@@ -108,6 +109,16 @@ const ELAPSED_KEY = {
 
 interface TransferQueuePanelProps {
   paneId: number;
+  /**
+   * The session this pane runs on.
+   *
+   * Not used to fetch anything — the queue is keyed by the pane — but a
+   * transfer belongs to a *session* as far as the rest of the application is
+   * concerned, and the one place that knows both ids is here. See
+   * {@link reportLiveTransfers}: closing a tab interrupts these, and the
+   * confirmation that says so is asked from three places that have no pane id.
+   */
+  sessionId: number;
   /** Whether new transfers ask to continue rather than start over. */
   resume: boolean;
   onResumeChange: (resume: boolean) => void;
@@ -115,7 +126,13 @@ interface TransferQueuePanelProps {
   enqueueProblem: IpcFailure | null;
 }
 
-export function TransferQueuePanel({ paneId, resume, onResumeChange, enqueueProblem }: TransferQueuePanelProps) {
+export function TransferQueuePanel({
+  paneId,
+  sessionId,
+  resume,
+  onResumeChange,
+  enqueueProblem,
+}: TransferQueuePanelProps) {
   const t = useT("files");
   const queryClient = useQueryClient();
   const [showFinished, setShowFinished] = useState(true);
@@ -160,6 +177,18 @@ export function TransferQueuePanel({ paneId, resume, onResumeChange, enqueueProb
     // `data` is structurally shared by TanStack Query, so an unchanged list
     // keeps its identity and this does not re-run on the poll's every tick.
   }, [data, paneId, queryClient]);
+
+  // What closing this session would interrupt, published for the confirmation
+  // that asks about it. Cleared on the way out: a pane that has gone is not
+  // moving bytes, and a stale count would overstate the stake on the next
+  // session to be handed this id.
+  const liveCount = counts.live;
+  useEffect(() => {
+    reportLiveTransfers(sessionId, liveCount);
+    return () => {
+      forgetLiveTransfers(sessionId);
+    };
+  }, [sessionId, liveCount]);
 
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: qk.sftpTransfers(paneId) });

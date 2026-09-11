@@ -33,7 +33,7 @@ import { useModalRegistration } from "@/hooks/useModalRegistration";
 import { formatNumber, isolate, isolateChain, isolateLtr, useLocale, useT } from "@/i18n";
 
 import { AddForwardDialog } from "./AddForwardDialog";
-import { closeTab } from "./manager";
+import { requestCloseTab } from "./closing";
 import { formatBytes, formatSize, formatUptime } from "./format";
 import { describeRenderer } from "./renderer";
 import { useSessions } from "./store";
@@ -346,7 +346,16 @@ export function SessionPanels({ onClose }: { onClose: () => void }) {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => void closeTab(record.tabId)}
+                              onClick={() => {
+                                // The panel goes first, then the question. Two
+                                // focus traps on screen at once is the defect
+                                // `useModalRegistration` was added for, and
+                                // this panel registers one of its own — so it
+                                // stands down rather than stacking under the
+                                // confirmation it opened.
+                                onClose();
+                                requestCloseTab(record.tabId);
+                              }}
                             >
                               {t("panels.disconnect")}
                             </Button>

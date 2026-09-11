@@ -174,6 +174,36 @@ prompts.
 
 ## 9 · Terminate
 
+### A live session is not disconnected without being asked about
+
+A disconnect cannot be undone, it interrupts whatever is running on the far
+machine, and the control that starts it sits a few pixels from the tab the user
+meant to switch to. So every route out of a **connected** session asks first,
+and they all ask through the same question — a confirmation that one route
+respects and another does not is worse than none, because it teaches the user
+that closing is guarded and then it is not. The routes are the tab's close
+control, a middle click on the tab, the `tab.close` shortcut, Disconnect in the
+sessions panel, and the window's own close control. The last of those asks
+**once, naming how many sessions would end**, rather than once per tab.
+
+The question names what is at stake — the host, and anything the session knows
+it would interrupt, such as a file transfer still moving in a docked pane —
+because "are you sure?" tells the user nothing they did not already know.
+
+It deliberately does **not** ask in three places:
+
+- a tab whose session already failed or closed, which holds nothing to lose and
+  whose dismissal never reaches the core at all;
+- a connect that has not finished, which is cancelled from a button that says
+  Cancel and is pressed by someone watching the attempt;
+- locking the vault, which closes every session first. That is a security
+  action — "I am leaving this machine" — and friction in front of it is friction
+  in the wrong direction.
+
+Declining leaves every session connected and nothing is sent to the core.
+Accepting runs the teardown below, and the window close, where that is what was
+asked, happens only after it returns.
+
 Closing a tab cancels the session's `CancellationToken`. Before the tab
 disappears, the session task MUST:
 

@@ -12,6 +12,13 @@ export { SessionTabs } from "./SessionTabs";
 export { SessionPanels } from "./SessionPanels";
 export { SessionStatus } from "./SessionStatus";
 export { openSession, isConnectable, closeTab, reconnect } from "./manager";
+// Closing a live session asks first, and every route out has to go through the
+// same question — see `closing.ts` for the list of routes and for where it
+// deliberately does not ask. `closeTab` above is still exported because the
+// vault lock uses it through `closeAllSessions`; a *user* closing a tab calls
+// `requestCloseTab`, and the two names read differently on purpose.
+export { requestCloseTab, requestCloseWindow } from "./closing";
+export { DisconnectDialog } from "./DisconnectDialog";
 // `applyTerminalAppearance` is the one write into the registry that belongs
 // outside this feature: the settings screen changes the palette and the change
 // has to reach sessions that are already open. It is exported here rather than

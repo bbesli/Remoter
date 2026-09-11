@@ -1,0 +1,133 @@
+/* The disconnect confirmation.
+
+   Modelled on HostKeyDialog's frame, because the two are the same kind of
+   object — a blocking question about one session — and a second visual
+   language for that would make the more dangerous of them look ordinary.
+
+   Logical properties throughout: the dialog is read in ten languages, three of
+   which are written right to left, and a padding-left here is a dialog whose
+   glyph and text change places under Arabic. */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  background: var(--bg-overlay);
+  overflow-y: auto;
+}
+
+.dialog {
+  width: 100%;
+  max-width: 32rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-3);
+  display: flex;
+  flex-direction: column;
+  max-height: 100%;
+  min-height: 0;
+}
+
+.header {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  padding: var(--space-5) var(--space-5) var(--space-2);
+}
+
+/* The glyph is a second signal beside the wording, not a decoration: the two
+   dialogs this frame is shared with differ in what they are about, and colour
+   alone is not a signal a colour-blind user can use. */
+.glyph {
+  flex: none;
+  display: flex;
+  color: var(--danger-text);
+  padding-block-start: 2px;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-lg);
+  line-height: var(--leading-tight);
+  color: var(--fg-strong);
+  text-wrap: pretty;
+}
+
+/* The body is not indented under the title. Aligning it past the glyph would
+   mean hard-coding the glyph's width here, and the two would drift the first
+   time the icon changed size. */
+.body {
+  padding: 0 var(--space-5) var(--space-4);
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.line {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--fg-default);
+  text-wrap: pretty;
+}
+
+/* What would be interrupted, told apart from the general sentence above it.
+   Toned rather than merely bolder: this is the line that changes the answer. */
+.stake {
+  margin: var(--space-3) 0 0;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--fg-default);
+  background: var(--warning-tint);
+  border: 1px solid var(--warning);
+  border-radius: var(--radius-md);
+  text-wrap: pretty;
+}
+
+/* The window's list. Bounded, because a user with fifteen tabs open still has
+   to reach the buttons without scrolling the dialog off the screen. */
+.list {
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-height: 14rem;
+  overflow-y: auto;
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-inset);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+.rowName {
+  font-size: var(--text-sm);
+  color: var(--fg-default);
+  overflow-wrap: anywhere;
+}
+
+.rowTransfers {
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  text-wrap: pretty;
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-5) var(--space-5);
+  border-block-start: 1px solid var(--border-default);
+}

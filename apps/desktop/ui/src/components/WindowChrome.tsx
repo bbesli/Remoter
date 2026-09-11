@@ -26,7 +26,23 @@ interface WindowHandle {
   close(): Promise<void>;
 }
 
-export function WindowControls() {
+interface WindowControlsProps {
+  /**
+   * A guard the shell puts in front of the close, given the close to run.
+   *
+   * The overlay is drawn over the settings, audit, importer and vault-settings
+   * screens, every one of which can be reached with sessions still open — so
+   * this control closes live connections exactly as the main window's does, and
+   * has to ask exactly as it does. The guard is passed in rather than imported:
+   * this is a component, and a component that reached into a feature to find
+   * out what was open would be the wrong way round.
+   *
+   * Absent means there is nothing to guard, and the close happens directly.
+   */
+  beforeClose?: ((proceed: () => void) => void) | undefined;
+}
+
+export function WindowControls({ beforeClose }: WindowControlsProps = {}) {
   const t = useT("common");
   const [maximised, setMaximised] = useState(false);
   const atStake = useBlockingReason();
@@ -156,7 +172,14 @@ export function WindowControls() {
           // matters for exactly one thing today, and it is the worst thing to
           // lose: a recovery key is shown once and cannot be asked for again.
           if (atStake !== null && !window.confirm(t("window.confirmClose", { atStake }))) return;
-          withWindow(close, (w) => w.close());
+          const proceed = () => {
+            withWindow(close, (w) => w.close());
+          };
+          // The blocking-modal question above is about something shown once and
+          // unrepeatable; this one is about live connections. Both, in that
+          // order, because a recovery key is the worse of the two to lose.
+          if (beforeClose === undefined) proceed();
+          else beforeClose(proceed);
         }}
         aria-label={close}
         title={close}

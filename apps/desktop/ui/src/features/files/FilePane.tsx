@@ -440,6 +440,7 @@ function PaneWorkspace({ pane }: { pane: SftpPane }) {
           a transfer outlive a tab switch rather than being cancelled by one. */}
       <TransferQueuePanel
         paneId={pane.paneId}
+        sessionId={pane.sessionId}
         resume={resume}
         onResumeChange={setResume}
         enqueueProblem={enqueueProblem}

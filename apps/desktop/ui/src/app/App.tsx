@@ -13,6 +13,7 @@
 import { useEffect } from "react";
 
 import { WindowControls } from "@/components/WindowChrome";
+import { DisconnectDialog, requestCloseWindow } from "@/features/sessions";
 import { useApp } from "@/stores/app";
 import { useSystemTheme } from "@/hooks/useSystemTheme";
 import { VaultPicker } from "@/features/vault/VaultPicker";
@@ -35,13 +36,29 @@ export function App() {
     document.documentElement.dataset["theme"] = resolved;
   }, [theme, systemTheme]);
 
+  /*
+   * The disconnect confirmation is mounted here, on both branches, for two
+   * reasons. It is asked from places that are not inside the session area —
+   * the window's close control, and the `tab.close` shortcut — and the session
+   * area is swept by a layout test that fails on anything positioned out of
+   * flow inside it, because chrome over a remote desktop covered the Start
+   * button once already. At the shell it is neither.
+   */
   if (screen.name === "main") {
-    return <MainWindow />;
+    return (
+      <>
+        <MainWindow />
+        <DisconnectDialog />
+      </>
+    );
   }
 
   return (
     <>
-      <WindowControls />
+      {/* These four screens are reachable with sessions still open, and this
+          overlay's close button ends them all. It asks the same question the
+          main window's title bar asks. */}
+      <WindowControls beforeClose={requestCloseWindow} />
       {screen.name === "picker" && <VaultPicker />}
       {screen.name === "create" && <CreateVaultWizard />}
       {screen.name === "recovery" && <RecoveryKeyScreen result={screen.result} />}
@@ -55,6 +72,7 @@ export function App() {
       {screen.name === "vault-settings" && <VaultSettings />}
       {screen.name === "audit" && <AuditViewer />}
       {screen.name === "import" && <ImportWizard />}
+      <DisconnectDialog />
     </>
   );
 }

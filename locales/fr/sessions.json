@@ -309,9 +309,45 @@
         "_comment_zoomStep": "On each magnification button. {factor} is 2, 3 or 4. The multiplication sign is notation, not a word.",
         "zoomStep": "{factor, number}×",
         "_comment_zoomHelp": "Tooltip on the magnification buttons. The reason for whole numbers only is worth keeping: a fractional zoom blurs text that was drawn for a pixel grid.",
-        "zoomHelp": "Agrandir d'un nombre entier de pixels, pour que les petits textes restent nets. Un agrandissement fractionnaire les rendrait flous."
+        "zoomHelp": "Agrandir d'un nombre entier de pixels, pour que les petits textes restent nets. Un agrandissement fractionnaire les rendrait flous.",
+        "_comment_fixedSize": "A chip beside the scale controls, shown only when the picture leaves empty space in the tab AND nothing here can change the remote desktop's size — a VNC server, or an RDP one that refused the resize channel. It answers the question the user asks at exactly that spot: 'why does Fit not fill the tab?' Keep it short; it sits in a toolbar row beside the buttons. Do not soften it into 'the picture may not fill the tab' — the point is that this is the server's size, not a fault.",
+        "fixedSize": "Ce serveur fixe lui-même sa taille",
+        "_comment_fixedSizeHelp": "Tooltip on that chip. Say all three: nothing here can change the remote size, so the whole screen is shown with its proportions kept; a matching resolution is what fills the tab; and stretching the picture is deliberately not offered because it blurs remote text.",
+        "fixedSizeHelp": "Sur cette session, rien dans cet onglet ne peut changer la taille du bureau distant : l’écran entier est donc affiché en conservant ses proportions et il reste de l’espace à côté. Seul un bureau distant aux proportions de cet onglet le remplit ; étirer l’image rendrait le texte distant flou."
       }
     }
+  },
+  "close": {
+    "_comment_": "The question asked before a connected session is disconnected — from a tab's close button, a middle click, the close shortcut, the sessions panel, and the window's close control. A disconnect cannot be undone and interrupts work on the remote machine, so these strings must NAME WHAT IS AT STAKE rather than ask 'are you sure'. Do not shorten them into a generic confirmation.",
+    "_comment_tab": "One tab, one session. {name} is the connection's name from the vault and {target} is host:port as the server reported it — both are data, in any script, and neither is translated. bodyNoTarget is the same sentence for a session whose address is not known yet.",
+    "tab": {
+      "title": "Déconnecter {name} ?",
+      "body": "La session sur {target} se termine maintenant. Ce qui tourne sur l’ordinateur distant est interrompu en l’état, et se reconnecter ouvre une nouvelle session.",
+      "bodyNoTarget": "La session se termine maintenant. Ce qui tourne sur l’ordinateur distant est interrompu en l’état, et se reconnecter ouvre une nouvelle session."
+    },
+    "_comment_window": "Closing the whole window. ONE question for every session, never one per tab: {count} is how many are still connected, and saying the number is the whole point.",
+    "window": {
+      "title": "{count, plural, one {Fermer la fenêtre et déconnecter # session ?} many {Fermer la fenêtre et déconnecter # sessions ?} other {Fermer la fenêtre et déconnecter # sessions ?}}",
+      "body": "Fermer la fenêtre met fin à toutes les sessions encore connectées. Chacune est interrompue en l’état, et se reconnecter ouvre une nouvelle session.",
+      "_comment_listLabel": "Names the list for a screen reader. Not visible.",
+      "listLabel": "Sessions qui prendraient fin",
+      "_comment_transfers": "The total across every session in the window's question, under the list. Each row says its own count as well.",
+      "transfers": "{count, plural, one {# transfert de fichier est encore en cours et sera annulé.} many {# transferts de fichiers sont encore en cours et seront annulés.} other {# transferts de fichiers sont encore en cours et seront annulés.}}"
+    },
+    "_comment_transfers": "SECURITY-RELEVANT in the sense that matters here: it is the one thing the session knows it would destroy. Shown under the sentence above when a file transfer on this session is still queued or moving. Do not soften 'will be cancelled' into 'may be interrupted'.",
+    "transfers": "{count, plural, one {Sur cette session, # transfert de fichier est encore en cours et sera annulé.} many {Sur cette session, # transferts de fichiers sont encore en cours et seront annulés.} other {Sur cette session, # transferts de fichiers sont encore en cours et seront annulés.}}",
+    "_comment_rowTarget": "One line of the window's list. {name} is the connection's name and {target} is host:port; the preposition is the only translated part.",
+    "rowTarget": "{name} sur {target}",
+    "_comment_rowNoTarget": "The same line for a session whose address is not known.",
+    "rowNoTarget": "{name}",
+    "_comment_confirm": "The destructive button for one session. A verb, short.",
+    "confirm": "Déconnecter",
+    "_comment_confirmWindow": "The destructive button when the window is closing too.",
+    "confirmWindow": "Déconnecter et fermer",
+    "_comment_cancel": "The safe answer, and the one focus lands on. Say what staying means rather than 'Cancel' — a dialog with Cancel and Disconnect makes the reader work out which is which.",
+    "cancel": "Rester connecté",
+    "_comment_busy": "On the destructive button while the sessions are being closed.",
+    "busy": "Déconnexion…"
   },
   "framebuffer": {
     "_comment_": "What the interface says when a frame from the core could not be read. Each of these means the byte stream is not the shape the format defines, which is a defect rather than a network condition — so each says plainly that the picture may be wrong, and none of them blames the user or the server.",

@@ -1,6 +1,5 @@
 {
   "_comment_file": "The session area: the tab strip, the connect progress panel, the host key dialog, the status line, the find bar, the sessions and tunnels panel, and the add-forward dialog. Fetched when the first session opens, not at startup. READ THIS BEFORE TRANSLATING THE hostKey SECTION. Those strings are the whole of what a user has to decide on when a server presents a key that contradicts the one already trusted — which is either a rebuilt server or somebody reading the session. A translation that softens 'Someone may be intercepting this connection' into 'the key is different' changes what the user believes they are agreeing to. Translate the meaning and keep the weight. The same applies to forward.exposedHelp, which is the only warning before a port on this machine is opened to the local network.",
-
   "tab": {
     "_comment_": "One tab per session. Every label here is also a tooltip, so short wins.",
     "_comment_label": "Names the strip itself for a screen reader. Not visible.",
@@ -23,7 +22,6 @@
       "closed": "已结束"
     }
   },
-
   "connect": {
     "_comment_": "The panel drawn while a connect is in flight. It exists because a connect through two bastions can stall at any one of them, and 'which hop?' is the only useful question.",
     "title": "正在连接到 {name}",
@@ -61,7 +59,6 @@
       }
     }
   },
-
   "hostKey": {
     "_comment_": "SECURITY-CRITICAL, ALL OF IT. See the file comment. Two dialogs that must not read alike: 'unknown' is a first-use question with an ordinary answer, 'changed' is a possible interception with no ordinary answer at all.",
     "unknown": {
@@ -109,7 +106,6 @@
     "_comment_decisionRefused": "Title over the core's own message when it would not take the decision. The core's sentence follows underneath.",
     "decisionRefused": "该决定被拒绝了"
   },
-
   "status": {
     "_comment_": "The one-line status bar for the session in front. Everything in it is measured or reported, never estimated.",
     "state": {
@@ -150,7 +146,6 @@
     "_comment_rendererTitle": "Tooltip on the renderer note. WebKitGTK is the browser engine the window runs on and is a product name.",
     "rendererTitle": "终端实际拿到的是哪种渲染器。WebKitGTK 可能给出一个由软件光栅化的 WebGL 上下文，所以这里给的是实测结果，而不是假定结果。"
   },
-
   "renderer": {
     "_comment_": "What the terminal is drawing with, shown in the status bar and in the session panel. WebGL and DOM are the two technologies and are never translated; the reasons are prose and should be.",
     "_comment_notStarted": "No terminal has been created for this tab yet, so nothing has been chosen. Not an error.",
@@ -170,7 +165,6 @@
       "addonRefused": "WebGL 渲染器拒绝启动"
     }
   },
-
   "surface": {
     "_comment_": "The session area itself, and the notices that sit above it in the chrome rather than over it.",
     "_comment_terminalLabel": "The accessible name of one tab's terminal. Not visible.",
@@ -315,11 +309,46 @@
         "_comment_zoomStep": "On each magnification button. {factor} is 2, 3 or 4. The multiplication sign is notation, not a word.",
         "zoomStep": "{factor, number}×",
         "_comment_zoomHelp": "Tooltip on the magnification buttons. The reason for whole numbers only is worth keeping: a fractional zoom blurs text that was drawn for a pixel grid.",
-        "zoomHelp": "按整数倍像素放大，让小字保持清晰。非整数倍的放大会把它糊掉。"
+        "zoomHelp": "按整数倍像素放大，让小字保持清晰。非整数倍的放大会把它糊掉。",
+        "_comment_fixedSize": "A chip beside the scale controls, shown only when the picture leaves empty space in the tab AND nothing here can change the remote desktop's size — a VNC server, or an RDP one that refused the resize channel. It answers the question the user asks at exactly that spot: 'why does Fit not fill the tab?' Keep it short; it sits in a toolbar row beside the buttons. Do not soften it into 'the picture may not fill the tab' — the point is that this is the server's size, not a fault.",
+        "fixedSize": "此服务器自行决定尺寸",
+        "_comment_fixedSizeHelp": "Tooltip on that chip. Say all three: nothing here can change the remote size, so the whole screen is shown with its proportions kept; a matching resolution is what fills the tab; and stretching the picture is deliberately not offered because it blurs remote text.",
+        "fixedSizeHelp": "在这个会话中，标签页里没有任何操作能改变远程桌面的尺寸，因此整个屏幕按原比例完整显示，旁边留有空白。只有与此标签页比例相同的远程桌面才能填满它；拉伸画面则会让远程文字变得模糊。"
       }
     }
   },
-
+  "close": {
+    "_comment_": "The question asked before a connected session is disconnected — from a tab's close button, a middle click, the close shortcut, the sessions panel, and the window's close control. A disconnect cannot be undone and interrupts work on the remote machine, so these strings must NAME WHAT IS AT STAKE rather than ask 'are you sure'. Do not shorten them into a generic confirmation.",
+    "_comment_tab": "One tab, one session. {name} is the connection's name from the vault and {target} is host:port as the server reported it — both are data, in any script, and neither is translated. bodyNoTarget is the same sentence for a session whose address is not known yet.",
+    "tab": {
+      "title": "断开 {name}？",
+      "body": "这会立即结束 {target} 上的会话。远程计算机上正在运行的一切都会就地中断，重新连接会开启一个新的会话。",
+      "bodyNoTarget": "这会立即结束该会话。远程计算机上正在运行的一切都会就地中断，重新连接会开启一个新的会话。"
+    },
+    "_comment_window": "Closing the whole window. ONE question for every session, never one per tab: {count} is how many are still connected, and saying the number is the whole point.",
+    "window": {
+      "title": "{count, plural, other {关闭窗口并断开 # 个会话？}}",
+      "body": "关闭窗口会结束所有仍在连接的会话。每个会话都会就地中断，重新连接会开启一个新的会话。",
+      "_comment_listLabel": "Names the list for a screen reader. Not visible.",
+      "listLabel": "将要结束的会话",
+      "_comment_transfers": "The total across every session in the window's question, under the list. Each row says its own count as well.",
+      "transfers": "{count, plural, other {还有 # 项文件传输正在进行，将被取消。}}"
+    },
+    "_comment_transfers": "SECURITY-RELEVANT in the sense that matters here: it is the one thing the session knows it would destroy. Shown under the sentence above when a file transfer on this session is still queued or moving. Do not soften 'will be cancelled' into 'may be interrupted'.",
+    "transfers": "{count, plural, other {此会话中还有 # 项文件传输正在进行，将被取消。}}",
+    "_comment_rowTarget": "One line of the window's list. {name} is the connection's name and {target} is host:port; the preposition is the only translated part.",
+    "rowTarget": "{target} 上的 {name}",
+    "_comment_rowNoTarget": "The same line for a session whose address is not known.",
+    "rowNoTarget": "{name}",
+    "_comment_confirm": "The destructive button for one session. A verb, short.",
+    "confirm": "断开连接",
+    "_comment_confirmWindow": "The destructive button when the window is closing too.",
+    "confirmWindow": "断开并关闭",
+    "_comment_cancel": "The safe answer, and the one focus lands on. Say what staying means rather than 'Cancel' — a dialog with Cancel and Disconnect makes the reader work out which is which.",
+    "cancel": "保持连接",
+    "_comment_busy": "On the destructive button while the sessions are being closed.",
+    "busy": "正在断开…"
+  },
   "framebuffer": {
     "_comment_": "What the interface says when a frame from the core could not be read. Each of these means the byte stream is not the shape the format defines, which is a defect rather than a network condition — so each says plainly that the picture may be wrong, and none of them blames the user or the server.",
     "decode": {
@@ -333,7 +362,6 @@
       "cursorShape": "收到的指针形状是此版本读不出来的形式。"
     }
   },
-
   "warning": {
     "_comment_": "What a session warned about, shown in the session's own chrome above the picture — never over it, because a remote desktop uses all four of its edges. A count is always visible and opens the rest. SECURITY-CRITICAL IN PART: vncSecurityNone, vncCleartextRoutable and rdpNlaDisabled each describe a session that is not protecting something the user is likely to assume is protected. Translate the consequence, not just the fact. VNC, RFB, RDP and the algorithm names are protocol vocabulary and are never translated.",
     "_comment_count": "The one-line summary above the set. English says '1 notice' and '2 notices' alike; other languages do not.",
@@ -404,7 +432,6 @@
       "sshClipboardUnsupported": "终端会话没有自己的剪贴板。既读不到远端剪贴板，也没法向它提供文件。"
     }
   },
-
   "find": {
     "_comment_": "Find in the terminal's scrollback. Not a modal: the session keeps running behind it.",
     "_comment_label": "Names the bar for a screen reader and labels its field. 'scrollback' is the terminal's history of past output.",
@@ -417,7 +444,6 @@
     "_comment_noMatch": "Beside the field when the text is not in the scrollback. Lower case: it is a note, not an error.",
     "noMatch": "无匹配"
   },
-
   "panels": {
     "_comment_": "One panel, two panes: what is running, and what ports are open on this machine.",
     "_comment_label": "Names the panel for a screen reader.",
@@ -494,7 +520,6 @@
     "_comment_openCount": "Footer of the sessions pane. English says '1 open' and '2 open' alike; other languages do not.",
     "openCount": "{count, plural, =0 {无打开项} other {# 个打开中}}"
   },
-
   "forward": {
     "_comment_": "Opening a port forward. A forward runs on a connection of its own, so it belongs to a saved connection rather than to an open tab.",
     "title": "打开端口转发",
@@ -531,7 +556,6 @@
     "_comment_portInvalid": "Under a port field. The range is the TCP one and does not change between languages.",
     "portInvalid": "端口必须是 1 到 65535 之间的数字。"
   },
-
   "duration": {
     "_comment_": "Compact elapsed times: an uptime that ticks in a status bar, and the time one connect stage took. Two units at most, and the letters are abbreviations of the unit's name — use your language's, and keep them short enough for a narrow column. Every number arrives already written in the locale's own digits and with its own decimal separator, so place it and do not reformat it.",
     "_comment_daysHours": "Days and hours, e.g. '1d 6h'. Minutes are dropped at this scale because nobody is counting them.",

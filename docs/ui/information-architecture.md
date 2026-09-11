@@ -47,7 +47,12 @@ screen of their own:
   a destination in the title bar.
 
 A docked pane belongs to its tab and keeps running while another tab is in
-front: it holds a transfer queue, and a tab switch must not cancel a copy.
+front: it holds a transfer queue, and a tab switch must not cancel a copy. It is
+also the reason closing a tab asks before it disconnects: a copy the user
+started is the one interruption a session can see coming, and the confirmation
+names it. Every way out of a connected session goes through that one question —
+see [session-pipeline.md](../architecture/session-pipeline.md) §9 for the list
+of routes and the three places it deliberately stays quiet.
 
 Between the tab strip and the session content sit the rows of chrome that belong
 to the session — the warning count, a refused keystroke, and for a graphical

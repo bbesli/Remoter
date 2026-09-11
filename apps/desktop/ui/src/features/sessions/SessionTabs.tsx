@@ -11,17 +11,28 @@
  * the core's close, which returns once sockets are shut and cached secrets are
  * zeroized. A tab that disappeared first would be claiming something had
  * finished that had not.
+ *
+ * All three of this file's ways out — the `x`, a middle click, and the
+ * `tab.close` shortcut — go through `requestCloseTab`, which asks before it
+ * disconnects a session that is actually connected and goes straight through
+ * for one that has already ended. They are not allowed to differ: a
+ * confirmation the `x` respects and the shortcut does not is a confirmation
+ * that has taught the user the wrong thing.
+ *
+ * The spinner they used to set locally is gone with them. A close that is
+ * waiting on an answer is not in progress, and a control that spun while a
+ * dialog was up would be claiming otherwise; the dialog carries the wait now.
  */
 
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import clsx from "clsx";
 
 import { Icon } from "@/components/Icon";
-import { Spinner } from "@/components/Spinner";
 import { useShortcutGroup, type ShortcutEvent } from "@/hooks/keyboard";
 import { isolate, useT } from "@/i18n";
 import { useSessions, type SessionRecord } from "./store";
-import { closeTab, reconnect } from "./manager";
+import { requestCloseTab } from "./closing";
+import { reconnect } from "./manager";
 import { focusTerminal } from "./terminals";
 import type { ConnectPhase } from "./stages";
 
@@ -62,7 +73,6 @@ function dotState(record: SessionRecord): "connected" | "connecting" | "failed" 
 function SessionTab({ record, active }: { record: SessionRecord; active: boolean }) {
   const t = useT("sessions");
   const activate = useSessions((st) => st.activate);
-  const [closing, setClosing] = useState(false);
 
   const state = t(STATE_KEYS[record.phase]);
   const ended = record.phase === "failed" || record.phase === "closed";
@@ -91,11 +101,12 @@ function SessionTab({ record, active }: { record: SessionRecord; active: boolean
           focusTerminal(record.tabId);
         }}
         onAuxClick={(event) => {
-          // Middle click closes, as it does everywhere else tabs exist.
+          // Middle click closes, as it does everywhere else tabs exist — and
+          // it is the easiest of the three to do by accident, so it asks
+          // exactly as the others do.
           if (event.button !== 1) return;
           event.preventDefault();
-          setClosing(true);
-          void closeTab(record.tabId);
+          requestCloseTab(record.tabId);
         }}
       >
         <span className={s.dot} data-state={dotState(record)} title={state} aria-hidden="true" />
@@ -119,13 +130,11 @@ function SessionTab({ record, active }: { record: SessionRecord; active: boolean
         className={s.control}
         title={close}
         aria-label={close}
-        disabled={closing}
         onClick={() => {
-          setClosing(true);
-          void closeTab(record.tabId);
+          requestCloseTab(record.tabId);
         }}
       >
-        {closing ? <Spinner size={12} label={close} /> : <Icon name="x" size={12} />}
+        <Icon name="x" size={12} />
       </button>
     </div>
   );
@@ -178,7 +187,7 @@ export function SessionTabs() {
       activeTabId === null
         ? null
         : () => {
-            void closeTab(activeTabId);
+            requestCloseTab(activeTabId);
           },
     "tab.next": order.length < 2 ? null : () => step(1),
     "tab.previous": order.length < 2 ? null : () => step(-1),

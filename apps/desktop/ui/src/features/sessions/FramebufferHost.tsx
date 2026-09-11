@@ -66,6 +66,25 @@
  * The desktop size is not here at all any more. The status bar under the
  * session already shows it — see `SessionStatus` — so the overlay was covering
  * the Start button to repeat a figure that was on screen anyway.
+ *
+ * # Why Fit leaves a band, and where that is said
+ *
+ * `Fit` scales by `min(1, vw/dw, vh/dh)` on both axes — see `scaling.ts` — so a
+ * 16:9 desktop in a wider tab is drawn whole with space beside it. That is the
+ * arithmetic working, not failing, and the only thing that removes the band is
+ * a remote desktop shaped like the tab: either the server agreeing to resize
+ * (`Smart`), or the connection being made at a matching resolution. Ignoring
+ * the aspect ratio is not on the list — it stretches rasterised remote text
+ * into a smear, which is why no serious client offers it.
+ *
+ * On a server that will not resize, `Smart` is withdrawn — `manager.ts`
+ * `revokeResize` — and the user is then looking at a band with every control
+ * that could have removed it gone from the row. The warning that explains it
+ * exists, but it is a line in the session's notices, folded behind a count, and
+ * the question is asked *here*, at the scale controls. So {@link ScaleControls}
+ * is followed by one chip that answers it in the place it is asked. It is drawn
+ * only while there is actually a band: on a desktop that fills the tab, or one
+ * larger than it, the same sentence would be an answer to nothing.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -526,6 +545,26 @@ export function FramebufferHost({ record, active }: { record: SessionRecord; act
   const unavailable = surfaceUnavailable(tabId);
   const viewOnly = record.viewOnly === true;
   const hasPixels = status.width > 0 && status.height > 0;
+
+  /**
+   * Whether the picture leaves empty tab beside or below it, and nothing here
+   * can change that.
+   *
+   * Two facts, and the chip needs both. `fixedSize` is the session's: the
+   * remote desktop's size is not ours to set — a VNC server, which cannot be
+   * asked at all, or an RDP one that never opened MS-RDPEDISP, in which case
+   * `revokeResize` has already taken Smart out of the row above. `banded` is
+   * the geometry's: the drawn picture is smaller than the stage on at least one
+   * axis. Without the second, the sentence would be shown to someone who is not
+   * looking at a band and has not asked the question.
+   */
+  const fixedSize = record.opened !== null && !record.opened.capabilities.resizable;
+  const banded =
+    hasPixels &&
+    viewport.width > 0 &&
+    viewport.height > 0 &&
+    (layout.width < viewport.width || layout.height < viewport.height);
+  const explainBands = record.phase === "running" && fixedSize && banded;
   // Nothing is sent from a view-only session, from a tab that is not in front,
   // or before the core has named the session. `live` gates the handlers
   // themselves, not a refusal inside them — a view-only session has no key
@@ -778,6 +817,17 @@ export function FramebufferHost({ record, active }: { record: SessionRecord; act
           )}
 
           <ScaleControls record={record} />
+
+          {/* Beside the controls, because that is where the question is asked:
+              the user reaches for Fit, sees a band, and concludes Fit is
+              broken. The tooltip carries the rest of the answer — that a
+              matching resolution is what fills the tab, and that stretching the
+              picture is not on offer because it would blur the remote text. */}
+          {explainBands && (
+            <span className={s.fixedSize} title={t("surface.framebuffer.scale.fixedSizeHelp")}>
+              {t("surface.framebuffer.scale.fixedSize")}
+            </span>
+          )}
 
           {viewOnly && (
             <Badge tone="warning" title={t("surface.framebuffer.viewOnlyHelp")}>

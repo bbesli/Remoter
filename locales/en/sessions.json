@@ -1,6 +1,5 @@
 {
   "_comment_file": "The session area: the tab strip, the connect progress panel, the host key dialog, the status line, the find bar, the sessions and tunnels panel, and the add-forward dialog. Fetched when the first session opens, not at startup. READ THIS BEFORE TRANSLATING THE hostKey SECTION. Those strings are the whole of what a user has to decide on when a server presents a key that contradicts the one already trusted — which is either a rebuilt server or somebody reading the session. A translation that softens 'Someone may be intercepting this connection' into 'the key is different' changes what the user believes they are agreeing to. Translate the meaning and keep the weight. The same applies to forward.exposedHelp, which is the only warning before a port on this machine is opened to the local network.",
-
   "tab": {
     "_comment_": "One tab per session. Every label here is also a tooltip, so short wins.",
     "_comment_label": "Names the strip itself for a screen reader. Not visible.",
@@ -23,7 +22,6 @@
       "closed": "ended"
     }
   },
-
   "connect": {
     "_comment_": "The panel drawn while a connect is in flight. It exists because a connect through two bastions can stall at any one of them, and 'which hop?' is the only useful question.",
     "title": "Connecting to {name}",
@@ -61,7 +59,6 @@
       }
     }
   },
-
   "hostKey": {
     "_comment_": "SECURITY-CRITICAL, ALL OF IT. See the file comment. Two dialogs that must not read alike: 'unknown' is a first-use question with an ordinary answer, 'changed' is a possible interception with no ordinary answer at all.",
     "unknown": {
@@ -109,7 +106,6 @@
     "_comment_decisionRefused": "Title over the core's own message when it would not take the decision. The core's sentence follows underneath.",
     "decisionRefused": "That decision was refused"
   },
-
   "status": {
     "_comment_": "The one-line status bar for the session in front. Everything in it is measured or reported, never estimated.",
     "state": {
@@ -150,7 +146,6 @@
     "_comment_rendererTitle": "Tooltip on the renderer note. WebKitGTK is the browser engine the window runs on and is a product name.",
     "rendererTitle": "Which renderer the terminal got. WebKitGTK can hand out a software-rasterised WebGL context, so this is the checked answer rather than the assumed one."
   },
-
   "renderer": {
     "_comment_": "What the terminal is drawing with, shown in the status bar and in the session panel. WebGL and DOM are the two technologies and are never translated; the reasons are prose and should be.",
     "_comment_notStarted": "No terminal has been created for this tab yet, so nothing has been chosen. Not an error.",
@@ -170,7 +165,6 @@
       "addonRefused": "the WebGL renderer refused to start"
     }
   },
-
   "surface": {
     "_comment_": "The session area itself, and the notices that sit above it in the chrome rather than over it.",
     "_comment_terminalLabel": "The accessible name of one tab's terminal. Not visible.",
@@ -233,7 +227,6 @@
       "_comment_decisionRefused": "Title over the core's own message when it would not take the decision. The core's sentence follows underneath.",
       "decisionRefused": "That decision was refused"
     },
-
     "prompt": {
       "_comment_": "The server asked for something mid-handshake that this build cannot answer. A certificate question is NOT one of these — it is answerable, and it gets the dialog above.",
       "title": "The server is asking for something this version cannot answer",
@@ -257,14 +250,12 @@
     "reconnectNotice": "reconnecting",
     "_comment_inputRefused": "Over the core's message when a keystroke was not delivered — a frozen session, most often. Says what did not happen rather than 'an error occurred'.",
     "inputRefused": "The last keystroke did not reach the server",
-
     "framebuffer": {
       "_comment_": "The screen an RDP or VNC session is seen on, and driven from. Keys and clicks go to the remote host while this screen has focus, so the strings under input describe a live rule the user has to be able to act on, not decoration. RDP and VNC are protocol names and are never translated.",
       "_comment_label": "The accessible name of the remote screen. Not visible. {name} is the connection's name, from the vault: user data, in any script.",
       "label": "Remote screen for {name}",
       "_comment_toolbarLabel": "Names the tab's toolbar for a screen reader — the row of controls between the tab strip and the remote screen, where the send-key and scale buttons live. Not visible. The controls are there, and not over the picture, because a remote desktop uses all four of its own edges.",
       "toolbarLabel": "Remote screen controls",
-
       "input": {
         "_comment_": "The keyboard and pointer of a live graphical session. clickToType and capturing occupy the same slot at the inline end of the tab's toolbar, above the picture, and are read one after the other by the same person: the first says how to start, the second says what changed once they did. Neither is ever drawn over the remote screen — a remote desktop uses all four of its own edges, so there is nowhere on it that is free.",
         "_comment_clickToType": "Shown while the remote screen does not have keyboard focus, and only until the first time it is clicked. It is an instruction, not a warning: clicking the screen is what sends keys to it, and once that has been done it has nothing left to say.",
@@ -282,27 +273,22 @@
         "_comment_altTabHelp": "Tooltip. Same reason as above: the local window manager takes Alt+Tab first.",
         "altTabHelp": "Switch windows on the remote computer. Your own window manager takes Alt+Tab before this window sees it, so it can only be sent from here."
       },
-
       "_comment_viewOnly": "Badge on a session whose saved settings say view-only. Lower case, two words, the shortest true label.",
       "viewOnly": "view only",
       "_comment_viewOnlyHelp": "Tooltip on that badge.",
       "viewOnlyHelp": "This connection is saved as view-only, so nothing is sent to the remote host on it.",
       "_comment_viewOnlyNotice": "SECURITY-RELEVANT. The standing notice on a view-only session, beside the badge. A statement of fact in the present tense: this session does not send, and the screen is live all the same. Do not soften it to 'input may not work' — a user who believes they are typing into a production server and is not has been misled either way.",
       "viewOnlyNotice": "This session is saved as view-only. The picture is live, but nothing you type or click is sent to the remote computer.",
-
       "_comment_stale": "Shown when the sequence counter skipped, which means the core dropped a frame under load and part of the picture is older than the remote screen. Says what is wrong with what is on screen, and that it repairs itself.",
       "stale": "A frame was dropped, so part of this picture may be out of date. It is repaired at the next full refresh.",
       "_comment_awaitingFirstFrame": "Before the first frame has arrived. The session is connected; there is simply nothing to draw yet.",
       "awaitingFirstFrame": "Waiting for the first frame…",
       "_comment_noContext": "This window could not create the drawing surface at all. A real failure and worded as one, because the alternative is a black rectangle with no explanation.",
       "noContext": "This window could not create a drawing surface, so the remote screen cannot be shown. Closing and reopening the tab may work; reporting it is more useful.",
-
-
       "_comment_pointerShape": "Label beside a small picture of the pointer the remote host has set. Shown only where that shape cannot become this window's own cursor — on a view-only session, whose remote pointer is not where the local one is, and on a shape too large for a cursor. It is worth showing: an hourglass means the far end is busy.",
       "pointerShape": "pointer shape",
       "_comment_pointerShapeHelp": "Tooltip on it.",
       "pointerShapeHelp": "The pointer shape the remote host has set. It is shown here rather than used as your mouse cursor, because your pointer is not driving this session's.",
-
       "scale": {
         "_comment_": "How the remote screen is fitted into the tab. Each label is a control and each Help is its tooltip. Keep the labels short — they sit in a row of four to six.",
         "_comment_label": "Names the group of controls for a screen reader.",
@@ -323,11 +309,46 @@
         "_comment_zoomStep": "On each magnification button. {factor} is 2, 3 or 4. The multiplication sign is notation, not a word.",
         "zoomStep": "{factor, number}×",
         "_comment_zoomHelp": "Tooltip on the magnification buttons. The reason for whole numbers only is worth keeping: a fractional zoom blurs text that was drawn for a pixel grid.",
-        "zoomHelp": "Magnify by a whole number of pixels, so small text stays sharp. Fractional magnification would blur it."
+        "zoomHelp": "Magnify by a whole number of pixels, so small text stays sharp. Fractional magnification would blur it.",
+        "_comment_fixedSize": "A chip beside the scale controls, shown only when the picture leaves empty space in the tab AND nothing here can change the remote desktop's size — a VNC server, or an RDP one that refused the resize channel. It answers the question the user asks at exactly that spot: 'why does Fit not fill the tab?' Keep it short; it sits in a toolbar row beside the buttons. Do not soften it into 'the picture may not fill the tab' — the point is that this is the server's size, not a fault.",
+        "fixedSize": "This server sets its own size",
+        "_comment_fixedSizeHelp": "Tooltip on that chip. Say all three: nothing here can change the remote size, so the whole screen is shown with its proportions kept; a matching resolution is what fills the tab; and stretching the picture is deliberately not offered because it blurs remote text.",
+        "fixedSizeHelp": "Nothing in this tab can change the remote desktop's size on this session, so the whole screen is shown with its proportions kept and there is space beside it. A remote desktop shaped like this tab is what fills it; stretching the picture instead would blur the remote text."
       }
     }
   },
-
+  "close": {
+    "_comment_": "The question asked before a connected session is disconnected — from a tab's close button, a middle click, the close shortcut, the sessions panel, and the window's close control. A disconnect cannot be undone and interrupts work on the remote machine, so these strings must NAME WHAT IS AT STAKE rather than ask 'are you sure'. Do not shorten them into a generic confirmation.",
+    "_comment_tab": "One tab, one session. {name} is the connection's name from the vault and {target} is host:port as the server reported it — both are data, in any script, and neither is translated. bodyNoTarget is the same sentence for a session whose address is not known yet.",
+    "tab": {
+      "title": "Disconnect {name}?",
+      "body": "This ends the session on {target} now. Whatever is running on the remote computer is interrupted where it is, and reconnecting starts a new session.",
+      "bodyNoTarget": "This ends the session now. Whatever is running on the remote computer is interrupted where it is, and reconnecting starts a new session."
+    },
+    "_comment_window": "Closing the whole window. ONE question for every session, never one per tab: {count} is how many are still connected, and saying the number is the whole point.",
+    "window": {
+      "title": "{count, plural, one {Close the window and disconnect # session?} other {Close the window and disconnect # sessions?}}",
+      "body": "Closing the window ends every session that is still connected. Each one is interrupted where it is, and reconnecting starts a new session.",
+      "_comment_listLabel": "Names the list for a screen reader. Not visible.",
+      "listLabel": "Sessions that would end",
+      "_comment_transfers": "The total across every session in the window's question, under the list. Each row says its own count as well.",
+      "transfers": "{count, plural, one {# file transfer is still running and will be cancelled.} other {# file transfers are still running and will be cancelled.}}"
+    },
+    "_comment_transfers": "SECURITY-RELEVANT in the sense that matters here: it is the one thing the session knows it would destroy. Shown under the sentence above when a file transfer on this session is still queued or moving. Do not soften 'will be cancelled' into 'may be interrupted'.",
+    "transfers": "{count, plural, one {# file transfer on this session is still running and will be cancelled.} other {# file transfers on this session are still running and will be cancelled.}}",
+    "_comment_rowTarget": "One line of the window's list. {name} is the connection's name and {target} is host:port; the preposition is the only translated part.",
+    "rowTarget": "{name} on {target}",
+    "_comment_rowNoTarget": "The same line for a session whose address is not known.",
+    "rowNoTarget": "{name}",
+    "_comment_confirm": "The destructive button for one session. A verb, short.",
+    "confirm": "Disconnect",
+    "_comment_confirmWindow": "The destructive button when the window is closing too.",
+    "confirmWindow": "Disconnect and close",
+    "_comment_cancel": "The safe answer, and the one focus lands on. Say what staying means rather than 'Cancel' — a dialog with Cancel and Disconnect makes the reader work out which is which.",
+    "cancel": "Stay connected",
+    "_comment_busy": "On the destructive button while the sessions are being closed.",
+    "busy": "Disconnecting…"
+  },
   "framebuffer": {
     "_comment_": "What the interface says when a frame from the core could not be read. Each of these means the byte stream is not the shape the format defines, which is a defect rather than a network condition — so each says plainly that the picture may be wrong, and none of them blames the user or the server.",
     "decode": {
@@ -341,7 +362,6 @@
       "cursorShape": "A pointer shape arrived in a form this build could not read."
     }
   },
-
   "warning": {
     "_comment_": "What a session warned about, shown in the session's own chrome above the picture — never over it, because a remote desktop uses all four of its edges. A count is always visible and opens the rest. SECURITY-CRITICAL IN PART: vncSecurityNone, vncCleartextRoutable and rdpNlaDisabled each describe a session that is not protecting something the user is likely to assume is protected. Translate the consequence, not just the fact. VNC, RFB, RDP and the algorithm names are protocol vocabulary and are never translated.",
     "_comment_count": "The one-line summary above the set. English says '1 notice' and '2 notices' alike; other languages do not.",
@@ -351,7 +371,6 @@
     "show": "Show",
     "_comment_unnamedDetail": "Shown under a warning this build has no sentence for. {key} is the core's own identifier for it, printed as itself so a bug report can name it. Do not translate the key.",
     "unnamedDetail": "Reported as: {key}",
-
     "kind": {
       "_comment_": "The fallbacks, used when the core names a warning without a detail this build recognises.",
       "_comment_unencryptedTransport": "SECURITY-CRITICAL. Something about this session is travelling in the clear and the core did not say which part.",
@@ -367,7 +386,6 @@
       "_comment_other": "A warning this build has no sentence for. The core's own identifier follows underneath.",
       "other": "The session reported something this build has no wording for."
     },
-
     "detail": {
       "_comment_": "The named warnings the protocol adapters actually raise. Each maps to a constant in crates/remoter-proto-vnc or crates/remoter-proto-rdp, so the set is finite and closed.",
       "_comment_vncCleartextLoopback": "RFB with no encryption, to this machine. The least serious of the three: nothing leaves the machine.",
@@ -400,7 +418,7 @@
       "vncClipboardUnsupported": "VNC carries clipboard text only. Files cannot be offered over it, and the remote clipboard cannot be read on request.",
       "_comment_rdpNlaDisabled": "SECURITY-CRITICAL. Without Network Level Authentication the credentials go to whatever answered the port, before anything has proved it is the right machine. Network Level Authentication is Microsoft's name for the mechanism; keep it, and keep NLA if your language uses the abbreviation.",
       "rdpNlaDisabled": "This RDP connection has Network Level Authentication turned off, so the credentials are sent to whatever answered the port before it has proved what it is.",
-      "_comment_rdpKeyboardLayoutGuessed": "This build could not work out which keyboard layout this machine uses, and the session is running on US English. The server decodes the scancodes this client sends using the layout the connection names, so on any other keyboard the wrong characters appear and nothing reports a fault \u2014 which is why this is stated rather than left silent. Say what the user can do about it: the layout is a setting on the connection.",
+      "_comment_rdpKeyboardLayoutGuessed": "This build could not work out which keyboard layout this machine uses, and the session is running on US English. The server decodes the scancodes this client sends using the layout the connection names, so on any other keyboard the wrong characters appear and nothing reports a fault — which is why this is stated rather than left silent. Say what the user can do about it: the layout is a setting on the connection.",
       "rdpKeyboardLayoutGuessed": "Remoter could not tell which keyboard layout this machine uses, so this session assumes US English. On any other keyboard some keys will type the wrong character. Set the keyboard layout on the connection to fix it.",
       "_comment_rdpDisplayControlUnavailable": "Not a security matter: the server did not open the channel that lets the desktop be resized. It explains why Smart does nothing on this server.",
       "rdpDisplayControlUnavailable": "This server did not open the channel that resizes its desktop, so the size of this tab cannot change it. Fit or 1:1 will still show the whole screen.",
@@ -414,7 +432,6 @@
       "sshClipboardUnsupported": "A terminal session has no clipboard of its own. The remote clipboard cannot be read, and files cannot be offered to it."
     }
   },
-
   "find": {
     "_comment_": "Find in the terminal's scrollback. Not a modal: the session keeps running behind it.",
     "_comment_label": "Names the bar for a screen reader and labels its field. 'scrollback' is the terminal's history of past output.",
@@ -427,7 +444,6 @@
     "_comment_noMatch": "Beside the field when the text is not in the scrollback. Lower case: it is a note, not an error.",
     "noMatch": "no match"
   },
-
   "panels": {
     "_comment_": "One panel, two panes: what is running, and what ports are open on this machine.",
     "_comment_label": "Names the panel for a screen reader.",
@@ -504,7 +520,6 @@
     "_comment_openCount": "Footer of the sessions pane. English says '1 open' and '2 open' alike; other languages do not.",
     "openCount": "{count, plural, =0 {nothing open} one {# open} other {# open}}"
   },
-
   "forward": {
     "_comment_": "Opening a port forward. A forward runs on a connection of its own, so it belongs to a saved connection rather than to an open tab.",
     "title": "Open a port forward",
@@ -541,7 +556,6 @@
     "_comment_portInvalid": "Under a port field. The range is the TCP one and does not change between languages.",
     "portInvalid": "A port is a number from 1 to 65535."
   },
-
   "duration": {
     "_comment_": "Compact elapsed times: an uptime that ticks in a status bar, and the time one connect stage took. Two units at most, and the letters are abbreviations of the unit's name — use your language's, and keep them short enough for a narrow column. Every number arrives already written in the locale's own digits and with its own decimal separator, so place it and do not reformat it.",
     "_comment_daysHours": "Days and hours, e.g. '1d 6h'. Minutes are dropped at this scale because nobody is counting them.",

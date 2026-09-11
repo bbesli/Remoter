@@ -24,3 +24,7 @@
 
 export { FileSessionHost } from "./FileSessionHost";
 export { FilePane } from "./FilePane";
+// Not a pane and not a component: what a live session would interrupt if it
+// were disconnected now. The sessions feature asks before closing a tab, and
+// this is the half of that answer only the file manager knows.
+export { liveTransfersFor, resetLiveTransfers } from "./liveTransfers";

@@ -1,6 +1,5 @@
 {
   "_comment_file": "The session area: the tab strip, the connect progress panel, the host key dialog, the status line, the find bar, the sessions and tunnels panel, and the add-forward dialog. Fetched when the first session opens, not at startup. READ THIS BEFORE TRANSLATING THE hostKey SECTION. Those strings are the whole of what a user has to decide on when a server presents a key that contradicts the one already trusted — which is either a rebuilt server or somebody reading the session. A translation that softens 'Someone may be intercepting this connection' into 'the key is different' changes what the user believes they are agreeing to. Translate the meaning and keep the weight. The same applies to forward.exposedHelp, which is the only warning before a port on this machine is opened to the local network.",
-
   "tab": {
     "_comment_": "One tab per session. Every label here is also a tooltip, so short wins.",
     "_comment_label": "Names the strip itself for a screen reader. Not visible.",
@@ -23,7 +22,6 @@
       "closed": "sona erdi"
     }
   },
-
   "connect": {
     "_comment_": "The panel drawn while a connect is in flight. It exists because a connect through two bastions can stall at any one of them, and 'which hop?' is the only useful question.",
     "title": "{name} bağlantısı kuruluyor",
@@ -61,7 +59,6 @@
       }
     }
   },
-
   "hostKey": {
     "_comment_": "SECURITY-CRITICAL, ALL OF IT. See the file comment. Two dialogs that must not read alike: 'unknown' is a first-use question with an ordinary answer, 'changed' is a possible interception with no ordinary answer at all.",
     "unknown": {
@@ -109,7 +106,6 @@
     "_comment_decisionRefused": "Title over the core's own message when it would not take the decision. The core's sentence follows underneath.",
     "decisionRefused": "Bu karar reddedildi"
   },
-
   "status": {
     "_comment_": "The one-line status bar for the session in front. Everything in it is measured or reported, never estimated.",
     "state": {
@@ -150,7 +146,6 @@
     "_comment_rendererTitle": "Tooltip on the renderer note. WebKitGTK is the browser engine the window runs on and is a product name.",
     "rendererTitle": "Terminalin hangi oluşturucuyu aldığı. WebKitGTK, yazılımla taranan bir WebGL bağlamı verebildiği için bu, varsayılan değil denetlenmiş yanıttır."
   },
-
   "renderer": {
     "_comment_": "What the terminal is drawing with, shown in the status bar and in the session panel. WebGL and DOM are the two technologies and are never translated; the reasons are prose and should be.",
     "_comment_notStarted": "No terminal has been created for this tab yet, so nothing has been chosen. Not an error.",
@@ -170,7 +165,6 @@
       "addonRefused": "WebGL oluşturucu başlamayı reddetti"
     }
   },
-
   "surface": {
     "_comment_": "The session area itself, and the notices that sit above it in the chrome rather than over it.",
     "_comment_terminalLabel": "The accessible name of one tab's terminal. Not visible.",
@@ -315,11 +309,46 @@
         "_comment_zoomStep": "On each magnification button. {factor} is 2, 3 or 4. The multiplication sign is notation, not a word.",
         "zoomStep": "{factor, number}×",
         "_comment_zoomHelp": "Tooltip on the magnification buttons. The reason for whole numbers only is worth keeping: a fractional zoom blurs text that was drawn for a pixel grid.",
-        "zoomHelp": "Piksel sayısının tam katları kadar büyütür; böylece küçük metin keskin kalır. Kesirli büyütme onu bulanıklaştırırdı."
+        "zoomHelp": "Piksel sayısının tam katları kadar büyütür; böylece küçük metin keskin kalır. Kesirli büyütme onu bulanıklaştırırdı.",
+        "_comment_fixedSize": "A chip beside the scale controls, shown only when the picture leaves empty space in the tab AND nothing here can change the remote desktop's size — a VNC server, or an RDP one that refused the resize channel. It answers the question the user asks at exactly that spot: 'why does Fit not fill the tab?' Keep it short; it sits in a toolbar row beside the buttons. Do not soften it into 'the picture may not fill the tab' — the point is that this is the server's size, not a fault.",
+        "fixedSize": "Bu sunucu kendi boyutunu belirliyor",
+        "_comment_fixedSizeHelp": "Tooltip on that chip. Say all three: nothing here can change the remote size, so the whole screen is shown with its proportions kept; a matching resolution is what fills the tab; and stretching the picture is deliberately not offered because it blurs remote text.",
+        "fixedSizeHelp": "Bu oturumda uzak masaüstünün boyutu bu sekmeden değiştirilemez; bu yüzden ekranın tamamı oranları korunarak gösteriliyor ve yanında boşluk kalıyor. Sekmeyi ancak aynı oranlara sahip bir uzak masaüstü doldurur; görüntüyü esnetmek uzaktaki yazıyı bulanıklaştırırdı."
       }
     }
   },
-
+  "close": {
+    "_comment_": "The question asked before a connected session is disconnected — from a tab's close button, a middle click, the close shortcut, the sessions panel, and the window's close control. A disconnect cannot be undone and interrupts work on the remote machine, so these strings must NAME WHAT IS AT STAKE rather than ask 'are you sure'. Do not shorten them into a generic confirmation.",
+    "_comment_tab": "One tab, one session. {name} is the connection's name from the vault and {target} is host:port as the server reported it — both are data, in any script, and neither is translated. bodyNoTarget is the same sentence for a session whose address is not known yet.",
+    "tab": {
+      "title": "{name} bağlantısı kesilsin mi?",
+      "body": "Bu, {target} üzerindeki oturumu hemen sonlandırır. Uzak bilgisayarda çalışan ne varsa olduğu yerde kesilir ve yeniden bağlanmak yeni bir oturum başlatır.",
+      "bodyNoTarget": "Bu, oturumu hemen sonlandırır. Uzak bilgisayarda çalışan ne varsa olduğu yerde kesilir ve yeniden bağlanmak yeni bir oturum başlatır."
+    },
+    "_comment_window": "Closing the whole window. ONE question for every session, never one per tab: {count} is how many are still connected, and saying the number is the whole point.",
+    "window": {
+      "title": "{count, plural, one {Pencere kapatılsın ve # oturumun bağlantısı kesilsin mi?} other {Pencere kapatılsın ve # oturumun bağlantısı kesilsin mi?}}",
+      "body": "Pencereyi kapatmak hâlâ bağlı olan bütün oturumları sonlandırır. Her biri olduğu yerde kesilir ve yeniden bağlanmak yeni bir oturum başlatır.",
+      "_comment_listLabel": "Names the list for a screen reader. Not visible.",
+      "listLabel": "Sona erecek oturumlar",
+      "_comment_transfers": "The total across every session in the window's question, under the list. Each row says its own count as well.",
+      "transfers": "{count, plural, one {# dosya aktarımı hâlâ sürüyor ve iptal edilecek.} other {# dosya aktarımı hâlâ sürüyor ve iptal edilecek.}}"
+    },
+    "_comment_transfers": "SECURITY-RELEVANT in the sense that matters here: it is the one thing the session knows it would destroy. Shown under the sentence above when a file transfer on this session is still queued or moving. Do not soften 'will be cancelled' into 'may be interrupted'.",
+    "transfers": "{count, plural, one {Bu oturumda # dosya aktarımı hâlâ sürüyor ve iptal edilecek.} other {Bu oturumda # dosya aktarımı hâlâ sürüyor ve iptal edilecek.}}",
+    "_comment_rowTarget": "One line of the window's list. {name} is the connection's name and {target} is host:port; the preposition is the only translated part.",
+    "rowTarget": "{target} üzerinde {name}",
+    "_comment_rowNoTarget": "The same line for a session whose address is not known.",
+    "rowNoTarget": "{name}",
+    "_comment_confirm": "The destructive button for one session. A verb, short.",
+    "confirm": "Bağlantıyı kes",
+    "_comment_confirmWindow": "The destructive button when the window is closing too.",
+    "confirmWindow": "Bağlantıyı kes ve kapat",
+    "_comment_cancel": "The safe answer, and the one focus lands on. Say what staying means rather than 'Cancel' — a dialog with Cancel and Disconnect makes the reader work out which is which.",
+    "cancel": "Bağlı kal",
+    "_comment_busy": "On the destructive button while the sessions are being closed.",
+    "busy": "Bağlantı kesiliyor…"
+  },
   "framebuffer": {
     "_comment_": "What the interface says when a frame from the core could not be read. Each of these means the byte stream is not the shape the format defines, which is a defect rather than a network condition — so each says plainly that the picture may be wrong, and none of them blames the user or the server.",
     "decode": {
@@ -333,7 +362,6 @@
       "cursorShape": "Bir imleç biçimi, bu sürümün okuyamadığı bir biçimde geldi."
     }
   },
-
   "warning": {
     "_comment_": "What a session warned about, shown in the session's own chrome above the picture — never over it, because a remote desktop uses all four of its edges. A count is always visible and opens the rest. SECURITY-CRITICAL IN PART: vncSecurityNone, vncCleartextRoutable and rdpNlaDisabled each describe a session that is not protecting something the user is likely to assume is protected. Translate the consequence, not just the fact. VNC, RFB, RDP and the algorithm names are protocol vocabulary and are never translated.",
     "_comment_count": "The one-line summary above the set. English says '1 notice' and '2 notices' alike; other languages do not.",
@@ -404,7 +432,6 @@
       "sshClipboardUnsupported": "Bir terminal oturumunun kendine ait bir panosu yoktur. Uzak pano okunamaz ve ona dosya sunulamaz."
     }
   },
-
   "find": {
     "_comment_": "Find in the terminal's scrollback. Not a modal: the session keeps running behind it.",
     "_comment_label": "Names the bar for a screen reader and labels its field. 'scrollback' is the terminal's history of past output.",
@@ -417,7 +444,6 @@
     "_comment_noMatch": "Beside the field when the text is not in the scrollback. Lower case: it is a note, not an error.",
     "noMatch": "eşleşme yok"
   },
-
   "panels": {
     "_comment_": "One panel, two panes: what is running, and what ports are open on this machine.",
     "_comment_label": "Names the panel for a screen reader.",
@@ -494,7 +520,6 @@
     "_comment_openCount": "Footer of the sessions pane. English says '1 open' and '2 open' alike; other languages do not.",
     "openCount": "{count, plural, =0 {açık yok} one {# açık} other {# açık}}"
   },
-
   "forward": {
     "_comment_": "Opening a port forward. A forward runs on a connection of its own, so it belongs to a saved connection rather than to an open tab.",
     "title": "Port yönlendirmesi aç",
@@ -531,7 +556,6 @@
     "_comment_portInvalid": "Under a port field. The range is the TCP one and does not change between languages.",
     "portInvalid": "Port, 1 ile 65535 arasında bir sayıdır."
   },
-
   "duration": {
     "_comment_": "Compact elapsed times: an uptime that ticks in a status bar, and the time one connect stage took. Two units at most, and the letters are abbreviations of the unit's name — use your language's, and keep them short enough for a narrow column. Every number arrives already written in the locale's own digits and with its own decimal separator, so place it and do not reformat it.",
     "_comment_daysHours": "Days and hours, e.g. '1d 6h'. Minutes are dropped at this scale because nobody is counting them.",

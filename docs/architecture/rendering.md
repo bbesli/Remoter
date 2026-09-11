@@ -402,6 +402,28 @@ Capabilities are read once, when the tab opens, and this one is not knowable
 then; until an event carries the revision, a warning is the only thing that
 crosses IPC at the moment the truth is learned.
 
+### On a server that cannot resize, the empty tab is explained, not filled
+
+Withdrawing Smart is correct and it is not sufficient. What the user is then
+looking at is Fit doing exactly what it is specified to do — `min(1, vw/dw,
+vh/dh)` on both axes — which on a 16:9 desktop in a wider tab leaves a band down
+each side, with every control that could have removed it now gone from the row.
+The reading that follows is "Fit does not fit", and the warning that would
+correct it is a line in the session's notices behind a count, several inches
+from the place the question is asked.
+
+So the interface **says why, beside the scale controls**: a chip in the
+graphical session's own toolbar, drawn only while there is actually a band and
+only while nothing in the tab can change the remote size. Its tooltip names the
+one thing that does remove the band — a remote desktop at the tab's proportions
+— and says that stretching the picture is deliberately not offered.
+
+**There is no stretch-to-fill mode and there will not be one.** Ignoring the
+aspect ratio resamples rasterised remote text along one axis only, which is the
+grey-smear failure the integer-zoom rule above exists to avoid, in its worst
+form. Every serious client behaves this way; the honest fix for a band is a
+matching resolution, and the honest interface is one that says so.
+
 ## Remote text, and where it is allowed to render
 
 Pixels are not the only thing the far end draws with. A login banner, a
