@@ -67,7 +67,20 @@ git clone https://github.com/bbesli/Remoter.git
 cd Remoter
 npm install --prefix apps/desktop/ui
 cargo build --workspace
-npm run tauri dev
+cd apps/desktop && ./ui/node_modules/.bin/tauri dev
+```
+
+The Tauri CLI searches for `tauri.conf.json` in the directories **below** the
+one it runs from, and this workspace keeps it in `apps/desktop/src-tauri`. So
+the CLI runs from `apps/desktop`, while npm installed it under
+`apps/desktop/ui/node_modules` — hence the two different paths on one line.
+Running it from `apps/desktop/ui` fails with "Couldn't recognize the current
+folder as a Tauri project", which is the same mistake with a confusing message.
+
+On Windows, in PowerShell:
+
+```powershell
+cd apps\desktop; .\ui\node_modules\.bin\tauri.cmd dev
 ```
 
 ## The loop
@@ -90,9 +103,12 @@ npm test
 
 Full application:
 
+From `apps/desktop`, not from `apps/desktop/ui` — see **First build** above:
+
 ```bash
-npm run tauri dev    # hot reload for the frontend, rebuild for Rust changes
-npm run tauri build  # release bundle for the current platform
+./ui/node_modules/.bin/tauri dev              # hot reload for the frontend
+./ui/node_modules/.bin/tauri build            # installer for this platform
+./ui/node_modules/.bin/tauri build --no-bundle  # the executable alone
 ```
 
 ## Integration fixtures
@@ -150,7 +166,7 @@ time.
 distribution above. Note the `4.1` — Tauri v2 does not use 4.0.
 
 **Blank window on Linux.** Usually a WebKitGTK compositing problem. Try
-`WEBKIT_DISABLE_DMABUF_RENDERER=1 npm run tauri dev`. If that fixes it, hardware
+`WEBKIT_DISABLE_DMABUF_RENDERER=1 ./ui/node_modules/.bin/tauri dev`. If that fixes it, hardware
 acceleration is not working — worth reporting, because it directly affects
 framebuffer rendering performance.
 

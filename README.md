@@ -162,10 +162,36 @@ lists them per distribution.
 git clone https://github.com/bbesli/Remoter.git
 cd Remoter
 npm install --prefix apps/desktop/ui
-npm run tauri dev --prefix apps/desktop/ui
 ```
 
-On Linux, `scripts/install-local.sh` builds a release binary and installs it for
+The Tauri CLI looks for `tauri.conf.json` in the directories **below** the one
+it is run from, and this workspace keeps it in `apps/desktop/src-tauri`. So it
+has to be run from `apps/desktop`, while the CLI itself is installed under
+`apps/desktop/ui/node_modules` — which is why the two paths differ:
+
+```bash
+cd apps/desktop && ./ui/node_modules/.bin/tauri dev
+```
+
+```bash
+cd apps/desktop && ./ui/node_modules/.bin/tauri build --no-bundle
+```
+
+`--no-bundle` stops at the executable instead of building an installer. The
+binary lands in `target/release/` at the top of the workspace.
+
+On Windows, in PowerShell, the same two commands with the platform's path
+separator and the `.cmd` shim npm installs:
+
+```powershell
+cd apps\desktop; .\ui\node_modules\.bin\tauri.cmd build --no-bundle
+```
+
+Windows also needs the Visual Studio Build Tools with the "Desktop development
+with C++" workload — Rust uses its linker — and WebView2, which ships with
+Windows 11 and is a separate download on Windows 10.
+
+On Linux, `scripts/install-local.sh` does the release build and installs it for
 the current user, replacing any running instance:
 
 ```bash
