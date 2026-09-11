@@ -209,6 +209,16 @@ export async function setLanguage(code: string): Promise<string> {
   const instance = i18n();
   if (!(await localeIsComplete(code))) return instance.language;
   await instance.changeLanguage(code);
+  // `changeLanguage` loads only the namespaces i18next has active at that
+  // moment — at start-up that is `common` and whatever the first screen
+  // happened to ask for. Every other screen's namespace stayed unloaded for
+  // the new language and fell back to English key by key, so choosing Turkish
+  // changed the language i18next reported and left the interface in English.
+  //
+  // The shipped set is small, fixed, and already in memory: `localeIsComplete`
+  // above has just read every one of them to measure coverage, so this costs
+  // a map lookup per namespace and nothing else.
+  await instance.loadNamespaces([...SHIPPED_NAMESPACES]);
   return instance.language;
 }
 
