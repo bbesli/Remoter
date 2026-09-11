@@ -1,0 +1,78 @@
+[package]
+name = "remoter-proto-vnc"
+description = "VNC / RFB sessions"
+license = "GPL-3.0-or-later"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[features]
+default = []
+# Tests that need the `tigervnc` fixture from
+# `docs/development/getting-started.md`.
+integration-tests = []
+
+[dependencies]
+remoter-core.workspace = true
+remoter-proto = { path = "../remoter-proto", version = "0.1.0" }
+
+# `vnc-rs` 0.5, the version CLAUDE.md §8 pins. MIT OR Apache-2.0, both
+# GPL-3.0 compatible; recorded in `deny.toml`. The library target is named
+# `vnc`, not `vnc_rs`.
+#
+# Properties of this crate that shape the adapter, all recorded in
+# `docs/development/verified-apis.md`:
+#
+#   * `VncConnector::new` takes the stream, so the transport is injected and
+#     never dialled (ADR-0003) — but it requires `Send + Sync`, which
+#     `Box<dyn Transport>` is not. `remoter_proto::SyncTransport` exists for
+#     exactly this.
+#   * `set_auth_method` wants an owned `String`, which is the single place in
+#     this crate where a secret is handed over rather than borrowed.
+#   * `VncEncoding` has no RRE and no Hextile variant, and `From<u32>` folds
+#     every unrecognised encoding number onto `Raw`. See `crate::encoding`.
+#   * several of its decoders panic or allocate without bound on malformed
+#     input. See the "Defects in `vnc-rs` 0.5.3" section of `lib.rs`.
+vnc-rs = "0.5"
+
+async-trait = "0.1"
+bytes = "1"
+# Deliberately **without** the `net` feature: nothing in this crate may open a
+# socket (ADR-0003), and not asking for the module that would let it is the
+# cheapest way to say so. `tests/no_dialling.rs` checks the source as well,
+# because cargo unifies features across a workspace build and a feature this
+# crate does not request can still be switched on by a sibling.
+tokio = { workspace = true, features = [
+    "rt-multi-thread",
+    "sync",
+    "time",
+    "macros",
+    "io-util",
+] }
+tokio-util = { version = "0.7", features = ["rt"] }
+thiserror.workspace = true
+tracing.workspace = true
+zeroize.workspace = true
+# The handshake observer is written from the transport's `poll_read`, which is
+# not async, and read from the connect path. `parking_lot` for the same reason
+# `remoter-proto` uses it: a lock taken and released without awaiting, and no
+# poisoning to reason about (ADR-0011).
+parking_lot.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = [
+    "rt-multi-thread",
+    "sync",
+    "time",
+    "macros",
+    "io-util",
+] }
+# The scripted RFB server in `tests/` builds ZRLE rectangles, and a ZRLE
+# rectangle is a zlib stream (RFC 6143 §7.7.6). Already a workspace dependency
+# and already licence-checked; a test cannot construct a valid one without it.
+flate2.workspace = true
+
+[lints]
+workspace = true
