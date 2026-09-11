@@ -150,7 +150,19 @@ impl remoter_proto::Protocol for SshProtocol {
         connection.algorithms = AlgorithmPolicy {
             compression: self.boolean(config, SETTING_COMPRESSION)?,
         };
-        connection.allow_agent = self.boolean_or(config, SETTING_AGENT_AUTH, true)?;
+        // Off unless asked for. The agent offers its identities one at a time
+        // and each offer spends one of the server's `MaxAuthTries`, which
+        // defaults to six in OpenSSH — so an agent holding a handful of keys
+        // none of which the server accepts gets the connection dropped before
+        // the password this vault is holding is ever tried. The user then sees
+        // a connection that fails for no visible reason and works the moment
+        // the agent is turned off, which is exactly what was reported.
+        //
+        // A connection manager that stores its own credentials should use them
+        // first. Agent authentication stays one switch away, and is still the
+        // better answer where it applies — the private key never enters this
+        // process at all — but it is a choice now rather than an ambient one.
+        connection.allow_agent = self.boolean_or(config, SETTING_AGENT_AUTH, false)?;
         connection.agent_filter = self
             .string(config, SETTING_AGENT_IDENTITY)
             .map(str::trim)
@@ -342,9 +354,13 @@ pub fn schema() -> SettingsSchema {
             "settings.ssh.agent_auth",
             SettingKind::Boolean,
         )
-        // On: the agent is the method where the private key never enters this
-        // process, so it is the one to try first wherever it exists.
-        .with_default("true"),
+        // Off. The agent is still the method where the private key never
+        // enters this process, and it is offered first when it is on — but
+        // each identity it offers spends one of the server's `MaxAuthTries`,
+        // six by default in OpenSSH. An agent holding a few keys the server
+        // will not take gets the connection dropped before the password this
+        // vault holds is tried, and the failure looks like nothing at all.
+        .with_default("false"),
         SettingField::new(
             SETTING_AGENT_IDENTITY,
             "settings.ssh.agent_identity",
@@ -456,7 +472,10 @@ mod tests {
         // The two that carry a security decision.
         assert_eq!(
             schema.boolean(&empty, SETTING_AGENT_AUTH).unwrap(),
-            Some(true)
+            Some(false),
+            "agent authentication must default to off: each identity it offers \
+             spends one of the server's MaxAuthTries, and a full agent can \
+             exhaust them before the stored password is ever tried"
         );
         assert_eq!(
             schema.boolean(&empty, SETTING_AGENT_FORWARDING).unwrap(),
@@ -660,13 +679,15 @@ mod tests {
     }
 
     #[test]
-    fn agent_authentication_is_on_unless_it_is_turned_off() {
-        // The agent is the method where the private key never enters this
-        // process, so it is the default.
+    fn agent_authentication_is_off_unless_it_is_turned_on() {
+        // Each identity the agent offers spends one of the server's
+        // MaxAuthTries, so an agent that cannot authenticate can stop the
+        // stored password from ever being tried. The switch is one click away
+        // for anyone whose agent does hold the right key.
         let adapter = adapter();
         assert!(
-            adapter
-                .boolean_or(&effective(BTreeMap::new()), SETTING_AGENT_AUTH, true)
+            !adapter
+                .boolean_or(&effective(BTreeMap::new()), SETTING_AGENT_AUTH, false)
                 .unwrap()
         );
         let off = effective(settings_from(
