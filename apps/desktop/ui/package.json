@@ -25,6 +25,8 @@
     "@xterm/xterm": "^6.0.0",
     "clsx": "^2.1.1",
     "i18next": "^24.2.2",
+    "i18next-icu": "^2.4.4",
+    "intl-messageformat": "^10.7.18",
     "lucide-react": "^0.474.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

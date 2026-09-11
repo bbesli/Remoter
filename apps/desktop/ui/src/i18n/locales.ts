@@ -1,0 +1,100 @@
+/**
+ * The locale and namespace registry.
+ *
+ * This is the contract the rest of the interface is written against: a screen
+ * names the namespace it needs, and everything else — which files exist, which
+ * language is selectable, which way the layout runs — is derived from here or
+ * from the catalogue directory itself. Nothing about a language is hardcoded
+ * at a call site.
+ *
+ * The ten locales and their directions come from docs/features/i18n.md.
+ * `available` is deliberately NOT a field: a language becomes selectable when
+ * its catalogues land, and asking a constant to stay in step with a directory
+ * is how a list of nine "Not yet available" rows outlives the translations it
+ * was describing. See `catalogues.ts`.
+ */
+
+/**
+ * One namespace per feature directory, plus three that cut across all of them.
+ *
+ * A screen loads what it needs and nothing else, so opening Settings does not
+ * pull the import wizard's copy over the IPC-free but still real cost of
+ * parsing it. The split mirrors `src/features/` one-for-one; `common`,
+ * `errors` and `security` are the exceptions, and they are exceptions because
+ * their strings genuinely belong to no single screen.
+ *
+ * `security` is listed separately from `errors` for a reason that is not
+ * organisational: strings in it are reviewed by a second pair of eyes before a
+ * translation is accepted, because a warning about permanent data loss that a
+ * translator has softened is a real source of harm (docs/features/i18n.md).
+ */
+export const NAMESPACES = [
+  "common",
+  "shell",
+  "settings",
+  "connections",
+  "sessions",
+  "vault",
+  "vaultsettings",
+  "audit",
+  "import",
+  "errors",
+  "security",
+] as const;
+
+export type Namespace = (typeof NAMESPACES)[number];
+
+/** The namespace a `useT()` call gets when it names none. */
+export const DEFAULT_NAMESPACE = "common" satisfies Namespace;
+
+/** The source language. Always bundled, always complete, always the fallback. */
+export const SOURCE_LOCALE = "en";
+
+export type Direction = "ltr" | "rtl";
+
+export interface LocaleDescriptor {
+  /** The BCP 47 tag. Also the catalogue directory name and the settings value. */
+  readonly code: string;
+  /**
+   * The language's own name in its own script. Never translated and never
+   * transliterated: a reader looking for their language recognises it written
+   * the way they write it, not the way English writes it.
+   */
+  readonly endonym: string;
+  readonly dir: Direction;
+}
+
+/** The ten from docs/features/i18n.md, in that document's order. */
+export const SUPPORTED_LOCALES: readonly LocaleDescriptor[] = [
+  { code: "en", endonym: "English", dir: "ltr" },
+  { code: "zh-Hans", endonym: "简体中文", dir: "ltr" },
+  { code: "es", endonym: "Español", dir: "ltr" },
+  { code: "hi", endonym: "हिन्दी", dir: "ltr" },
+  { code: "ar", endonym: "العربية", dir: "rtl" },
+  { code: "pt-BR", endonym: "Português (Brasil)", dir: "ltr" },
+  { code: "ru", endonym: "Русский", dir: "ltr" },
+  { code: "fr", endonym: "Français", dir: "ltr" },
+  { code: "de", endonym: "Deutsch", dir: "ltr" },
+  { code: "tr", endonym: "Türkçe", dir: "ltr" },
+];
+
+const BY_CODE = new Map(SUPPORTED_LOCALES.map((locale) => [locale.code, locale]));
+
+export function localeDescriptor(code: string): LocaleDescriptor | null {
+  return BY_CODE.get(code) ?? null;
+}
+
+export function isSupportedLocale(code: string): boolean {
+  return BY_CODE.has(code);
+}
+
+/**
+ * Which way the layout runs.
+ *
+ * Unknown codes get `ltr` rather than a throw: a settings file written by a
+ * newer build must not stop this one from starting, and the language it names
+ * is refused elsewhere with a sentence the user can act on.
+ */
+export function localeDirection(code: string): Direction {
+  return BY_CODE.get(code)?.dir ?? "ltr";
+}

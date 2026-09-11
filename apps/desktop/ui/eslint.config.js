@@ -3,6 +3,9 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 import reactHooks from "eslint-plugin-react-hooks";
 
+import remoterI18n from "./eslint-rules/i18n.js";
+import { NOT_USER_FACING, NOT_YET_EXTRACTED } from "./eslint-rules/i18n-baseline.js";
+
 export default tseslint.config(
   { ignores: ["dist", "node_modules"] },
   js.configs.recommended,
@@ -13,9 +16,19 @@ export default tseslint.config(
       ecmaVersion: 2022,
       globals: globals.browser,
     },
-    plugins: { "react-hooks": reactHooks },
+    plugins: { "react-hooks": reactHooks, "remoter-i18n": remoterI18n },
     rules: {
       ...reactHooks.configs.recommended.rules,
+
+      // Every user-visible string goes through t() — CLAUDE.md §6. Errors, not
+      // warnings: the interface reached a state where every string was
+      // hardcoded because nothing ever failed over one, and extracting them
+      // without leaving a guard behind would only restart that clock. The
+      // escape hatch is an ordinary disable comment with a reason; the things
+      // that are legitimately never translated (protocol names, hostnames,
+      // paths, version strings) are listed in docs/features/i18n.md.
+      "remoter-i18n/no-literal-jsx-text": "error",
+      "remoter-i18n/no-text-constant": "error",
 
       // Remote content — hostnames, banners, MOTD, directory listings — is
       // untrusted. It renders as text, always. See CLAUDE.md §6.
@@ -58,5 +71,34 @@ export default tseslint.config(
     // The wrapper file is where invoke() lives, by design.
     files: ["src/lib/ipc.ts"],
     rules: { "no-restricted-syntax": "off" },
+  },
+  // The ratchet. These directories predate the catalogues, so their copy is
+  // reported as a warning rather than an error and `npm run lint` still
+  // exits clean. Every other file — including every new one — errors.
+  // Remove a line from the baseline as you extract that feature.
+  //
+  // Spread rather than written inline, because the list is meant to reach
+  // empty: flat config refuses a `files: []` block outright, so the last agent
+  // to finish the ratchet would otherwise break `npm run lint` for everyone at
+  // the moment the ratchet succeeded.
+  ...(NOT_YET_EXTRACTED.length === 0
+    ? []
+    : [
+        {
+          files: NOT_YET_EXTRACTED,
+          rules: {
+            "remoter-i18n/no-literal-jsx-text": "warn",
+            "remoter-i18n/no-text-constant": "warn",
+          },
+        },
+      ]),
+  {
+    // A test asserts on the English a user sees. Its fixtures are copy by
+    // definition and there is no defect behind any of them.
+    files: NOT_USER_FACING,
+    rules: {
+      "remoter-i18n/no-literal-jsx-text": "off",
+      "remoter-i18n/no-text-constant": "off",
+    },
   },
 );
