@@ -1,0 +1,427 @@
+{
+  "_comment_file": "The vault settings screen: which keys open this vault file, and the policies stored inside the file itself — auto-lock, recording and rolling backups. Loaded when the screen opens, not before. Read the SECURITY-CRITICAL comments before translating anything in this namespace: several of these strings are the last warning a person sees before an operation that can leave an encrypted file that nobody, including us, can ever open. A softened warning here is a real and foreseeable way to lose someone's data.",
+
+  "screen": {
+    "title": "Kasa ayarları",
+    "_comment_close": "Both the accessible name of the header's close control and the label of the button offered beside a failed read.",
+    "close": "Kasa ayarlarını kapat",
+    "_comment_closeHint": "The tooltip on the same control. Esc is a key name and is never translated.",
+    "closeHint": "Kasa ayarlarını kapat (Esc)",
+    "_comment_sections": "The accessible name of the vertical tab list, read aloud before the tabs inside it.",
+    "sections": "Kasa ayarı bölümleri",
+    "_comment_navSlots": "The four navigation tabs. Each also titles the panel it opens, so keep them short.",
+    "navSlots": "Anahtar yuvaları",
+    "navLock": "Otomatik kilit",
+    "navRecording": "Kayıt ilkesi",
+    "navBackups": "Yedekler",
+    "_comment_vaultLabel": "The open vault's name, beside the screen title. {label} is a name the user chose and is never translated; the middot separates it from the title and may be replaced by whatever glyph this locale separates such a pair with.",
+    "vaultLabel": "· {label}",
+    "loadingSlots": "Kasanın anahtar yuvaları okunuyor…",
+    "loadingSettings": "Bu kasanın ayarları okunuyor…",
+    "slotsFailed": "Anahtar yuvaları okunamadı.",
+    "settingsFailed": "Bu kasanın ayarları okunamadı.",
+    "locked": "Açık kasa yok",
+    "lockedBody": "Bu ayarlar kasa dosyasının içinde durur, dolayısıyla yalnızca kasanın kilidi açıkken okunabilirler."
+  },
+
+  "status": {
+    "_comment_saving": "Shown beside a spinner while one setting is being written. Used by all three policy panels.",
+    "saving": "Kaydediliyor…"
+  },
+
+  "dialog": {
+    "_comment_blockedFallback": "A noun phrase, not a sentence: it is interpolated into the window-close confirmation as the thing that would be lost — 'Closing now loses …'. Only reached if a dialog refuses to be dismissed without saying what is at stake, which no dialog on this screen does.",
+    "blockedFallback": "bir daha asla gösterilemeyecek bir şey"
+  },
+
+  "keyfile": {
+    "_comment_": "Choosing the file that acts as a second factor on a key slot. A key file is an ordinary file of the user's choosing; its contents are mixed into the key, so losing the file loses the slot.",
+    "_comment_none": "Shown in place of a path when no key file has been chosen. Adjective-free noun: 'no file chosen'.",
+    "none": "Yok",
+    "_comment_clear": "A button that removes the chosen key file, leaving the slot with no key file at all.",
+    "clear": "Anahtar dosyası olmasın",
+    "_comment_dialogTitle": "The title bar of the operating system's file browser.",
+    "dialogTitle": "Bu yuvanın anahtar dosyasını seçin",
+    "_comment_dialogFailed": "Shown when the platform has no file browser to open. 'Remoter' is the product name and is never translated.",
+    "dialogFailed": "Bu sistem bir dosya tarayıcısı açmadı. Yolu, platformun size verdiği alana elle yazın ya da Remoter'ı dosya tarayıcısı olan bir oturumdan başlatın."
+  },
+
+  "slot": {
+    "_comment_": "How one key slot is described. A slot is one independent way of unwrapping the vault key: the same vault can have several, and any one of them opens it.",
+    "_comment_kind": "The four kinds of slot. 'Security key' is a hardware authenticator (FIDO2); 'Remember on this device' is the operating system's own credential store.",
+    "kind": {
+      "password": "Parola",
+      "recovery": "Kurtarma anahtarı",
+      "fido2": "Güvenlik anahtarı",
+      "keychain": "Bu cihazda hatırla"
+    },
+    "_comment_indexBadge": "A badge carrying the slot's position in the vault header, as in 'slot 0'. Lower case: it sits beside the slot's own name rather than starting a sentence. The number is not an ordinal — slots are numbered from zero.",
+    "indexBadge": "yuva {index, number}",
+    "_comment_added": "{day} is a date already formatted for this locale.",
+    "added": "Eklenme: {day}",
+    "lastUsed": "Son kullanım: {day}",
+    "_comment_neverUsed": "A slot that has never opened this vault. Sentence-initial: it appears at the start of the detail line.",
+    "neverUsed": "Hiç kullanılmadı",
+    "_comment_withKeyfile": "This slot needs its key file in addition to its password.",
+    "withKeyfile": "Anahtar dosyası da gerekir",
+    "noKeyfile": "Yalnızca parola"
+  },
+
+  "slots": {
+    "title": "Anahtar yuvaları",
+    "description": "Her yuva, aynı kasa anahtarının sarmalını birbirinden bağımsız olarak çözer. Yuva eklemek ya da kaldırmak hiçbir şeyi yeniden şifrelemez; bu yüzden hızlıdır ve fikir değiştirmek güvenlidir.",
+
+    "_comment_openedWithBadge": "A badge on the slot that unlocked the vault in this session. Lower case, no full stop: it is a badge, not a sentence.",
+    "openedWithBadge": "bu oturumu açan",
+    "_comment_neverUsedBadge": "A badge on a recovery key that has never opened this vault — the slot most likely to have been lost. Lower case, no full stop.",
+    "neverUsedBadge": "hiç kullanılmadı",
+
+    "_comment_change": "Verb, on the button that changes this slot's password.",
+    "change": "Değiştir",
+    "_comment_rotate": "Verb, on the button that replaces this recovery key with a new one.",
+    "rotate": "Yenile",
+    "_comment_remove": "Verb, on the button that deletes this slot from the vault.",
+    "remove": "Kaldır",
+
+    "_comment_add": "Verb phrase, on the row that opens the add-a-slot dialog.",
+    "add": "Yuva ekle",
+    "_comment_addHint": "The three kinds that can be added, as a hint under the button. The middots are separators.",
+    "addHint": "başka bir parola · bir kurtarma anahtarı · bu cihaz",
+
+    "_comment_unusedRecoveryBody": "SECURITY-CRITICAL. Shown on a recovery key that has never been used. Do not soften 'there is no way into this vault without one of these slots' — it is literally true, and a reader who takes it as caution rather than fact is the reader who loses the vault.",
+    "unusedRecoveryBody": "Üretilmiş ama hiç kullanılmamış bir anahtar, kaybolmuş olma ihtimali en yüksek yuvadır. Elinizi atıp bulamıyorsanız şimdi yenileyin — bu yuvalardan biri olmadan bu kasaya girmenin hiçbir yolu yoktur.",
+
+    "_comment_invariantTitle": "SECURITY-CRITICAL. The standing notice at the foot of the panel.",
+    "invariantTitle": "Bir kasada kullanılabilir en az bir yuva kalmalıdır",
+    "_comment_invariantBody": "SECURITY-CRITICAL. 'no escrow key and no support override' must survive translation as an absolute: there is no recovery path of any kind, and 'including us' means the people who wrote this program. 'Remoter' is the product name and is never translated.",
+    "invariantBody": "Remoter son yuvayı silmenize izin vermez ve kurtarma yuvasını silmek için bir cümle yazmanız gerekir. Emanet anahtar yoktur, destek tarafından aşılabilecek bir yol yoktur: bütün yuvalar kaybolursa dosyayı hiç kimse açamaz, biz de dahil.",
+
+    "_comment_removeFailed": "The title of the failure notice when a removal fails after its dialog has closed.",
+    "removeFailed": "Yuva kaldırılmadı.",
+
+    "_comment_lastSlotRefusal": "SECURITY-CRITICAL. Why the last remaining slot cannot be removed, shown on the disabled control before anything is clicked. This refusal has no undo behind it: if it were bypassed the file would be unopenable forever.",
+    "lastSlotRefusal": "Bu kasaya girmenin tek yolu bu. Bunu kaldırmak, hiç kimsenin bir daha açamayacağı bir dosya bırakır — emanet anahtar yoktur, destek tarafından aşılabilecek bir yol yoktur.",
+    "_comment_openedWithWarning": "A warning, not a refusal: this slot is the one that unlocked the vault in this session.",
+    "openedWithWarning": "Bu oturum bu yuvayla açıldı. Bunu kaldırmak kasayı şimdi kilitlemez, ama bu, çalıştığını en son kanıtladığınız giriş yoludur.",
+    "_comment_lastRecoveryWarning": "SECURITY-CRITICAL. A warning, not a refusal. 'the end of the vault' means the vault can never be opened again; do not weaken it to 'a problem'.",
+    "lastRecoveryWarning": "Bu, bu kasadaki son kurtarma anahtarı. Kurtarma anahtarı olmadan, unutulan bir parola kasanın sonu demektir."
+  },
+
+  "rotateRecovery": {
+    "_comment_": "Replacing one recovery key with a freshly generated one. The vault master key is untouched, so this is cheap — unlike the master key rotation further down the same screen.",
+    "title": "Bu kurtarma anahtarını yenile",
+    "_comment_lead": "SECURITY-CRITICAL. 'shown exactly once' is a statement of fact: nothing in the program can produce the key again.",
+    "lead": "Yuvanın yerine yeni bir anahtar konur. Bugün elinizde olan anahtar, bu işlem başarılı olduğu anda çalışmayı bırakır ve yenisi tam olarak bir kez gösterilir.",
+    "body": "Ana anahtar değişmez, dolayısıyla hiçbir şey yeniden şifrelenmez ve diğer bütün yuvalar çalışmayı sürdürür.",
+    "_comment_confirm": "Verb phrase, on the button that performs the rotation.",
+    "confirm": "Anahtarı yenile",
+    "busy": "Üretiliyor…",
+    "_comment_blocked": "SECURITY-CRITICAL. Why the dialog refuses to close while the new key is being generated.",
+    "blocked": "Yeni anahtar üretiliyor. Şimdi kapatmak onu kaybettirir: bir kez gösterilir ve hiçbir şey onu yeniden veremez.",
+    "failed": "Kurtarma anahtarı yenilenmedi."
+  },
+
+  "expensive": {
+    "_comment_label": "A heading over the one operation on this screen that re-encrypts the whole vault and therefore takes real time.",
+    "label": "Pahalı işlem"
+  },
+
+  "rotateMaster": {
+    "_comment_": "Rotating the vault master key: a new master key, every slot re-wrapped around it, and every stored secret re-encrypted.",
+    "cardTitle": "Kasanın ana anahtarını yenile",
+    "_comment_cardBody": "The quoted sentence is the situation this operation answers; keep it as a quotation the reader could have said themselves.",
+    "cardBody": "Şunun doğru yanıtı budur: \"anahtarlarımdan biri ele geçirilmişken bu dosyanın bir kopyası sızmış olabilir\". Yeni bir ana anahtar üretilir, her yuva yeniden sarmalanır ve gövdenin tamamı yeniden şifrelenir.",
+    "_comment_cardButton": "Verb phrase, on the button that opens the rotation dialog.",
+    "cardButton": "Ana anahtarı yenile",
+    "_comment_cardAside": "SECURITY-CRITICAL. Rotation does not reach copies of the file that already exist. 'Delete them' is an instruction, not a suggestion.",
+    "cardAside": "Dosyanın eski kopyaları eski anahtarlarla okunabilir olmayı sürdürür. Onları silin.",
+
+    "title": "Kasanın ana anahtarını yenile",
+    "lead": "Yeni bir ana anahtar üretilir, her yuva bu anahtarın etrafında yeniden sarmalanır ve kasadaki her sır yeniden mühürlenir.",
+
+    "whenTitle": "Bu ne zaman doğru yanıttır",
+    "whenBody": "Anahtarlarınızdan biri ele geçirilmişken bu dosyanın bir kopyası sızmış olabilir. Parola değiştirmek tek bir yuvayı yeniden sarmalar; bu işlem ise gövdenin tamamının şifrelendiği anahtarı değiştirir.",
+
+    "_comment_limitTitle": "SECURITY-CRITICAL. What rotation cannot do, shown both before and after the operation.",
+    "limitTitle": "Bunun yapamayacağı şey",
+    "_comment_limitBody": "SECURITY-CRITICAL. Must not be softened into reassurance: a leaked copy stays readable with the old keys forever, and so do the backup files beside the vault. 'rotation protects what happens next, not what already left' is the whole point of the paragraph.",
+    "limitBody": "Sızan kopya hâlâ eski anahtarlarla açılır; bu kasanın yanındaki, bu kaydetmeyle döndürülen dönüşümlü yedekler de öyle. Bildiğiniz kopyaları silin; yenileme bundan sonrasını korur, çoktan dışarı çıkmış olanı değil.",
+
+    "costTitle": "Gerçekten zaman alır",
+    "_comment_costBody": "PLURAL, on the number of password slots being re-wrapped. Argon2id is a key derivation function and is never translated. The one-slot wording is deliberately different rather than showing the numeral 1.",
+    "costBody": "{count, plural, one {Argon2id, tek parola yuvası için bir kez çalışır ve saklanan her sır yeniden mühürlenir.} other {Argon2id her parola yuvası için bir kez çalışır — burada # tane var — ve saklanan her sır yeniden mühürlenir.}}",
+
+    "_comment_slotsLegend": "The legend over the per-slot form. Every slot must either be opened or explicitly discarded; there is no third option, which is what 'accounted for' means.",
+    "slotsLegend": "Her yuvanın hesabı verilmeli",
+    "_comment_password": "The label of the password field for one slot.",
+    "password": "Parola",
+    "keyfile": "Anahtar dosyası",
+    "keyfileHelp": "Bu yuvanın bugün istediği dosya.",
+    "_comment_drop": "The checkbox that discards a slot rather than re-wrapping it. First person, because it is the user's own statement about a key they no longer hold.",
+    "drop": "Bu bende yok. Yuvayı at.",
+    "_comment_dropped": "Replaces the label above once the checkbox is ticked.",
+    "dropped": "Atılacak",
+
+    "recoveryNote": "Bu yuva için yeni bir kurtarma anahtarı verilir ve yenileme bittiğinde bir kez gösterilir.",
+    "keychainNote": "Bu makinenin anahtarlığındaki belirteçten yeniden sarmalanır. Belirteç kaybolmuşsa yuvayı atın ve sonrasında bu makineyi yeniden kaydedin.",
+    "fido2Note": "Bu sürüm bir güvenlik anahtarı yuvasını yeniden sarmalayamaz.",
+
+    "_comment_problemsTitle": "The heading over the list of reasons the rotation cannot start yet.",
+    "problemsTitle": "Yenilemeye hazır değil",
+    "_comment_problemNoCredential": "One entry in that list. {index} is the slot number, {label} the name the user gave the slot — never translated. The quoted phrase refers to the discard checkbox on that slot's card, so it should match the wording of rotateMaster.drop.",
+    "problemNoCredential": "{index, number} numaralı yuva ({label}) için parola gerekiyor ya da açıkça \"yuvayı at\" seçeneğinin işaretlenmesi gerekiyor.",
+    "_comment_problemFido2": "Security keys cannot be re-wrapped by this version. 'enrol it again' means adding the security key as a new slot after the rotation.",
+    "problemFido2": "{index, number} numaralı yuva ({label}) bir güvenlik anahtarı ve bu sürüm onu yeniden sarmalayamaz. Burada atın ve sonrasında yeniden kaydedin ya da iptal edin.",
+    "_comment_problemEmpty": "SECURITY-CRITICAL. A rotation that discards every slot would produce a file with no way in at all.",
+    "problemEmpty": "Bütün yuvalar atılmak üzere işaretlendi. Hiçbir yuvayı tutmayan bir yenileme, hiç kimsenin açamayacağı bir dosya üretir.",
+
+    "_comment_confirm": "Verb phrase, on the button that starts the rotation.",
+    "confirm": "Ana anahtarı yenile",
+    "busy": "Yeniden anahtarlanıyor…",
+    "_comment_blocked": "SECURITY-CRITICAL. Why the dialog refuses to close while the vault is being re-keyed.",
+    "blocked": "Kasa yeniden anahtarlanıyor. Şimdi kapatmak, bir kez gösterilen yeni kurtarma anahtarlarını gösterilecek bir yerden yoksun bırakır.",
+    "stage": "Her yuva için bir anahtar türetiliyor, ardından kasa yeniden şifreleniyor…",
+    "failed": "Kasa yenilenmedi.",
+    "_comment_unchanged": "Reassurance after a failure, and it is exact: a failed rotation is atomic, so nothing at all was written.",
+    "unchanged": "Hiçbir şey değişmedi: kasa, düğmeye basmadan önce nasılsa tam olarak öyle."
+  },
+
+  "rotationSummary": {
+    "_comment_": "What the rotation did, shown after the last new recovery key has been written down.",
+    "title": "Kasa yeniden anahtarlandı",
+    "lead": "Aşağıdaki her şey dosyaya çoktan yazıldı.",
+    "_comment_rewrapped": "PLURAL. A slot that was re-wrapped still opens the vault, now under the new master key.",
+    "rewrapped": "{count, plural, one {# yuva yeniden sarmalandı} other {# yuva yeniden sarmalandı}}",
+    "_comment_dropped": "PLURAL. A discarded slot no longer exists and no longer opens the vault.",
+    "dropped": "{count, plural, one {# yuva atıldı} other {# yuva atıldı}}",
+    "_comment_resealed": "PLURAL. Every password, key and passphrase stored in the vault, re-encrypted under the new master key.",
+    "resealed": "{count, plural, one {# sır yeniden mühürlendi} other {# sır yeniden mühürlendi}}"
+  },
+
+  "addSlot": {
+    "title": "Anahtar yuvası ekle",
+    "lead": "Her yuva, aynı kasa anahtarının sarmalını birbirinden bağımsız olarak çözer. Yuva eklemek o anahtarı yeni bir kimlik bilgisi altında yeniden sarmalar ve hiçbir şeyi yeniden şifrelemez; bu yüzden anında olur ve fikir değiştirmek güvenlidir.",
+
+    "_comment_kindLegend": "The legend over the three radio cards below.",
+    "kindLegend": "Ne tür bir yuva",
+    "kindPassword": "Başka bir parola",
+    "kindPasswordHelp": "İkinci bir parola; isterseniz kendi anahtar dosyasıyla. Sizinkini bilmeden bu kasayı açabilmesi gereken bir iş arkadaşı için kullanışlıdır.",
+    "kindRecovery": "Başka bir kurtarma anahtarı",
+    "kindRecoveryHelp": "Bir kasa birden fazla kurtarma anahtarı tutabilir. Kasada duran mühürlü bir zarf, ikincisini istemek için meşru bir gerekçedir.",
+    "kindKeychain": "Bu cihazda hatırla",
+    "kindKeychainHelp": "Bu makinenin kimlik bilgisi deposunu kaydeder; böylece siz oturum açmışken kasa soru sorulmadan açılır. O zaman masaüstü oturumunuzu kullanabilen herkes kasayı da açabilir.",
+
+    "label": "Bu yuvanın adı",
+    "labelHelp": "Bu listede ve kilit açma ekranında görünür, böylece bir yuva diğerlerinden ayırt edilebilir.",
+    "_comment_labelPlaceholder": "An example name, in the empty field. Replace it with a plausible example in this locale rather than translating it word for word.",
+    "labelPlaceholder": "İş dizüstü",
+    "_comment_labelBlocked": "Why the Add button is disabled. Shown as its tooltip.",
+    "labelBlocked": "Önce yuvaya bir ad verin.",
+
+    "password": "Parola",
+    "_comment_passwordHelp": "SECURITY-CRITICAL. A second password opens the whole vault; it is not a lesser credential.",
+    "passwordHelp": "Bu parola, tıpkı ana parola gibi kasanın tamamını açar. O kadar güçlü olmalıdır.",
+    "confirm": "Parolayı yineleyin",
+    "confirmMismatch": "İki parola aynı değil.",
+    "passwordBlocked": "Parolayı iki kez, aynı şekilde yazın.",
+
+    "keyfile": "Anahtar dosyası (isteğe bağlı)",
+    "_comment_keyfileHelp": "SECURITY-CRITICAL. Losing the key file loses this slot, permanently.",
+    "keyfileHelp": "Herhangi bir dosya bu yuva için ikinci bir faktör olur. Onu kaybederseniz bu yuva çalışmayı bırakır; diğer yuvalar etkilenmez.",
+    "_comment_keyfileRefused": "Why the Add button is disabled: the chosen file cannot be a key file, and the field above already says which rule it broke.",
+    "keyfileRefused": "Başka bir anahtar dosyası seçin. Yukarıdaki alan, o dosyanın neden kullanılamayacağını söylüyor.",
+
+    "_comment_recoveryNotice": "SECURITY-CRITICAL. 'shown once, and then dropped' is literal: the key exists nowhere after this dialog closes. 'Add' is the button label, addSlot.add.",
+    "recoveryNotice": "Anahtar, Ekle'ye bastığınızda üretilir, bir kez gösterilir ve ardından atılır.",
+    "keychainNotice": "Belirteç bu makinenin anahtarlığında durur. Başka bir makine bu yuvayı kullanamaz ve yuvayı buradan kaldırmak belirteci siler.",
+
+    "_comment_add": "Verb phrase, on the confirming button.",
+    "add": "Yuvayı ekle",
+    "adding": "Anahtar türetiliyor…",
+    "_comment_addingStage": "The longer stage description, beside a spinner. Argon2id's cost is the security property, so the wait is explained rather than hidden.",
+    "addingStage": "Yeni paroladan bir anahtar türetiliyor…",
+    "_comment_addingBlocked": "Why the dialog refuses to close while the slot is being written.",
+    "addingBlocked": "Yuva zaten yazılıyor. Bu pencere çekirdek yanıt verdiğinde kapanır — ve bir kurtarma yuvasının önce size teslim edeceği bir anahtar vardır.",
+    "failed": "Yuva eklenmedi."
+  },
+
+  "changePassword": {
+    "title": "Bu yuvanın parolasını değiştir",
+    "lead": "Yuva, yeni parolanın etrafında yeniden sarmalanır. Ana anahtar değişmez; dolayısıyla hiçbir şey yeniden şifrelenmez, diğer bütün yuvalar çalışmayı sürdürür ve kurtarma anahtarları geçerli kalır.",
+
+    "_comment_notARotation": "SECURITY-CRITICAL. The distinction between changing a password and rotating the master key. A user who believes this repairs a leak will not then do the thing that does.",
+    "notARotation": "Dosyanın kendisi sızdıysa bu işe yaramaz",
+    "notARotationBody": "Eski parola kullanımdayken alınan bir kopya, hâlâ eski parolayla açılır. Bunun yanıtı kasanın ana anahtarını yenilemektir ve o da bu ekranda.",
+
+    "current": "Geçerli parola",
+    "currentHelp": "Herhangi bir şey değiştirilmeden önce doğrulanır; böylece buraya yapılan bir yazım hatası yuvayı kilitleyemez.",
+    "currentKeyfile": "Geçerli anahtar dosyası",
+    "currentKeyfileHelp": "Bu yuva bir anahtar dosyası istiyor, dolayısıyla değişiklik için o da gerekiyor.",
+
+    "next": "Yeni parola",
+    "confirm": "Yeni parolayı yineleyin",
+    "confirmMismatch": "İki parola aynı değil.",
+
+    "newKeyfile": "Bundan sonraki anahtar dosyası",
+    "_comment_newKeyfileHelp": "SECURITY-CRITICAL. The current key file is NOT carried over; leaving the field empty removes it. A translation that implies otherwise is the difference between a slot that opens tomorrow and one that does not.",
+    "newKeyfileHelp": "Boş bırakmak da dahil olmak üzere açıkça seçilir: geçerli anahtar dosyası kendiliğinden taşınmaz. Boş bırakmak, bu yuvanın bundan sonra yalnızca parola isteyeceği anlamına gelir.",
+
+    "_comment_blockedCurrent": "The four reasons the confirming button is disabled, shown as its tooltip.",
+    "blockedCurrent": "Yuvanın geçerli parolasını yazın.",
+    "blockedCurrentKeyfile": "Bu yuvanın şu anda istediği anahtar dosyasını seçin.",
+    "blockedNew": "Yeni parolayı iki kez, aynı şekilde yazın.",
+    "blockedKeyfile": "Bu dosya anahtar dosyası olamaz.",
+
+    "_comment_save": "Verb phrase, on the confirming button.",
+    "save": "Parolayı değiştir",
+    "saving": "Anahtar türetiliyor…",
+    "savingBlocked": "Değişiklik çekirdeğe iletildi bile. Bu pencere çekirdek yanıt verdiğinde kapanır; böylece reddedilen bir parolanın bildirilecek bir yeri olur.",
+    "savingStage": "Geçerli parola doğrulanıyor, ardından yeni anahtar türetiliyor…",
+    "failed": "Parola değiştirilmedi."
+  },
+
+  "removeSlot": {
+    "title": "Bu yuvayı kaldır",
+    "lead": "Yuva kaydı başlıktan silinir. Hiçbir şey yeniden şifrelenmez ve diğer bütün yuvalar çalışmayı sürdürür — bu bir yenileme değildir.",
+
+    "refusedTitle": "Bu yuva kaldırılamaz",
+    "_comment_warningTitle": "The heading over a warning that does not block the removal.",
+    "warningTitle": "Devam etmeden önce",
+
+    "_comment_phrase": "SECURITY-CRITICAL. The sentence the user must type out before the recovery slot can be deleted. It is compared against what they type, ignoring case and repeated spaces, so it MUST read naturally in this language and MUST be easy to retype — no unusual punctuation, no words that could be spelled two ways. Translate the meaning: the person is stating that they understand they are giving up their last way back into the vault. A tick box was rejected here deliberately; typing is what makes someone read it.",
+    "phrase": "Son çaremi kaldırdığımı anlıyorum",
+    "phrasePrompt": "Onaylamak için bu cümleyi yazın:",
+    "_comment_phraseLabel": "The accessible name of the field the sentence is typed into.",
+    "phraseLabel": "Onay cümlesi",
+    "phraseHint": "Yukarıda yazıldığı gibi. Büyük-küçük harf farkı önemli değil.",
+    "_comment_phraseBlocked": "Why the confirming button is disabled, shown as its tooltip.",
+    "phraseBlocked": "Bu yuvayı kaldırmak için yukarıdaki cümleyi yazın.",
+
+    "_comment_lostKey": "Reassurance for the common case: a key you have lost can still be revoked, because revoking deletes the vault's record of it rather than the key itself.",
+    "lostKey": "İptal, yuva kaydını siler; bu yüzden kaybettiğiniz bir anahtar da iptal edilebilir — elinizde olmasına gerek yok.",
+
+    "_comment_remove": "Verb phrase, on the confirming button.",
+    "remove": "Yuvayı kaldır",
+    "removing": "Kaldırılıyor…",
+    "removingBlocked": "Kaldırma çekirdeğe iletildi bile. Bu pencere çekirdek yanıt verdiğinde kapanır; böylece sonucun görünecek bir yeri olur.",
+    "failed": "Yuva kaldırılmadı."
+  },
+
+  "recoveryKey": {
+    "_comment_": "SECURITY-CRITICAL SECTION. A recovery key is shown here and nowhere else, ever. Nothing in the program can produce it again. Every string in this object must keep that finality.",
+    "title": "Yeni kurtarma anahtarınız",
+    "_comment_titleSequence": "The same title when several keys are handed over one after another, as after a master key rotation. {position} and {total} are counts, not ordinals.",
+    "titleSequence": "Yeni kurtarma anahtarınız ({position, number} / {total, number})",
+    "_comment_lead": "SECURITY-CRITICAL. {index} is the slot number. 'shown here and nowhere else' is literal.",
+    "lead": "{index, number} numaralı yuva. Bu yuvanın daha önce tuttuğu anahtar artık işe yaramaz; bu anahtar ise burada gösteriliyor, başka hiçbir yerde.",
+
+    "_comment_done": "First person, on the button that dismisses the key. The user is asserting they have written it down.",
+    "done": "Kaydettim",
+    "_comment_doneLast": "The same button on the last key of a sequence.",
+    "doneLast": "Kaydettim — bitir",
+    "_comment_blocked": "SECURITY-CRITICAL. Why that button is still disabled: one group of the key has to be retyped first, which is how the program checks the key was actually recorded.",
+    "blocked": "Önce yukarıdaki vurgulanmış grubu yazın. Bu anahtar bir daha gösterilemez.",
+    "_comment_escapeBlocked": "SECURITY-CRITICAL. The answer to pressing Escape, which everywhere else in the program closes a dialog. Here it does not, and this sentence says why.",
+    "escapeBlocked": "Bu anahtar bir kez gösterilir. Kaydetmeden kapatırsanız yuvada, sizde olmayan bir anahtar kalır."
+  },
+
+  "autoLock": {
+    "title": "Otomatik kilit",
+    "description": "Kilitleme, her anahtarın ve önbelleğe alınmış her sırrın üzerine sıfır yazar ve bellekteki veritabanını atar. Yeniden açmak için kilidin baştan açılması gerekir.",
+
+    "idleLegend": "Şu kadar boşta kalınca kilitle",
+    "_comment_choiceNever": "The first choice on the idle ladder: the vault never locks on its own.",
+    "choiceNever": "Asla",
+    "_comment_choiceMinutes": "PLURAL. An idle timeout in minutes, on a small chip, so 'min' is abbreviated. Use this locale's conventional abbreviation; write the word out if there is none.",
+    "choiceMinutes": "{count, plural, one {# dk} other {# dk}}",
+    "_comment_choiceHours": "PLURAL. The same ladder above an hour.",
+    "choiceHours": "{count, plural, one {# saat} other {# saat}}",
+
+    "_comment_idleHelp": "What 'idle' actually measures. This sentence was wrong once and cost people work: it claimed the desktop's input idle time was being read, so users believed typing in a terminal kept the vault open when it did not. Translate what is measured, not what would be nicer to measure.",
+    "idleHelp": "Boşta olmak, kasaya hiçbir şeyin dokunmamış ve hiçbir oturumun trafik taşımamış olması demektir. Sizin gönderdiğiniz tuş vuruşları da bir sunucunun gönderdiği çıktı da sayılır; dolayısıyla izlediğiniz ama içine bir şey yazmadığınız bir oturum, çıktı gelmeyi sürdürdüğü sürece boşta sayılmaz.",
+    "_comment_idleScope": "The limitation of that measurement. 'Remoter' is the product name and is never translated.",
+    "idleScope": "Remoter, masaüstünün kendi girdi boşta kalma süresini okumaz; bu yüzden başka bir uygulamada geçirdiğiniz süre, siz klavyenin başında olsanız bile boşta sayılır.",
+    "_comment_idleNever": "Shown only when 'Never' is chosen. A judgement about a security decision, offered without scolding.",
+    "idleNever": "Asla, kasanın siz kilitleyene ya da uygulamadan çıkana kadar açık kalması demektir. Yalnızca sizin erişebildiğiniz bir makinede savunulabilir bir tercih, paylaşılan bir masada ise kötü bir tercihtir.",
+
+    "screenLock": "Ekran kilitlendiğinde",
+    "suspend": "Askıya alma ya da hazırda bekletmede",
+    "minimise": "Pencere küçültüldüğünde",
+    "minimiseHelp": "Varsayılan olarak kapalı. Çoğu kişi, masasından kalktığından çok daha sık pencere küçültür.",
+
+    "_comment_unavailable": "The state word on a switch this build cannot honour — neither on nor off in any sense the user cares about. An abbreviation of 'not applicable'; use this locale's equivalent or write it out.",
+    "unavailable": "Yok",
+
+    "_comment_noScreenLock": "One sentence per event this build cannot observe, naming what is missing rather than saying 'not supported', so a reader can tell whether it will ever change.",
+    "noScreenLock": "Bu sürüm bu sistemdeki ekran kilidini göremiyor, dolayısıyla bu seçenek hiçbir şeyi kilitlemezdi. Görmek demek, masaüstünün ekran kilidi sinyalini dinlemek demektir; Remoter bunu henüz dinlemiyor.",
+    "noSuspend": "Bu sürüm bu makinenin askıya alınmasını göremiyor, dolayısıyla bu seçenek burada hiçbir şeyi kilitlemezdi.",
+    "noMinimise": "Bu sürüm pencerenin küçültüldüğünü göremiyor, dolayısıyla bu seçenek hiçbir şeyi kilitlemezdi. Pencere araç takımı bu masaüstünde bunu bildirmiyor ve bazı masaüstlerinde çalışıp bazılarında sessizce hiçbir şey yapmayan bir seçenek, dürüst olandan daha kötü olurdu.",
+    "_comment_onResumeSuspend": "SECURITY-CRITICAL. The keys stay in memory while the machine sleeps, and are written to disk if it hibernates. Do not soften into 'may be'.",
+    "onResumeSuspend": "Remoter bu sistemden askıya alma için önceden haber isteyemiyor; bu yüzden makine uykuya dalmadan önce değil, geri döndüğünde kilitler. Makine uyurken anahtarlar bellektedir; hazırda bekletmeye geçerse hazırda bekletme görüntüsünün içindedir.",
+    "_comment_keptForOtherMachines": "Appended to whichever of the three sentences above applies. The setting travels inside the vault file, so it still works on a computer that can see the event.",
+    "keptForOtherMachines": "Ayar kasada saklanır, dolayısıyla Remoter'ın bu olayı görebildiği bir bilgisayarda geçerli olmayı sürdürür.",
+
+    "sessionsLegend": "Çalışan oturumlara ne olacak",
+    "keepRunning": "Çalışmayı sürdürsünler",
+    "_comment_keepRunningHelp": "The default, with the reason for it, which comes from docs/security/key-management.md.",
+    "keepRunningHelp": "Varsayılan olan bu ve gerekçesi şu: uzun bir dağıtımı izleyen bir sistem yöneticisi, kahve almaya gitti diye oturumunun öldürülmesini istemez. Çıktı gelmeyi sürdürür ve siz izleyebilirsiniz.",
+    "freezeInput": "Çalışmayı sürdürsünler, girdi dondurulsun",
+    "freezeInputHelp": "Oturumlar canlı kalır, ama siz kilidi açana kadar içlerine hiçbir şey yazılamaz. Sekmelerde bir kilit rozeti görünür.",
+    "disconnectAll": "Her şeyin bağlantısını kes",
+    "_comment_disconnectAllHelp": "Warns about data loss: work in a session that has not been saved on the remote host is gone.",
+    "disconnectAllHelp": "En katısı. Bir oturumdaki kaydedilmemiş iş kaybolur, süren aktarımlar da dahil.",
+    "audited": "Bunun değiştirilmesi kasanın denetim günlüğüne yazılır.",
+
+    "failed": "Bu ayar kaydedilmedi."
+  },
+
+  "recording": {
+    "title": "Kayıt ilkesi",
+    "description": "Bu kasada kendi ilkesini belirlemeyen her şey bunu devralır, dolayısıyla bütün ağaç için bir kez ayarlanır.",
+
+    "_comment_notYetTitle": "SECURITY-CRITICAL. This build has no recorder at all. A user who believes they hold a compliance record they do not have is the one failure of this screen that costs something, so this notice must not be softened or made conditional.",
+    "notYetTitle": "Bu sürümde hiçbir şey kaydedilmiyor",
+    "_comment_notYetBody": "'Remoter' is the product name and is never translated.",
+    "notYetBody": "Remoter'da henüz kaydedici yok: hangi kart seçili olursa olsun, bu kasadaki her oturum kaydedilmeden açılır. Aşağıdaki seçim şimdi kasaya saklanır ve oturum kaydı yazıldığında yürürlüğe girer.",
+
+    "_comment_": "Every sentence describing recording behaviour below is in the future tense on purpose: nothing on this screen may read as a claim about what happens today. Keep the future tense in translation wherever this language marks it.",
+    "never": "Asla",
+    "neverHelp": "Altındaki bir klasör ya da bağlantı kendi ilkesini belirlemedikçe, bu kasada hiçbir şey kaydedilmeyecek.",
+    "ask": "Oturum başlarken sor",
+    "askHelp": "Oturum açılmadan önce bir soru sorulacak. Reddetmek, oturumu kaydedilmeden açacak.",
+    "always": "Her zaman",
+    "alwaysHelp": "Açılmadan önce bir bildirimin ardından her oturum kaydedilecek. Kaydedici başlayamazsa oturum yine de açılacak — bu ilkede kayıt, elden geldiğince yapılan bir iş olacak.",
+
+    "_comment_required": "Why a fourth policy is described rather than offered. The quoted word 'required' names a policy in docs/features/recording-audit.md; keep it quoted and translate it the same way wherever that policy is named.",
+    "required": "Dördüncü bir ilke — \"zorunlu\": kaydet, kayıt başlatılamıyorsa bağlanmayı reddet — burada sunulmuyor. Kasa dosyasında bunun için bir alan yok; dolayısıyla dördüncü bir kart yukarıdaki üçten birini saklar ve adının söylediğinden daha zayıf bir anlama gelirdi.",
+
+    "storage": "Kayıtlar kasanın dışında, seçtiğiniz bir dizinde duracak; her biri kasanın ana anahtarından türetilen bir anahtarla şifrelenecek ve bu yüzden yalnızca kasanın kilidi açıkken okunabilecek. Hiçbir şey hiçbir yere yüklenmeyecek.",
+
+    "failed": "Kayıt ilkesi kaydedilmedi."
+  },
+
+  "backups": {
+    "title": "Yedekler",
+    "_comment_description": "vault.rvault.bak.1 is a file name pattern and is never translated.",
+    "description": "Kasanın üzerine yazılmadan önce, önceki dosya yanındaki dönüşümlü bir yedeğe kaydırılır: vault.rvault.bak.1'den .bak.N'e kadar.",
+
+    "legend": "Kaç tane saklansın",
+    "_comment_none": "The zero option on the ladder, in place of the numeral 0.",
+    "none": "Hiç",
+
+    "_comment_onceASession": "Why the number means less than it looks like it means: backups rotate on the first save after the vault is opened, not on every save.",
+    "onceASession": "Her kayıtta değil, oturum başına bir kez döndürülür",
+    "onceASessionBody": "Bir düğümdeki her düzenleme bir kayıttır. Her birinde yedek alınsaydı, üç yedek dört tıklama derinliğinde kalır ve bir hatadan önceki dosya çoktan kaybolmuş olurdu. Oturumun ilk kaydında döndürmek, .bak.1 dosyasını kasayı açtığınız andaki hâliyle tutar.",
+
+    "_comment_zeroTitle": "Keeping no backups is a legitimate choice, not a mistake to be talked out of.",
+    "zeroTitle": "Hiç saklamamak da gerçek bir tercihtir",
+    "zeroBody": "Bu kasa eşitlenen bir klasörde duruyorsa, sağlayıcı şifreli metnin eski kopyalarını zaten saklıyordur ve diskte bunların fazladan kopyalarının dolaşmasını istemeyebilirsiniz.",
+
+    "_comment_present": "PLURAL, on how many backup files are beside the vault at this moment. The zero and one wordings are deliberately different from the general case rather than showing a numeral.",
+    "present": "{count, plural, =0 {Şu anda bu kasanın yanında hiç yedek yok.} one {Şu anda bu kasanın yanında bir yedek duruyor.} other {Şu anda bu kasanın yanında # yedek duruyor.}}",
+    "_comment_presentPrune": "Follows the sentence above. Lowering the setting does not delete files that already exist.",
+    "presentPrune": "Sayıyı düşürmek, zaten yazılmış dosyaları silmez; bir sonraki döndürme yeni sınırda durur.",
+
+    "failed": "Yedek sayısı kaydedilmedi."
+  }
+}

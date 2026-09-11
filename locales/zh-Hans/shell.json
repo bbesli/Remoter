@@ -1,0 +1,168 @@
+{
+  "_comment_file": "The application shell: title bar, tab strip, status bar, footer, inspector, and the two full-area states (empty vault, locked vault). Loaded before the first paint, because it is on screen whenever the window is.",
+
+  "titleBar": {
+    "_comment_": "A 38px bar. Every label here is also a tooltip, so short wins — but a disabled control's tooltip says WHY, because 'why not?' is the only question a dead button raises.",
+    "noVault": "未打开保险库",
+    "unlocked": "已解锁",
+    "locked": "已锁定",
+    "lock": "锁定保险库",
+    "lockAlreadyLocked": "没有已解锁的保险库可以锁定。",
+    "lockInProgress": "正在锁定保险库…",
+    "_comment_lockingShort": "Shown in the bar itself, where there is room for one word. The tooltip carries lockInProgress.",
+    "lockingShort": "锁定中…",
+    "settings": "设置",
+    "vaultSettings": "保险库设置",
+    "audit": "审计日志",
+    "importer": "导入连接",
+    "_comment_needsVault": "{action} is one of the four labels above. Interpolated rather than concatenated: languages differ on where the subject of this sentence goes.",
+    "needsVault": "“{action}”需要一个已解锁的保险库。",
+    "minimise": "最小化",
+    "maximise": "最大化",
+    "restore": "还原窗口",
+    "close": "关闭窗口",
+    "_comment_controlFailed": "SECURITY-ADJACENT. The window controls are the one place where doing nothing is indistinguishable from being broken. Do not soften this into 'something went wrong'.",
+    "controlFailed": "窗口管理器拒绝了“{action}”。",
+    "noWindow": "此页面没有运行在 Remoter 窗口内，因此这里的窗口控件不起作用。"
+  },
+
+  "tabStrip": {
+    "sidebarShow": "显示连接树",
+    "sidebarHide": "隐藏连接树",
+    "noSessions": "没有打开的会话——双击一个连接即可开始",
+    "_comment_inspector": "Ctrl-free: F4 is a bare function key and is written as-is in every language.",
+    "inspector": "生效值 · F4"
+  },
+
+  "statusBar": {
+    "nothingSelected": "未选中任何项",
+    "noSession": "无会话",
+    "resolving": "正在解析继承来的值…",
+    "unresolved": "尚未解析出生效值",
+    "_comment_protocolUnset": "Sits where SSH, RDP, VNC or SFTP would. Lower case: it is the absence of a protocol, not the name of one.",
+    "protocolUnset": "无协议",
+    "showDetail": "在检查器中查看失败详情"
+  },
+
+  "footer": {
+    "_comment_": "Counts. Every one is a plural: Russian needs four forms here and Arabic six, and the zero case is worth its own wording in the languages that have one.",
+    "sessions": "{count, plural, =0 {无会话} other {# 个会话}}",
+    "tunnels": "{count, plural, =0 {无隧道} other {# 条隧道}}",
+    "connections": "{count, plural, =0 {无连接} other {# 个连接}}",
+    "credentials": "{count, plural, =0 {无凭据} other {# 个凭据}}",
+    "openPanels": "打开会话与隧道面板",
+    "_comment_locksIn": "{clock} is mm:ss, produced by formatClock() so the digits follow the locale's numbering system.",
+    "locksIn": "保险库将在 {clock} 后锁定",
+    "noAutoLock": "自动锁定已关闭"
+  },
+
+  "inspector": {
+    "title": "生效值",
+    "close": "关闭检查器",
+    "nothingSelected": "未选中任何项",
+    "nothingSelectedBody": "在树中选择一个连接，即可查看它解析后的设置。",
+    "notAConnection": "文件夹本身没有生效值。",
+    "notAConnectionBody": "文件夹设定的内容会显示在它下面的连接上，作为继承值的来源。",
+    "resolving": "正在解析",
+    "failed": "无法解析此连接",
+    "retry": "重新解析",
+    "notAsked": "未请求生效值",
+    "notAskedBody": "解析需要对着已打开的保险库进行。当前这个是锁定的，因此还没有可解析的对象。",
+    "_comment_unset": "The value of a field nobody has set, anywhere in the inheritance chain.",
+    "unset": "未设置",
+    "_comment_setHere": "Provenance labels, shown under a resolved field. 'set here' means this connection's own value; the others name where an inherited value came from. Lower case: they are fragments under a value, not sentences.",
+    "setHere": "在此设置",
+    "fromDefault": "协议默认值",
+    "inherited": "继承而来",
+    "_comment_fromSource": "{source} is a folder or connection name — user data, in any script, isolated before it arrives.",
+    "fromSource": "来自 {source}",
+    "_comment_overridesInherited": "{field} is a field name such as 'port' or 'username'. This is the case worth calling out: the tree above says something different from what will actually be used.",
+    "overridesInherited": "覆盖了继承来的 {field}",
+    "credentialOwn": "此连接自有",
+    "credentialShared": "在此设置 · 与其他条目共享",
+    "gateway": "网关链",
+    "tags": "标签",
+    "noFields": "此连接没有解析出任何字段。"
+  },
+
+  "emptyVault": {
+    "title": "此保险库是空的",
+    "_comment_body": "{vault} is the vault file's name, which is user data and may be in any script. It is wrapped in a Unicode isolate before it gets here, so the sentence keeps its own direction whatever the name contains.",
+    "body": "{vault} 里还没有存放任何内容。多数人会先把现有的连接搬过来。",
+    "unnamedVault": "此保险库",
+    "importTitle": "从其他工具导入",
+    "_comment_importBody": "Product and file names. Not translated.",
+    "importBody": "mRemoteNG、~/.ssh/config、CSV",
+    "createTitle": "创建第一个连接",
+    "createBody": "有一个主机、一个协议和一份凭据就可以开始。",
+    "createBusy": "正在打开连接编辑器…",
+    "openTitle": "打开另一个保险库",
+    "openBody": "锁定此保险库并返回保险库选择界面。",
+    "openBusy": "正在锁定此保险库…",
+    "openFailed": "此保险库没有被锁定，因此选择界面没有打开。"
+  },
+
+  "main": {
+    "nothingSelected": "未选中任何项",
+    "_comment_nothingSelectedBody": "Ctrl+K is a key name. Translate the sentence around it, not the key.",
+    "nothingSelectedBody": "在树中选择一个连接，或按 Ctrl+K 搜索。",
+    "noProtocol": "无协议",
+    "_comment_sidebarLabel": "The accessible name of the connection tree's landmark region. Read aloud when a screen reader lists the regions of the window.",
+    "sidebarLabel": "连接",
+    "_comment_nodeKind": "What a selected tree entry is, shown above its name where a connection shows its protocol. These are the node kinds from the domain model; they are shown to the user, so they are translated, unlike the protocol names beside them.",
+    "nodeKind": {
+      "folder": "文件夹",
+      "connection": "连接",
+      "credential": "凭据",
+      "group": "分组",
+      "separator": "分隔线"
+    },
+    "connectHint": "在树中双击它、在命令面板中按 Enter，或使用它的右键菜单中的“连接”。",
+    "folderSelected": "文件夹保存的设置会被它下面的连接继承。",
+
+    "lockedTitle": "此保险库已锁定",
+    "_comment_lockedBody": "SECURITY-CRITICAL wording in one respect: it must keep saying that nothing was lost. A user who believes a lock destroyed their connections will go looking for a backup they do not need.",
+    "lockedBody": "它在闲置一段时间后自动锁定，或者是在另一个窗口中被锁定的。没有任何内容丢失：连接仍然在文件里，解锁后就会回来。",
+    "lockedAction": "解锁此保险库",
+    "lockedNoPath": "选择一个保险库",
+
+    "vaultStateFailed": "Remoter 无法判断当前是否有保险库处于打开状态。",
+    "treeFailed": "无法读取连接树。",
+    "lockFailed": "保险库没有被锁定。",
+
+    "fullscreenFailedTitle": "窗口没有进入全屏。",
+    "fullscreenFailedBody": "窗口管理器拒绝了这一请求，或者此页面没有运行在 Remoter 窗口内。会话本身没有任何变化。",
+
+    "checkingVault": "正在检查是否有保险库处于打开状态…",
+    "readingTree": "正在从保险库中读取连接…"
+  },
+
+  "kdfUpgrade": {
+    "_comment_": "SECURITY-CRITICAL SECTION. This is the offer to strengthen a vault's key derivation. Do not soften 'weaker than the current standard' into 'could be improved', and do not drop the sentence explaining why the password is asked for again — a credential prompt without a stated reason is exactly what a phishing dialog looks like.",
+    "offer": "此保险库的密钥派生强度低于当前标准。加强它只需片刻，也不需要设置新密码。",
+    "strengthen": "加强它",
+    "notNow": "暂不",
+    "dismissLabel": "在下次解锁前不再提示",
+
+    "password": "主密码",
+    "passwordHelp": "就是您刚才用来解锁的那个密码。每个密钥槽位都会围绕它重建，所以需要再输入一次。",
+    "confirm": "加强",
+    "_comment_working": "Short enough that reserving room for it does not widen the idle button.",
+    "working": "加强中…",
+    "workingStage": "正在以更高的开销重新派生密钥…",
+
+    "reading": "正在读取保险库文件头…",
+    "readFailed": "无法读取此保险库的文件头，因此无法加强密钥槽位。",
+
+    "keyfile": "密钥文件",
+    "keyfileMissing": "此保险库的密码槽位还需要它的密钥文件。",
+    "keyfileDialog": "选择此保险库的密钥文件",
+    "keyfileDialogFailed": "系统文件浏览器没有打开，因此没有选中任何密钥文件。没有任何内容被发送到保险库。",
+
+    "failed": "密钥槽位没有被加强。",
+    "done": "完成。此保险库的密钥槽位已达到当前开销标准。",
+
+    "blockedPassword": "请输入主密码。",
+    "blockedKeyfile": "请选择此保险库需要的密钥文件。"
+  }
+}

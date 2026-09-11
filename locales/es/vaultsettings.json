@@ -1,0 +1,427 @@
+{
+  "_comment_file": "The vault settings screen: which keys open this vault file, and the policies stored inside the file itself — auto-lock, recording and rolling backups. Loaded when the screen opens, not before. Read the SECURITY-CRITICAL comments before translating anything in this namespace: several of these strings are the last warning a person sees before an operation that can leave an encrypted file that nobody, including us, can ever open. A softened warning here is a real and foreseeable way to lose someone's data.",
+
+  "screen": {
+    "title": "Configuración de la bóveda",
+    "_comment_close": "Both the accessible name of the header's close control and the label of the button offered beside a failed read.",
+    "close": "Cerrar la configuración de la bóveda",
+    "_comment_closeHint": "The tooltip on the same control. Esc is a key name and is never translated.",
+    "closeHint": "Cerrar la configuración de la bóveda (Esc)",
+    "_comment_sections": "The accessible name of the vertical tab list, read aloud before the tabs inside it.",
+    "sections": "Secciones de la configuración de la bóveda",
+    "_comment_navSlots": "The four navigation tabs. Each also titles the panel it opens, so keep them short.",
+    "navSlots": "Ranuras de clave",
+    "navLock": "Bloqueo automático",
+    "navRecording": "Política de grabación",
+    "navBackups": "Copias de seguridad",
+    "_comment_vaultLabel": "The open vault's name, beside the screen title. {label} is a name the user chose and is never translated; the middot separates it from the title and may be replaced by whatever glyph this locale separates such a pair with.",
+    "vaultLabel": "· {label}",
+    "loadingSlots": "Leyendo las ranuras de clave de la bóveda…",
+    "loadingSettings": "Leyendo la configuración de esta bóveda…",
+    "slotsFailed": "No se pudieron leer las ranuras de clave.",
+    "settingsFailed": "No se pudo leer la configuración de esta bóveda.",
+    "locked": "No hay ninguna bóveda abierta",
+    "lockedBody": "Esta configuración vive dentro del archivo de la bóveda, así que solo se puede leer mientras está desbloqueada."
+  },
+
+  "status": {
+    "_comment_saving": "Shown beside a spinner while one setting is being written. Used by all three policy panels.",
+    "saving": "Guardando…"
+  },
+
+  "dialog": {
+    "_comment_blockedFallback": "A noun phrase, not a sentence: it is interpolated into the window-close confirmation as the thing that would be lost — 'Closing now loses …'. Only reached if a dialog refuses to be dismissed without saying what is at stake, which no dialog on this screen does.",
+    "blockedFallback": "algo que no se puede volver a mostrar"
+  },
+
+  "keyfile": {
+    "_comment_": "Choosing the file that acts as a second factor on a key slot. A key file is an ordinary file of the user's choosing; its contents are mixed into the key, so losing the file loses the slot.",
+    "_comment_none": "Shown in place of a path when no key file has been chosen. Adjective-free noun: 'no file chosen'.",
+    "none": "Ninguno",
+    "_comment_clear": "A button that removes the chosen key file, leaving the slot with no key file at all.",
+    "clear": "Sin archivo de clave",
+    "_comment_dialogTitle": "The title bar of the operating system's file browser.",
+    "dialogTitle": "Elija el archivo de clave de esta ranura",
+    "_comment_dialogFailed": "Shown when the platform has no file browser to open. 'Remoter' is the product name and is never translated.",
+    "dialogFailed": "Este sistema no abrió ningún explorador de archivos. Escriba la ruta en el campo que le dé la plataforma, o inicie Remoter desde una sesión que sí tenga explorador."
+  },
+
+  "slot": {
+    "_comment_": "How one key slot is described. A slot is one independent way of unwrapping the vault key: the same vault can have several, and any one of them opens it.",
+    "_comment_kind": "The four kinds of slot. 'Security key' is a hardware authenticator (FIDO2); 'Remember on this device' is the operating system's own credential store.",
+    "kind": {
+      "password": "Contraseña",
+      "recovery": "Clave de recuperación",
+      "fido2": "Llave de seguridad",
+      "keychain": "Recordar en este dispositivo"
+    },
+    "_comment_indexBadge": "A badge carrying the slot's position in the vault header, as in 'slot 0'. Lower case: it sits beside the slot's own name rather than starting a sentence. The number is not an ordinal — slots are numbered from zero.",
+    "indexBadge": "ranura {index, number}",
+    "_comment_added": "{day} is a date already formatted for this locale.",
+    "added": "Añadida el {day}",
+    "lastUsed": "Usada por última vez el {day}",
+    "_comment_neverUsed": "A slot that has never opened this vault. Sentence-initial: it appears at the start of the detail line.",
+    "neverUsed": "Nunca usada",
+    "_comment_withKeyfile": "This slot needs its key file in addition to its password.",
+    "withKeyfile": "Necesita también su archivo de clave",
+    "noKeyfile": "Solo contraseña"
+  },
+
+  "slots": {
+    "title": "Ranuras de clave",
+    "description": "Cada ranura desenvuelve por sí sola la misma clave de la bóveda. Añadir o quitar una no vuelve a cifrar nada, así que es rápido y seguro cambiar de idea.",
+
+    "_comment_openedWithBadge": "A badge on the slot that unlocked the vault in this session. Lower case, no full stop: it is a badge, not a sentence.",
+    "openedWithBadge": "abrió esta sesión",
+    "_comment_neverUsedBadge": "A badge on a recovery key that has never opened this vault — the slot most likely to have been lost. Lower case, no full stop.",
+    "neverUsedBadge": "nunca usada",
+
+    "_comment_change": "Verb, on the button that changes this slot's password.",
+    "change": "Cambiar",
+    "_comment_rotate": "Verb, on the button that replaces this recovery key with a new one.",
+    "rotate": "Rotar",
+    "_comment_remove": "Verb, on the button that deletes this slot from the vault.",
+    "remove": "Quitar",
+
+    "_comment_add": "Verb phrase, on the row that opens the add-a-slot dialog.",
+    "add": "Añadir una ranura",
+    "_comment_addHint": "The three kinds that can be added, as a hint under the button. The middots are separators.",
+    "addHint": "otra contraseña · una clave de recuperación · este dispositivo",
+
+    "_comment_unusedRecoveryBody": "SECURITY-CRITICAL. Shown on a recovery key that has never been used. Do not soften 'there is no way into this vault without one of these slots' — it is literally true, and a reader who takes it as caution rather than fact is the reader who loses the vault.",
+    "unusedRecoveryBody": "Una clave generada y nunca usada es precisamente la que más probabilidades tiene de haberse perdido. Si no puede ponerle la mano encima, rótela ahora: sin una de estas ranuras no hay forma de entrar en esta bóveda.",
+
+    "_comment_invariantTitle": "SECURITY-CRITICAL. The standing notice at the foot of the panel.",
+    "invariantTitle": "Una bóveda debe conservar al menos una ranura utilizable",
+    "_comment_invariantBody": "SECURITY-CRITICAL. 'no escrow key and no support override' must survive translation as an absolute: there is no recovery path of any kind, and 'including us' means the people who wrote this program. 'Remoter' is the product name and is never translated.",
+    "invariantBody": "Remoter no le dejará borrar la última, y borrar la ranura de recuperación exige escribir una confirmación. No hay clave en custodia ni forma de que el soporte lo anule: si se pierden todas las ranuras, nadie podrá abrir el archivo, nosotros incluidos.",
+
+    "_comment_removeFailed": "The title of the failure notice when a removal fails after its dialog has closed.",
+    "removeFailed": "La ranura no se quitó.",
+
+    "_comment_lastSlotRefusal": "SECURITY-CRITICAL. Why the last remaining slot cannot be removed, shown on the disabled control before anything is clicked. This refusal has no undo behind it: if it were bypassed the file would be unopenable forever.",
+    "lastSlotRefusal": "Esta es la única forma de entrar en esta bóveda. Quitarla dejaría un archivo que nadie podrá abrir jamás: no hay clave en custodia ni forma de que el soporte lo anule.",
+    "_comment_openedWithWarning": "A warning, not a refusal: this slot is the one that unlocked the vault in this session.",
+    "openedWithWarning": "Esta sesión se abrió con esta ranura. Quitarla no bloquea la bóveda ahora, pero es la vía de entrada que más recientemente ha demostrado que funciona.",
+    "_comment_lastRecoveryWarning": "SECURITY-CRITICAL. A warning, not a refusal. 'the end of the vault' means the vault can never be opened again; do not weaken it to 'a problem'.",
+    "lastRecoveryWarning": "Esta es la última clave de recuperación de esta bóveda. Sin ninguna, olvidar la contraseña es el fin de la bóveda."
+  },
+
+  "rotateRecovery": {
+    "_comment_": "Replacing one recovery key with a freshly generated one. The vault master key is untouched, so this is cheap — unlike the master key rotation further down the same screen.",
+    "title": "Rotar esta clave de recuperación",
+    "_comment_lead": "SECURITY-CRITICAL. 'shown exactly once' is a statement of fact: nothing in the program can produce the key again.",
+    "lead": "La ranura se sustituye por una clave nueva. La que tiene hoy deja de funcionar en el momento en que esto salga bien, y la nueva se muestra una sola vez.",
+    "body": "La clave maestra no cambia, así que no se vuelve a cifrar nada y todas las demás ranuras siguen funcionando.",
+    "_comment_confirm": "Verb phrase, on the button that performs the rotation.",
+    "confirm": "Rotar la clave",
+    "busy": "Generando…",
+    "_comment_blocked": "SECURITY-CRITICAL. Why the dialog refuses to close while the new key is being generated.",
+    "blocked": "Se está generando la clave nueva. Cerrar ahora la perdería: se muestra una sola vez y nada puede volver a emitirla.",
+    "failed": "La clave de recuperación no se rotó."
+  },
+
+  "expensive": {
+    "_comment_label": "A heading over the one operation on this screen that re-encrypts the whole vault and therefore takes real time.",
+    "label": "Operación costosa"
+  },
+
+  "rotateMaster": {
+    "_comment_": "Rotating the vault master key: a new master key, every slot re-wrapped around it, and every stored secret re-encrypted.",
+    "cardTitle": "Rotar la clave maestra de la bóveda",
+    "_comment_cardBody": "The quoted sentence is the situation this operation answers; keep it as a quotation the reader could have said themselves.",
+    "cardBody": "Esta es la respuesta correcta a \"puede que se haya filtrado una copia de este archivo mientras una de mis claves estaba comprometida\". Se genera una clave maestra nueva, se vuelve a envolver cada ranura y se vuelve a cifrar el cuerpo entero.",
+    "_comment_cardButton": "Verb phrase, on the button that opens the rotation dialog.",
+    "cardButton": "Rotar la clave maestra",
+    "_comment_cardAside": "SECURITY-CRITICAL. Rotation does not reach copies of the file that already exist. 'Delete them' is an instruction, not a suggestion.",
+    "cardAside": "Las copias antiguas del archivo siguen siendo legibles con las claves antiguas. Bórrelas.",
+
+    "title": "Rotar la clave maestra de la bóveda",
+    "lead": "Se genera una clave maestra nueva, se vuelve a envolver cada ranura alrededor de ella y se vuelve a sellar cada secreto de la bóveda.",
+
+    "whenTitle": "Cuándo es esta la respuesta correcta",
+    "whenBody": "Puede que se haya filtrado una copia de este archivo mientras una de sus claves estaba comprometida. Cambiar una contraseña vuelve a envolver una sola ranura; esto sustituye la clave con la que está cifrado todo el cuerpo.",
+
+    "_comment_limitTitle": "SECURITY-CRITICAL. What rotation cannot do, shown both before and after the operation.",
+    "limitTitle": "Lo que no puede hacer",
+    "_comment_limitBody": "SECURITY-CRITICAL. Must not be softened into reassurance: a leaked copy stays readable with the old keys forever, and so do the backup files beside the vault. 'rotation protects what happens next, not what already left' is the whole point of the paragraph.",
+    "limitBody": "La copia filtrada se sigue abriendo con las claves antiguas, y lo mismo ocurre con las copias de seguridad rotativas que hay junto a esta bóveda, que este guardado rota. Borre las copias que conozca: la rotación protege lo que venga a partir de ahora, no lo que ya salió.",
+
+    "costTitle": "Lleva un tiempo real",
+    "_comment_costBody": "PLURAL, on the number of password slots being re-wrapped. Argon2id is a key derivation function and is never translated. The one-slot wording is deliberately different rather than showing the numeral 1.",
+    "costBody": "{count, plural, one {Argon2id se ejecuta una vez, para la única ranura de contraseña, y se vuelve a sellar cada secreto guardado.} other {Argon2id se ejecuta una vez por cada ranura de contraseña —aquí hay #— y se vuelve a sellar cada secreto guardado.}}",
+
+    "_comment_slotsLegend": "The legend over the per-slot form. Every slot must either be opened or explicitly discarded; there is no third option, which is what 'accounted for' means.",
+    "slotsLegend": "Hay que resolver todas las ranuras, una por una",
+    "_comment_password": "The label of the password field for one slot.",
+    "password": "Contraseña",
+    "keyfile": "Archivo de clave",
+    "keyfileHelp": "El archivo que exige hoy esta ranura.",
+    "_comment_drop": "The checkbox that discards a slot rather than re-wrapping it. First person, because it is the user's own statement about a key they no longer hold.",
+    "drop": "No tengo esta. Descartar la ranura.",
+    "_comment_dropped": "Replaces the label above once the checkbox is ticked.",
+    "dropped": "Se descartará",
+
+    "recoveryNote": "Para esta ranura se emite una clave de recuperación nueva, que se muestra una sola vez al terminar la rotación.",
+    "keychainNote": "Se vuelve a envolver a partir del token del llavero de esta máquina. Si el token ya no está, descarte la ranura y vuelva a dar de alta esta máquina después.",
+    "fido2Note": "Esta versión no puede volver a envolver una ranura de llave de seguridad.",
+
+    "_comment_problemsTitle": "The heading over the list of reasons the rotation cannot start yet.",
+    "problemsTitle": "Todavía no se puede rotar",
+    "_comment_problemNoCredential": "One entry in that list. {index} is the slot number, {label} the name the user gave the slot — never translated. The quoted phrase refers to the discard checkbox on that slot's card, so it should match the wording of rotateMaster.drop.",
+    "problemNoCredential": "La ranura {index, number} ({label}) necesita su contraseña o un \"descartar la ranura\" explícito.",
+    "_comment_problemFido2": "Security keys cannot be re-wrapped by this version. 'enrol it again' means adding the security key as a new slot after the rotation.",
+    "problemFido2": "La ranura {index, number} ({label}) es una llave de seguridad, y esta versión no puede volver a envolverla. Descártela aquí y vuelva a darla de alta después, o cancele.",
+    "_comment_problemEmpty": "SECURITY-CRITICAL. A rotation that discards every slot would produce a file with no way in at all.",
+    "problemEmpty": "Todas las ranuras están marcadas para descartar. Una rotación que no conserva ninguna produce un archivo que nadie puede abrir.",
+
+    "_comment_confirm": "Verb phrase, on the button that starts the rotation.",
+    "confirm": "Rotar la clave maestra",
+    "busy": "Recodificando…",
+    "_comment_blocked": "SECURITY-CRITICAL. Why the dialog refuses to close while the vault is being re-keyed.",
+    "blocked": "Se está recodificando la bóveda. Cerrar ahora dejaría sin sitio donde aparecer a las claves de recuperación nuevas, que se muestran una sola vez.",
+    "stage": "Derivando una clave para cada ranura y volviendo a cifrar la bóveda…",
+    "failed": "La bóveda no se rotó.",
+    "_comment_unchanged": "Reassurance after a failure, and it is exact: a failed rotation is atomic, so nothing at all was written.",
+    "unchanged": "No cambió nada: la bóveda está exactamente como estaba antes de pulsar el botón."
+  },
+
+  "rotationSummary": {
+    "_comment_": "What the rotation did, shown after the last new recovery key has been written down.",
+    "title": "La bóveda se ha recodificado",
+    "lead": "Todo lo de abajo ya está escrito en el archivo.",
+    "_comment_rewrapped": "PLURAL. A slot that was re-wrapped still opens the vault, now under the new master key.",
+    "rewrapped": "{count, plural, one {# ranura vuelta a envolver} many {# de ranuras vueltas a envolver} other {# ranuras vueltas a envolver}}",
+    "_comment_dropped": "PLURAL. A discarded slot no longer exists and no longer opens the vault.",
+    "dropped": "{count, plural, one {# ranura descartada} many {# de ranuras descartadas} other {# ranuras descartadas}}",
+    "_comment_resealed": "PLURAL. Every password, key and passphrase stored in the vault, re-encrypted under the new master key.",
+    "resealed": "{count, plural, one {# secreto vuelto a sellar} many {# de secretos vueltos a sellar} other {# secretos vueltos a sellar}}"
+  },
+
+  "addSlot": {
+    "title": "Añadir una ranura de clave",
+    "lead": "Cada ranura desenvuelve por sí sola la misma clave de la bóveda. Añadir una vuelve a envolver esa clave con una credencial nueva y no vuelve a cifrar nada, así que es instantáneo y se puede cambiar de idea sin riesgo.",
+
+    "_comment_kindLegend": "The legend over the three radio cards below.",
+    "kindLegend": "Qué tipo de ranura",
+    "kindPassword": "Otra contraseña",
+    "kindPasswordHelp": "Una segunda contraseña, opcionalmente con su propio archivo de clave. Útil para un compañero que tenga que poder abrir esta bóveda sin conocer la suya.",
+    "kindRecovery": "Otra clave de recuperación",
+    "kindRecoveryHelp": "Una bóveda puede tener más de una. Un sobre cerrado en una caja fuerte es un motivo legítimo para querer una segunda.",
+    "kindKeychain": "Recordar en este dispositivo",
+    "kindKeychainHelp": "Da de alta el almacén de credenciales de esta máquina, de modo que la bóveda se abre sin preguntar nada mientras la sesión del sistema esté iniciada. Cualquiera que pueda usar su sesión de escritorio podrá entonces abrir la bóveda.",
+
+    "label": "Nombre de esta ranura",
+    "labelHelp": "Se muestra en esta lista y en la pantalla de desbloqueo, para poder distinguir una ranura de las demás.",
+    "_comment_labelPlaceholder": "An example name, in the empty field. Replace it with a plausible example in this locale rather than translating it word for word.",
+    "labelPlaceholder": "Laptop de operaciones",
+    "_comment_labelBlocked": "Why the Add button is disabled. Shown as its tooltip.",
+    "labelBlocked": "Póngale antes un nombre a la ranura.",
+
+    "password": "Contraseña",
+    "_comment_passwordHelp": "SECURITY-CRITICAL. A second password opens the whole vault; it is not a lesser credential.",
+    "passwordHelp": "Esta abre la bóveda entera, exactamente igual que la contraseña maestra. Debería ser igual de fuerte.",
+    "confirm": "Repita la contraseña",
+    "confirmMismatch": "Las dos contraseñas no son iguales.",
+    "passwordBlocked": "Escriba la contraseña dos veces, igual las dos.",
+
+    "keyfile": "Archivo de clave (opcional)",
+    "_comment_keyfileHelp": "SECURITY-CRITICAL. Losing the key file loses this slot, permanently.",
+    "keyfileHelp": "Cualquier archivo se convierte en un segundo factor para esta ranura. Si lo pierde, esta ranura deja de funcionar; las demás ranuras no se ven afectadas.",
+    "_comment_keyfileRefused": "Why the Add button is disabled: the chosen file cannot be a key file, and the field above already says which rule it broke.",
+    "keyfileRefused": "Elija otro archivo de clave. El campo de arriba dice por qué ese no se puede usar.",
+
+    "_comment_recoveryNotice": "SECURITY-CRITICAL. 'shown once, and then dropped' is literal: the key exists nowhere after this dialog closes. 'Add' is the button label, addSlot.add.",
+    "recoveryNotice": "La clave se genera al pulsar Añadir, se muestra una sola vez y después se descarta.",
+    "keychainNotice": "El token vive en el llavero de esta máquina. Otra máquina no puede usar esta ranura, y quitarla aquí borra el token.",
+
+    "_comment_add": "Verb phrase, on the confirming button.",
+    "add": "Añadir la ranura",
+    "adding": "Derivando la clave…",
+    "_comment_addingStage": "The longer stage description, beside a spinner. Argon2id's cost is the security property, so the wait is explained rather than hidden.",
+    "addingStage": "Derivando una clave a partir de la contraseña nueva…",
+    "_comment_addingBlocked": "Why the dialog refuses to close while the slot is being written.",
+    "addingBlocked": "La ranura ya se está escribiendo. Esto se cierra cuando responda el núcleo, y una ranura de recuperación tiene antes una clave que entregarle.",
+    "failed": "La ranura no se añadió."
+  },
+
+  "changePassword": {
+    "title": "Cambiar la contraseña de esta ranura",
+    "lead": "La ranura se vuelve a envolver con la contraseña nueva. La clave maestra no cambia, así que no se vuelve a cifrar nada, todas las demás ranuras siguen funcionando y las claves de recuperación siguen siendo válidas.",
+
+    "_comment_notARotation": "SECURITY-CRITICAL. The distinction between changing a password and rotating the master key. A user who believes this repairs a leak will not then do the thing that does.",
+    "notARotation": "Esto no sirve de nada si lo que se filtró fue el archivo",
+    "notARotationBody": "Una copia tomada mientras se usaba la contraseña antigua se sigue abriendo con la contraseña antigua. La respuesta a eso es rotar la clave maestra de la bóveda, y está en esta misma pantalla.",
+
+    "current": "Contraseña actual",
+    "currentHelp": "Se verifica antes de sustituir nada, así que una errata aquí no puede dejar la ranura inservible.",
+    "currentKeyfile": "Archivo de clave actual",
+    "currentKeyfileHelp": "Esta ranura exige uno, así que el cambio también lo necesita.",
+
+    "next": "Contraseña nueva",
+    "confirm": "Repita la contraseña nueva",
+    "confirmMismatch": "Las dos contraseñas no son iguales.",
+
+    "newKeyfile": "Archivo de clave a partir de ahora",
+    "_comment_newKeyfileHelp": "SECURITY-CRITICAL. The current key file is NOT carried over; leaving the field empty removes it. A translation that implies otherwise is the difference between a slot that opens tomorrow and one that does not.",
+    "newKeyfileHelp": "Se elige de forma explícita, también cuando se deja vacío: el archivo de clave actual no se arrastra. Vacío significa que esta ranura solo necesitará una contraseña.",
+
+    "_comment_blockedCurrent": "The four reasons the confirming button is disabled, shown as its tooltip.",
+    "blockedCurrent": "Escriba la contraseña actual de la ranura.",
+    "blockedCurrentKeyfile": "Elija el archivo de clave que exige ahora mismo esta ranura.",
+    "blockedNew": "Escriba la contraseña nueva dos veces, igual las dos.",
+    "blockedKeyfile": "Ese archivo no puede ser un archivo de clave.",
+
+    "_comment_save": "Verb phrase, on the confirming button.",
+    "save": "Cambiar la contraseña",
+    "saving": "Derivando la clave…",
+    "savingBlocked": "El cambio ya está en manos del núcleo. Esto se cierra cuando responda, para que una contraseña rechazada tenga dónde comunicarse.",
+    "savingStage": "Verificando la contraseña actual y derivando después la clave nueva…",
+    "failed": "La contraseña no se cambió."
+  },
+
+  "removeSlot": {
+    "title": "Quitar esta ranura",
+    "lead": "La entrada de la ranura se borra de la cabecera. No se vuelve a cifrar nada y todas las demás ranuras siguen funcionando: esto no es una rotación.",
+
+    "refusedTitle": "Esta ranura no se puede quitar",
+    "_comment_warningTitle": "The heading over a warning that does not block the removal.",
+    "warningTitle": "Antes de hacerlo",
+
+    "_comment_phrase": "SECURITY-CRITICAL. The sentence the user must type out before the recovery slot can be deleted. It is compared against what they type, ignoring case and repeated spaces, so it MUST read naturally in this language and MUST be easy to retype — no unusual punctuation, no words that could be spelled two ways. Translate the meaning: the person is stating that they understand they are giving up their last way back into the vault. A tick box was rejected here deliberately; typing is what makes someone read it.",
+    "phrase": "Entiendo que esto elimina mi recurso de emergencia",
+    "phrasePrompt": "Escriba esta frase para confirmar:",
+    "_comment_phraseLabel": "The accessible name of the field the sentence is typed into.",
+    "phraseLabel": "Frase de confirmación",
+    "phraseHint": "Las palabras tal como están escritas arriba. Las mayúsculas no importan.",
+    "_comment_phraseBlocked": "Why the confirming button is disabled, shown as its tooltip.",
+    "phraseBlocked": "Escriba la frase de arriba para quitar esta ranura.",
+
+    "_comment_lostKey": "Reassurance for the common case: a key you have lost can still be revoked, because revoking deletes the vault's record of it rather than the key itself.",
+    "lostKey": "Revocar borra la entrada de la ranura, así que una clave que haya perdido se puede revocar igualmente: no hace falta tenerla delante.",
+
+    "_comment_remove": "Verb phrase, on the confirming button.",
+    "remove": "Quitar la ranura",
+    "removing": "Quitando…",
+    "removingBlocked": "La eliminación ya está en manos del núcleo. Esto se cierra cuando responda, para que su resultado tenga dónde aparecer.",
+    "failed": "La ranura no se quitó."
+  },
+
+  "recoveryKey": {
+    "_comment_": "SECURITY-CRITICAL SECTION. A recovery key is shown here and nowhere else, ever. Nothing in the program can produce it again. Every string in this object must keep that finality.",
+    "title": "Su nueva clave de recuperación",
+    "_comment_titleSequence": "The same title when several keys are handed over one after another, as after a master key rotation. {position} and {total} are counts, not ordinals.",
+    "titleSequence": "Su nueva clave de recuperación ({position, number} de {total, number})",
+    "_comment_lead": "SECURITY-CRITICAL. {index} is the slot number. 'shown here and nowhere else' is literal.",
+    "lead": "Ranura {index, number}. La clave que tenía antes esa ranura ya no sirve de nada, y esta se muestra aquí y en ningún otro sitio.",
+
+    "_comment_done": "First person, on the button that dismisses the key. The user is asserting they have written it down.",
+    "done": "Ya la guardé",
+    "_comment_doneLast": "The same button on the last key of a sequence.",
+    "doneLast": "Ya la guardé: terminar",
+    "_comment_blocked": "SECURITY-CRITICAL. Why that button is still disabled: one group of the key has to be retyped first, which is how the program checks the key was actually recorded.",
+    "blocked": "Escriba antes el grupo resaltado de arriba. Esta clave no se puede volver a mostrar.",
+    "_comment_escapeBlocked": "SECURITY-CRITICAL. The answer to pressing Escape, which everywhere else in the program closes a dialog. Here it does not, and this sentence says why.",
+    "escapeBlocked": "Esta clave se muestra una sola vez. Cerrar sin anotarla deja la ranura con una clave que usted no tiene."
+  },
+
+  "autoLock": {
+    "title": "Bloqueo automático",
+    "description": "Bloquear pone a cero todas las claves y todos los secretos en caché y descarta la base de datos en memoria. Volver a abrirla exige un desbloqueo completo.",
+
+    "idleLegend": "Bloquear tras una inactividad de",
+    "_comment_choiceNever": "The first choice on the idle ladder: the vault never locks on its own.",
+    "choiceNever": "Nunca",
+    "_comment_choiceMinutes": "PLURAL. An idle timeout in minutes, on a small chip, so 'min' is abbreviated. Use this locale's conventional abbreviation; write the word out if there is none.",
+    "choiceMinutes": "{count, plural, one {# min} other {# min}}",
+    "_comment_choiceHours": "PLURAL. The same ladder above an hour.",
+    "choiceHours": "{count, plural, one {# hora} many {# de horas} other {# horas}}",
+
+    "_comment_idleHelp": "What 'idle' actually measures. This sentence was wrong once and cost people work: it claimed the desktop's input idle time was being read, so users believed typing in a terminal kept the vault open when it did not. Translate what is measured, not what would be nicer to measure.",
+    "idleHelp": "Inactividad significa que nada ha tocado la bóveda y que ninguna sesión ha movido tráfico. Cuentan tanto las pulsaciones que usted envía como la salida que envía el host, así que una sesión que está mirando sin escribir no queda inactiva mientras siga llegando salida.",
+    "_comment_idleScope": "The limitation of that measurement. 'Remoter' is the product name and is never translated.",
+    "idleScope": "Remoter no lee el tiempo de inactividad del propio escritorio, así que el tiempo que pase en otra aplicación cuenta como inactividad aunque esté delante del teclado.",
+    "_comment_idleNever": "Shown only when 'Never' is chosen. A judgement about a security decision, offered without scolding.",
+    "idleNever": "Nunca significa que la bóveda sigue abierta hasta que la bloquee o salga del programa. Es una decisión defendible en una máquina a la que solo llega usted, y mala en un escritorio compartido.",
+
+    "screenLock": "Cuando se bloquea la pantalla",
+    "suspend": "Al suspender o hibernar",
+    "minimise": "Cuando se minimiza la ventana",
+    "minimiseHelp": "Desactivado por defecto. La mayoría minimiza mucho más a menudo de lo que se levanta de la mesa.",
+
+    "_comment_unavailable": "The state word on a switch this build cannot honour — neither on nor off in any sense the user cares about. An abbreviation of 'not applicable'; use this locale's equivalent or write it out.",
+    "unavailable": "N/D",
+
+    "_comment_noScreenLock": "One sentence per event this build cannot observe, naming what is missing rather than saying 'not supported', so a reader can tell whether it will ever change.",
+    "noScreenLock": "Esta compilación no puede ver el bloqueo de pantalla de este sistema, así que este interruptor no bloquearía nada. Verlo significa recibir la señal de bloqueo de pantalla del escritorio, que Remoter todavía no escucha.",
+    "noSuspend": "Esta compilación no puede ver que esta máquina se suspenda, así que aquí este interruptor no bloquearía nada.",
+    "noMinimise": "Esta compilación no puede ver que la ventana se minimice, así que este interruptor no bloquearía nada. El kit de ventanas no lo informa en este escritorio, y un interruptor que funcionara en unos escritorios y no hiciera nada en silencio en otros sería peor que uno honesto.",
+    "_comment_onResumeSuspend": "SECURITY-CRITICAL. The keys stay in memory while the machine sleeps, and are written to disk if it hibernates. Do not soften into 'may be'.",
+    "onResumeSuspend": "Remoter no puede pedirle a este sistema que le avise antes de suspender, así que bloquea cuando la máquina vuelve, no antes de dormirse. Las claves están en la memoria mientras duerme, y en la imagen de hibernación si hiberna.",
+    "_comment_keptForOtherMachines": "Appended to whichever of the three sentences above applies. The setting travels inside the vault file, so it still works on a computer that can see the event.",
+    "keptForOtherMachines": "El ajuste se guarda en la bóveda, así que sigue aplicándose en un equipo donde Remoter sí pueda ver el evento.",
+
+    "sessionsLegend": "Qué pasa con las sesiones en curso",
+    "keepRunning": "Mantenerlas abiertas",
+    "_comment_keepRunningHelp": "The default, with the reason for it, which comes from docs/security/key-management.md.",
+    "keepRunningHelp": "Lo predeterminado, y la razón: quien esté vigilando un despliegue largo no quiere que le maten la sesión por haber ido a por un café. La salida sigue llegando y se puede seguir mirando.",
+    "freezeInput": "Mantenerlas abiertas y congelar la entrada",
+    "freezeInputHelp": "Las sesiones siguen vivas, pero no se puede escribir nada en ellas hasta que desbloquee. Las pestañas muestran un distintivo de bloqueo.",
+    "disconnectAll": "Desconectar todo",
+    "_comment_disconnectAllHelp": "Warns about data loss: work in a session that has not been saved on the remote host is gone.",
+    "disconnectAllHelp": "Lo más estricto. Se pierde el trabajo sin guardar de una sesión, incluidas las transferencias en curso.",
+    "audited": "Cambiar esto se anota en el registro de auditoría de la bóveda.",
+
+    "failed": "Ese ajuste no se guardó."
+  },
+
+  "recording": {
+    "title": "Política de grabación",
+    "description": "La hereda todo lo que hay en esta bóveda que no fije la suya propia, así que se define una sola vez para todo el árbol.",
+
+    "_comment_notYetTitle": "SECURITY-CRITICAL. This build has no recorder at all. A user who believes they hold a compliance record they do not have is the one failure of this screen that costs something, so this notice must not be softened or made conditional.",
+    "notYetTitle": "En esta versión no se graba nada",
+    "_comment_notYetBody": "'Remoter' is the product name and is never translated.",
+    "notYetBody": "Remoter todavía no tiene grabador: elija la tarjeta que elija, todas las sesiones de esta bóveda se abren sin grabar. La opción de abajo se guarda ahora en la bóveda y entrará en vigor cuando se construya la grabación de sesiones.",
+
+    "_comment_": "Every sentence describing recording behaviour below is in the future tense on purpose: nothing on this screen may read as a claim about what happens today. Keep the future tense in translation wherever this language marks it.",
+    "never": "Nunca",
+    "neverHelp": "No se grabará nada de esta bóveda, salvo que una carpeta o una conexión de más abajo fije su propia política.",
+    "ask": "Preguntar al iniciar la sesión",
+    "askHelp": "Una pregunta antes de abrir la sesión. Si se rechaza, la sesión se abrirá sin grabar.",
+    "always": "Siempre",
+    "alwaysHelp": "Se grabarán todas las sesiones, tras un aviso previo a su apertura. Si el grabador no puede arrancar, la sesión se abrirá igualmente: con esta política la grabación será en la medida de lo posible.",
+
+    "_comment_required": "Why a fourth policy is described rather than offered. The quoted word 'required' names a policy in docs/features/recording-audit.md; keep it quoted and translate it the same way wherever that policy is named.",
+    "required": "Aquí no se ofrece una cuarta política, \"obligatoria\" —grabar y negarse a conectar si la grabación no puede arrancar—. El archivo de la bóveda no tiene ningún campo para ella, así que una cuarta tarjeta guardaría una de las tres de arriba y significaría algo más débil que su nombre.",
+
+    "storage": "Las grabaciones vivirán fuera de la bóveda, en un directorio que elija usted, cada una cifrada con una clave derivada de la clave maestra de la bóveda y, por tanto, legible solo mientras la bóveda esté desbloqueada. No se sube nada a ningún sitio.",
+
+    "failed": "La política de grabación no se guardó."
+  },
+
+  "backups": {
+    "title": "Copias de seguridad",
+    "_comment_description": "vault.rvault.bak.1 is a file name pattern and is never translated.",
+    "description": "Antes de sobrescribir la bóveda, el archivo anterior se rota como copia de seguridad rotativa junto a ella: de vault.rvault.bak.1 a .bak.N.",
+
+    "legend": "Cuántas conservar",
+    "_comment_none": "The zero option on the ladder, in place of the numeral 0.",
+    "none": "Ninguna",
+
+    "_comment_onceASession": "Why the number means less than it looks like it means: backups rotate on the first save after the vault is opened, not on every save.",
+    "onceASession": "Se rota una vez por sesión, no una vez por guardado",
+    "onceASessionBody": "Cada edición de un nodo es un guardado. Si se tomara una copia en cada uno, tres copias quedarían a cuatro clics de distancia y el archivo anterior al error ya se habría ido. Rotar en el primer guardado de la sesión hace que .bak.1 sea la bóveda exactamente como estaba al abrirla.",
+
+    "_comment_zeroTitle": "Keeping no backups is a legitimate choice, not a mistake to be talked out of.",
+    "zeroTitle": "No conservar ninguna es una opción válida",
+    "zeroBody": "Si esta bóveda vive en una carpeta sincronizada, el proveedor ya conserva copias históricas del texto cifrado, y puede que no quiera además copias extra dando vueltas por el disco.",
+
+    "_comment_present": "PLURAL, on how many backup files are beside the vault at this moment. The zero and one wordings are deliberately different from the general case rather than showing a numeral.",
+    "present": "{count, plural, =0 {Ahora mismo no hay ninguna copia de seguridad junto a esta bóveda.} one {Ahora mismo hay una copia de seguridad junto a esta bóveda.} many {Ahora mismo hay # de copias de seguridad junto a esta bóveda.} other {Ahora mismo hay # copias de seguridad junto a esta bóveda.}}",
+    "_comment_presentPrune": "Follows the sentence above. Lowering the setting does not delete files that already exist.",
+    "presentPrune": "Bajar el número no borra los archivos ya escritos; la próxima rotación se detiene en el límite nuevo.",
+
+    "failed": "El número de copias de seguridad no se guardó."
+  }
+}

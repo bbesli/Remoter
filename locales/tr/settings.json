@@ -1,0 +1,251 @@
+{
+  "_comment_file": "The application settings screen and its six sections. Loaded when the screen opens, not before. Section titles double as the navigation labels, so they stay short; the descriptions underneath carry the explanation.",
+
+  "screen": {
+    "title": "Ayarlar",
+    "close": "Ayarları kapat",
+    "_comment_closeHint": "Esc is a key name and is not translated.",
+    "closeHint": "Ayarları kapat (Esc)",
+    "sections": "Ayar bölümleri",
+    "navAppearance": "Görünüm",
+    "navTerminal": "Terminal",
+    "navLanguage": "Dil",
+    "navShortcuts": "Kısayollar",
+    "navUpdates": "Güncellemeler",
+    "navAbout": "Hakkında",
+    "loading": "Ayarlarınız okunuyor…",
+    "loadFailed": "Ayarlarınız okunamadı."
+  },
+
+  "appearance": {
+    "title": "Tema",
+    "description": "Bir tema, tasarım belirteçlerini geçersiz kılan bir dosyadır. Yüksek karşıtlıklı ikili, yalnızca gövde metninde değil her boyutta WCAG 2.2 AA'yı karşılar.",
+    "light": "Açık",
+    "dark": "Koyu",
+    "hcLight": "Yüksek karşıtlık açık",
+    "hcDark": "Yüksek karşıtlık koyu",
+    "system": "Sistemi izle",
+    "_comment_systemNow": "{resolved} is systemLight or systemDark below, so the whole sentence is one message rather than two halves joined at run time.",
+    "systemNow": "Masaüstünüz şu anda {resolved} bildiriyor.",
+    "systemLight": "açık tema",
+    "systemDark": "koyu tema",
+    "previewUnavailable": "Önizleme kullanılamıyor",
+    "saving": "Tema kaydediliyor…",
+    "saveFailed": "Tema kaydedilmedi.",
+    "terminalNote": "Terminalin Terminal sekmesinde kendine ait renkleri ve yazı tipi vardır: sekiz palet, renk renk düzenleme ve bir karşıtlık denetimi. Orada bir palet seçene kadar terminalin paleti burada seçtiğiniz temayı izler."
+  },
+
+  "language": {
+    "title": "Dil",
+    "description": "1.0 için on dil planlanıyor. Sağdan sola yazılan diller yalnızca metni değil bütün yerleşimi aynalar.",
+    "_comment_progress": "PLURAL, on the number of languages that actually have catalogues. The count is measured from the locales/ directory rather than hardcoded, so this sentence stops claiming 'only English' the day a second catalogue lands.",
+    "progress": "{available, plural, one {Şimdiye kadar yalnızca İngilizce çevrildi.} other {Şimdiye kadar # dil çevrildi.}} Geri kalanlar listede, çünkü çevirileri sürüyor; her biri kataloğu tamamlandığında seçilebilir hâle gelir, o zamana kadar seçmek hiçbir şeyi değiştirmez.",
+    "notReady": "Henüz kullanılamıyor",
+    "_comment_unavailableLabel": "The accessible name of a row that cannot be chosen. {name} is the language's own name, in its own script, and is never translated.",
+    "unavailableLabel": "{name} — henüz kullanılamıyor",
+    "_comment_rtl": "A badge on right-to-left languages. Abbreviation; expand it if the language has no equivalent short form.",
+    "rtl": "RTL",
+    "saving": "Dil kaydediliyor…",
+    "saveFailed": "Dil kaydedilmedi.",
+    "_comment_storedUnavailable": "Shown when the settings file names a language with no catalogue — a downgrade, or a translation withdrawn. {locale} is a BCP 47 tag such as pt-BR and is not translated.",
+    "storedUnavailable": "Ayarlarınız {locale} dilini istiyor; bu dilin henüz bir kataloğu yok, bu yüzden arayüz İngilizce kalıyor."
+  },
+
+  "terminal": {
+    "paletteTitle": "Terminal paleti",
+    "paletteDescription": "Bu penceredeki her oturumun çizildiği renkler. Arayüz temasından ayrıdır, yani açık bir arayüzün koyu bir terminali olabilir. Değişiklikler zaten açık olan oturumlara da ulaşır — hiçbir şeyin yeniden bağlanması gerekmez.",
+    "auto": "Arayüz temasını izle",
+    "autoCredit": "Koyu arayüzde Remoter Dark, açık arayüzde Remoter Light, arayüz yüksek karşıtlıktayken de yüksek karşıtlık paleti",
+    "_comment_autoResolved": "{name} is a palette name such as 'Remoter Dark'. Palette names are product names and are not translated.",
+    "autoResolved": "Şu anda bu: {name}.",
+
+    "previewLabel": "Önizleme",
+    "previewNote": "Uygulanmak üzere olan palet ve yazı tipiyle, gerçek çıktı.",
+
+    "contrastTitle": "Karşıtlık",
+    "contrastDescription": "Bir programın metin yazdırabileceği her renk, sizin arka planınıza karşı ölçülür. WCAG 2.2 AA bu boyutta 4,5:1 ister. Burada hiçbir şey engellenmiyor — sonuçta bu sizin terminaliniz — ama okunması zor olacak renkler bunlar.",
+    "contrastClear": "Bu arka plana karşı bütün renkler 4,5:1 eşiğini geçiyor.",
+    "_comment_contrastSample": "The two letters drawn in each failing colour, as a specimen. Replace them with characters representative of the script this locale is read in — the point is to show what that colour looks like as text a reader would actually meet. Keep it to two or three characters.",
+    "contrastSample": "Aa",
+    "contrastHard": "Okuması zor",
+    "contrastUnreadable": "Okunamaz",
+    "_comment_contrastRatio": "A contrast ratio, already formatted to one decimal by Intl. The ':1' is notation, not words.",
+    "contrastRatio": "{ratio}:1",
+    "contrastAgainstBackground": "arka plana karşı {ratio}",
+    "_comment_contrastCount": "PLURAL. 4.5:1 is a WCAG threshold and stays a numeral in every language.",
+    "contrastCount": "{count, plural, one {# renk 4,5:1 eşiğinin altında} other {# renk 4,5:1 eşiğinin altında}}",
+    "contrastWarning": "Rengi değiştirin, arka planı değiştirin ya da olduğu gibi bırakın — bu bir ölçüm, bir engelleme değil.",
+    "contrastBlacks": "0 numaralı ve 8 numaralı renkler, bir kabuğun normalde metin olarak değil arka plan ya da soluk süsleme olarak kullandığı iki renktir; bu yüzden bu palet de dahil olmak üzere bugüne kadar yayımlanmış hemen her palette eşiğin altında kalırlar.",
+
+    "_comment_colours": "What each editable colour is called, in the order the editor lists them. The leading number is the ANSI colour index and stays a numeral; the word after it is translated. 'Bright black' is the conventional name for ANSI 8 even though it is usually dark grey — keep the convention rather than describing the colour.",
+    "colours": {
+      "background": "Arka plan",
+      "foreground": "Ön plan",
+      "cursor": "İmleç",
+      "cursorAccent": "İmlecin altındaki metin",
+      "selection": "Seçim",
+      "black": "0 Siyah",
+      "red": "1 Kırmızı",
+      "green": "2 Yeşil",
+      "yellow": "3 Sarı",
+      "blue": "4 Mavi",
+      "magenta": "5 Macenta",
+      "cyan": "6 Camgöbeği",
+      "white": "7 Beyaz",
+      "brightBlack": "8 Parlak siyah",
+      "brightRed": "9 Parlak kırmızı",
+      "brightGreen": "10 Parlak yeşil",
+      "brightYellow": "11 Parlak sarı",
+      "brightBlue": "12 Parlak mavi",
+      "brightMagenta": "13 Parlak macenta",
+      "brightCyan": "14 Parlak camgöbeği",
+      "brightWhite": "15 Parlak beyaz"
+    },
+    "coloursTitle": "Tek tek renkler",
+    "coloursDescription": "Bir renk seçin ya da onaltılık bir değer yapıştırın — #rgb, #rrggbb ve #rrggbbaa kabul edilir. Değiştirdiğiniz rengin yanında bir sıfırlama görünür. Platformun renk seçicisinde saydamlık yoktur, dolayısıyla saydamlığı olan bir renk onu korur; saydamlık, #rrggbbaa biçimiyle onaltılık alandan değiştirilir.",
+    "_comment_hexLabel": "{name} is a colour's name, such as 'Red' or 'Bright black'. These are the ANSI colour names and are translated.",
+    "hexLabel": "{name}, onaltılık değer",
+    "pickLabel": "{name}, renk seçici",
+    "resetOne": "{name} rengini paletin kendi rengine sıfırla",
+    "resetAll": "Bütün renkleri sıfırla",
+    "resetAllNone": "Geçersiz kılınan bir renk yok",
+    "overridden": "Değiştirildi",
+    "_comment_overriddenCount": "PLURAL.",
+    "overriddenCount": "{count, plural, one {# renk paletten farklı} other {# renk paletten farklı}}",
+    "invalidHex": "Bu bir renk değil. #1a1c20 biçiminde yazın.",
+
+    "fontTitle": "Terminal yazı tipi",
+    "fontDescription": "Arayüz yazı tipinden ayrıdır. Bunu değiştirdiğinizde arayüz kendi boyutunda kalır.",
+    "fontFamilyLabel": "Yazı tipi ailesi",
+    "_comment_fontFamilyPlaceholder": "A font name. Not translated.",
+    "fontFamilyPlaceholder": "JetBrains Mono",
+    "fontFamilyHelp": "Bu makinede kurulu bir yazı tipinin adı. Remoter sizde hangi yazı tiplerinin olduğunu listeleyemez ve bunun bulunup bulunmadığını da söyleyemez — yukarıdaki önizleme o yazı tipiyle çizilir, dolayısıyla hiçbir şeyin değişmemesi adın eşleşmediği anlamına gelir. Ne yazarsanız yazın, arayüzün eş aralıklı yazı tipi yığınına geri düşülür; yani bir yazım hatası sizi hiçbir zaman eş aralıklı olmayan bir terminalle bırakmaz.",
+    "fontFamilyDefault": "Arayüzün eş aralıklı yazı tipi yığınını kullanmak için boş bırakın.",
+    "fontSizeLabel": "Boyut",
+    "_comment_fontSizeHelp": "{min} and {max} are the bounds the build enforces, so the sentence cannot drift out of step with the control.",
+    "fontSizeHelp": "Piksel, {min} ile {max} arası. Oturum kendini yeniden boyutlandırır ve yeni geometriyi uzak sunucuya bildirir.",
+
+    "scope": "Bu ayarlar kasaya değil bu makineye aittir ve tek bir bağlantıya değil bütün oturumlara uygulanır.",
+    "saving": "Terminal görünümü kaydediliyor…",
+    "saveFailed": "Terminal görünümü kaydedilmedi."
+  },
+
+  "shortcuts": {
+    "title": "Kısayollar",
+    "description": "Aşağıdaki her atama, uygulamanın gerçekten dinlediği şeydir. Odaktaki bir terminalin neredeyse her tuş vuruşunu alması gerektiği için, bir oturumun içindeki uygulama kısayolları bir ön ek üzerinden çalışır.",
+    "loading": "Kısayol haritanız okunuyor…",
+    "loadFailed": "Kısayol haritanız okunamadı.",
+    "loadFallback": "Bunlar ürünle gelen varsayılanlardır. Değiştirdiğiniz atamalar gösterilmiyor ve ayar dosyası okunana kadar buradan değiştirilemez.",
+
+    "prefixTitle": "Terminal ön eki",
+    "_comment_prefixBody": "Ctrl+C, Ctrl+D and Alt+F are key names. Translate the sentence, not the keys.",
+    "prefixBody": "Ctrl+C, Ctrl+D ve Alt+F uzak sunucuya aittir, bu yüzden Remoter onları almaz. Bir oturumun içindeyken ön eki de basılı tutun.",
+    "prefixLegend": "Bir oturumun içinde uygulama kısayoluyla birlikte basılı tutulan ön ek",
+    "prefixSaving": "Ön ek kaydediliyor…",
+    "prefixFailed": "Ön ek değiştirilmedi.",
+
+    "searchLabel": "Kısayollarda ara",
+    "searchPlaceholder": "Eyleme veya tuşa göre filtrele",
+
+    "caption": "Klavye kısayolları; her birinin nereye ulaşıp nereye ulaşamadığıyla birlikte",
+    "colAction": "Eylem",
+    "colShortcut": "Kısayol",
+    "colScope": "Nerede çalışır",
+
+    "scopeUniversal": "Her yerde",
+    "scopeApplication": "Oturumda ön ekle",
+    "scopeContext": "Yalnızca yazıldığı yerde",
+    "scopeNowhere": "Hiçbir yerde",
+
+    "_comment_inSession": "{keys} is a key combination such as 'Ctrl+B then T'. Key names are not translated.",
+    "inSession": "Odaktaki bir oturumun içinde: {keys}",
+
+    "edit": "{action} kısayolunu değiştir; şu anda {keys}",
+    "capturing": "Tuşlara basın…",
+    "capturingHint": "İstediğiniz kombinasyona basın, iptal için Esc.",
+    "fixed": "{action} kısayolu değiştirilemez",
+    "saving": "Kaydediliyor…",
+
+    "reset": "{action} kısayolunu ürünle gelen tuşlarına sıfırla",
+    "resetAll": "Bütün kısayolları sıfırla",
+    "resetAllBusy": "Sıfırlanıyor…",
+    "resetAllNone": "Değiştirilebilir bütün kısayollar zaten varsayılan hâlinde.",
+    "saveFailed": "Kısayol kaydedilmedi.",
+
+    "_comment_count": "PLURAL on {shown}, with {total} inside it. Filtering a table down to one row is common enough that the singular is worth having.",
+    "count": "{shown, plural, one {Toplam {total} kısayoldan # tanesi gösteriliyor.} other {Toplam {total} kısayoldan # tanesi gösteriliyor.}}",
+    "empty": "Bununla eşleşen bir kısayol yok.",
+
+    "_comment_conflictDuplicate": "{holders} is a locale-joined list of action names, built with Intl.ListFormat.",
+    "conflictDuplicate": "Bu kombinasyon zaten şunlarda kullanılıyor: {holders}. Yalnızca biri çalışabilir, bu yüzden ikisinden birini değiştirin.",
+    "conflictReservedUniversal": "Bu tuşlar uzak kabuğa gerektiği için odaktaki bir oturum onları kendine alır ve bu kısayol orada hiç çalışmaz.",
+    "conflictReservedApplication": "Bu tuşlar uzak kabuğa ve kopyala-yapıştıra aittir. Ön ek onları bir oturumun içinde serbest tutar, ama oturum dışında bu tuşları Remoter alır.",
+    "conflictDesktop": "Bazı masaüstleri bu kombinasyonu kendi pencere değiştiricisi için alır ve öncelik onlardadır. Bu olduğunda tuş basışı Remoter'a hiç ulaşmaz.",
+
+    "refusedInvalid": "Bu, Remoter'ın atayabileceği bir kombinasyon değil.",
+    "refusedReserved": "{keys} uzak sunucuya aittir: odaktaki bir terminalin bunu alması gerekir, dolayısıyla burada atanması tuşun kabuğa ulaşmasını engellerdi.",
+    "refusedDuplicate": "{keys} zaten şu eylemde kullanılıyor: {action}. Hiçbir şey değişmedi — önce orada serbest bırakın ya da başka bir kombinasyon seçin.",
+    "refusedUnknown": "Bu sürümde böyle bir eylem yok."
+  },
+
+  "updates": {
+    "title": "Güncellemeler",
+    "description": "Remoter daha yeni bir sürüm olup olmadığına bakabilir. Kendisi güncelleme kurmaz ve siz istemedikçe hiçbir yere bağlanmaz.",
+
+    "switchLabel": "Daha yeni sürümü otomatik olarak ara",
+    "_comment_consent": "SECURITY-CRITICAL. This is the consent notice for the only outbound request the application makes. Every clause is a commitment: what is contacted, how often, and exactly what is sent. Do not shorten it, and do not generalise 'one thing: this build's version string' into 'some information'.",
+    "consent": "Bu açıkken Remoter, github.com'a günde en fazla bir kez bağlanır — ilki bunu açtığınızda, sonrakiler bu ekranı açtığınızda — ve tek bir şey gönderir: bu sürümün sürüm numarası. Hiçbir tanımlayıcı, hiçbir dil bilgisi, hiçbir telemetri, hiçbir kullanım verisi gönderilmez. Bu kapalıyken, siz Şimdi denetle düğmesine basana kadar hiçbir yere bağlanılmaz.",
+    "switchSaving": "Kaydediliyor…",
+    "switchFailed": "Bu tercih kaydedilmedi.",
+
+    "checkNow": "Şimdi denetle",
+    "checking": "GitHub'a hangi sürümlerin yayımlandığı soruluyor…",
+    "lastCheckedNever": "Bu makine hiç denetlemedi.",
+    "_comment_lastChecked": "{when} is a relative time from Intl.RelativeTimeFormat — 'yesterday', '3 hours ago'.",
+    "lastChecked": "Son denetim: {when}.",
+
+    "checkFailed": "Güncelleme denetimi tamamlanmadı.",
+
+    "_comment_current": "{version} here and in the three messages below is a version string such as 0.1.0. Never translated, and never localised as a number — 0.1.0 does not become 0,1,0.",
+    "current": "{version} sürümünü çalıştırıyorsunuz ve bu en yeni sürüm.",
+    "none": "Henüz hiçbir sürüm yayımlanmadı. Siz {version} sürümünü çalıştırıyorsunuz.",
+    "unknown": "Bu sürüm, sürüm numarasını {version} olarak bildiriyor; bu, karşılaştırılabilecek bir sürüm numarası değil. Sürümler sayfasını açıp gözle denetleyin.",
+
+    "updateHeading": "{version} sürümü mevcut",
+    "updateRunning": "Siz {version} sürümünü çalıştırıyorsunuz.",
+    "published": "Yayımlanma: {when}.",
+    "notesHeading": "Neler değişti",
+    "notesNone": "Bu sürüm not eklenmeden yayımlanmış.",
+    "openRelease": "Sürüm sayfasını aç",
+    "openReleases": "Sürümler sayfasını aç",
+
+    "_comment_noSelfUpdate": "SECURITY-CRITICAL. It states why the application will not install its own updates. Keep the reason — unsigned releases — rather than reducing it to 'for safety'.",
+    "noSelfUpdate": "Remoter güncellemeleri kendisi kurmaz. Sürümler henüz imzalanmıyor ve imzasız bir çalıştırılabilir dosyayı çalıştırmanızı istemek, bir kimlik bilgisi yöneticisinin yapacağı bir şey değildir — bu yüzden düğme sürüm sayfasını tarayıcınızda açar, kurulumu siz yaparsınız.",
+
+    "openFailed": "Sistem tarayıcısı açılmadı.",
+
+    "promiseTitle": "Remoter arkanızdan hiçbir yere veri göndermez",
+    "_comment_promiseTelemetry": "SECURITY-CRITICAL, as are the two promises after it. Three absolute statements about what the application does not do. A translator who hedges any of them turns a commitment into marketing.",
+    "promiseTelemetry": "Telemetri yok. Kullanım raporlaması yok. Hiçbir ayarda, hiçbir türde analiz yok.",
+    "promiseCrash": "Çökme raporu gönderilmez. Çökme raporu sizin makinenize yazılır ve bir hata kaydına ekleyip eklemeyeceğinize siz karar verirsiniz — yani önce okuyabilirsiniz, ki bu süreç kimlik bilgilerini tutarken bunun önemi büyüktür.",
+    "promiseCheck": "Güncelleme denetimi, Remoter'ın sizin açtığınız bir oturum dışında yaptığı tek istektir. Herkese açık sürüm listesini okur ve bu sürümün sürüm numarasını gönderir. Hiçbir şey indirmez."
+  },
+
+  "about": {
+    "title": "Hakkında",
+    "description": "Bu sürümün ne olduğu ve hangi koşullara tabi olduğu.",
+    "versionLabel": "Sürüm",
+    "versionReading": "Okunuyor…",
+    "versionUnavailable": "Kullanılamıyor",
+    "licenceLabel": "Lisans",
+    "_comment_licenceValue": "The licence's own name and SPDX identifier. Not translated: it is the legal name of the document.",
+    "licenceValue": "GNU General Public License, version 3 or later (GPL-3.0-or-later)",
+    "exceptionLabel": "Eklentiler",
+    "exceptionValue": "Bu sürüm eklenti yükleyemez. Henüz bir eklenti barındırıcısı yok — yalnızca gelecekteki barındırıcının kullanacağı ABI var. Olduğunda: Remoter ile yalnızca yayımlanmış eklenti ABI'si üzerinden konuşan bir WebAssembly eklentisi, dilediğiniz koşullarla lisanslanabilir; bu, LICENSE-EXCEPTION dosyasındaki arabirim istisnasıdır.",
+    "updatesLabel": "Güncellemeler",
+    "updatesValue": "Remoter, yalnızca siz denetimi açarsanız daha yeni bir sürüm arar ve hiçbir zaman kendisi kurmaz. Güncellemeler bölümüne bakın.",
+    "repositoryLabel": "Kaynak",
+    "repositoryOpen": "Depoyu aç",
+    "repositoryFailed": "Sistem tarayıcısı açılmadı."
+  }
+}

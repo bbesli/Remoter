@@ -1,0 +1,251 @@
+{
+  "_comment_file": "The application settings screen and its six sections. Loaded when the screen opens, not before. Section titles double as the navigation labels, so they stay short; the descriptions underneath carry the explanation.",
+
+  "screen": {
+    "title": "सेटिंग्स",
+    "close": "सेटिंग्स बंद करें",
+    "_comment_closeHint": "Esc is a key name and is not translated.",
+    "closeHint": "सेटिंग्स बंद करें (Esc)",
+    "sections": "सेटिंग्स के अनुभाग",
+    "navAppearance": "दिखावट",
+    "navTerminal": "टर्मिनल",
+    "navLanguage": "भाषा",
+    "navShortcuts": "शॉर्टकट",
+    "navUpdates": "अपडेट",
+    "navAbout": "परिचय",
+    "loading": "आपकी सेटिंग्स पढ़ी जा रही हैं…",
+    "loadFailed": "आपकी सेटिंग्स पढ़ी नहीं जा सकीं।"
+  },
+
+  "appearance": {
+    "title": "थीम",
+    "description": "थीम टोकन को ओवरराइड करने वाली एक फ़ाइल है। हाई-कॉन्ट्रास्ट वाली जोड़ी हर आकार पर WCAG 2.2 AA पर खरी उतरती है, सिर्फ़ मुख्य टेक्स्ट पर नहीं।",
+    "light": "हल्की",
+    "dark": "गहरी",
+    "hcLight": "हाई कॉन्ट्रास्ट हल्की",
+    "hcDark": "हाई कॉन्ट्रास्ट गहरी",
+    "system": "सिस्टम के अनुसार",
+    "_comment_systemNow": "{resolved} is systemLight or systemDark below, so the whole sentence is one message rather than two halves joined at run time.",
+    "systemNow": "आपका डेस्कटॉप अभी {resolved} बता रहा है।",
+    "systemLight": "हल्की",
+    "systemDark": "गहरी",
+    "previewUnavailable": "प्रीव्यू उपलब्ध नहीं",
+    "saving": "थीम सेव हो रही है…",
+    "saveFailed": "थीम सेव नहीं हुई।",
+    "terminalNote": "टर्मिनल के अपने रंग और फ़ॉन्ट हैं, जो “टर्मिनल” टैब पर हैं: आठ पैलेट, हर रंग को अलग से बदलने की सुविधा और कॉन्ट्रास्ट जाँच। जब तक आप वहाँ कोई पैलेट नहीं चुनते, टर्मिनल का पैलेट यहाँ चुनी गई थीम के साथ ही चलता है।"
+  },
+
+  "language": {
+    "title": "भाषा",
+    "description": "1.0 के लिए दस भाषाएँ तय हैं। दाएँ-से-बाएँ लिखी जाने वाली भाषाओं में सिर्फ़ टेक्स्ट नहीं, पूरा लेआउट पलट जाता है।",
+    "_comment_progress": "PLURAL, on the number of languages that actually have catalogues. The count is measured from the locales/ directory rather than hardcoded, so this sentence stops claiming 'only English' the day a second catalogue lands.",
+    "progress": "{available, plural, one {अभी तक सिर्फ़ अंग्रेज़ी का अनुवाद हुआ है।} other {अभी तक # भाषाओं का अनुवाद हो चुका है।}} बाक़ी भाषाएँ इसलिए दिखाई गई हैं कि उनका अनुवाद चल रहा है; हर भाषा तब चुनी जा सकेगी जब उसका कैटलॉग पूरा हो जाएगा, और तब तक उसे चुनने से कुछ नहीं बदलेगा।",
+    "notReady": "अभी उपलब्ध नहीं",
+    "_comment_unavailableLabel": "The accessible name of a row that cannot be chosen. {name} is the language's own name, in its own script, and is never translated.",
+    "unavailableLabel": "{name} — अभी उपलब्ध नहीं",
+    "_comment_rtl": "A badge on right-to-left languages. Abbreviation; expand it if the language has no equivalent short form.",
+    "rtl": "RTL",
+    "saving": "भाषा सेव हो रही है…",
+    "saveFailed": "भाषा सेव नहीं हुई।",
+    "_comment_storedUnavailable": "Shown when the settings file names a language with no catalogue — a downgrade, or a translation withdrawn. {locale} is a BCP 47 tag such as pt-BR and is not translated.",
+    "storedUnavailable": "आपकी सेटिंग्स {locale} माँगती हैं, जिसका कैटलॉग अभी नहीं है, इसलिए इंटरफ़ेस अंग्रेज़ी में ही रहेगा।"
+  },
+
+  "terminal": {
+    "paletteTitle": "टर्मिनल पैलेट",
+    "paletteDescription": "इस विंडो का हर सेशन इन्हीं रंगों में दिखता है। यह इंटरफ़ेस की थीम से अलग है, इसलिए हल्के इंटरफ़ेस के साथ गहरा टर्मिनल रखा जा सकता है। बदलाव पहले से खुले सेशनों पर भी लागू होते हैं — कुछ भी दोबारा कनेक्ट करने की ज़रूरत नहीं।",
+    "auto": "इंटरफ़ेस की थीम के अनुसार",
+    "autoCredit": "गहरे इंटरफ़ेस के साथ Remoter Dark, हल्के के साथ Remoter Light, और इंटरफ़ेस के हाई कॉन्ट्रास्ट होने पर हाई-कॉन्ट्रास्ट पैलेट",
+    "_comment_autoResolved": "{name} is a palette name such as 'Remoter Dark'. Palette names are product names and are not translated.",
+    "autoResolved": "अभी वह {name} है।",
+
+    "previewLabel": "प्रीव्यू",
+    "previewNote": "असली आउटपुट, उसी पैलेट और फ़ॉन्ट में जो अभी लागू होने वाला है।",
+
+    "contrastTitle": "कॉन्ट्रास्ट",
+    "contrastDescription": "कोई भी प्रोग्राम जिस-जिस रंग में टेक्स्ट लिखता है, उसे आपकी बैकग्राउंड के मुक़ाबले मापा गया है। WCAG 2.2 AA इस आकार पर 4.5:1 माँगता है। यहाँ कुछ भी रोका नहीं जा रहा — टर्मिनल आपका है — पर ये वही रंग हैं जिन्हें पढ़ना मुश्किल होगा।",
+    "contrastClear": "इस बैकग्राउंड पर हर रंग 4.5:1 से ऊपर है।",
+    "_comment_contrastSample": "The two letters drawn in each failing colour, as a specimen. Replace them with characters representative of the script this locale is read in — the point is to show what that colour looks like as text a reader would actually meet. Keep it to two or three characters.",
+    "contrastSample": "अआ",
+    "contrastHard": "पढ़ने में मुश्किल",
+    "contrastUnreadable": "पढ़ा नहीं जा सकता",
+    "_comment_contrastRatio": "A contrast ratio, already formatted to one decimal by Intl. The ':1' is notation, not words.",
+    "contrastRatio": "{ratio}:1",
+    "contrastAgainstBackground": "बैकग्राउंड के मुक़ाबले {ratio}",
+    "_comment_contrastCount": "PLURAL. 4.5:1 is a WCAG threshold and stays a numeral in every language.",
+    "contrastCount": "{count, plural, one {# रंग 4.5:1 से नीचे है} other {# रंग 4.5:1 से नीचे हैं}}",
+    "contrastWarning": "रंग बदल दें, बैकग्राउंड बदल दें, या जैसा है वैसा ही रहने दें — यह एक माप है, इनकार नहीं।",
+    "contrastBlacks": "रंग 0 और रंग 8 वे दो रंग हैं जिन्हें शेल आम तौर पर टेक्स्ट के लिए नहीं, बल्कि बैकग्राउंड या धीमी सजावट के लिए इस्तेमाल करता है — यही वजह है कि अब तक छपे लगभग हर पैलेट में, इसमें भी, ये दोनों सीमा से नीचे रह जाते हैं।",
+
+    "_comment_colours": "What each editable colour is called, in the order the editor lists them. The leading number is the ANSI colour index and stays a numeral; the word after it is translated. 'Bright black' is the conventional name for ANSI 8 even though it is usually dark grey — keep the convention rather than describing the colour.",
+    "colours": {
+      "background": "बैकग्राउंड",
+      "foreground": "फ़ोरग्राउंड",
+      "cursor": "कर्सर",
+      "cursorAccent": "कर्सर के नीचे का टेक्स्ट",
+      "selection": "चयन",
+      "black": "0 काला",
+      "red": "1 लाल",
+      "green": "2 हरा",
+      "yellow": "3 पीला",
+      "blue": "4 नीला",
+      "magenta": "5 मैजेंटा",
+      "cyan": "6 सियान",
+      "white": "7 सफ़ेद",
+      "brightBlack": "8 चमकीला काला",
+      "brightRed": "9 चमकीला लाल",
+      "brightGreen": "10 चमकीला हरा",
+      "brightYellow": "11 चमकीला पीला",
+      "brightBlue": "12 चमकीला नीला",
+      "brightMagenta": "13 चमकीला मैजेंटा",
+      "brightCyan": "14 चमकीला सियान",
+      "brightWhite": "15 चमकीला सफ़ेद"
+    },
+    "coloursTitle": "अलग-अलग रंग",
+    "coloursDescription": "कोई रंग चुनें, या कोई हेक्स मान पेस्ट करें — #rgb, #rrggbb और #rrggbbaa तीनों चलते हैं। जो रंग आपने बदला है, उसके बगल में रीसेट का विकल्प दिखता है। प्लैटफ़ॉर्म के कलर पिकर में पारदर्शिता नहीं होती, इसलिए जिस रंग में पहले से पारदर्शिता थी उसकी बनी रहती है; पारदर्शिता हेक्स फ़ील्ड में #rrggbbaa के रूप में बदली जाती है।",
+    "_comment_hexLabel": "{name} is a colour's name, such as 'Red' or 'Bright black'. These are the ANSI colour names and are translated.",
+    "hexLabel": "{name}, हेक्स मान",
+    "pickLabel": "{name}, कलर पिकर",
+    "resetOne": "{name} को पैलेट के अपने रंग पर रीसेट करें",
+    "resetAll": "हर रंग रीसेट करें",
+    "resetAllNone": "कुछ भी ओवरराइड नहीं किया गया है",
+    "overridden": "बदला हुआ",
+    "_comment_overriddenCount": "PLURAL.",
+    "overriddenCount": "{count, plural, one {# रंग पैलेट से अलग है} other {# रंग पैलेट से अलग हैं}}",
+    "invalidHex": "यह कोई रंग नहीं है। इसे #1a1c20 की तरह लिखें।",
+
+    "fontTitle": "टर्मिनल फ़ॉन्ट",
+    "fontDescription": "यह इंटरफ़ेस के फ़ॉन्ट से अलग है। इसे बदलने पर इंटरफ़ेस अपने ही आकार पर रहता है।",
+    "fontFamilyLabel": "फ़ॉन्ट फ़ैमिली",
+    "_comment_fontFamilyPlaceholder": "A font name. Not translated.",
+    "fontFamilyPlaceholder": "JetBrains Mono",
+    "fontFamilyHelp": "इस मशीन पर इंस्टॉल किसी फ़ॉन्ट का नाम। Remoter न तो आपके फ़ॉन्ट की सूची दे सकता है और न ही यह बता सकता है कि यह फ़ॉन्ट मिला या नहीं — ऊपर का प्रीव्यू इसी में दिखता है, इसलिए अगर बदलाव से कुछ फ़र्क़ न पड़े तो समझिए नाम मेल नहीं खाया। आप जो भी लिखें, वह इंटरफ़ेस के मोनोस्पेस स्टैक पर लौट आता है, इसलिए टाइपिंग की ग़लती से आप कभी मोनोस्पेस टर्मिनल से वंचित नहीं रहते।",
+    "fontFamilyDefault": "इंटरफ़ेस का मोनोस्पेस स्टैक इस्तेमाल करने के लिए इसे खाली छोड़ दें।",
+    "fontSizeLabel": "आकार",
+    "_comment_fontSizeHelp": "{min} and {max} are the bounds the build enforces, so the sentence cannot drift out of step with the control.",
+    "fontSizeHelp": "पिक्सल में, {min} से {max} तक। सेशन खुद अपना आकार बदल लेता है और रिमोट होस्ट को नई ज्यामिति बता देता है।",
+
+    "scope": "ये सेटिंग्स इसी मशीन की हैं, वॉल्ट की नहीं, और ये किसी एक कनेक्शन पर नहीं बल्कि हर सेशन पर लागू होती हैं।",
+    "saving": "टर्मिनल की दिखावट सेव हो रही है…",
+    "saveFailed": "टर्मिनल की दिखावट सेव नहीं हुई।"
+  },
+
+  "shortcuts": {
+    "title": "शॉर्टकट",
+    "description": "नीचे दिया हर शॉर्टकट वही है जो ऐप्लिकेशन वाक़ई सुनता है। फ़ोकस किए हुए टर्मिनल को लगभग हर कीस्ट्रोक मिलना चाहिए, इसलिए सेशन के अंदर ऐप्लिकेशन के शॉर्टकट एक प्रीफ़िक्स के ज़रिए चलते हैं।",
+    "loading": "आपका शॉर्टकट मैप पढ़ा जा रहा है…",
+    "loadFailed": "आपका शॉर्टकट मैप पढ़ा नहीं जा सका।",
+    "loadFallback": "ये वही डिफ़ॉल्ट हैं जो ऐप्लिकेशन के साथ आते हैं। आपका बदला हुआ कोई भी शॉर्टकट यहाँ नहीं दिख रहा, और जब तक सेटिंग्स फ़ाइल पढ़ी नहीं जा सकती तब तक यहाँ बदला भी नहीं जा सकता।",
+
+    "prefixTitle": "टर्मिनल प्रीफ़िक्स",
+    "_comment_prefixBody": "Ctrl+C, Ctrl+D and Alt+F are key names. Translate the sentence, not the keys.",
+    "prefixBody": "Ctrl+C, Ctrl+D और Alt+F रिमोट होस्ट के हैं, इसलिए Remoter उन्हें नहीं लेता। सेशन के अंदर इनके साथ प्रीफ़िक्स भी दबाए रखें।",
+    "prefixLegend": "सेशन के अंदर ऐप्लिकेशन शॉर्टकट के साथ दबाया जाने वाला प्रीफ़िक्स",
+    "prefixSaving": "प्रीफ़िक्स सेव हो रहा है…",
+    "prefixFailed": "प्रीफ़िक्स नहीं बदला।",
+
+    "searchLabel": "शॉर्टकट खोजें",
+    "searchPlaceholder": "कार्रवाई या कुंजी से छाँटें",
+
+    "caption": "कीबोर्ड शॉर्टकट, और हर शॉर्टकट कहाँ चलता है और कहाँ नहीं",
+    "colAction": "कार्रवाई",
+    "colShortcut": "शॉर्टकट",
+    "colScope": "कहाँ चलता है",
+
+    "scopeUniversal": "हर जगह",
+    "scopeApplication": "सेशन में प्रीफ़िक्स के साथ",
+    "scopeContext": "सिर्फ़ वहीं जहाँ टाइप किया जाए",
+    "scopeNowhere": "कहीं नहीं",
+
+    "_comment_inSession": "{keys} is a key combination such as 'Ctrl+B then T'. Key names are not translated.",
+    "inSession": "फ़ोकस किए हुए सेशन के अंदर: {keys}",
+
+    "edit": "{action} का शॉर्टकट बदलें, अभी {keys} है",
+    "capturing": "कुंजियाँ दबाएँ…",
+    "capturingHint": "जो संयोजन चाहिए वह दबाएँ, या रद्द करने के लिए Esc दबाएँ।",
+    "fixed": "{action} का शॉर्टकट बदला नहीं जा सकता",
+    "saving": "सेव हो रहा है…",
+
+    "reset": "{action} को उसकी मूल कुंजियों पर रीसेट करें",
+    "resetAll": "हर शॉर्टकट रीसेट करें",
+    "resetAllBusy": "रीसेट हो रहा है…",
+    "resetAllNone": "हर बदला जा सकने वाला शॉर्टकट पहले से ही अपने मूल डिफ़ॉल्ट पर है।",
+    "saveFailed": "शॉर्टकट सेव नहीं हुआ।",
+
+    "_comment_count": "PLURAL on {shown}, with {total} inside it. Filtering a table down to one row is common enough that the singular is worth having.",
+    "count": "{shown, plural, one {कुल {total} में से # शॉर्टकट दिख रहा है।} other {कुल {total} में से # शॉर्टकट दिख रहे हैं।}}",
+    "empty": "उससे कोई शॉर्टकट मेल नहीं खाता।",
+
+    "_comment_conflictDuplicate": "{holders} is a locale-joined list of action names, built with Intl.ListFormat.",
+    "conflictDuplicate": "यह पहले से {holders} के पास है। इनमें से सिर्फ़ एक ही चल सकता है, इसलिए दोनों में से एक बदल दें।",
+    "conflictReservedUniversal": "ये कुंजियाँ रिमोट शेल को चाहिए, इसलिए फ़ोकस किया हुआ सेशन इन्हें अपने पास रखता है और वहाँ यह शॉर्टकट कभी नहीं चलता।",
+    "conflictReservedApplication": "ये कुंजियाँ रिमोट शेल की और कॉपी-पेस्ट की हैं। प्रीफ़िक्स इन्हें सेशन के अंदर खाली रखता है, पर सेशन के बाहर Remoter इन्हें ले लेता है।",
+    "conflictDesktop": "कुछ डेस्कटॉप इस संयोजन को अपने विंडो स्विचर के लिए ले लेते हैं और जीत जाते हैं। जहाँ ऐसा होता है, वहाँ यह दबाव Remoter तक पहुँचता ही नहीं।",
+
+    "refusedInvalid": "यह ऐसा संयोजन नहीं है जिसे Remoter बाँध सके।",
+    "refusedReserved": "{keys} रिमोट होस्ट का है: फ़ोकस किए हुए टर्मिनल को इसका मिलना ज़रूरी है, इसलिए इसे यहाँ बाँधने से यह शेल तक पहुँचना बंद हो जाएगा।",
+    "refusedDuplicate": "{keys} पहले से {action} के पास है। कुछ भी नहीं बदला गया — पहले उसे वहाँ से हटाएँ, या कोई दूसरा संयोजन चुनें।",
+    "refusedUnknown": "इस बिल्ड में वह कार्रवाई है ही नहीं।"
+  },
+
+  "updates": {
+    "title": "अपडेट",
+    "description": "Remoter नई रिलीज़ की जाँच कर सकता है। वह उसे इंस्टॉल नहीं करता, और जब तक आप न कहें तब तक किसी से संपर्क भी नहीं करता।",
+
+    "switchLabel": "नई रिलीज़ की जाँच अपने आप करते रहें",
+    "_comment_consent": "SECURITY-CRITICAL. This is the consent notice for the only outbound request the application makes. Every clause is a commitment: what is contacted, how often, and exactly what is sent. Do not shorten it, and do not generalise 'one thing: this build's version string' into 'some information'.",
+    "consent": "यह चालू रहने पर Remoter दिन में ज़्यादा से ज़्यादा एक बार github.com से संपर्क करता है — एक बार जब आप इसे चालू करते हैं, और उसके बाद जब आप यह स्क्रीन खोलते हैं — और सिर्फ़ एक चीज़ भेजता है: इस बिल्ड की संस्करण-स्ट्रिंग। कोई पहचानकर्ता नहीं, कोई लोकेल नहीं, कोई टेलीमेट्री नहीं, इस्तेमाल का कोई डेटा नहीं। यह बंद रहने पर, जब तक आप “अभी जाँचें” न दबाएँ, किसी से कोई संपर्क नहीं होता।",
+    "switchSaving": "सेव हो रहा है…",
+    "switchFailed": "वह प्राथमिकता सेव नहीं हुई।",
+
+    "checkNow": "अभी जाँचें",
+    "checking": "GitHub से पूछा जा रहा है कि क्या रिलीज़ हुआ है…",
+    "lastCheckedNever": "इस मशीन ने कभी जाँच नहीं की है।",
+    "_comment_lastChecked": "{when} is a relative time from Intl.RelativeTimeFormat — 'yesterday', '3 hours ago'.",
+    "lastChecked": "पिछली जाँच {when}।",
+
+    "checkFailed": "अपडेट की जाँच पूरी नहीं हुई।",
+
+    "_comment_current": "{version} here and in the three messages below is a version string such as 0.1.0. Never translated, and never localised as a number — 0.1.0 does not become 0,1,0.",
+    "current": "आप {version} चला रहे हैं, और यही सबसे नई रिलीज़ है।",
+    "none": "अभी तक कोई रिलीज़ प्रकाशित नहीं हुई है। आप {version} चला रहे हैं।",
+    "unknown": "यह बिल्ड अपना संस्करण {version} बताता है, जिसकी तुलना नहीं की जा सकती। रिलीज़ पेज खोलकर खुद देख लें।",
+
+    "updateHeading": "संस्करण {version} उपलब्ध है",
+    "updateRunning": "आप {version} चला रहे हैं।",
+    "published": "{when} प्रकाशित हुई।",
+    "notesHeading": "क्या बदला",
+    "notesNone": "यह रिलीज़ बिना किसी नोट के प्रकाशित हुई थी।",
+    "openRelease": "रिलीज़ पेज खोलें",
+    "openReleases": "रिलीज़ की सूची खोलें",
+
+    "_comment_noSelfUpdate": "SECURITY-CRITICAL. It states why the application will not install its own updates. Keep the reason — unsigned releases — rather than reducing it to 'for safety'.",
+    "noSelfUpdate": "Remoter अपने अपडेट खुद इंस्टॉल नहीं करता। रिलीज़ अभी डिजिटल रूप से हस्ताक्षरित नहीं होतीं, और बिना हस्ताक्षर वाली बाइनरी चलाने के लिए कहना किसी क्रेडेंशियल मैनेजर को शोभा नहीं देता — इसलिए यह बटन आपके ब्राउज़र में रिलीज़ पेज खोल देता है और इंस्टॉल आप खुद करते हैं।",
+
+    "openFailed": "सिस्टम का ब्राउज़र नहीं खुला।",
+
+    "promiseTitle": "Remoter घर फ़ोन नहीं करता",
+    "_comment_promiseTelemetry": "SECURITY-CRITICAL, as are the two promises after it. Three absolute statements about what the application does not do. A translator who hedges any of them turns a commitment into marketing.",
+    "promiseTelemetry": "कोई टेलीमेट्री नहीं। इस्तेमाल की कोई रिपोर्टिंग नहीं। किसी भी सेटिंग पर, किसी भी तरह का कोई एनालिटिक्स नहीं।",
+    "promiseCrash": "क्रैश रिपोर्ट कहीं अपलोड नहीं होती। क्रैश रिपोर्ट आपकी मशीन पर लिखी जाती है और आप तय करते हैं कि उसे किसी इशू के साथ जोड़ना है या नहीं — यानी आप उसे पहले पढ़ सकते हैं, और जब प्रोसेस के पास क्रेडेंशियल हों तब यह मायने रखता है।",
+    "promiseCheck": "आपके खोले हुए सेशन के अलावा, अपडेट की जाँच ही Remoter का एकमात्र बाहरी अनुरोध है। वह सार्वजनिक रिलीज़ सूची पढ़ता है और इस बिल्ड का संस्करण भेजता है। वह कुछ भी डाउनलोड नहीं करता।"
+  },
+
+  "about": {
+    "title": "परिचय",
+    "description": "यह बिल्ड क्या है, और किन शर्तों के तहत है।",
+    "versionLabel": "संस्करण",
+    "versionReading": "पढ़ा जा रहा है…",
+    "versionUnavailable": "उपलब्ध नहीं",
+    "licenceLabel": "लाइसेंस",
+    "_comment_licenceValue": "The licence's own name and SPDX identifier. Not translated: it is the legal name of the document.",
+    "licenceValue": "GNU General Public License, version 3 or later (GPL-3.0-or-later)",
+    "exceptionLabel": "प्लगइन",
+    "exceptionValue": "यह बिल्ड प्लगइन लोड नहीं कर सकता। इसमें अभी कोई प्लगइन होस्ट है ही नहीं — सिर्फ़ वह ABI है जिसे आगे चलकर वह होस्ट इस्तेमाल करेगा। जब होस्ट आएगा: ऐसा WebAssembly प्लगइन जो Remoter से सिर्फ़ प्रकाशित प्लगइन ABI के ज़रिए बात करता है, आपकी मनचाही शर्तों पर लाइसेंस किया जा सकता है — यही LICENSE-EXCEPTION में दी गई इंटरफ़ेस छूट है।",
+    "updatesLabel": "अपडेट",
+    "updatesValue": "Remoter नई रिलीज़ की जाँच तभी करता है जब आप जाँच चालू करें, और वह उसे कभी इंस्टॉल नहीं करता। “अपडेट” अनुभाग देखें।",
+    "repositoryLabel": "स्रोत",
+    "repositoryOpen": "रिपॉज़िटरी खोलें",
+    "repositoryFailed": "सिस्टम का ब्राउज़र नहीं खुला।"
+  }
+}

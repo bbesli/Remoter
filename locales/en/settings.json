@@ -1,0 +1,251 @@
+{
+  "_comment_file": "The application settings screen and its six sections. Loaded when the screen opens, not before. Section titles double as the navigation labels, so they stay short; the descriptions underneath carry the explanation.",
+
+  "screen": {
+    "title": "Settings",
+    "close": "Close settings",
+    "_comment_closeHint": "Esc is a key name and is not translated.",
+    "closeHint": "Close settings (Esc)",
+    "sections": "Settings sections",
+    "navAppearance": "Appearance",
+    "navTerminal": "Terminal",
+    "navLanguage": "Language",
+    "navShortcuts": "Shortcuts",
+    "navUpdates": "Updates",
+    "navAbout": "About",
+    "loading": "Reading your settings…",
+    "loadFailed": "Your settings could not be read."
+  },
+
+  "appearance": {
+    "title": "Theme",
+    "description": "A theme is a token override file. The high-contrast pair meets WCAG 2.2 AA at every size, not only for body text.",
+    "light": "Light",
+    "dark": "Dark",
+    "hcLight": "High contrast light",
+    "hcDark": "High contrast dark",
+    "system": "Follow the system",
+    "_comment_systemNow": "{resolved} is systemLight or systemDark below, so the whole sentence is one message rather than two halves joined at run time.",
+    "systemNow": "Your desktop is currently reporting {resolved}.",
+    "systemLight": "light",
+    "systemDark": "dark",
+    "previewUnavailable": "Preview unavailable",
+    "saving": "Saving the theme…",
+    "saveFailed": "The theme was not saved.",
+    "terminalNote": "The terminal has its own colours and font, on the Terminal tab: eight palettes, per-colour editing and a contrast check. Its palette follows the theme you pick here until you choose one there."
+  },
+
+  "language": {
+    "title": "Language",
+    "description": "Ten languages are planned for 1.0. Right-to-left languages mirror the whole layout, not just the text.",
+    "_comment_progress": "PLURAL, on the number of languages that actually have catalogues. The count is measured from the locales/ directory rather than hardcoded, so this sentence stops claiming 'only English' the day a second catalogue lands.",
+    "progress": "{available, plural, one {Only English is translated so far.} other {# languages are translated so far.}} The rest are listed because translation is under way; each becomes selectable when its catalogue is complete, and until then choosing it would change nothing.",
+    "notReady": "Not yet available",
+    "_comment_unavailableLabel": "The accessible name of a row that cannot be chosen. {name} is the language's own name, in its own script, and is never translated.",
+    "unavailableLabel": "{name} — not yet available",
+    "_comment_rtl": "A badge on right-to-left languages. Abbreviation; expand it if the language has no equivalent short form.",
+    "rtl": "RTL",
+    "saving": "Saving the language…",
+    "saveFailed": "The language was not saved.",
+    "_comment_storedUnavailable": "Shown when the settings file names a language with no catalogue — a downgrade, or a translation withdrawn. {locale} is a BCP 47 tag such as pt-BR and is not translated.",
+    "storedUnavailable": "Your settings ask for {locale}, which has no catalogue yet, so the interface stays in English."
+  },
+
+  "terminal": {
+    "paletteTitle": "Terminal palette",
+    "paletteDescription": "The colours every session in this window is drawn in. Separate from the interface theme, so a light interface can have a dark terminal. Changes reach sessions that are already open — nothing needs reconnecting.",
+    "auto": "Follow the interface theme",
+    "autoCredit": "Remoter Dark with a dark interface, Remoter Light with a light one, and the high-contrast palette when the interface is high contrast",
+    "_comment_autoResolved": "{name} is a palette name such as 'Remoter Dark'. Palette names are product names and are not translated.",
+    "autoResolved": "Right now that is {name}.",
+
+    "previewLabel": "Preview",
+    "previewNote": "Real output, in the palette and font about to be applied.",
+
+    "contrastTitle": "Contrast",
+    "contrastDescription": "Every colour a program prints text in, measured against your background. WCAG 2.2 AA asks for 4.5:1 at this size. Nothing here is blocked — it is your terminal — but these are the colours that will be hard to read.",
+    "contrastClear": "Every colour clears 4.5:1 against this background.",
+    "_comment_contrastSample": "The two letters drawn in each failing colour, as a specimen. Replace them with characters representative of the script this locale is read in — the point is to show what that colour looks like as text a reader would actually meet. Keep it to two or three characters.",
+    "contrastSample": "Aa",
+    "contrastHard": "Hard to read",
+    "contrastUnreadable": "Unreadable",
+    "_comment_contrastRatio": "A contrast ratio, already formatted to one decimal by Intl. The ':1' is notation, not words.",
+    "contrastRatio": "{ratio}:1",
+    "contrastAgainstBackground": "{ratio} against the background",
+    "_comment_contrastCount": "PLURAL. 4.5:1 is a WCAG threshold and stays a numeral in every language.",
+    "contrastCount": "{count, plural, one {# colour falls below 4.5:1} other {# colours fall below 4.5:1}}",
+    "contrastWarning": "Change the colour, change the background, or leave it as it is — this is a measurement, not a refusal.",
+    "contrastBlacks": "Colour 0 and colour 8 are the two a shell normally uses as a background or as dimmed decoration rather than as text, which is why they fall short in almost every palette ever published, including this one.",
+
+    "_comment_colours": "What each editable colour is called, in the order the editor lists them. The leading number is the ANSI colour index and stays a numeral; the word after it is translated. 'Bright black' is the conventional name for ANSI 8 even though it is usually dark grey — keep the convention rather than describing the colour.",
+    "colours": {
+      "background": "Background",
+      "foreground": "Foreground",
+      "cursor": "Cursor",
+      "cursorAccent": "Text under the cursor",
+      "selection": "Selection",
+      "black": "0 Black",
+      "red": "1 Red",
+      "green": "2 Green",
+      "yellow": "3 Yellow",
+      "blue": "4 Blue",
+      "magenta": "5 Magenta",
+      "cyan": "6 Cyan",
+      "white": "7 White",
+      "brightBlack": "8 Bright black",
+      "brightRed": "9 Bright red",
+      "brightGreen": "10 Bright green",
+      "brightYellow": "11 Bright yellow",
+      "brightBlue": "12 Bright blue",
+      "brightMagenta": "13 Bright magenta",
+      "brightCyan": "14 Bright cyan",
+      "brightWhite": "15 Bright white"
+    },
+    "coloursTitle": "Individual colours",
+    "coloursDescription": "Pick a colour, or paste a hex value — #rgb, #rrggbb and #rrggbbaa are all accepted. A colour you have changed shows a reset beside it. The platform's colour picker has no transparency, so a colour that had some keeps it; the hex field, as #rrggbbaa, is where transparency is changed.",
+    "_comment_hexLabel": "{name} is a colour's name, such as 'Red' or 'Bright black'. These are the ANSI colour names and are translated.",
+    "hexLabel": "{name}, hex value",
+    "pickLabel": "{name}, colour picker",
+    "resetOne": "Reset {name} to the palette's own colour",
+    "resetAll": "Reset every colour",
+    "resetAllNone": "Nothing is overridden",
+    "overridden": "Changed",
+    "_comment_overriddenCount": "PLURAL.",
+    "overriddenCount": "{count, plural, one {# colour differs from the palette} other {# colours differ from the palette}}",
+    "invalidHex": "That is not a colour. Write it as #1a1c20.",
+
+    "fontTitle": "Terminal font",
+    "fontDescription": "Separate from the interface font. The interface stays at its own size when you change this.",
+    "fontFamilyLabel": "Font family",
+    "_comment_fontFamilyPlaceholder": "A font name. Not translated.",
+    "fontFamilyPlaceholder": "JetBrains Mono",
+    "fontFamilyHelp": "The name of a font installed on this machine. Remoter cannot list the fonts you have, and it cannot tell you whether this one was found — the preview above is set in it, so an empty-looking change means the name did not match. Whatever you type falls back to the interface's monospace stack, so a typo never leaves you without a monospace terminal.",
+    "fontFamilyDefault": "Leave it empty to use the interface's monospace stack.",
+    "fontSizeLabel": "Size",
+    "_comment_fontSizeHelp": "{min} and {max} are the bounds the build enforces, so the sentence cannot drift out of step with the control.",
+    "fontSizeHelp": "Pixels, {min} to {max}. The session resizes itself and tells the remote host the new geometry.",
+
+    "scope": "These settings belong to this machine, not to the vault, and they apply to every session rather than to one connection.",
+    "saving": "Saving the terminal appearance…",
+    "saveFailed": "The terminal appearance was not saved."
+  },
+
+  "shortcuts": {
+    "title": "Shortcuts",
+    "description": "Every binding below is what the application actually listens for. A focused terminal must receive almost every keystroke, so application shortcuts inside a session go through a prefix.",
+    "loading": "Reading your shortcut map…",
+    "loadFailed": "Your shortcut map could not be read.",
+    "loadFallback": "These are the shipped defaults. Any binding you changed is not shown, and cannot be changed here until the settings file can be read.",
+
+    "prefixTitle": "Terminal prefix",
+    "_comment_prefixBody": "Ctrl+C, Ctrl+D and Alt+F are key names. Translate the sentence, not the keys.",
+    "prefixBody": "Ctrl+C, Ctrl+D and Alt+F belong to the remote host, so Remoter does not take them. Inside a session, hold the prefix as well.",
+    "prefixLegend": "The prefix held with an application shortcut inside a session",
+    "prefixSaving": "Saving the prefix…",
+    "prefixFailed": "The prefix was not changed.",
+
+    "searchLabel": "Search shortcuts",
+    "searchPlaceholder": "Filter by action or key",
+
+    "caption": "Keyboard shortcuts, with what each one can and cannot reach",
+    "colAction": "Action",
+    "colShortcut": "Shortcut",
+    "colScope": "Where it works",
+
+    "scopeUniversal": "Everywhere",
+    "scopeApplication": "Prefixed in a session",
+    "scopeContext": "Only where it is typed",
+    "scopeNowhere": "Nowhere",
+
+    "_comment_inSession": "{keys} is a key combination such as 'Ctrl+B then T'. Key names are not translated.",
+    "inSession": "Inside a focused session: {keys}",
+
+    "edit": "Change the shortcut for {action}, currently {keys}",
+    "capturing": "Press the keys…",
+    "capturingHint": "Press the combination you want, or Esc to cancel.",
+    "fixed": "The shortcut for {action} cannot be changed",
+    "saving": "Saving…",
+
+    "reset": "Reset {action} to its shipped keys",
+    "resetAll": "Reset every shortcut",
+    "resetAllBusy": "Resetting…",
+    "resetAllNone": "Every editable shortcut is already at its shipped default.",
+    "saveFailed": "The shortcut was not saved.",
+
+    "_comment_count": "PLURAL on {shown}, with {total} inside it. Filtering a table down to one row is common enough that the singular is worth having.",
+    "count": "{shown, plural, one {Showing # of {total} shortcuts.} other {Showing # of {total} shortcuts.}}",
+    "empty": "No shortcut matches that.",
+
+    "_comment_conflictDuplicate": "{holders} is a locale-joined list of action names, built with Intl.ListFormat.",
+    "conflictDuplicate": "Already held by {holders}. Only one of them can fire, so change one of the two.",
+    "conflictReservedUniversal": "The remote shell needs these keys, so a focused session keeps them and this shortcut never fires there.",
+    "conflictReservedApplication": "These keys belong to the remote shell and to copy-and-paste. The prefix keeps them clear inside a session, but outside one Remoter takes them.",
+    "conflictDesktop": "Some desktops take this combination for their own window switcher and win. Where that happens the press never reaches Remoter.",
+
+    "refusedInvalid": "That is not a combination Remoter can bind.",
+    "refusedReserved": "{keys} belongs to the remote host: a focused terminal has to receive it, so binding it here would stop it reaching the shell.",
+    "refusedDuplicate": "{keys} is already held by {action}. Nothing was changed — free it there first, or pick another combination.",
+    "refusedUnknown": "This build does not carry that action."
+  },
+
+  "updates": {
+    "title": "Updates",
+    "description": "Remoter can look for a newer release. It does not install one, and it contacts nothing unless you ask it to.",
+
+    "switchLabel": "Look for a newer release automatically",
+    "_comment_consent": "SECURITY-CRITICAL. This is the consent notice for the only outbound request the application makes. Every clause is a commitment: what is contacted, how often, and exactly what is sent. Do not shorten it, and do not generalise 'one thing: this build's version string' into 'some information'.",
+    "consent": "With this on, Remoter contacts github.com at most once a day — once when you turn it on, and after that when you open this screen — and sends one thing: this build's version string. No identifier, no locale, no telemetry, no usage data. With it off, nothing is contacted until you press Check now.",
+    "switchSaving": "Saving…",
+    "switchFailed": "That preference was not saved.",
+
+    "checkNow": "Check now",
+    "checking": "Asking GitHub what has been released…",
+    "lastCheckedNever": "This machine has never checked.",
+    "_comment_lastChecked": "{when} is a relative time from Intl.RelativeTimeFormat — 'yesterday', '3 hours ago'.",
+    "lastChecked": "Last checked {when}.",
+
+    "checkFailed": "The update check did not finish.",
+
+    "_comment_current": "{version} here and in the three messages below is a version string such as 0.1.0. Never translated, and never localised as a number — 0.1.0 does not become 0,1,0.",
+    "current": "You are running {version}, and it is the newest release.",
+    "none": "No release has been published yet. You are running {version}.",
+    "unknown": "This build reports its version as {version}, which is not a version that can be compared. Open the releases page and check by eye.",
+
+    "updateHeading": "Version {version} is available",
+    "updateRunning": "You are running {version}.",
+    "published": "Published {when}.",
+    "notesHeading": "What changed",
+    "notesNone": "This release was published without notes.",
+    "openRelease": "Open the release page",
+    "openReleases": "Open the releases page",
+
+    "_comment_noSelfUpdate": "SECURITY-CRITICAL. It states why the application will not install its own updates. Keep the reason — unsigned releases — rather than reducing it to 'for safety'.",
+    "noSelfUpdate": "Remoter does not install updates itself. Releases are not signed yet, and running an unsigned binary is not something a credential manager should ask you to do — so the button opens the release page in your browser and you install it yourself.",
+
+    "openFailed": "The system browser did not open.",
+
+    "promiseTitle": "Remoter does not phone home",
+    "_comment_promiseTelemetry": "SECURITY-CRITICAL, as are the two promises after it. Three absolute statements about what the application does not do. A translator who hedges any of them turns a commitment into marketing.",
+    "promiseTelemetry": "No telemetry. No usage reporting. No analytics of any kind, at any setting.",
+    "promiseCrash": "No crash upload. A crash report is written to your machine and you decide whether to attach it to an issue — which means you can read it first, and that matters when the process holds credentials.",
+    "promiseCheck": "The update check is the only request Remoter makes that is not a session you opened. It reads the public release list and sends this build's version. It downloads nothing."
+  },
+
+  "about": {
+    "title": "About",
+    "description": "What this build is, and the terms it is under.",
+    "versionLabel": "Version",
+    "versionReading": "Reading…",
+    "versionUnavailable": "Unavailable",
+    "licenceLabel": "Licence",
+    "_comment_licenceValue": "The licence's own name and SPDX identifier. Not translated: it is the legal name of the document.",
+    "licenceValue": "GNU General Public License, version 3 or later (GPL-3.0-or-later)",
+    "exceptionLabel": "Plugins",
+    "exceptionValue": "This build cannot load plugins. There is no plugin host in it yet — only the ABI the future one will use. When there is: a WebAssembly plugin that talks to Remoter only through the published plugin ABI may be licensed on any terms you choose, which is the interface exception in LICENSE-EXCEPTION.",
+    "updatesLabel": "Updates",
+    "updatesValue": "Remoter checks for a newer release only if you turn the check on, and it never installs one. See the Updates section.",
+    "repositoryLabel": "Source",
+    "repositoryOpen": "Open the repository",
+    "repositoryFailed": "The system browser did not open."
+  }
+}

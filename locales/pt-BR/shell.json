@@ -1,0 +1,168 @@
+{
+  "_comment_file": "The application shell: title bar, tab strip, status bar, footer, inspector, and the two full-area states (empty vault, locked vault). Loaded before the first paint, because it is on screen whenever the window is.",
+
+  "titleBar": {
+    "_comment_": "A 38px bar. Every label here is also a tooltip, so short wins — but a disabled control's tooltip says WHY, because 'why not?' is the only question a dead button raises.",
+    "noVault": "Nenhum cofre aberto",
+    "unlocked": "desbloqueado",
+    "locked": "bloqueado",
+    "lock": "Bloquear o cofre",
+    "lockAlreadyLocked": "Não há cofre desbloqueado para bloquear.",
+    "lockInProgress": "Bloqueando o cofre…",
+    "_comment_lockingShort": "Shown in the bar itself, where there is room for one word. The tooltip carries lockInProgress.",
+    "lockingShort": "Bloqueando…",
+    "settings": "Configurações",
+    "vaultSettings": "Configurações do cofre",
+    "audit": "Log de auditoria",
+    "importer": "Importar conexões",
+    "_comment_needsVault": "{action} is one of the four labels above. Interpolated rather than concatenated: languages differ on where the subject of this sentence goes.",
+    "needsVault": "{action} exige um cofre desbloqueado.",
+    "minimise": "Minimizar",
+    "maximise": "Maximizar",
+    "restore": "Restaurar",
+    "close": "Fechar",
+    "_comment_controlFailed": "SECURITY-ADJACENT. The window controls are the one place where doing nothing is indistinguishable from being broken. Do not soften this into 'something went wrong'.",
+    "controlFailed": "{action} foi recusado pelo gerenciador de janelas.",
+    "noWindow": "Esta página não está sendo executada dentro da janela do Remoter, então os controles de janela não fazem nada aqui."
+  },
+
+  "tabStrip": {
+    "sidebarShow": "Mostrar a árvore de conexões",
+    "sidebarHide": "Ocultar a árvore de conexões",
+    "noSessions": "Nenhuma sessão aberta — dê um duplo clique em uma conexão para iniciar uma",
+    "_comment_inspector": "Ctrl-free: F4 is a bare function key and is written as-is in every language.",
+    "inspector": "Valores efetivos · F4"
+  },
+
+  "statusBar": {
+    "nothingSelected": "Nada selecionado",
+    "noSession": "Nenhuma sessão",
+    "resolving": "Resolvendo os valores herdados…",
+    "unresolved": "Os valores efetivos ainda não foram resolvidos",
+    "_comment_protocolUnset": "Sits where SSH, RDP, VNC or SFTP would. Lower case: it is the absence of a protocol, not the name of one.",
+    "protocolUnset": "sem protocolo",
+    "showDetail": "Mostrar a falha no inspetor"
+  },
+
+  "footer": {
+    "_comment_": "Counts. Every one is a plural: Russian needs four forms here and Arabic six, and the zero case is worth its own wording in the languages that have one.",
+    "sessions": "{count, plural, =0 {nenhuma sessão} one {# sessão} other {# sessões}}",
+    "tunnels": "{count, plural, =0 {nenhum túnel} one {# túnel} other {# túneis}}",
+    "connections": "{count, plural, =0 {nenhuma conexão} one {# conexão} other {# conexões}}",
+    "credentials": "{count, plural, =0 {nenhuma credencial} one {# credencial} other {# credenciais}}",
+    "openPanels": "Abrir o painel de sessões e túneis",
+    "_comment_locksIn": "{clock} is mm:ss, produced by formatClock() so the digits follow the locale's numbering system.",
+    "locksIn": "o cofre bloqueia em {clock}",
+    "noAutoLock": "bloqueio automático desligado"
+  },
+
+  "inspector": {
+    "title": "Valores efetivos",
+    "close": "Fechar o inspetor",
+    "nothingSelected": "Nada selecionado",
+    "nothingSelectedBody": "Escolha uma conexão na árvore para ver as configurações resolvidas dela.",
+    "notAConnection": "Pastas não têm valores efetivos próprios.",
+    "notAConnectionBody": "O que uma pasta define aparece nas conexões abaixo dela, como origem de um valor herdado.",
+    "resolving": "Resolvendo",
+    "failed": "Não foi possível resolver esta conexão",
+    "retry": "Resolver de novo",
+    "notAsked": "Os valores efetivos não foram solicitados",
+    "notAskedBody": "A resolução é feita sobre um cofre aberto. Este está bloqueado, então ainda não há contra o que resolver.",
+    "_comment_unset": "The value of a field nobody has set, anywhere in the inheritance chain.",
+    "unset": "não definido",
+    "_comment_setHere": "Provenance labels, shown under a resolved field. 'set here' means this connection's own value; the others name where an inherited value came from. Lower case: they are fragments under a value, not sentences.",
+    "setHere": "definido aqui",
+    "fromDefault": "padrão do protocolo",
+    "inherited": "herdado",
+    "_comment_fromSource": "{source} is a folder or connection name — user data, in any script, isolated before it arrives.",
+    "fromSource": "de {source}",
+    "_comment_overridesInherited": "{field} is a field name such as 'port' or 'username'. This is the case worth calling out: the tree above says something different from what will actually be used.",
+    "overridesInherited": "sobrescreve {field} herdado",
+    "credentialOwn": "própria desta conexão",
+    "credentialShared": "definida aqui · compartilhada com outras entradas",
+    "gateway": "Cadeia de gateways",
+    "tags": "Etiquetas",
+    "noFields": "Esta conexão não resolve para nenhum campo."
+  },
+
+  "emptyVault": {
+    "title": "Este cofre está vazio",
+    "_comment_body": "{vault} is the vault file's name, which is user data and may be in any script. It is wrapped in a Unicode isolate before it gets here, so the sentence keeps its own direction whatever the name contains.",
+    "body": "Ainda não há nada guardado em {vault}. A maioria das pessoas começa trazendo o que já tem.",
+    "unnamedVault": "este cofre",
+    "importTitle": "Importar de outra ferramenta",
+    "_comment_importBody": "Product and file names. Not translated.",
+    "importBody": "mRemoteNG, ~/.ssh/config, CSV",
+    "createTitle": "Criar a primeira conexão",
+    "createBody": "Um host, um protocolo e uma credencial já bastam para começar.",
+    "createBusy": "Abrindo o editor de conexões…",
+    "openTitle": "Abrir um cofre diferente",
+    "openBody": "Bloqueia este cofre e volta para o seletor de cofres.",
+    "openBusy": "Bloqueando este cofre…",
+    "openFailed": "Este cofre não foi bloqueado, então o seletor não abriu."
+  },
+
+  "main": {
+    "nothingSelected": "Nada selecionado",
+    "_comment_nothingSelectedBody": "Ctrl+K is a key name. Translate the sentence around it, not the key.",
+    "nothingSelectedBody": "Escolha uma conexão na árvore ou pressione Ctrl+K para procurar uma.",
+    "noProtocol": "sem protocolo",
+    "_comment_sidebarLabel": "The accessible name of the connection tree's landmark region. Read aloud when a screen reader lists the regions of the window.",
+    "sidebarLabel": "Conexões",
+    "_comment_nodeKind": "What a selected tree entry is, shown above its name where a connection shows its protocol. These are the node kinds from the domain model; they are shown to the user, so they are translated, unlike the protocol names beside them.",
+    "nodeKind": {
+      "folder": "pasta",
+      "connection": "conexão",
+      "credential": "credencial",
+      "group": "grupo",
+      "separator": "separador"
+    },
+    "connectHint": "Dê um duplo clique nela na árvore, pressione Enter na paleta ou use Conectar no menu de contexto dela.",
+    "folderSelected": "Pastas guardam configurações que as conexões abaixo delas herdam.",
+
+    "lockedTitle": "Este cofre está bloqueado",
+    "_comment_lockedBody": "SECURITY-CRITICAL wording in one respect: it must keep saying that nothing was lost. A user who believes a lock destroyed their connections will go looking for a backup they do not need.",
+    "lockedBody": "Ele se bloqueou sozinho depois do tempo de inatividade, ou foi bloqueado a partir de outra janela. Nada foi perdido: as conexões continuam no arquivo e voltam quando você desbloqueá-lo.",
+    "lockedAction": "Desbloquear este cofre",
+    "lockedNoPath": "Escolher um cofre",
+
+    "vaultStateFailed": "O Remoter não consegue saber se há um cofre aberto.",
+    "treeFailed": "Não foi possível ler a árvore de conexões.",
+    "lockFailed": "O cofre não foi bloqueado.",
+
+    "fullscreenFailedTitle": "A janela não entrou em tela cheia.",
+    "fullscreenFailedBody": "O gerenciador de janelas recusou, ou esta página não está sendo executada dentro da janela do Remoter. Nada mudou na sessão.",
+
+    "checkingVault": "Verificando se há um cofre aberto…",
+    "readingTree": "Lendo as conexões de dentro do cofre…"
+  },
+
+  "kdfUpgrade": {
+    "_comment_": "SECURITY-CRITICAL SECTION. This is the offer to strengthen a vault's key derivation. Do not soften 'weaker than the current standard' into 'could be improved', and do not drop the sentence explaining why the password is asked for again — a credential prompt without a stated reason is exactly what a phishing dialog looks like.",
+    "offer": "A derivação de chave deste cofre é mais fraca que o padrão atual. Reforçá-la leva um instante e não exige uma senha nova.",
+    "strengthen": "Reforçar agora",
+    "notNow": "Agora não",
+    "dismissLabel": "Dispensar esta sugestão até o próximo desbloqueio",
+
+    "password": "Senha mestra",
+    "passwordHelp": "A mesma senha que você acabou de usar para desbloquear. Cada slot de chave é reconstruído em torno dela, por isso ela precisa ser digitada de novo.",
+    "confirm": "Reforçar",
+    "_comment_working": "Short enough that reserving room for it does not widen the idle button.",
+    "working": "Reforçando…",
+    "workingStage": "Derivando a chave de novo, com o custo mais alto…",
+
+    "reading": "Lendo o cabeçalho do cofre…",
+    "readFailed": "Não foi possível ler o cabeçalho deste cofre, então os slots de chave não podem ser reforçados.",
+
+    "keyfile": "Arquivo de chave",
+    "keyfileMissing": "O slot de senha deste cofre também precisa do arquivo de chave dele.",
+    "keyfileDialog": "Escolha o arquivo de chave deste cofre",
+    "keyfileDialogFailed": "O navegador de arquivos do sistema não abriu, então nenhum arquivo de chave pôde ser escolhido. Nada foi enviado ao cofre.",
+
+    "failed": "Os slots de chave não foram reforçados.",
+    "done": "Pronto. Os slots de chave deste cofre estão no custo atual.",
+
+    "blockedPassword": "Digite a senha mestra.",
+    "blockedKeyfile": "Escolha o arquivo de chave de que este cofre precisa."
+  }
+}

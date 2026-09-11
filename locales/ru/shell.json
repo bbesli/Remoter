@@ -1,0 +1,168 @@
+{
+  "_comment_file": "The application shell: title bar, tab strip, status bar, footer, inspector, and the two full-area states (empty vault, locked vault). Loaded before the first paint, because it is on screen whenever the window is.",
+
+  "titleBar": {
+    "_comment_": "A 38px bar. Every label here is also a tooltip, so short wins — but a disabled control's tooltip says WHY, because 'why not?' is the only question a dead button raises.",
+    "noVault": "Хранилище не открыто",
+    "unlocked": "разблокировано",
+    "locked": "заблокировано",
+    "lock": "Заблокировать хранилище",
+    "lockAlreadyLocked": "Нет разблокированного хранилища, которое можно было бы заблокировать.",
+    "lockInProgress": "Хранилище блокируется…",
+    "_comment_lockingShort": "Shown in the bar itself, where there is room for one word. The tooltip carries lockInProgress.",
+    "lockingShort": "Блокировка…",
+    "settings": "Настройки",
+    "vaultSettings": "Настройки хранилища",
+    "audit": "Журнал аудита",
+    "importer": "Импорт подключений",
+    "_comment_needsVault": "{action} is one of the four labels above. Interpolated rather than concatenated: languages differ on where the subject of this sentence goes.",
+    "needsVault": "Для действия «{action}» нужно разблокированное хранилище.",
+    "minimise": "Свернуть",
+    "maximise": "Развернуть",
+    "restore": "Восстановить размер",
+    "close": "Закрыть",
+    "_comment_controlFailed": "SECURITY-ADJACENT. The window controls are the one place where doing nothing is indistinguishable from being broken. Do not soften this into 'something went wrong'.",
+    "controlFailed": "Оконный менеджер отклонил действие «{action}».",
+    "noWindow": "Эта страница работает не внутри окна Remoter, поэтому кнопки управления окном здесь ничего не делают."
+  },
+
+  "tabStrip": {
+    "sidebarShow": "Показать дерево подключений",
+    "sidebarHide": "Скрыть дерево подключений",
+    "noSessions": "Открытых сеансов нет — дважды щёлкните подключение, чтобы начать",
+    "_comment_inspector": "Ctrl-free: F4 is a bare function key and is written as-is in every language.",
+    "inspector": "Действующие значения · F4"
+  },
+
+  "statusBar": {
+    "nothingSelected": "Ничего не выбрано",
+    "noSession": "Сеанса нет",
+    "resolving": "Вычисляются унаследованные значения…",
+    "unresolved": "Действующие значения ещё не вычислены",
+    "_comment_protocolUnset": "Sits where SSH, RDP, VNC or SFTP would. Lower case: it is the absence of a protocol, not the name of one.",
+    "protocolUnset": "протокол не задан",
+    "showDetail": "Показать сбой на панели значений"
+  },
+
+  "footer": {
+    "_comment_": "Counts. Every one is a plural: Russian needs four forms here and Arabic six, and the zero case is worth its own wording in the languages that have one.",
+    "sessions": "{count, plural, =0 {нет сеансов} one {# сеанс} few {# сеанса} many {# сеансов} other {# сеанса}}",
+    "tunnels": "{count, plural, =0 {нет туннелей} one {# туннель} few {# туннеля} many {# туннелей} other {# туннеля}}",
+    "connections": "{count, plural, =0 {нет подключений} one {# подключение} few {# подключения} many {# подключений} other {# подключения}}",
+    "credentials": "{count, plural, =0 {нет учётных данных} one {# набор учётных данных} few {# набора учётных данных} many {# наборов учётных данных} other {# набора учётных данных}}",
+    "openPanels": "Открыть панель сеансов и туннелей",
+    "_comment_locksIn": "{clock} is mm:ss, produced by formatClock() so the digits follow the locale's numbering system.",
+    "locksIn": "блокировка через {clock}",
+    "noAutoLock": "автоблокировка выключена"
+  },
+
+  "inspector": {
+    "title": "Действующие значения",
+    "close": "Закрыть панель значений",
+    "nothingSelected": "Ничего не выбрано",
+    "nothingSelectedBody": "Выберите подключение в дереве, чтобы увидеть его итоговые настройки.",
+    "notAConnection": "У папок нет собственных действующих значений.",
+    "notAConnectionBody": "То, что задаёт папка, показывается на подключениях под ней — как источник унаследованного значения.",
+    "resolving": "Вычисление",
+    "failed": "Не удалось вычислить значения для этого подключения",
+    "retry": "Вычислить ещё раз",
+    "notAsked": "Действующие значения не запрашивались",
+    "notAskedBody": "Вычисление выполняется по открытому хранилищу. Это хранилище заблокировано, поэтому вычислять пока не по чему.",
+    "_comment_unset": "The value of a field nobody has set, anywhere in the inheritance chain.",
+    "unset": "не задано",
+    "_comment_setHere": "Provenance labels, shown under a resolved field. 'set here' means this connection's own value; the others name where an inherited value came from. Lower case: they are fragments under a value, not sentences.",
+    "setHere": "задано здесь",
+    "fromDefault": "по умолчанию для протокола",
+    "inherited": "унаследовано",
+    "_comment_fromSource": "{source} is a folder or connection name — user data, in any script, isolated before it arrives.",
+    "fromSource": "от «{source}»",
+    "_comment_overridesInherited": "{field} is a field name such as 'port' or 'username'. This is the case worth calling out: the tree above says something different from what will actually be used.",
+    "overridesInherited": "переопределяет унаследованное поле «{field}»",
+    "credentialOwn": "собственные данные этого подключения",
+    "credentialShared": "задано здесь · используется и другими записями",
+    "gateway": "Цепочка шлюзов",
+    "tags": "Теги",
+    "noFields": "У этого подключения не вычислилось ни одного поля."
+  },
+
+  "emptyVault": {
+    "title": "Это хранилище пусто",
+    "_comment_body": "{vault} is the vault file's name, which is user data and may be in any script. It is wrapped in a Unicode isolate before it gets here, so the sentence keeps its own direction whatever the name contains.",
+    "body": "В хранилище «{vault}» пока ничего нет. Обычно начинают с переноса того, что уже есть.",
+    "unnamedVault": "это хранилище",
+    "importTitle": "Импорт из другой программы",
+    "_comment_importBody": "Product and file names. Not translated.",
+    "importBody": "mRemoteNG, ~/.ssh/config, CSV",
+    "createTitle": "Создать первое подключение",
+    "createBody": "Для начала хватит хоста, протокола и учётных данных.",
+    "createBusy": "Открывается редактор подключения…",
+    "openTitle": "Открыть другое хранилище",
+    "openBody": "Блокирует это хранилище и возвращает к выбору хранилища.",
+    "openBusy": "Блокировка этого хранилища…",
+    "openFailed": "Это хранилище не заблокировано, поэтому окно выбора не открылось."
+  },
+
+  "main": {
+    "nothingSelected": "Ничего не выбрано",
+    "_comment_nothingSelectedBody": "Ctrl+K is a key name. Translate the sentence around it, not the key.",
+    "nothingSelectedBody": "Выберите подключение в дереве или нажмите Ctrl+K, чтобы найти его.",
+    "noProtocol": "протокол не задан",
+    "_comment_sidebarLabel": "The accessible name of the connection tree's landmark region. Read aloud when a screen reader lists the regions of the window.",
+    "sidebarLabel": "Подключения",
+    "_comment_nodeKind": "What a selected tree entry is, shown above its name where a connection shows its protocol. These are the node kinds from the domain model; they are shown to the user, so they are translated, unlike the protocol names beside them.",
+    "nodeKind": {
+      "folder": "папка",
+      "connection": "подключение",
+      "credential": "учётные данные",
+      "group": "группа",
+      "separator": "разделитель"
+    },
+    "connectHint": "Дважды щёлкните его в дереве, нажмите Enter в палитре или выберите «Подключиться» в контекстном меню.",
+    "folderSelected": "Папки хранят настройки, которые наследуют подключения под ними.",
+
+    "lockedTitle": "Это хранилище заблокировано",
+    "_comment_lockedBody": "SECURITY-CRITICAL wording in one respect: it must keep saying that nothing was lost. A user who believes a lock destroyed their connections will go looking for a backup they do not need.",
+    "lockedBody": "Оно заблокировалось само после простоя или было заблокировано из другого окна. Ничего не потеряно: подключения по-прежнему в файле и вернутся, как только вы его разблокируете.",
+    "lockedAction": "Разблокировать это хранилище",
+    "lockedNoPath": "Выбрать хранилище",
+
+    "vaultStateFailed": "Remoter не может определить, открыто ли хранилище.",
+    "treeFailed": "Не удалось прочитать дерево подключений.",
+    "lockFailed": "Хранилище не заблокировано.",
+
+    "fullscreenFailedTitle": "Окно не перешло в полноэкранный режим.",
+    "fullscreenFailedBody": "Оконный менеджер отклонил переход, либо эта страница работает не внутри окна Remoter. С сеансом при этом ничего не изменилось.",
+
+    "checkingVault": "Проверяется, открыто ли хранилище…",
+    "readingTree": "Подключения читаются из хранилища…"
+  },
+
+  "kdfUpgrade": {
+    "_comment_": "SECURITY-CRITICAL SECTION. This is the offer to strengthen a vault's key derivation. Do not soften 'weaker than the current standard' into 'could be improved', and do not drop the sentence explaining why the password is asked for again — a credential prompt without a stated reason is exactly what a phishing dialog looks like.",
+    "offer": "Выведение ключа в этом хранилище слабее текущего стандарта. Усиление занимает несколько мгновений, и новый пароль для него не нужен.",
+    "strengthen": "Усилить",
+    "notNow": "Не сейчас",
+    "dismissLabel": "Скрыть это предложение до следующей разблокировки",
+
+    "password": "Мастер-пароль",
+    "passwordHelp": "Тот же пароль, которым вы только что разблокировали хранилище. Каждый слот ключа перестраивается вокруг него, поэтому пароль нужно ввести ещё раз.",
+    "confirm": "Усилить",
+    "_comment_working": "Short enough that reserving room for it does not widen the idle button.",
+    "working": "Усиление…",
+    "workingStage": "Ключ выводится заново, с повышенной стоимостью…",
+
+    "reading": "Читается заголовок хранилища…",
+    "readFailed": "Не удалось прочитать заголовок этого хранилища, поэтому слоты ключей нельзя усилить.",
+
+    "keyfile": "Файл-ключ",
+    "keyfileMissing": "Слоту пароля этого хранилища нужен ещё и его файл-ключ.",
+    "keyfileDialog": "Выберите файл-ключ для этого хранилища",
+    "keyfileDialogFailed": "Системный файловый диалог не открылся, поэтому файл-ключ выбрать не удалось. В хранилище ничего не отправлено.",
+
+    "failed": "Слоты ключей не усилены.",
+    "done": "Готово. Слоты ключей этого хранилища соответствуют текущей стоимости.",
+
+    "blockedPassword": "Введите мастер-пароль.",
+    "blockedKeyfile": "Выберите файл-ключ, который нужен этому хранилищу."
+  }
+}

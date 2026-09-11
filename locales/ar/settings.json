@@ -1,0 +1,251 @@
+{
+  "_comment_file": "The application settings screen and its six sections. Loaded when the screen opens, not before. Section titles double as the navigation labels, so they stay short; the descriptions underneath carry the explanation.",
+
+  "screen": {
+    "title": "الإعدادات",
+    "close": "إغلاق الإعدادات",
+    "_comment_closeHint": "Esc is a key name and is not translated.",
+    "closeHint": "إغلاق الإعدادات (Esc)",
+    "sections": "أقسام الإعدادات",
+    "navAppearance": "المظهر",
+    "navTerminal": "الطرفية",
+    "navLanguage": "اللغة",
+    "navShortcuts": "الاختصارات",
+    "navUpdates": "التحديثات",
+    "navAbout": "حول",
+    "loading": "جارٍ قراءة إعداداتك…",
+    "loadFailed": "تعذّرت قراءة إعداداتك."
+  },
+
+  "appearance": {
+    "title": "السمة",
+    "description": "السمة ملف يتجاوز رموز التصميم. ويستوفي زوج التباين العالي معيار WCAG 2.2 مستوى AA عند كل مقاس، لا لنص المتن وحده.",
+    "light": "فاتحة",
+    "dark": "داكنة",
+    "hcLight": "فاتحة عالية التباين",
+    "hcDark": "داكنة عالية التباين",
+    "system": "اتّبع النظام",
+    "_comment_systemNow": "{resolved} is systemLight or systemDark below, so the whole sentence is one message rather than two halves joined at run time.",
+    "systemNow": "يبلّغ سطح مكتبك حاليًا عن {resolved}.",
+    "systemLight": "الوضع الفاتح",
+    "systemDark": "الوضع الداكن",
+    "previewUnavailable": "المعاينة غير متاحة",
+    "saving": "جارٍ حفظ السمة…",
+    "saveFailed": "لم تُحفظ السمة.",
+    "terminalNote": "للطرفية ألوانها وخطها الخاصان، في تبويب «الطرفية»: ثماني لوحات ألوان، وتحرير لكل لون، وفحص للتباين. وتتبع لوحتها السمة التي تختارها هنا إلى أن تختار لوحة هناك."
+  },
+
+  "language": {
+    "title": "اللغة",
+    "description": "عشر لغات مخطط لها في الإصدار 1.0. واللغات التي تُكتب من اليمين إلى اليسار تعكس التخطيط بأكمله، لا النص وحده.",
+    "_comment_progress": "PLURAL, on the number of languages that actually have catalogues. The count is measured from the locales/ directory rather than hardcoded, so this sentence stops claiming 'only English' the day a second catalogue lands.",
+    "progress": "{available, plural, zero {لم تُترجم أي لغة حتى الآن.} one {الإنجليزية وحدها مترجمة حتى الآن.} two {لغتان مترجمتان حتى الآن.} few {# لغات مترجمة حتى الآن.} many {# لغة مترجمة حتى الآن.} other {# لغة مترجمة حتى الآن.}} أما البقية فمُدرجة لأن الترجمة جارية؛ وتصبح كل لغة قابلة للاختيار عند اكتمال كتالوجها، وحتى ذلك الحين لن يغيّر اختيارها شيئًا.",
+    "notReady": "غير متاحة بعد",
+    "_comment_unavailableLabel": "The accessible name of a row that cannot be chosen. {name} is the language's own name, in its own script, and is never translated.",
+    "unavailableLabel": "{name} — غير متاحة بعد",
+    "_comment_rtl": "A badge on right-to-left languages. Abbreviation; expand it if the language has no equivalent short form.",
+    "rtl": "RTL",
+    "saving": "جارٍ حفظ اللغة…",
+    "saveFailed": "لم تُحفظ اللغة.",
+    "_comment_storedUnavailable": "Shown when the settings file names a language with no catalogue — a downgrade, or a translation withdrawn. {locale} is a BCP 47 tag such as pt-BR and is not translated.",
+    "storedUnavailable": "تطلب إعداداتك اللغة {locale}، وليس لها كتالوج بعد، لذا تبقى الواجهة بالإنجليزية."
+  },
+
+  "terminal": {
+    "paletteTitle": "لوحة ألوان الطرفية",
+    "paletteDescription": "الألوان التي تُرسم بها كل جلسة في هذه النافذة. منفصلة عن سمة الواجهة، فيمكن أن تكون الواجهة فاتحة والطرفية داكنة. وتصل التغييرات إلى الجلسات المفتوحة بالفعل — لا حاجة إلى إعادة اتصال.",
+    "auto": "اتّبع سمة الواجهة",
+    "autoCredit": "Remoter Dark مع واجهة داكنة، و Remoter Light مع واجهة فاتحة، ولوحة التباين العالي حين تكون الواجهة عالية التباين",
+    "_comment_autoResolved": "{name} is a palette name such as 'Remoter Dark'. Palette names are product names and are not translated.",
+    "autoResolved": "وهي الآن {name}.",
+
+    "previewLabel": "معاينة",
+    "previewNote": "مخرجات حقيقية، بلوحة الألوان والخط اللذين سيُطبَّقان.",
+
+    "contrastTitle": "التباين",
+    "contrastDescription": "كل لون يطبع به برنامجٌ نصًّا، مقيسًا مقابل خلفيتك. يطلب معيار WCAG 2.2 مستوى AA نسبة 4.5:1 عند هذا المقاس. لا شيء هنا ممنوع — فهي طرفيتك — لكن هذه هي الألوان التي ستصعب قراءتها.",
+    "contrastClear": "كل لون يتجاوز النسبة 4.5:1 مقابل هذه الخلفية.",
+    "_comment_contrastSample": "The two letters drawn in each failing colour, as a specimen. Replace them with characters representative of the script this locale is read in — the point is to show what that colour looks like as text a reader would actually meet. Keep it to two or three characters.",
+    "contrastSample": "أب",
+    "contrastHard": "صعب القراءة",
+    "contrastUnreadable": "غير مقروء",
+    "_comment_contrastRatio": "A contrast ratio, already formatted to one decimal by Intl. The ':1' is notation, not words.",
+    "contrastRatio": "{ratio}:1",
+    "contrastAgainstBackground": "{ratio} مقابل الخلفية",
+    "_comment_contrastCount": "PLURAL. 4.5:1 is a WCAG threshold and stays a numeral in every language.",
+    "contrastCount": "{count, plural, zero {لا يقل أي لون عن 4.5:1} one {لون واحد يقل عن 4.5:1} two {لونان يقلّان عن 4.5:1} few {# ألوان تقل عن 4.5:1} many {# لونًا يقل عن 4.5:1} other {# لون يقل عن 4.5:1}}",
+    "contrastWarning": "غيّر اللون، أو غيّر الخلفية، أو اتركه كما هو — فهذا قياس وليس رفضًا.",
+    "contrastBlacks": "اللون 0 واللون 8 هما اللونان اللذان تستخدمهما الصدفة عادةً كخلفية أو كزخرفة باهتة لا كنص، ولهذا يقصّران في كل لوحة ألوان نُشرت تقريبًا، بما فيها هذه.",
+
+    "_comment_colours": "What each editable colour is called, in the order the editor lists them. The leading number is the ANSI colour index and stays a numeral; the word after it is translated. 'Bright black' is the conventional name for ANSI 8 even though it is usually dark grey — keep the convention rather than describing the colour.",
+    "colours": {
+      "background": "الخلفية",
+      "foreground": "المقدمة",
+      "cursor": "المؤشر",
+      "cursorAccent": "النص تحت المؤشر",
+      "selection": "التحديد",
+      "black": "0 أسود",
+      "red": "1 أحمر",
+      "green": "2 أخضر",
+      "yellow": "3 أصفر",
+      "blue": "4 أزرق",
+      "magenta": "5 أرجواني",
+      "cyan": "6 سماوي",
+      "white": "7 أبيض",
+      "brightBlack": "8 أسود ساطع",
+      "brightRed": "9 أحمر ساطع",
+      "brightGreen": "10 أخضر ساطع",
+      "brightYellow": "11 أصفر ساطع",
+      "brightBlue": "12 أزرق ساطع",
+      "brightMagenta": "13 أرجواني ساطع",
+      "brightCyan": "14 سماوي ساطع",
+      "brightWhite": "15 أبيض ساطع"
+    },
+    "coloursTitle": "الألوان المفردة",
+    "coloursDescription": "اختر لونًا، أو الصق قيمة ست عشرية — تُقبل الصيغ ‎#rgb و ‎#rrggbb و ‎#rrggbbaa جميعها. واللون الذي غيّرته يظهر بجواره زر إعادة تعيين. ولا تدعم أداة اختيار الألوان في النظام الشفافية، فاللون الذي كانت له شفافية يحتفظ بها؛ وحقل القيمة الست عشرية، بصيغة ‎#rrggbbaa، هو المكان الذي تُغيَّر فيه الشفافية.",
+    "_comment_hexLabel": "{name} is a colour's name, such as 'Red' or 'Bright black'. These are the ANSI colour names and are translated.",
+    "hexLabel": "{name}، القيمة الست عشرية",
+    "pickLabel": "{name}، أداة اختيار اللون",
+    "resetOne": "أعد {name} إلى لون اللوحة نفسه",
+    "resetAll": "إعادة تعيين كل الألوان",
+    "resetAllNone": "لا يوجد لون متجاوَز",
+    "overridden": "مُغيَّر",
+    "_comment_overriddenCount": "PLURAL.",
+    "overriddenCount": "{count, plural, zero {لا يختلف أي لون عن اللوحة} one {لون واحد يختلف عن اللوحة} two {لونان يختلفان عن اللوحة} few {# ألوان تختلف عن اللوحة} many {# لونًا يختلف عن اللوحة} other {# لون يختلف عن اللوحة}}",
+    "invalidHex": "هذا ليس لونًا. اكتبه بالصيغة ‎#1a1c20.",
+
+    "fontTitle": "خط الطرفية",
+    "fontDescription": "منفصل عن خط الواجهة. وتبقى الواجهة على مقاسها الخاص عند تغيير هذا.",
+    "fontFamilyLabel": "عائلة الخط",
+    "_comment_fontFamilyPlaceholder": "A font name. Not translated.",
+    "fontFamilyPlaceholder": "JetBrains Mono",
+    "fontFamilyHelp": "اسم خط مثبَّت على هذا الجهاز. لا يستطيع Remoter سرد الخطوط التي لديك، ولا يستطيع إخبارك بما إذا كان قد عثر على هذا الخط — فالمعاينة أعلاه مكتوبة به، ومعنى ألّا يبدو أن شيئًا تغيّر أن الاسم لم يطابق. وأيًّا كان ما تكتبه فسيعود إلى مجموعة الخطوط أحادية التباعد الخاصة بالواجهة، فالخطأ الإملائي لن يتركك بلا طرفية أحادية التباعد.",
+    "fontFamilyDefault": "اتركه فارغًا لاستخدام مجموعة الخطوط أحادية التباعد الخاصة بالواجهة.",
+    "fontSizeLabel": "المقاس",
+    "_comment_fontSizeHelp": "{min} and {max} are the bounds the build enforces, so the sentence cannot drift out of step with the control.",
+    "fontSizeHelp": "بالبكسل، من {min} إلى {max}. تعيد الجلسة تحجيم نفسها وتُبلغ المضيف البعيد بالأبعاد الجديدة.",
+
+    "scope": "هذه الإعدادات تخص هذا الجهاز لا الخزنة، وتنطبق على كل جلسة لا على اتصال بعينه.",
+    "saving": "جارٍ حفظ مظهر الطرفية…",
+    "saveFailed": "لم يُحفظ مظهر الطرفية."
+  },
+
+  "shortcuts": {
+    "title": "الاختصارات",
+    "description": "كل ارتباط أدناه هو ما ينصت له التطبيق فعلًا. والطرفية التي عليها التركيز لا بد أن تستقبل كل ضغطة مفتاح تقريبًا، لذا تمر اختصارات التطبيق داخل الجلسة عبر بادئة.",
+    "loading": "جارٍ قراءة خريطة اختصاراتك…",
+    "loadFailed": "تعذّرت قراءة خريطة اختصاراتك.",
+    "loadFallback": "هذه هي الافتراضات المشحونة مع البرنامج. وأي ارتباط غيّرته غير معروض هنا، ولا يمكن تغييره من هنا حتى تُقرأ ملف الإعدادات.",
+
+    "prefixTitle": "بادئة الطرفية",
+    "_comment_prefixBody": "Ctrl+C, Ctrl+D and Alt+F are key names. Translate the sentence, not the keys.",
+    "prefixBody": "تخص Ctrl+C و Ctrl+D و Alt+F المضيفَ البعيد، فلا يأخذها Remoter. أما داخل الجلسة فاضغط البادئة معها.",
+    "prefixLegend": "البادئة التي تُضغط مع اختصار التطبيق داخل الجلسة",
+    "prefixSaving": "جارٍ حفظ البادئة…",
+    "prefixFailed": "لم تتغير البادئة.",
+
+    "searchLabel": "البحث في الاختصارات",
+    "searchPlaceholder": "تصفية حسب الإجراء أو المفتاح",
+
+    "caption": "اختصارات لوحة المفاتيح، وما يستطيع كل منها الوصول إليه وما لا يستطيع",
+    "colAction": "الإجراء",
+    "colShortcut": "الاختصار",
+    "colScope": "أين يعمل",
+
+    "scopeUniversal": "في كل مكان",
+    "scopeApplication": "ببادئة داخل الجلسة",
+    "scopeContext": "حيث يُكتب فقط",
+    "scopeNowhere": "لا يعمل في أي مكان",
+
+    "_comment_inSession": "{keys} is a key combination such as 'Ctrl+B then T'. Key names are not translated.",
+    "inSession": "داخل جلسة عليها التركيز: {keys}",
+
+    "edit": "غيّر اختصار «{action}»، وهو حاليًا {keys}",
+    "capturing": "اضغط المفاتيح…",
+    "capturingHint": "اضغط التركيبة التي تريدها، أو Esc للإلغاء.",
+    "fixed": "لا يمكن تغيير اختصار «{action}»",
+    "saving": "جارٍ الحفظ…",
+
+    "reset": "أعد «{action}» إلى مفاتيحه المشحونة مع البرنامج",
+    "resetAll": "إعادة تعيين كل الاختصارات",
+    "resetAllBusy": "جارٍ إعادة التعيين…",
+    "resetAllNone": "كل اختصار قابل للتحرير هو بالفعل عند افتراضه المشحون مع البرنامج.",
+    "saveFailed": "لم يُحفظ الاختصار.",
+
+    "_comment_count": "PLURAL on {shown}, with {total} inside it. Filtering a table down to one row is common enough that the singular is worth having.",
+    "count": "{shown, plural, zero {لا يُعرض أي اختصار من أصل {total}.} one {يُعرض اختصار واحد من أصل {total}.} two {يُعرض اختصاران من أصل {total}.} few {تُعرض # اختصارات من أصل {total}.} many {يُعرض # اختصارًا من أصل {total}.} other {يُعرض # اختصار من أصل {total}.}}",
+    "empty": "لا يوجد اختصار يطابق ذلك.",
+
+    "_comment_conflictDuplicate": "{holders} is a locale-joined list of action names, built with Intl.ListFormat.",
+    "conflictDuplicate": "مأخوذ بالفعل من قِبل {holders}. ولا يمكن إلا لواحد منهما أن يعمل، فغيّر أحد الاثنين.",
+    "conflictReservedUniversal": "تحتاج الصدفة البعيدة إلى هذه المفاتيح، فتحتفظ بها الجلسة التي عليها التركيز ولا يعمل هذا الاختصار هناك أبدًا.",
+    "conflictReservedApplication": "هذه المفاتيح تخص الصدفة البعيدة وعمليات النسخ واللصق. وتبقيها البادئة متاحة داخل الجلسة، أما خارجها فيأخذها Remoter.",
+    "conflictDesktop": "تأخذ بعض أسطح المكتب هذه التركيبة لمبدّل نوافذها الخاص وتغلب عليك. وحيثما حدث ذلك لا تصل الضغطة إلى Remoter إطلاقًا.",
+
+    "refusedInvalid": "هذه ليست تركيبة يستطيع Remoter ربطها.",
+    "refusedReserved": "تخص {keys} المضيفَ البعيد: فالطرفية التي عليها التركيز لا بد أن تستقبلها، وربطها هنا سيمنعها من الوصول إلى الصدفة.",
+    "refusedDuplicate": "{keys} مأخوذة بالفعل من قِبل «{action}». لم يتغير شيء — حرّرها هناك أولًا، أو اختر تركيبة أخرى.",
+    "refusedUnknown": "هذه النسخة لا تتضمن ذلك الإجراء."
+  },
+
+  "updates": {
+    "title": "التحديثات",
+    "description": "يستطيع Remoter البحث عن إصدار أحدث. لكنه لا يثبّت أي إصدار، ولا يتصل بأي جهة ما لم تطلب منه ذلك.",
+
+    "switchLabel": "ابحث عن إصدار أحدث تلقائيًا",
+    "_comment_consent": "SECURITY-CRITICAL. This is the consent notice for the only outbound request the application makes. Every clause is a commitment: what is contacted, how often, and exactly what is sent. Do not shorten it, and do not generalise 'one thing: this build's version string' into 'some information'.",
+    "consent": "بتفعيل هذا، يتصل Remoter بـ github.com مرة واحدة يوميًا على الأكثر — مرة عند تفعيلك له، وبعد ذلك عند فتحك لهذه الشاشة — ويرسل شيئًا واحدًا: سلسلة رقم إصدار هذه النسخة. بلا معرّف، وبلا لغة، وبلا قياس عن بُعد، وبلا بيانات استخدام. وبإيقافه، لا يُتصل بأي جهة حتى تضغط «ابحث الآن».",
+    "switchSaving": "جارٍ الحفظ…",
+    "switchFailed": "لم يُحفظ هذا التفضيل.",
+
+    "checkNow": "ابحث الآن",
+    "checking": "جارٍ سؤال GitHub عمّا صدر…",
+    "lastCheckedNever": "لم يبحث هذا الجهاز قط.",
+    "_comment_lastChecked": "{when} is a relative time from Intl.RelativeTimeFormat — 'yesterday', '3 hours ago'.",
+    "lastChecked": "آخر بحث {when}.",
+
+    "checkFailed": "لم يكتمل البحث عن تحديث.",
+
+    "_comment_current": "{version} here and in the three messages below is a version string such as 0.1.0. Never translated, and never localised as a number — 0.1.0 does not become 0,1,0.",
+    "current": "أنت تشغّل {version}، وهو أحدث إصدار.",
+    "none": "لم يُنشر أي إصدار بعد. أنت تشغّل {version}.",
+    "unknown": "تُبلّغ هذه النسخة عن إصدارها بأنه {version}، وهو ليس إصدارًا يمكن مقارنته. افتح صفحة الإصدارات وتحقق بنفسك.",
+
+    "updateHeading": "الإصدار {version} متاح",
+    "updateRunning": "أنت تشغّل {version}.",
+    "published": "نُشر {when}.",
+    "notesHeading": "ما الذي تغيّر",
+    "notesNone": "نُشر هذا الإصدار بلا ملاحظات.",
+    "openRelease": "افتح صفحة الإصدار",
+    "openReleases": "افتح صفحة الإصدارات",
+
+    "_comment_noSelfUpdate": "SECURITY-CRITICAL. It states why the application will not install its own updates. Keep the reason — unsigned releases — rather than reducing it to 'for safety'.",
+    "noSelfUpdate": "لا يثبّت Remoter التحديثات بنفسه. فالإصدارات ليست موقّعة رقميًا بعد، وتشغيل ملف تنفيذي غير موقّع ليس شيئًا ينبغي لمدير بيانات اعتماد أن يطلبه منك — لذا يفتح الزر صفحة الإصدار في متصفحك وتثبّته أنت بنفسك.",
+
+    "openFailed": "لم يُفتح متصفح النظام.",
+
+    "promiseTitle": "لا يرسل Remoter بياناتك إلى أحد",
+    "_comment_promiseTelemetry": "SECURITY-CRITICAL, as are the two promises after it. Three absolute statements about what the application does not do. A translator who hedges any of them turns a commitment into marketing.",
+    "promiseTelemetry": "لا قياس عن بُعد. لا تقارير استخدام. ولا تحليلات من أي نوع، عند أي إعداد.",
+    "promiseCrash": "لا رفع لتقارير الأعطال. يُكتب تقرير العطل على جهازك وتقرر أنت ما إذا كنت سترفقه ببلاغ — أي أنك تستطيع قراءته أولًا، وهذا مهم حين تحمل العملية بيانات اعتماد.",
+    "promiseCheck": "البحث عن تحديث هو الطلب الوحيد الذي يرسله Remoter وليس جلسة فتحتها أنت. وهو يقرأ قائمة الإصدارات العامة ويرسل رقم إصدار هذه النسخة. ولا ينزّل شيئًا."
+  },
+
+  "about": {
+    "title": "حول",
+    "description": "ما هذه النسخة، وما الشروط التي تخضع لها.",
+    "versionLabel": "الإصدار",
+    "versionReading": "جارٍ القراءة…",
+    "versionUnavailable": "غير متاح",
+    "licenceLabel": "الرخصة",
+    "_comment_licenceValue": "The licence's own name and SPDX identifier. Not translated: it is the legal name of the document.",
+    "licenceValue": "GNU General Public License, version 3 or later (GPL-3.0-or-later)",
+    "exceptionLabel": "الإضافات",
+    "exceptionValue": "لا تستطيع هذه النسخة تحميل الإضافات. فليس فيها مضيف إضافات بعد — بل واجهة ABI فقط سيستخدمها المضيف المستقبلي. وعندما يوجد: أي إضافة WebAssembly تتحدث إلى Remoter عبر واجهة ABI المنشورة وحدها يجوز ترخيصها بأي شروط تختارها، وهذا هو استثناء الواجهة الوارد في LICENSE-EXCEPTION.",
+    "updatesLabel": "التحديثات",
+    "updatesValue": "لا يبحث Remoter عن إصدار أحدث إلا إذا فعّلت البحث، ولا يثبّت أي إصدار أبدًا. راجع قسم «التحديثات».",
+    "repositoryLabel": "المصدر",
+    "repositoryOpen": "افتح المستودع",
+    "repositoryFailed": "لم يُفتح متصفح النظام."
+  }
+}

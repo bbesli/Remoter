@@ -1,0 +1,427 @@
+{
+  "_comment_file": "The vault settings screen: which keys open this vault file, and the policies stored inside the file itself — auto-lock, recording and rolling backups. Loaded when the screen opens, not before. Read the SECURITY-CRITICAL comments before translating anything in this namespace: several of these strings are the last warning a person sees before an operation that can leave an encrypted file that nobody, including us, can ever open. A softened warning here is a real and foreseeable way to lose someone's data.",
+
+  "screen": {
+    "title": "Настройки хранилища",
+    "_comment_close": "Both the accessible name of the header's close control and the label of the button offered beside a failed read.",
+    "close": "Закрыть настройки хранилища",
+    "_comment_closeHint": "The tooltip on the same control. Esc is a key name and is never translated.",
+    "closeHint": "Закрыть настройки хранилища (Esc)",
+    "_comment_sections": "The accessible name of the vertical tab list, read aloud before the tabs inside it.",
+    "sections": "Разделы настроек хранилища",
+    "_comment_navSlots": "The four navigation tabs. Each also titles the panel it opens, so keep them short.",
+    "navSlots": "Слоты ключей",
+    "navLock": "Автоблокировка",
+    "navRecording": "Политика записи",
+    "navBackups": "Резервные копии",
+    "_comment_vaultLabel": "The open vault's name, beside the screen title. {label} is a name the user chose and is never translated; the middot separates it from the title and may be replaced by whatever glyph this locale separates such a pair with.",
+    "vaultLabel": "· {label}",
+    "loadingSlots": "Читаются слоты ключей хранилища…",
+    "loadingSettings": "Читаются настройки этого хранилища…",
+    "slotsFailed": "Не удалось прочитать слоты ключей.",
+    "settingsFailed": "Не удалось прочитать настройки этого хранилища.",
+    "locked": "Ни одно хранилище не открыто",
+    "lockedBody": "Эти настройки лежат внутри файла хранилища, поэтому прочитать их можно только пока оно разблокировано."
+  },
+
+  "status": {
+    "_comment_saving": "Shown beside a spinner while one setting is being written. Used by all three policy panels.",
+    "saving": "Сохранение…"
+  },
+
+  "dialog": {
+    "_comment_blockedFallback": "A noun phrase, not a sentence: it is interpolated into the window-close confirmation as the thing that would be lost — 'Closing now loses …'. Only reached if a dialog refuses to be dismissed without saying what is at stake, which no dialog on this screen does.",
+    "blockedFallback": "то, что больше нельзя будет показать"
+  },
+
+  "keyfile": {
+    "_comment_": "Choosing the file that acts as a second factor on a key slot. A key file is an ordinary file of the user's choosing; its contents are mixed into the key, so losing the file loses the slot.",
+    "_comment_none": "Shown in place of a path when no key file has been chosen. Adjective-free noun: 'no file chosen'.",
+    "none": "Нет",
+    "_comment_clear": "A button that removes the chosen key file, leaving the slot with no key file at all.",
+    "clear": "Без файла-ключа",
+    "_comment_dialogTitle": "The title bar of the operating system's file browser.",
+    "dialogTitle": "Выберите файл-ключ для этого слота",
+    "_comment_dialogFailed": "Shown when the platform has no file browser to open. 'Remoter' is the product name and is never translated.",
+    "dialogFailed": "Эта система не открыла файловый диалог. Введите путь в поле, которое даёт платформа, или запустите Remoter из сеанса, где такой диалог есть."
+  },
+
+  "slot": {
+    "_comment_": "How one key slot is described. A slot is one independent way of unwrapping the vault key: the same vault can have several, and any one of them opens it.",
+    "_comment_kind": "The four kinds of slot. 'Security key' is a hardware authenticator (FIDO2); 'Remember on this device' is the operating system's own credential store.",
+    "kind": {
+      "password": "Пароль",
+      "recovery": "Ключ восстановления",
+      "fido2": "Аппаратный ключ",
+      "keychain": "Запомнить на этом устройстве"
+    },
+    "_comment_indexBadge": "A badge carrying the slot's position in the vault header, as in 'slot 0'. Lower case: it sits beside the slot's own name rather than starting a sentence. The number is not an ordinal — slots are numbered from zero.",
+    "indexBadge": "слот {index, number}",
+    "_comment_added": "{day} is a date already formatted for this locale.",
+    "added": "Добавлен {day}",
+    "lastUsed": "Использован {day}",
+    "_comment_neverUsed": "A slot that has never opened this vault. Sentence-initial: it appears at the start of the detail line.",
+    "neverUsed": "Ни разу не использован",
+    "_comment_withKeyfile": "This slot needs its key file in addition to its password.",
+    "withKeyfile": "Нужен ещё и его файл-ключ",
+    "noKeyfile": "Только пароль"
+  },
+
+  "slots": {
+    "title": "Слоты ключей",
+    "description": "Каждый слот самостоятельно разворачивает один и тот же ключ хранилища. Добавление и удаление слота ничего не перешифровывает, поэтому это быстро и безопасно передумать.",
+
+    "_comment_openedWithBadge": "A badge on the slot that unlocked the vault in this session. Lower case, no full stop: it is a badge, not a sentence.",
+    "openedWithBadge": "открыл этот сеанс",
+    "_comment_neverUsedBadge": "A badge on a recovery key that has never opened this vault — the slot most likely to have been lost. Lower case, no full stop.",
+    "neverUsedBadge": "ни разу не использован",
+
+    "_comment_change": "Verb, on the button that changes this slot's password.",
+    "change": "Изменить",
+    "_comment_rotate": "Verb, on the button that replaces this recovery key with a new one.",
+    "rotate": "Заменить",
+    "_comment_remove": "Verb, on the button that deletes this slot from the vault.",
+    "remove": "Удалить",
+
+    "_comment_add": "Verb phrase, on the row that opens the add-a-slot dialog.",
+    "add": "Добавить слот",
+    "_comment_addHint": "The three kinds that can be added, as a hint under the button. The middots are separators.",
+    "addHint": "ещё один пароль · ключ восстановления · это устройство",
+
+    "_comment_unusedRecoveryBody": "SECURITY-CRITICAL. Shown on a recovery key that has never been used. Do not soften 'there is no way into this vault without one of these slots' — it is literally true, and a reader who takes it as caution rather than fact is the reader who loses the vault.",
+    "unusedRecoveryBody": "Сгенерирован и ни разу не использован — именно такой слот теряется чаще всего. Если вы не можете достать его прямо сейчас, замените его немедленно: без одного из этих слотов войти в это хранилище невозможно.",
+
+    "_comment_invariantTitle": "SECURITY-CRITICAL. The standing notice at the foot of the panel.",
+    "invariantTitle": "У хранилища должен остаться хотя бы один рабочий слот",
+    "_comment_invariantBody": "SECURITY-CRITICAL. 'no escrow key and no support override' must survive translation as an absolute: there is no recovery path of any kind, and 'including us' means the people who wrote this program. 'Remoter' is the product name and is never translated.",
+    "invariantBody": "Remoter не позволит удалить последний, а для удаления слота восстановления требуется подтверждение вводом. Депонированного ключа нет, и обходного пути через поддержку нет: если потеряны все слоты, файл не сможет открыть никто, включая нас.",
+
+    "_comment_removeFailed": "The title of the failure notice when a removal fails after its dialog has closed.",
+    "removeFailed": "Слот не удалён.",
+
+    "_comment_lastSlotRefusal": "SECURITY-CRITICAL. Why the last remaining slot cannot be removed, shown on the disabled control before anything is clicked. This refusal has no undo behind it: if it were bypassed the file would be unopenable forever.",
+    "lastSlotRefusal": "Это единственный вход в это хранилище. Его удаление оставило бы файл, который никто и никогда не сможет открыть: депонированного ключа нет, обходного пути через поддержку нет.",
+    "_comment_openedWithWarning": "A warning, not a refusal: this slot is the one that unlocked the vault in this session.",
+    "openedWithWarning": "Этот сеанс был открыт именно этим слотом. Его удаление не заблокирует хранилище сейчас, но это тот вход, работоспособность которого вы подтвердили совсем недавно.",
+    "_comment_lastRecoveryWarning": "SECURITY-CRITICAL. A warning, not a refusal. 'the end of the vault' means the vault can never be opened again; do not weaken it to 'a problem'.",
+    "lastRecoveryWarning": "Это последний ключ восстановления у этого хранилища. Без него забытый пароль означает конец хранилища."
+  },
+
+  "rotateRecovery": {
+    "_comment_": "Replacing one recovery key with a freshly generated one. The vault master key is untouched, so this is cheap — unlike the master key rotation further down the same screen.",
+    "title": "Заменить этот ключ восстановления",
+    "_comment_lead": "SECURITY-CRITICAL. 'shown exactly once' is a statement of fact: nothing in the program can produce the key again.",
+    "lead": "Слот получит новый ключ. Тот, что у вас на руках сегодня, перестанет работать в тот момент, когда это удастся, а новый будет показан ровно один раз.",
+    "body": "Мастер-ключ при этом не меняется, поэтому ничего не перешифровывается и все остальные слоты продолжают работать.",
+    "_comment_confirm": "Verb phrase, on the button that performs the rotation.",
+    "confirm": "Заменить ключ",
+    "busy": "Генерация…",
+    "_comment_blocked": "SECURITY-CRITICAL. Why the dialog refuses to close while the new key is being generated.",
+    "blocked": "Сейчас генерируется новый ключ. Закрытие приведёт к его потере: он показывается один раз, и выдать его заново невозможно.",
+    "failed": "Ключ восстановления не заменён."
+  },
+
+  "expensive": {
+    "_comment_label": "A heading over the one operation on this screen that re-encrypts the whole vault and therefore takes real time.",
+    "label": "Дорогая операция"
+  },
+
+  "rotateMaster": {
+    "_comment_": "Rotating the vault master key: a new master key, every slot re-wrapped around it, and every stored secret re-encrypted.",
+    "cardTitle": "Заменить мастер-ключ хранилища",
+    "_comment_cardBody": "The quoted sentence is the situation this operation answers; keep it as a quotation the reader could have said themselves.",
+    "cardBody": "Это правильный ответ на «копия этого файла могла утечь, пока один из моих ключей был скомпрометирован». Генерируется новый мастер-ключ, каждый слот переупаковывается вокруг него, а всё тело перешифровывается.",
+    "_comment_cardButton": "Verb phrase, on the button that opens the rotation dialog.",
+    "cardButton": "Заменить мастер-ключ",
+    "_comment_cardAside": "SECURITY-CRITICAL. Rotation does not reach copies of the file that already exist. 'Delete them' is an instruction, not a suggestion.",
+    "cardAside": "Старые копии файла остаются читаемыми старыми ключами. Удалите их.",
+
+    "title": "Заменить мастер-ключ хранилища",
+    "lead": "Генерируется новый мастер-ключ, каждый слот переупаковывается вокруг него, и каждый секрет в хранилище запечатывается заново.",
+
+    "whenTitle": "Когда это правильный ответ",
+    "whenBody": "Копия этого файла могла утечь, пока один из ваших ключей был скомпрометирован. Смена пароля переупаковывает один слот; эта операция заменяет ключ, под которым зашифровано всё тело.",
+
+    "_comment_limitTitle": "SECURITY-CRITICAL. What rotation cannot do, shown both before and after the operation.",
+    "limitTitle": "Чего это не может",
+    "_comment_limitBody": "SECURITY-CRITICAL. Must not be softened into reassurance: a leaked copy stays readable with the old keys forever, and so do the backup files beside the vault. 'rotation protects what happens next, not what already left' is the whole point of the paragraph.",
+    "limitBody": "Утёкшая копия по-прежнему открывается старыми ключами, как и ротируемые резервные копии рядом с этим хранилищем, которые эта запись сдвинет. Удалите те копии, о которых вам известно: замена ключа защищает то, что будет дальше, а не то, что уже ушло.",
+
+    "costTitle": "Это занимает реальное время",
+    "_comment_costBody": "PLURAL, on the number of password slots being re-wrapped. Argon2id is a key derivation function and is never translated. The one-slot wording is deliberately different rather than showing the numeral 1. RUSSIAN: the single-slot wording is an exact `=1` match, because the Russian `one` category also covers 21, 31 and so on.",
+    "costBody": "{count, plural, =1 {Argon2id запускается один раз — для единственного слота пароля, — и каждый сохранённый секрет запечатывается заново.} one {Argon2id запускается по разу на каждый слот пароля, здесь их #, и каждый сохранённый секрет запечатывается заново.} few {Argon2id запускается по разу на каждый слот пароля, здесь их #, и каждый сохранённый секрет запечатывается заново.} many {Argon2id запускается по разу на каждый слот пароля, здесь их #, и каждый сохранённый секрет запечатывается заново.} other {Argon2id запускается по разу на каждый слот пароля, здесь их #, и каждый сохранённый секрет запечатывается заново.}}",
+
+    "_comment_slotsLegend": "The legend over the per-slot form. Every slot must either be opened or explicitly discarded; there is no third option, which is what 'accounted for' means.",
+    "slotsLegend": "Судьба каждого слота должна быть определена",
+    "_comment_password": "The label of the password field for one slot.",
+    "password": "Пароль",
+    "keyfile": "Файл-ключ",
+    "keyfileHelp": "Файл, который этот слот требует сегодня.",
+    "_comment_drop": "The checkbox that discards a slot rather than re-wrapping it. First person, because it is the user's own statement about a key they no longer hold.",
+    "drop": "У меня его нет. Отбросить слот.",
+    "_comment_dropped": "Replaces the label above once the checkbox is ticked.",
+    "dropped": "Будет отброшен",
+
+    "recoveryNote": "Для этого слота выпускается новый ключ восстановления, который будет показан один раз по завершении замены.",
+    "keychainNote": "Переупаковывается из токена в связке ключей этой машины. Если токена больше нет, отбросьте слот и заново зарегистрируйте эту машину после замены.",
+    "fido2Note": "Эта версия не умеет переупаковывать слот аппаратного ключа.",
+
+    "_comment_problemsTitle": "The heading over the list of reasons the rotation cannot start yet.",
+    "problemsTitle": "К замене не готово",
+    "_comment_problemNoCredential": "One entry in that list. {index} is the slot number, {label} the name the user gave the slot — never translated. The quoted phrase refers to the discard checkbox on that slot's card, so it should match the wording of rotateMaster.drop.",
+    "problemNoCredential": "Слоту {index, number} ({label}) нужен его пароль или явное «отбросить слот».",
+    "_comment_problemFido2": "Security keys cannot be re-wrapped by this version. 'enrol it again' means adding the security key as a new slot after the rotation.",
+    "problemFido2": "Слот {index, number} ({label}) — аппаратный ключ, а эта версия не умеет его переупаковывать. Отбросьте его здесь и зарегистрируйте заново после замены либо отмените операцию.",
+    "_comment_problemEmpty": "SECURITY-CRITICAL. A rotation that discards every slot would produce a file with no way in at all.",
+    "problemEmpty": "Все слоты помечены к отбрасыванию. Замена, которая не оставляет ни одного, даёт файл, который никто не сможет открыть.",
+
+    "_comment_confirm": "Verb phrase, on the button that starts the rotation.",
+    "confirm": "Заменить мастер-ключ",
+    "busy": "Смена ключей…",
+    "_comment_blocked": "SECURITY-CRITICAL. Why the dialog refuses to close while the vault is being re-keyed.",
+    "blocked": "Сейчас у хранилища меняются ключи. Закрытие оставит новые ключи восстановления, которые показываются один раз, без места, где они могли бы появиться.",
+    "stage": "Для каждого слота выводится ключ, затем хранилище перешифровывается…",
+    "failed": "Ключи хранилища не заменены.",
+    "_comment_unchanged": "Reassurance after a failure, and it is exact: a failed rotation is atomic, so nothing at all was written.",
+    "unchanged": "Ничего не изменилось: хранилище ровно такое, каким было до нажатия кнопки."
+  },
+
+  "rotationSummary": {
+    "_comment_": "What the rotation did, shown after the last new recovery key has been written down.",
+    "title": "Ключи хранилища заменены",
+    "lead": "Всё, что ниже, уже записано в файл.",
+    "_comment_rewrapped": "PLURAL. A slot that was re-wrapped still opens the vault, now under the new master key.",
+    "rewrapped": "{count, plural, one {# слот переупакован} few {# слота переупакованы} many {# слотов переупаковано} other {# слота переупаковано}}",
+    "_comment_dropped": "PLURAL. A discarded slot no longer exists and no longer opens the vault.",
+    "dropped": "{count, plural, one {# слот отброшен} few {# слота отброшены} many {# слотов отброшено} other {# слота отброшено}}",
+    "_comment_resealed": "PLURAL. Every password, key and passphrase stored in the vault, re-encrypted under the new master key.",
+    "resealed": "{count, plural, one {# секрет запечатан заново} few {# секрета запечатаны заново} many {# секретов запечатано заново} other {# секрета запечатано заново}}"
+  },
+
+  "addSlot": {
+    "title": "Добавить слот ключа",
+    "lead": "Каждый слот самостоятельно разворачивает один и тот же ключ хранилища. Добавление слота переупаковывает этот ключ под новыми учётными данными и ничего не перешифровывает, поэтому это мгновенно и безопасно передумать.",
+
+    "_comment_kindLegend": "The legend over the three radio cards below.",
+    "kindLegend": "Какого рода слот",
+    "kindPassword": "Ещё один пароль",
+    "kindPasswordHelp": "Второй пароль, при желании со своим файлом-ключом. Полезно для коллеги, который должен открывать это хранилище, не зная вашего пароля.",
+    "kindRecovery": "Ещё один ключ восстановления",
+    "kindRecoveryHelp": "У хранилища их может быть несколько. Запечатанный конверт в сейфе — законная причина завести второй.",
+    "kindKeychain": "Запомнить на этом устройстве",
+    "kindKeychainHelp": "Регистрирует хранилище учётных данных этой машины, поэтому хранилище открывается без запроса, пока вы в системе. Любой, кто может пользоваться вашим сеансом рабочего стола, сможет тогда открыть и хранилище.",
+
+    "label": "Имя для этого слота",
+    "labelHelp": "Показывается в этом списке и на экране разблокировки, чтобы слот можно было отличить от остальных.",
+    "_comment_labelPlaceholder": "An example name, in the empty field. Replace it with a plausible example in this locale rather than translating it word for word.",
+    "labelPlaceholder": "Ноутбук админа",
+    "_comment_labelBlocked": "Why the Add button is disabled. Shown as its tooltip.",
+    "labelBlocked": "Сначала дайте слоту имя.",
+
+    "password": "Пароль",
+    "_comment_passwordHelp": "SECURITY-CRITICAL. A second password opens the whole vault; it is not a lesser credential.",
+    "passwordHelp": "Он открывает всё хранилище — ровно так же, как мастер-пароль. И стойким он должен быть таким же.",
+    "confirm": "Повторите пароль",
+    "confirmMismatch": "Два пароля не совпадают.",
+    "passwordBlocked": "Введите пароль дважды, одинаково.",
+
+    "keyfile": "Файл-ключ (необязательно)",
+    "_comment_keyfileHelp": "SECURITY-CRITICAL. Losing the key file loses this slot, permanently.",
+    "keyfileHelp": "Вторым фактором для этого слота становится любой файл. Потеряете его — слот перестанет работать навсегда; остальных слотов это не затронет.",
+    "_comment_keyfileRefused": "Why the Add button is disabled: the chosen file cannot be a key file, and the field above already says which rule it broke.",
+    "keyfileRefused": "Выберите другой файл-ключ. В поле выше сказано, почему этот не подходит.",
+
+    "_comment_recoveryNotice": "SECURITY-CRITICAL. 'shown once, and then dropped' is literal: the key exists nowhere after this dialog closes. 'Add' is the button label, addSlot.add.",
+    "recoveryNotice": "Ключ генерируется при нажатии «Добавить слот», показывается один раз и затем сбрасывается.",
+    "keychainNotice": "Токен живёт в связке ключей этой машины. Другая машина этим слотом воспользоваться не сможет, а удаление слота здесь стирает токен.",
+
+    "_comment_add": "Verb phrase, on the confirming button.",
+    "add": "Добавить слот",
+    "adding": "Выведение ключа…",
+    "_comment_addingStage": "The longer stage description, beside a spinner. Argon2id's cost is the security property, so the wait is explained rather than hidden.",
+    "addingStage": "Из нового пароля выводится ключ…",
+    "_comment_addingBlocked": "Why the dialog refuses to close while the slot is being written.",
+    "addingBlocked": "Слот уже записывается. Это окно закроется, когда ответит ядро, — а слоту восстановления сначала нужно отдать вам ключ.",
+    "failed": "Слот не добавлен."
+  },
+
+  "changePassword": {
+    "title": "Изменить пароль этого слота",
+    "lead": "Слот переупаковывается вокруг нового пароля. Мастер-ключ не меняется, поэтому ничего не перешифровывается, все остальные слоты продолжают работать, а ключи восстановления остаются действительными.",
+
+    "_comment_notARotation": "SECURITY-CRITICAL. The distinction between changing a password and rotating the master key. A user who believes this repairs a leak will not then do the thing that does.",
+    "notARotation": "Это не поможет, если утёк сам файл",
+    "notARotationBody": "Копия, снятая, пока действовал старый пароль, по-прежнему открывается старым паролем. Ответ на это — замена мастер-ключа хранилища, и она есть на этом же экране.",
+
+    "current": "Текущий пароль",
+    "currentHelp": "Проверяется до того, как что-либо заменяется, поэтому опечатка здесь не заблокирует слот.",
+    "currentKeyfile": "Текущий файл-ключ",
+    "currentKeyfileHelp": "Этот слот его требует, поэтому для изменения он тоже нужен.",
+
+    "next": "Новый пароль",
+    "confirm": "Повторите новый пароль",
+    "confirmMismatch": "Два пароля не совпадают.",
+
+    "newKeyfile": "Файл-ключ с этого момента",
+    "_comment_newKeyfileHelp": "SECURITY-CRITICAL. The current key file is NOT carried over; leaving the field empty removes it. A translation that implies otherwise is the difference between a slot that opens tomorrow and one that does not.",
+    "newKeyfileHelp": "Выбирается явно, в том числе и пустым значением: текущий файл-ключ не переносится. Пусто означает, что этому слоту нужен будет только пароль.",
+
+    "_comment_blockedCurrent": "The four reasons the confirming button is disabled, shown as its tooltip.",
+    "blockedCurrent": "Введите текущий пароль слота.",
+    "blockedCurrentKeyfile": "Выберите файл-ключ, который этот слот требует сейчас.",
+    "blockedNew": "Введите новый пароль дважды, одинаково.",
+    "blockedKeyfile": "Этот файл не может быть файлом-ключом.",
+
+    "_comment_save": "Verb phrase, on the confirming button.",
+    "save": "Изменить пароль",
+    "saving": "Выведение ключа…",
+    "savingBlocked": "Изменение уже у ядра. Это окно закроется, когда оно ответит, чтобы отклонённому паролю было где об этом сообщить.",
+    "savingStage": "Проверяется текущий пароль, затем выводится новый ключ…",
+    "failed": "Пароль не изменён."
+  },
+
+  "removeSlot": {
+    "title": "Удалить этот слот",
+    "lead": "Запись о слоте удаляется из заголовка. Ничего не перешифровывается, и все остальные слоты продолжают работать — это не замена ключа.",
+
+    "refusedTitle": "Этот слот удалить нельзя",
+    "_comment_warningTitle": "The heading over a warning that does not block the removal.",
+    "warningTitle": "Прежде чем это сделать",
+
+    "_comment_phrase": "SECURITY-CRITICAL. The sentence the user must type out before the recovery slot can be deleted. It is compared against what they type, ignoring case and repeated spaces, so it MUST read naturally in this language and MUST be easy to retype — no unusual punctuation, no words that could be spelled two ways. Translate the meaning: the person is stating that they understand they are giving up their last way back into the vault. A tick box was rejected here deliberately; typing is what makes someone read it. RUSSIAN: written without any comma on purpose — Russian punctuation rules would require one inside a subordinate clause, and a user who omits it would be refused by a comparison that only ignores case and repeated spaces.",
+    "phrase": "Я осознанно удаляю свой последний способ войти",
+    "phrasePrompt": "Введите это предложение для подтверждения:",
+    "_comment_phraseLabel": "The accessible name of the field the sentence is typed into.",
+    "phraseLabel": "Подтверждающее предложение",
+    "phraseHint": "Те же слова, что написаны выше. Регистр значения не имеет.",
+    "_comment_phraseBlocked": "Why the confirming button is disabled, shown as its tooltip.",
+    "phraseBlocked": "Введите предложение выше, чтобы удалить этот слот.",
+
+    "_comment_lostKey": "Reassurance for the common case: a key you have lost can still be revoked, because revoking deletes the vault's record of it rather than the key itself.",
+    "lostKey": "Отзыв удаляет запись о слоте, поэтому потерянный ключ всё равно можно отозвать — держать его в руках для этого не нужно.",
+
+    "_comment_remove": "Verb phrase, on the confirming button.",
+    "remove": "Удалить слот",
+    "removing": "Удаление…",
+    "removingBlocked": "Удаление уже у ядра. Это окно закроется, когда оно ответит, чтобы результату было где появиться.",
+    "failed": "Слот не удалён."
+  },
+
+  "recoveryKey": {
+    "_comment_": "SECURITY-CRITICAL SECTION. A recovery key is shown here and nowhere else, ever. Nothing in the program can produce it again. Every string in this object must keep that finality.",
+    "title": "Ваш новый ключ восстановления",
+    "_comment_titleSequence": "The same title when several keys are handed over one after another, as after a master key rotation. {position} and {total} are counts, not ordinals.",
+    "titleSequence": "Ваш новый ключ восстановления ({position, number} из {total, number})",
+    "_comment_lead": "SECURITY-CRITICAL. {index} is the slot number. 'shown here and nowhere else' is literal.",
+    "lead": "Слот {index, number}. Ключ, который этот слот держал раньше, теперь бесполезен, а этот показывается здесь и больше нигде.",
+
+    "_comment_done": "First person, on the button that dismisses the key. The user is asserting they have written it down.",
+    "done": "Ключ сохранён",
+    "_comment_doneLast": "The same button on the last key of a sequence.",
+    "doneLast": "Ключ сохранён — завершить",
+    "_comment_blocked": "SECURITY-CRITICAL. Why that button is still disabled: one group of the key has to be retyped first, which is how the program checks the key was actually recorded.",
+    "blocked": "Сначала введите выделенную группу выше. Этот ключ больше показан не будет.",
+    "_comment_escapeBlocked": "SECURITY-CRITICAL. The answer to pressing Escape, which everywhere else in the program closes a dialog. Here it does not, and this sentence says why.",
+    "escapeBlocked": "Этот ключ показывается один раз. Если закрыть окно, не записав его, в слоте останется ключ, которого у вас нет."
+  },
+
+  "autoLock": {
+    "title": "Автоблокировка",
+    "description": "Блокировка затирает нулями все ключи и кешированные секреты и сбрасывает базу данных из памяти. Чтобы открыть заново, нужна полная разблокировка.",
+
+    "idleLegend": "Блокировать после простоя в течение",
+    "_comment_choiceNever": "The first choice on the idle ladder: the vault never locks on its own.",
+    "choiceNever": "Никогда",
+    "_comment_choiceMinutes": "PLURAL. An idle timeout in minutes, on a small chip, so 'min' is abbreviated. Use this locale's conventional abbreviation; write the word out if there is none.",
+    "choiceMinutes": "{count, plural, one {# мин} few {# мин} many {# мин} other {# мин}}",
+    "_comment_choiceHours": "PLURAL. The same ladder above an hour.",
+    "choiceHours": "{count, plural, one {# час} few {# часа} many {# часов} other {# часа}}",
+
+    "_comment_idleHelp": "What 'idle' actually measures. This sentence was wrong once and cost people work: it claimed the desktop's input idle time was being read, so users believed typing in a terminal kept the vault open when it did not. Translate what is measured, not what would be nicer to measure.",
+    "idleHelp": "Простой означает, что к хранилищу никто не обращался и ни один сеанс не передавал трафик. Считаются и нажатия клавиш, которые вы отправляете, и вывод, который присылает хост, поэтому сеанс, за которым вы наблюдаете, ничего не набирая, не уходит в простой, пока продолжает приходить вывод.",
+    "_comment_idleScope": "The limitation of that measurement. 'Remoter' is the product name and is never translated.",
+    "idleScope": "Remoter не читает собственное время простоя ввода в системе, поэтому время, проведённое в другом приложении, считается простоем, даже когда вы сидите за клавиатурой.",
+    "_comment_idleNever": "Shown only when 'Never' is chosen. A judgement about a security decision, offered without scolding.",
+    "idleNever": "«Никогда» означает, что хранилище остаётся открытым, пока вы сами его не заблокируете или не выйдете из программы. Это обоснованный выбор на машине, к которой доступ есть только у вас, и плохой — за общим столом.",
+
+    "screenLock": "При блокировке экрана",
+    "suspend": "При переходе в сон или гибернацию",
+    "minimise": "При сворачивании окна",
+    "minimiseHelp": "По умолчанию выключено. Большинство сворачивает окно гораздо чаще, чем отходит от машины.",
+
+    "_comment_unavailable": "The state word on a switch this build cannot honour — neither on nor off in any sense the user cares about. An abbreviation of 'not applicable'; use this locale's equivalent or write it out.",
+    "unavailable": "н/д",
+
+    "_comment_noScreenLock": "One sentence per event this build cannot observe, naming what is missing rather than saying 'not supported', so a reader can tell whether it will ever change.",
+    "noScreenLock": "Эта сборка не видит блокировку экрана в этой системе, поэтому такой переключатель ничего бы не заблокировал. Видеть её — значит слушать сигнал блокировки экрана от рабочей среды, чего Remoter пока не делает.",
+    "noSuspend": "Эта сборка не видит, как эта машина уходит в сон, поэтому такой переключатель здесь ничего бы не заблокировал.",
+    "noMinimise": "Эта сборка не видит сворачивания окна, поэтому такой переключатель ничего бы не заблокировал. Оконный тулкит не сообщает об этом в данной рабочей среде, а переключатель, который в одних средах работает, а в других молча ничего не делает, был бы хуже честного.",
+    "_comment_onResumeSuspend": "SECURITY-CRITICAL. The keys stay in memory while the machine sleeps, and are written to disk if it hibernates. Do not soften into 'may be'.",
+    "onResumeSuspend": "Remoter не может запросить у этой системы заблаговременное уведомление о переходе в сон, поэтому блокирует хранилище при пробуждении машины, а не перед засыпанием. Пока машина спит, ключи находятся в памяти, а при гибернации — в образе гибернации.",
+    "_comment_keptForOtherMachines": "Appended to whichever of the three sentences above applies. The setting travels inside the vault file, so it still works on a computer that can see the event.",
+    "keptForOtherMachines": "Настройка хранится в хранилище, поэтому она по-прежнему действует на компьютере, где Remoter это событие видит.",
+
+    "sessionsLegend": "Что происходит с работающими сеансами",
+    "keepRunning": "Оставить работать",
+    "_comment_keepRunningHelp": "The default, with the reason for it, which comes from docs/security/key-management.md.",
+    "keepRunningHelp": "Вариант по умолчанию, и вот почему: администратор, который следит за долгим развёртыванием, не хочет, чтобы его сеанс убили из-за того, что он отошёл за кофе. Вывод продолжает приходить, и вы можете за ним наблюдать.",
+    "freezeInput": "Оставить работать, заморозить ввод",
+    "freezeInputHelp": "Сеансы остаются живыми, но набирать в них ничего нельзя до разблокировки. На вкладках появляется значок замка.",
+    "disconnectAll": "Отключить всё",
+    "_comment_disconnectAllHelp": "Warns about data loss: work in a session that has not been saved on the remote host is gone.",
+    "disconnectAllHelp": "Самый строгий вариант. Несохранённая работа в сеансе теряется, включая незавершённые передачи.",
+    "audited": "Изменение этого параметра записывается в журнал аудита хранилища.",
+
+    "failed": "Эта настройка не сохранена."
+  },
+
+  "recording": {
+    "title": "Политика записи",
+    "description": "Наследуется всем в этом хранилище, что не задаёт собственную, поэтому задаётся один раз для всего дерева.",
+
+    "_comment_notYetTitle": "SECURITY-CRITICAL. This build has no recorder at all. A user who believes they hold a compliance record they do not have is the one failure of this screen that costs something, so this notice must not be softened or made conditional.",
+    "notYetTitle": "В этой версии ничего не записывается",
+    "_comment_notYetBody": "'Remoter' is the product name and is never translated.",
+    "notYetBody": "У Remoter пока нет записывающего модуля: какую бы карточку вы ни выбрали, каждый сеанс в этом хранилище открывается без записи. Выбор ниже сохраняется в хранилище сейчас и вступит в силу, когда запись сеансов будет реализована.",
+
+    "_comment_": "Every sentence describing recording behaviour below is in the future tense on purpose: nothing on this screen may read as a claim about what happens today. Keep the future tense in translation wherever this language marks it.",
+    "never": "Никогда",
+    "neverHelp": "Ничто в этом хранилище записываться не будет, если только папка или подключение под ней не зададут собственную политику.",
+    "ask": "Спрашивать в начале сеанса",
+    "askHelp": "Запрос перед открытием сеанса. При отказе сеанс откроется без записи.",
+    "always": "Всегда",
+    "alwaysHelp": "Каждый сеанс будет записываться, после уведомления перед его открытием. Если записывающий модуль не сможет запуститься, сеанс всё равно откроется — при этой политике запись будет выполняться по возможности.",
+
+    "_comment_required": "Why a fourth policy is described rather than offered. The quoted word 'required' names a policy in docs/features/recording-audit.md; keep it quoted and translate it the same way wherever that policy is named.",
+    "required": "Четвёртая политика, «обязательно» — записывать и отказывать в подключении, если запись не удаётся начать, — здесь не предлагается. В файле хранилища для неё нет поля, поэтому четвёртая карточка сохраняла бы одну из трёх вышеперечисленных и означала бы нечто более слабое, чем её название.",
+
+    "storage": "Записи будут лежать вне хранилища, в выбранном вами каталоге, каждая зашифрована ключом, выведенным из мастер-ключа хранилища, и потому читаема только пока хранилище разблокировано. Никуда ничего не выгружается.",
+
+    "failed": "Политика записи не сохранена."
+  },
+
+  "backups": {
+    "title": "Резервные копии",
+    "_comment_description": "vault.rvault.bak.1 is a file name pattern and is never translated.",
+    "description": "Перед перезаписью хранилища предыдущий файл сдвигается в ротируемую резервную копию рядом с ним: от vault.rvault.bak.1 до .bak.N.",
+
+    "legend": "Сколько хранить",
+    "_comment_none": "The zero option on the ladder, in place of the numeral 0.",
+    "none": "Ни одной",
+
+    "_comment_onceASession": "Why the number means less than it looks like it means: backups rotate on the first save after the vault is opened, not on every save.",
+    "onceASession": "Ротация раз за сеанс, а не при каждом сохранении",
+    "onceASessionBody": "Каждая правка узла — это сохранение. Если бы резервная копия снималась при каждом, то три копии отстояли бы на четыре щелчка, а файл, каким он был до ошибки, уже исчез бы. Ротация при первом сохранении за сеанс делает .bak.1 хранилищем ровно в том виде, в каком вы его открыли.",
+
+    "_comment_zeroTitle": "Keeping no backups is a legitimate choice, not a mistake to be talked out of.",
+    "zeroTitle": "Не хранить ни одной — это настоящий выбор",
+    "zeroBody": "Если это хранилище лежит в синхронизируемой папке, провайдер уже хранит прежние версии шифртекста, и вам может быть не нужно, чтобы лишние его копии лежали ещё и на диске.",
+
+    "_comment_present": "PLURAL, on how many backup files are beside the vault at this moment. The zero and one wordings are deliberately different from the general case rather than showing a numeral.",
+    "present": "{count, plural, =0 {Рядом с этим хранилищем сейчас нет ни одной резервной копии.} one {Рядом с этим хранилищем сейчас # резервная копия.} few {Рядом с этим хранилищем сейчас # резервные копии.} many {Рядом с этим хранилищем сейчас # резервных копий.} other {Рядом с этим хранилищем сейчас # резервной копии.}}",
+    "_comment_presentPrune": "Follows the sentence above. Lowering the setting does not delete files that already exist.",
+    "presentPrune": "Уменьшение числа не удаляет уже записанные файлы; следующая ротация остановится на новом пределе.",
+
+    "failed": "Количество резервных копий не сохранено."
+  }
+}

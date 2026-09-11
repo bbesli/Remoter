@@ -1,0 +1,427 @@
+{
+  "_comment_file": "The vault settings screen: which keys open this vault file, and the policies stored inside the file itself — auto-lock, recording and rolling backups. Loaded when the screen opens, not before. Read the SECURITY-CRITICAL comments before translating anything in this namespace: several of these strings are the last warning a person sees before an operation that can leave an encrypted file that nobody, including us, can ever open. A softened warning here is a real and foreseeable way to lose someone's data.",
+
+  "screen": {
+    "title": "Configurações do cofre",
+    "_comment_close": "Both the accessible name of the header's close control and the label of the button offered beside a failed read.",
+    "close": "Fechar as configurações do cofre",
+    "_comment_closeHint": "The tooltip on the same control. Esc is a key name and is never translated.",
+    "closeHint": "Fechar as configurações do cofre (Esc)",
+    "_comment_sections": "The accessible name of the vertical tab list, read aloud before the tabs inside it.",
+    "sections": "Seções das configurações do cofre",
+    "_comment_navSlots": "The four navigation tabs. Each also titles the panel it opens, so keep them short.",
+    "navSlots": "Slots de chave",
+    "navLock": "Bloqueio automático",
+    "navRecording": "Política de gravação",
+    "navBackups": "Backups",
+    "_comment_vaultLabel": "The open vault's name, beside the screen title. {label} is a name the user chose and is never translated; the middot separates it from the title and may be replaced by whatever glyph this locale separates such a pair with.",
+    "vaultLabel": "· {label}",
+    "loadingSlots": "Lendo os slots de chave do cofre…",
+    "loadingSettings": "Lendo as configurações deste cofre…",
+    "slotsFailed": "Não foi possível ler os slots de chave.",
+    "settingsFailed": "Não foi possível ler as configurações deste cofre.",
+    "locked": "Nenhum cofre está aberto",
+    "lockedBody": "Estas configurações ficam dentro do arquivo do cofre, então só podem ser lidas enquanto ele estiver desbloqueado."
+  },
+
+  "status": {
+    "_comment_saving": "Shown beside a spinner while one setting is being written. Used by all three policy panels.",
+    "saving": "Salvando…"
+  },
+
+  "dialog": {
+    "_comment_blockedFallback": "A noun phrase, not a sentence: it is interpolated into the window-close confirmation as the thing that would be lost — 'Closing now loses …'. Only reached if a dialog refuses to be dismissed without saying what is at stake, which no dialog on this screen does.",
+    "blockedFallback": "algo que não pode ser mostrado de novo"
+  },
+
+  "keyfile": {
+    "_comment_": "Choosing the file that acts as a second factor on a key slot. A key file is an ordinary file of the user's choosing; its contents are mixed into the key, so losing the file loses the slot.",
+    "_comment_none": "Shown in place of a path when no key file has been chosen. Adjective-free noun: 'no file chosen'.",
+    "none": "Nenhum",
+    "_comment_clear": "A button that removes the chosen key file, leaving the slot with no key file at all.",
+    "clear": "Sem arquivo de chave",
+    "_comment_dialogTitle": "The title bar of the operating system's file browser.",
+    "dialogTitle": "Escolha o arquivo de chave deste slot",
+    "_comment_dialogFailed": "Shown when the platform has no file browser to open. 'Remoter' is the product name and is never translated.",
+    "dialogFailed": "Este sistema não abriu um navegador de arquivos. Digite o caminho no campo que a plataforma oferece, ou inicie o Remoter a partir de uma sessão que tenha um."
+  },
+
+  "slot": {
+    "_comment_": "How one key slot is described. A slot is one independent way of unwrapping the vault key: the same vault can have several, and any one of them opens it.",
+    "_comment_kind": "The four kinds of slot. 'Security key' is a hardware authenticator (FIDO2); 'Remember on this device' is the operating system's own credential store.",
+    "kind": {
+      "password": "Senha",
+      "recovery": "Chave de recuperação",
+      "fido2": "Chave de segurança",
+      "keychain": "Lembrar neste dispositivo"
+    },
+    "_comment_indexBadge": "A badge carrying the slot's position in the vault header, as in 'slot 0'. Lower case: it sits beside the slot's own name rather than starting a sentence. The number is not an ordinal — slots are numbered from zero.",
+    "indexBadge": "slot {index, number}",
+    "_comment_added": "{day} is a date already formatted for this locale.",
+    "added": "Adicionado em {day}",
+    "lastUsed": "Usado pela última vez em {day}",
+    "_comment_neverUsed": "A slot that has never opened this vault. Sentence-initial: it appears at the start of the detail line.",
+    "neverUsed": "Nunca usado",
+    "_comment_withKeyfile": "This slot needs its key file in addition to its password.",
+    "withKeyfile": "Precisa também do arquivo de chave",
+    "noKeyfile": "Somente senha"
+  },
+
+  "slots": {
+    "title": "Slots de chave",
+    "description": "Cada slot desencapsula a mesma chave do cofre de forma independente. Adicionar ou remover um não recriptografa nada, então é rápido e seguro mudar de ideia.",
+
+    "_comment_openedWithBadge": "A badge on the slot that unlocked the vault in this session. Lower case, no full stop: it is a badge, not a sentence.",
+    "openedWithBadge": "abriu esta sessão",
+    "_comment_neverUsedBadge": "A badge on a recovery key that has never opened this vault — the slot most likely to have been lost. Lower case, no full stop.",
+    "neverUsedBadge": "nunca usada",
+
+    "_comment_change": "Verb, on the button that changes this slot's password.",
+    "change": "Alterar",
+    "_comment_rotate": "Verb, on the button that replaces this recovery key with a new one.",
+    "rotate": "Rotacionar",
+    "_comment_remove": "Verb, on the button that deletes this slot from the vault.",
+    "remove": "Remover",
+
+    "_comment_add": "Verb phrase, on the row that opens the add-a-slot dialog.",
+    "add": "Adicionar um slot",
+    "_comment_addHint": "The three kinds that can be added, as a hint under the button. The middots are separators.",
+    "addHint": "outra senha · uma chave de recuperação · este dispositivo",
+
+    "_comment_unusedRecoveryBody": "SECURITY-CRITICAL. Shown on a recovery key that has never been used. Do not soften 'there is no way into this vault without one of these slots' — it is literally true, and a reader who takes it as caution rather than fact is the reader who loses the vault.",
+    "unusedRecoveryBody": "Gerada e nunca usada é exatamente o tipo de slot com mais chance de ter se perdido. Se você não conseguir colocar a mão nela, rotacione-a agora — não existe forma de entrar neste cofre sem um destes slots.",
+
+    "_comment_invariantTitle": "SECURITY-CRITICAL. The standing notice at the foot of the panel.",
+    "invariantTitle": "Um cofre precisa manter pelo menos um slot utilizável",
+    "_comment_invariantBody": "SECURITY-CRITICAL. 'no escrow key and no support override' must survive translation as an absolute: there is no recovery path of any kind, and 'including us' means the people who wrote this program. 'Remoter' is the product name and is never translated.",
+    "invariantBody": "O Remoter não deixa você excluir o último, e excluir o slot de recuperação exige uma confirmação digitada. Não existe chave em custódia nem liberação pelo suporte: se todos os slots forem perdidos, o arquivo não poderá ser aberto por ninguém, inclusive por nós.",
+
+    "_comment_removeFailed": "The title of the failure notice when a removal fails after its dialog has closed.",
+    "removeFailed": "O slot não foi removido.",
+
+    "_comment_lastSlotRefusal": "SECURITY-CRITICAL. Why the last remaining slot cannot be removed, shown on the disabled control before anything is clicked. This refusal has no undo behind it: if it were bypassed the file would be unopenable forever.",
+    "lastSlotRefusal": "Esta é a única forma de entrar neste cofre. Removê-la deixaria um arquivo que ninguém jamais conseguiria abrir — não existe chave em custódia nem liberação pelo suporte.",
+    "_comment_openedWithWarning": "A warning, not a refusal: this slot is the one that unlocked the vault in this session.",
+    "openedWithWarning": "Esta sessão foi aberta com este slot. Removê-lo não bloqueia o cofre agora, mas ele é a forma de entrar que você provou funcionar mais recentemente.",
+    "_comment_lastRecoveryWarning": "SECURITY-CRITICAL. A warning, not a refusal. 'the end of the vault' means the vault can never be opened again; do not weaken it to 'a problem'.",
+    "lastRecoveryWarning": "Esta é a última chave de recuperação deste cofre. Sem uma, uma senha esquecida é o fim do cofre."
+  },
+
+  "rotateRecovery": {
+    "_comment_": "Replacing one recovery key with a freshly generated one. The vault master key is untouched, so this is cheap — unlike the master key rotation further down the same screen.",
+    "title": "Rotacionar esta chave de recuperação",
+    "_comment_lead": "SECURITY-CRITICAL. 'shown exactly once' is a statement of fact: nothing in the program can produce the key again.",
+    "lead": "O slot é substituído por uma chave nova. A que você tem hoje para de funcionar no instante em que isto der certo, e a nova é mostrada exatamente uma vez.",
+    "body": "A chave mestra não muda, então nada é recriptografado e todos os outros slots continuam funcionando.",
+    "_comment_confirm": "Verb phrase, on the button that performs the rotation.",
+    "confirm": "Rotacionar a chave",
+    "busy": "Gerando…",
+    "_comment_blocked": "SECURITY-CRITICAL. Why the dialog refuses to close while the new key is being generated.",
+    "blocked": "A nova chave está sendo gerada. Fechar agora a perderia: ela é mostrada uma única vez e nada consegue reemiti-la.",
+    "failed": "A chave de recuperação não foi rotacionada."
+  },
+
+  "expensive": {
+    "_comment_label": "A heading over the one operation on this screen that re-encrypts the whole vault and therefore takes real time.",
+    "label": "Operação custosa"
+  },
+
+  "rotateMaster": {
+    "_comment_": "Rotating the vault master key: a new master key, every slot re-wrapped around it, and every stored secret re-encrypted.",
+    "cardTitle": "Rotacionar a chave mestra do cofre",
+    "_comment_cardBody": "The quoted sentence is the situation this operation answers; keep it as a quotation the reader could have said themselves.",
+    "cardBody": "Esta é a resposta certa para \"uma cópia deste arquivo pode ter vazado enquanto uma das minhas chaves estava comprometida\". Uma nova chave mestra é gerada, todos os slots são reencapsulados e o corpo inteiro é recriptografado.",
+    "_comment_cardButton": "Verb phrase, on the button that opens the rotation dialog.",
+    "cardButton": "Rotacionar a chave mestra",
+    "_comment_cardAside": "SECURITY-CRITICAL. Rotation does not reach copies of the file that already exist. 'Delete them' is an instruction, not a suggestion.",
+    "cardAside": "Cópias antigas do arquivo continuam legíveis com as chaves antigas. Apague-as.",
+
+    "title": "Rotacionar a chave mestra do cofre",
+    "lead": "Uma nova chave mestra é gerada, todos os slots são reencapsulados em torno dela e todo segredo do cofre é selado de novo.",
+
+    "whenTitle": "Quando esta é a resposta certa",
+    "whenBody": "Uma cópia deste arquivo pode ter vazado enquanto uma das suas chaves estava comprometida. Alterar uma senha reencapsula um slot; isto substitui a chave sob a qual o corpo inteiro está criptografado.",
+
+    "_comment_limitTitle": "SECURITY-CRITICAL. What rotation cannot do, shown both before and after the operation.",
+    "limitTitle": "O que ela não consegue fazer",
+    "_comment_limitBody": "SECURITY-CRITICAL. Must not be softened into reassurance: a leaked copy stays readable with the old keys forever, and so do the backup files beside the vault. 'rotation protects what happens next, not what already left' is the whole point of the paragraph.",
+    "limitBody": "A cópia que vazou continua abrindo com as chaves antigas, e os backups rotativos ao lado deste cofre também — e este salvamento os rotaciona. Apague as cópias que você conhece; a rotação protege o que vem a partir de agora, não o que já saiu.",
+
+    "costTitle": "Leva tempo de verdade",
+    "_comment_costBody": "PLURAL, on the number of password slots being re-wrapped. Argon2id is a key derivation function and is never translated. The one-slot wording is deliberately different rather than showing the numeral 1.",
+    "costBody": "{count, plural, one {O Argon2id roda uma vez, para o único slot de senha, e todo segredo armazenado é selado de novo.} other {O Argon2id roda uma vez por slot de senha — # aqui — e todo segredo armazenado é selado de novo.}}",
+
+    "_comment_slotsLegend": "The legend over the per-slot form. Every slot must either be opened or explicitly discarded; there is no third option, which is what 'accounted for' means.",
+    "slotsLegend": "Cada slot precisa ter um destino definido",
+    "_comment_password": "The label of the password field for one slot.",
+    "password": "Senha",
+    "keyfile": "Arquivo de chave",
+    "keyfileHelp": "O arquivo que este slot exige hoje.",
+    "_comment_drop": "The checkbox that discards a slot rather than re-wrapping it. First person, because it is the user's own statement about a key they no longer hold.",
+    "drop": "Não tenho esta. Descartar o slot.",
+    "_comment_dropped": "Replaces the label above once the checkbox is ticked.",
+    "dropped": "Será descartado",
+
+    "recoveryNote": "Uma nova chave de recuperação é emitida para este slot e mostrada uma vez quando a rotação terminar.",
+    "keychainNote": "Reencapsulado a partir do token no chaveiro desta máquina. Se o token tiver sumido, descarte o slot e registre esta máquina de novo depois.",
+    "fido2Note": "Esta versão não consegue reencapsular um slot de chave de segurança.",
+
+    "_comment_problemsTitle": "The heading over the list of reasons the rotation cannot start yet.",
+    "problemsTitle": "Ainda não dá para rotacionar",
+    "_comment_problemNoCredential": "One entry in that list. {index} is the slot number, {label} the name the user gave the slot — never translated. The quoted phrase refers to the discard checkbox on that slot's card, so it should match the wording of rotateMaster.drop.",
+    "problemNoCredential": "O slot {index, number} ({label}) precisa da senha dele, ou de um \"descartar o slot\" explícito.",
+    "_comment_problemFido2": "Security keys cannot be re-wrapped by this version. 'enrol it again' means adding the security key as a new slot after the rotation.",
+    "problemFido2": "O slot {index, number} ({label}) é uma chave de segurança, que esta versão não consegue reencapsular. Descarte-o aqui e registre a chave de novo depois, ou cancele.",
+    "_comment_problemEmpty": "SECURITY-CRITICAL. A rotation that discards every slot would produce a file with no way in at all.",
+    "problemEmpty": "Todos os slots estão marcados para descarte. Uma rotação que não mantém nada produz um arquivo que ninguém consegue abrir.",
+
+    "_comment_confirm": "Verb phrase, on the button that starts the rotation.",
+    "confirm": "Rotacionar a chave mestra",
+    "busy": "Rechaveando…",
+    "_comment_blocked": "SECURITY-CRITICAL. Why the dialog refuses to close while the vault is being re-keyed.",
+    "blocked": "O cofre está sendo rechaveado. Fechar agora deixaria as novas chaves de recuperação, que são mostradas uma única vez, sem lugar nenhum para aparecer.",
+    "stage": "Derivando uma chave para cada slot e, em seguida, recriptografando o cofre…",
+    "failed": "O cofre não foi rotacionado.",
+    "_comment_unchanged": "Reassurance after a failure, and it is exact: a failed rotation is atomic, so nothing at all was written.",
+    "unchanged": "Nada mudou: o cofre está exatamente como estava antes de você pressionar o botão."
+  },
+
+  "rotationSummary": {
+    "_comment_": "What the rotation did, shown after the last new recovery key has been written down.",
+    "title": "O cofre foi rechaveado",
+    "lead": "Tudo o que está abaixo já foi gravado no arquivo.",
+    "_comment_rewrapped": "PLURAL. A slot that was re-wrapped still opens the vault, now under the new master key.",
+    "rewrapped": "{count, plural, one {# slot reencapsulado} other {# slots reencapsulados}}",
+    "_comment_dropped": "PLURAL. A discarded slot no longer exists and no longer opens the vault.",
+    "dropped": "{count, plural, one {# slot descartado} other {# slots descartados}}",
+    "_comment_resealed": "PLURAL. Every password, key and passphrase stored in the vault, re-encrypted under the new master key.",
+    "resealed": "{count, plural, one {# segredo selado de novo} other {# segredos selados de novo}}"
+  },
+
+  "addSlot": {
+    "title": "Adicionar um slot de chave",
+    "lead": "Cada slot desencapsula a mesma chave do cofre de forma independente. Adicionar um reencapsula essa chave sob uma credencial nova e não recriptografa nada, então é instantâneo e é seguro mudar de ideia.",
+
+    "_comment_kindLegend": "The legend over the three radio cards below.",
+    "kindLegend": "Que tipo de slot",
+    "kindPassword": "Outra senha",
+    "kindPasswordHelp": "Uma segunda senha, opcionalmente com um arquivo de chave próprio. Útil para um colega que precise abrir este cofre sem conhecer a sua.",
+    "kindRecovery": "Outra chave de recuperação",
+    "kindRecoveryHelp": "Um cofre pode ter mais de uma. Um envelope lacrado dentro de um cofre físico é um motivo legítimo para querer a segunda.",
+    "kindKeychain": "Lembrar neste dispositivo",
+    "kindKeychainHelp": "Registra o armazenamento de credenciais desta máquina, para que o cofre abra sem pedir nada enquanto você estiver logado. Aí qualquer pessoa que consiga usar a sua sessão do ambiente de trabalho consegue abrir o cofre.",
+
+    "label": "Nome para este slot",
+    "labelHelp": "Aparece nesta lista e na tela de desbloqueio, para que um slot possa ser distinguido dos outros.",
+    "_comment_labelPlaceholder": "An example name, in the empty field. Replace it with a plausible example in this locale rather than translating it word for word.",
+    "labelPlaceholder": "Notebook do Ops",
+    "_comment_labelBlocked": "Why the Add button is disabled. Shown as its tooltip.",
+    "labelBlocked": "Dê um nome ao slot primeiro.",
+
+    "password": "Senha",
+    "_comment_passwordHelp": "SECURITY-CRITICAL. A second password opens the whole vault; it is not a lesser credential.",
+    "passwordHelp": "Esta senha abre o cofre inteiro, exatamente como a senha mestra faz. Ela deve ser igualmente forte.",
+    "confirm": "Repita a senha",
+    "confirmMismatch": "As duas senhas não são iguais.",
+    "passwordBlocked": "Digite a senha duas vezes, do mesmo jeito.",
+
+    "keyfile": "Arquivo de chave (opcional)",
+    "_comment_keyfileHelp": "SECURITY-CRITICAL. Losing the key file loses this slot, permanently.",
+    "keyfileHelp": "Qualquer arquivo vira um segundo fator para este slot. Se você o perder, este slot para de funcionar; os outros slots não são afetados.",
+    "_comment_keyfileRefused": "Why the Add button is disabled: the chosen file cannot be a key file, and the field above already says which rule it broke.",
+    "keyfileRefused": "Escolha outro arquivo de chave. O campo acima diz por que esse não pode ser usado.",
+
+    "_comment_recoveryNotice": "SECURITY-CRITICAL. 'shown once, and then dropped' is literal: the key exists nowhere after this dialog closes. 'Add' is the button label, addSlot.add.",
+    "recoveryNotice": "A chave é gerada quando você pressiona Adicionar, mostrada uma vez e depois descartada.",
+    "keychainNotice": "O token fica no chaveiro desta máquina. Outra máquina não consegue usar este slot, e removê-lo aqui apaga o token.",
+
+    "_comment_add": "Verb phrase, on the confirming button.",
+    "add": "Adicionar o slot",
+    "adding": "Derivando a chave…",
+    "_comment_addingStage": "The longer stage description, beside a spinner. Argon2id's cost is the security property, so the wait is explained rather than hidden.",
+    "addingStage": "Derivando uma chave a partir da nova senha…",
+    "_comment_addingBlocked": "Why the dialog refuses to close while the slot is being written.",
+    "addingBlocked": "O slot já está sendo gravado. Isto fecha quando o núcleo responder — e um slot de recuperação ainda tem uma chave para entregar antes disso.",
+    "failed": "O slot não foi adicionado."
+  },
+
+  "changePassword": {
+    "title": "Alterar a senha deste slot",
+    "lead": "O slot é reencapsulado em torno da nova senha. A chave mestra não muda, então nada é recriptografado, todos os outros slots continuam funcionando e as chaves de recuperação continuam válidas.",
+
+    "_comment_notARotation": "SECURITY-CRITICAL. The distinction between changing a password and rotating the master key. A user who believes this repairs a leak will not then do the thing that does.",
+    "notARotation": "Isto não ajuda se o próprio arquivo vazou",
+    "notARotationBody": "Uma cópia tirada enquanto a senha antiga estava em uso continua abrindo com a senha antiga. Rotacionar a chave mestra do cofre é a resposta para isso, e está nesta mesma tela.",
+
+    "current": "Senha atual",
+    "currentHelp": "Verificada antes de qualquer substituição, para que um erro de digitação aqui não trave o slot.",
+    "currentKeyfile": "Arquivo de chave atual",
+    "currentKeyfileHelp": "Este slot exige um, então a alteração também precisa dele.",
+
+    "next": "Nova senha",
+    "confirm": "Repita a nova senha",
+    "confirmMismatch": "As duas senhas não são iguais.",
+
+    "newKeyfile": "Arquivo de chave de agora em diante",
+    "_comment_newKeyfileHelp": "SECURITY-CRITICAL. The current key file is NOT carried over; leaving the field empty removes it. A translation that implies otherwise is the difference between a slot that opens tomorrow and one that does not.",
+    "newKeyfileHelp": "Escolhido explicitamente, inclusive quando deixado em branco: o arquivo de chave atual não é mantido. Em branco significa que este slot passa a precisar somente de senha.",
+
+    "_comment_blockedCurrent": "The four reasons the confirming button is disabled, shown as its tooltip.",
+    "blockedCurrent": "Digite a senha atual do slot.",
+    "blockedCurrentKeyfile": "Escolha o arquivo de chave que este slot exige hoje.",
+    "blockedNew": "Digite a nova senha duas vezes, do mesmo jeito.",
+    "blockedKeyfile": "Esse arquivo não pode ser um arquivo de chave.",
+
+    "_comment_save": "Verb phrase, on the confirming button.",
+    "save": "Alterar a senha",
+    "saving": "Derivando a chave…",
+    "savingBlocked": "A alteração já está com o núcleo. Isto fecha quando ele responder, para que uma senha rejeitada tenha onde ser informada.",
+    "savingStage": "Verificando a senha atual e, em seguida, derivando a nova chave…",
+    "failed": "A senha não foi alterada."
+  },
+
+  "removeSlot": {
+    "title": "Remover este slot",
+    "lead": "A entrada do slot é excluída do cabeçalho. Nada é recriptografado e todos os outros slots continuam funcionando — isto não é uma rotação.",
+
+    "refusedTitle": "Este slot não pode ser removido",
+    "_comment_warningTitle": "The heading over a warning that does not block the removal.",
+    "warningTitle": "Antes de fazer isso",
+
+    "_comment_phrase": "SECURITY-CRITICAL. The sentence the user must type out before the recovery slot can be deleted. It is compared against what they type, ignoring case and repeated spaces, so it MUST read naturally in this language and MUST be easy to retype — no unusual punctuation, no words that could be spelled two ways. Translate the meaning: the person is stating that they understand they are giving up their last way back into the vault. A tick box was rejected here deliberately; typing is what makes someone read it.",
+    "phrase": "Eu entendo que isso remove meu recurso final de acesso ao cofre",
+    "phrasePrompt": "Digite esta frase para confirmar:",
+    "_comment_phraseLabel": "The accessible name of the field the sentence is typed into.",
+    "phraseLabel": "Frase de confirmação",
+    "phraseHint": "As palavras como estão escritas acima. Maiúsculas e minúsculas não importam.",
+    "_comment_phraseBlocked": "Why the confirming button is disabled, shown as its tooltip.",
+    "phraseBlocked": "Digite a frase acima para remover este slot.",
+
+    "_comment_lostKey": "Reassurance for the common case: a key you have lost can still be revoked, because revoking deletes the vault's record of it rather than the key itself.",
+    "lostKey": "A revogação exclui a entrada do slot, então uma chave que você perdeu ainda pode ser revogada — você não precisa tê-la em mãos.",
+
+    "_comment_remove": "Verb phrase, on the confirming button.",
+    "remove": "Remover o slot",
+    "removing": "Removendo…",
+    "removingBlocked": "A remoção já está com o núcleo. Isto fecha quando ele responder, para que o resultado tenha onde aparecer.",
+    "failed": "O slot não foi removido."
+  },
+
+  "recoveryKey": {
+    "_comment_": "SECURITY-CRITICAL SECTION. A recovery key is shown here and nowhere else, ever. Nothing in the program can produce it again. Every string in this object must keep that finality.",
+    "title": "Sua nova chave de recuperação",
+    "_comment_titleSequence": "The same title when several keys are handed over one after another, as after a master key rotation. {position} and {total} are counts, not ordinals.",
+    "titleSequence": "Sua nova chave de recuperação ({position, number} de {total, number})",
+    "_comment_lead": "SECURITY-CRITICAL. {index} is the slot number. 'shown here and nowhere else' is literal.",
+    "lead": "Slot {index, number}. A chave que esse slot guardava antes agora é inútil, e esta aqui é mostrada neste lugar e em nenhum outro.",
+
+    "_comment_done": "First person, on the button that dismisses the key. The user is asserting they have written it down.",
+    "done": "Já guardei a chave",
+    "_comment_doneLast": "The same button on the last key of a sequence.",
+    "doneLast": "Já guardei a chave — concluir",
+    "_comment_blocked": "SECURITY-CRITICAL. Why that button is still disabled: one group of the key has to be retyped first, which is how the program checks the key was actually recorded.",
+    "blocked": "Digite primeiro o grupo destacado acima. Esta chave não pode ser mostrada de novo.",
+    "_comment_escapeBlocked": "SECURITY-CRITICAL. The answer to pressing Escape, which everywhere else in the program closes a dialog. Here it does not, and this sentence says why.",
+    "escapeBlocked": "Esta chave é mostrada uma única vez. Fechar sem registrá-la deixa o slot guardando uma chave que você não tem."
+  },
+
+  "autoLock": {
+    "title": "Bloqueio automático",
+    "description": "Bloquear sobrescreve com zeros todas as chaves e todos os segredos em cache e descarta o banco de dados em memória. Reabrir exige um desbloqueio completo.",
+
+    "idleLegend": "Bloquear após ficar ocioso por",
+    "_comment_choiceNever": "The first choice on the idle ladder: the vault never locks on its own.",
+    "choiceNever": "Nunca",
+    "_comment_choiceMinutes": "PLURAL. An idle timeout in minutes, on a small chip, so 'min' is abbreviated. Use this locale's conventional abbreviation; write the word out if there is none.",
+    "choiceMinutes": "{count, plural, one {# min} other {# min}}",
+    "_comment_choiceHours": "PLURAL. The same ladder above an hour.",
+    "choiceHours": "{count, plural, one {# hora} other {# horas}}",
+
+    "_comment_idleHelp": "What 'idle' actually measures. This sentence was wrong once and cost people work: it claimed the desktop's input idle time was being read, so users believed typing in a terminal kept the vault open when it did not. Translate what is measured, not what would be nicer to measure.",
+    "idleHelp": "Ocioso quer dizer que nada tocou o cofre e nenhuma sessão transportou tráfego. Tanto as teclas que você envia quanto a saída que um host envia contam, então uma sessão que você está só acompanhando, sem digitar, não fica ociosa enquanto a saída continua chegando.",
+    "_comment_idleScope": "The limitation of that measurement. 'Remoter' is the product name and is never translated.",
+    "idleScope": "O Remoter não lê o tempo de ociosidade do próprio ambiente de trabalho, então o tempo passado em outro aplicativo conta como ocioso, mesmo que você esteja no teclado.",
+    "_comment_idleNever": "Shown only when 'Never' is chosen. A judgement about a security decision, offered without scolding.",
+    "idleNever": "Nunca quer dizer que o cofre fica aberto até você bloqueá-lo ou sair do programa. É uma escolha defensável em uma máquina que só você alcança, e uma escolha ruim em uma mesa compartilhada.",
+
+    "screenLock": "Quando a tela for bloqueada",
+    "suspend": "Ao suspender ou hibernar",
+    "minimise": "Quando a janela for minimizada",
+    "minimiseHelp": "Desligado por padrão. A maioria das pessoas minimiza muito mais vezes do que se afasta da máquina.",
+
+    "_comment_unavailable": "The state word on a switch this build cannot honour — neither on nor off in any sense the user cares about. An abbreviation of 'not applicable'; use this locale's equivalent or write it out.",
+    "unavailable": "N/D",
+
+    "_comment_noScreenLock": "One sentence per event this build cannot observe, naming what is missing rather than saying 'not supported', so a reader can tell whether it will ever change.",
+    "noScreenLock": "Esta versão não consegue enxergar o bloqueio de tela neste sistema, então esta opção não bloquearia nada. Enxergá-lo significa receber o sinal de bloqueio de tela do ambiente de trabalho, que o Remoter ainda não escuta.",
+    "noSuspend": "Esta versão não consegue enxergar esta máquina suspender, então esta opção não bloquearia nada aqui.",
+    "noMinimise": "Esta versão não consegue enxergar a janela sendo minimizada, então esta opção não bloquearia nada. O toolkit de janelas não informa isso neste ambiente de trabalho, e uma opção que funcionasse em alguns ambientes e silenciosamente não fizesse nada em outros seria pior do que uma que é honesta.",
+    "_comment_onResumeSuspend": "SECURITY-CRITICAL. The keys stay in memory while the machine sleeps, and are written to disk if it hibernates. Do not soften into 'may be'.",
+    "onResumeSuspend": "O Remoter não consegue pedir a este sistema um aviso antecipado de suspensão, então ele bloqueia quando a máquina volta, e não antes de ela dormir. As chaves ficam na memória enquanto ela dorme, e ficam na imagem de hibernação se ela hibernar.",
+    "_comment_keptForOtherMachines": "Appended to whichever of the three sentences above applies. The setting travels inside the vault file, so it still works on a computer that can see the event.",
+    "keptForOtherMachines": "A configuração é guardada no cofre, então ela continua valendo em um computador onde o Remoter consiga enxergar o evento.",
+
+    "sessionsLegend": "O que acontece com as sessões em execução",
+    "keepRunning": "Mantê-las em execução",
+    "_comment_keepRunningHelp": "The default, with the reason for it, which comes from docs/security/key-management.md.",
+    "keepRunningHelp": "O padrão, e a razão dele: um administrador acompanhando uma implantação longa não quer a sessão morta porque foi tomar um café. A saída continua chegando e você pode acompanhá-la.",
+    "freezeInput": "Mantê-las em execução, congelar a entrada",
+    "freezeInputHelp": "As sessões continuam vivas, mas nada pode ser digitado nelas até você desbloquear. As abas mostram um selo de bloqueada.",
+    "disconnectAll": "Desconectar tudo",
+    "_comment_disconnectAllHelp": "Warns about data loss: work in a session that has not been saved on the remote host is gone.",
+    "disconnectAllHelp": "O mais rigoroso. Trabalho não salvo dentro de uma sessão é perdido, inclusive transferências em andamento.",
+    "audited": "Alterar isto é gravado no log de auditoria do cofre.",
+
+    "failed": "Essa configuração não foi salva."
+  },
+
+  "recording": {
+    "title": "Política de gravação",
+    "description": "Herdada por tudo neste cofre que não define a sua própria, então é definida uma vez para a árvore inteira.",
+
+    "_comment_notYetTitle": "SECURITY-CRITICAL. This build has no recorder at all. A user who believes they hold a compliance record they do not have is the one failure of this screen that costs something, so this notice must not be softened or made conditional.",
+    "notYetTitle": "Nada é gravado nesta versão",
+    "_comment_notYetBody": "'Remoter' is the product name and is never translated.",
+    "notYetBody": "O Remoter ainda não tem gravador: qualquer que seja o cartão selecionado, toda sessão neste cofre abre sem gravação. A escolha abaixo é guardada no cofre agora e passa a valer quando a gravação de sessões for construída.",
+
+    "_comment_": "Every sentence describing recording behaviour below is in the future tense on purpose: nothing on this screen may read as a claim about what happens today. Keep the future tense in translation wherever this language marks it.",
+    "never": "Nunca",
+    "neverHelp": "Nada neste cofre será gravado, a não ser que uma pasta ou uma conexão abaixo dele defina uma política própria.",
+    "ask": "Perguntar ao iniciar a sessão",
+    "askHelp": "Uma pergunta antes de a sessão abrir. Recusar vai abrir a sessão sem gravação.",
+    "always": "Sempre",
+    "alwaysHelp": "Toda sessão será gravada, depois de um aviso antes de ela abrir. Se o gravador não conseguir iniciar, a sessão ainda assim vai abrir — nesta política a gravação será de melhor esforço.",
+
+    "_comment_required": "Why a fourth policy is described rather than offered. The quoted word 'required' names a policy in docs/features/recording-audit.md; keep it quoted and translate it the same way wherever that policy is named.",
+    "required": "Uma quarta política, \"obrigatória\" — gravar e recusar a conexão se a gravação não puder começar —, não é oferecida aqui. O arquivo do cofre não tem um campo para ela, então um quarto cartão guardaria uma das três acima e significaria algo mais fraco do que o próprio nome.",
+
+    "storage": "As gravações vão ficar fora do cofre, em um diretório que você escolher, cada uma criptografada com uma chave derivada da chave mestra do cofre e, portanto, legível somente enquanto o cofre estiver desbloqueado. Nada é enviado para lugar nenhum.",
+
+    "failed": "A política de gravação não foi salva."
+  },
+
+  "backups": {
+    "title": "Backups",
+    "_comment_description": "vault.rvault.bak.1 is a file name pattern and is never translated.",
+    "description": "Antes de o cofre ser sobrescrito, o arquivo anterior é rotacionado para um backup rotativo ao lado dele: de vault.rvault.bak.1 até .bak.N.",
+
+    "legend": "Quantos manter",
+    "_comment_none": "The zero option on the ladder, in place of the numeral 0.",
+    "none": "Nenhum",
+
+    "_comment_onceASession": "Why the number means less than it looks like it means: backups rotate on the first save after the vault is opened, not on every save.",
+    "onceASession": "Rotacionado uma vez por sessão, não a cada salvamento",
+    "onceASessionBody": "Cada edição em um nó é um salvamento. Se um backup fosse feito a cada uma delas, três backups estariam a quatro cliques de distância e o arquivo de antes de um erro já teria sumido. Rotacionar no primeiro salvamento de uma sessão faz do .bak.1 o cofre exatamente como ele estava quando você o abriu.",
+
+    "_comment_zeroTitle": "Keeping no backups is a legitimate choice, not a mistake to be talked out of.",
+    "zeroTitle": "Não manter nenhum é uma escolha legítima",
+    "zeroBody": "Se este cofre fica em uma pasta sincronizada, o provedor já guarda cópias históricas do texto cifrado, e pode ser que você não queira cópias extras dele espalhadas pelo disco também.",
+
+    "_comment_present": "PLURAL, on how many backup files are beside the vault at this moment. The zero and one wordings are deliberately different from the general case rather than showing a numeral.",
+    "present": "{count, plural, =0 {Não há nenhum backup ao lado deste cofre neste momento.} one {Há um backup ao lado deste cofre neste momento.} other {Há # backups ao lado deste cofre neste momento.}}",
+    "_comment_presentPrune": "Follows the sentence above. Lowering the setting does not delete files that already exist.",
+    "presentPrune": "Diminuir o número não apaga os arquivos já gravados; a próxima rotação para no novo limite.",
+
+    "failed": "A quantidade de backups não foi salva."
+  }
+}

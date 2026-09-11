@@ -1,0 +1,168 @@
+{
+  "_comment_file": "Strings that genuinely belong to no single screen. Keep this namespace small: a string used twice is not automatically common, and a shared string that drifts apart in two places is worse than two strings that were always separate. Everything here is loaded before the first paint, so weight matters.",
+
+  "app": {
+    "_comment_name": "The product name. Never translated and never transliterated, in any language, including into a non-Latin script.",
+    "name": "Remoter"
+  },
+
+  "action": {
+    "_comment_": "Verbs on buttons. Imperative, second person, no trailing punctuation, no exclamation marks.",
+    "retry": "Try again",
+    "saveAgain": "Save again",
+    "cancel": "Cancel",
+    "close": "Close",
+    "dismiss": "Dismiss",
+    "reset": "Reset",
+    "browse": "Browse",
+    "opening": "Opening…"
+  },
+
+  "toggle": {
+    "on": "On",
+    "off": "Off"
+  },
+
+  "status": {
+    "_comment_working": "The accessible name of a spinner whose caller gave it none — read aloud, never drawn. A spinner that names its stage ('Deriving the key…') passes that instead, and should; this is the last resort so that a screen reader never meets an unnamed progress indicator.",
+    "working": "Working"
+  },
+
+  "window": {
+    "_comment_": "The frameless window's own controls. They are drawn by the page, because nothing outside it draws them: without these three buttons the window cannot be minimised, maximised or closed at all. Every label is both the accessible name and the tooltip, so short wins. The application shell's own title bar carries the same four labels at shell.titleBar.* for the main window; if you are translating both, keep them identical.",
+    "_comment_minimise": "Verb, imperative: send the window to the taskbar or dock.",
+    "minimise": "Minimise",
+    "_comment_maximise": "Verb, imperative: fill the screen with the window.",
+    "maximise": "Maximise",
+    "_comment_restore": "Verb, imperative: the opposite of Maximise — return the window to its previous size. Not 'restore a backup'.",
+    "restore": "Restore",
+    "_comment_close": "Verb, imperative: close the window and quit the application. Not the noun, and not 'close a dialog'.",
+    "close": "Close",
+    "_comment_confirmClose": "SECURITY-CRITICAL. The last thing standing between the user and permanent, unrecoverable loss — a recovery key that has been shown once and can never be produced again. {atStake} names what would be lost, already phrased as the object of the verb ('your recovery key'). Do not soften 'cannot be undone' into 'may be lost' or a polite hedge; it is literally true and it is the only warning there is.",
+    "confirmClose": "Close Remoter and lose {atStake}? This cannot be undone.",
+    "_comment_controlFailed": "SECURITY-ADJACENT. A window control that refuses and says nothing is indistinguishable from a broken window, which is how the missing controls were noticed in the first place. {action} is one of the four labels above, interpolated rather than concatenated because languages differ on where the subject of this sentence goes. Do not soften this into 'something went wrong'.",
+    "controlFailed": "{action} was refused by the window manager.",
+    "noWindow": "This page is not running inside the Remoter window, so the window controls do nothing here."
+  },
+
+  "crash": {
+    "_comment_": "The screen shown when a component throws while rendering. It is read by someone who has just watched part of the interface disappear, so it says what is still safe before it says anything else. The error's own message is deliberately NOT on this screen: a render error carries interpolated values and this application renders the surroundings of credentials, so the text goes into a details block the user opens on purpose.",
+    "title": "Something in the interface stopped working",
+    "_comment_lead": "SECURITY-CRITICAL. The middle sentence is the whole point: a recovery key is shown once and cannot be produced again, so a user who closes this window to 'start fresh' may lose their only way back into the vault. Keep the instruction not to close the window, and keep it before the offer of help.",
+    "lead": "The rest of Remoter is still running and your vault has not been touched. If you were part-way through something that cannot be repeated — a recovery key you had not yet written down — do not close this window; copy the details and ask for help first.",
+    "_comment_retry": "Verb, imperative. Narrower than the ordinary 'Try again': it re-renders the part of the interface that threw, and does not retry whatever operation the user was performing.",
+    "retry": "Try rendering again",
+    "_comment_details": "The label of a collapsed disclosure holding the error and the component stack. A noun phrase, not a verb.",
+    "details": "Technical details",
+    "_comment_copy": "Verb, imperative: put those technical details on the clipboard.",
+    "copy": "Copy details",
+    "_comment_copied": "Replaces the Copy details label for as long as the copy has succeeded. Past tense, a statement about what just happened.",
+    "copied": "Copied"
+  },
+
+  "shortcut": {
+    "_comment_": "The keyboard map: one title per action, plus the sentences that explain a binding a user cannot change or cannot reach where they expect. The settings screen renders these; the status bar renders terminalPrefix. Key names themselves — Ctrl, Alt, Shift, Esc, F4 — are NEVER translated and are not in this file.",
+
+    "_comment_unrebindableNoSetting": "Shared by three actions whose keys work but cannot be customised. 'This build' means this released version, not this window or this vault. Say plainly that the shortcut does work — a user reading it is looking at a control that will not let them type a new key, and the first thing they need to know is that the key still fires.",
+    "unrebindableNoSetting": "This build's settings file has no entry for it, so a change could not be stored. The binding works; it is fixed.",
+
+    "paletteOpen": {
+      "_comment_title": "Opens one overlay that both searches connections and runs commands. 'and', not 'or': it is a single control with two uses.",
+      "title": "Command palette and search"
+    },
+
+    "vaultLock": {
+      "_comment_title": "Verb + object: lock the encrypted store, discarding the keys held in memory. Not 'lock the screen'.",
+      "title": "Lock vault"
+    },
+
+    "shortcutsCheatsheet": {
+      "_comment_title": "A hypothetical overlay listing every shortcut. This build does not have one; the two sentences below say so.",
+      "title": "Shortcut cheat sheet",
+      "unrebindable": "There is nothing to rebind: this build has no cheat sheet, so no key opens one.",
+      "_comment_reachNote": "'the table on this screen' is the shortcuts table in Settings, where this sentence is read.",
+      "reachNote": "Not bound. This build has no cheat-sheet overlay — the table on this screen is the reference."
+    },
+
+    "connectionNew": {
+      "_comment_title": "Creates a new saved connection. 'Connection' is the stored record — a host with its protocol and credentials — not the live session opened from it.",
+      "title": "New connection"
+    },
+
+    "folderNew": {
+      "_comment_title": "Creates a new folder in the connection tree.",
+      "title": "New folder"
+    },
+
+    "connectionConnect": {
+      "_comment_title": "Verb + object: open a session to whatever is selected in the tree or the palette.",
+      "title": "Connect selected",
+      "_comment_unrebindable": "Enter here is the keyboard key, never translated.",
+      "unrebindable": "Enter belongs to whatever has focus — a button, a field, a list row — so it is not taken as a global binding and cannot be rebound here.",
+      "reachNote": "Enter connects from the command palette. In the connection tree it selects; connect with a double-click or the row's context menu."
+    },
+
+    "nodeEdit": {
+      "_comment_title": "Verb + object: open the editor for the selected connection or folder. 'selected' is the same word as in Connect selected.",
+      "title": "Edit selected"
+    },
+
+    "tabClose": {
+      "_comment_title": "Verb + object: close the session tab that has focus.",
+      "title": "Close tab"
+    },
+
+    "tabNext": {
+      "title": "Next tab"
+    },
+
+    "tabPrevious": {
+      "title": "Previous tab"
+    },
+
+    "tabJump": {
+      "_comment_title": "One action bound to nine keys: the first key selects the first tab, the ninth the ninth. The range is written with an en dash and Western digits because the settings table renders it beside the key caps themselves.",
+      "title": "Jump to tab 1–9"
+    },
+
+    "sidebarToggle": {
+      "_comment_title": "Verb + object: show or hide the connection tree at the side of the window. One key does both, so the title is 'Toggle', not 'Show' or 'Hide'.",
+      "title": "Toggle sidebar"
+    },
+
+    "inspectorToggle": {
+      "_comment_title": "Verb + object: show or hide the panel listing the effective, inheritance-resolved values of the selected node.",
+      "title": "Toggle inspector"
+    },
+
+    "sessionFullscreen": {
+      "_comment_title": "Fills the screen with the open session. An adjective phrase describing the state it produces, not an imperative.",
+      "title": "Full screen session",
+      "reachNote": "Needs a session open: it full-screens the window around one."
+    },
+
+    "terminalFind": {
+      "_comment_title": "Searches the scrollback of the terminal that has focus, not the connection tree.",
+      "title": "Find in the terminal",
+      "unrebindable": "The session view binds this one itself rather than through the shortcut map, so this screen cannot change it.",
+      "_comment_reachNote": "'Ctrl+Shift chords' names a class of key combinations; Ctrl and Shift are key names and are not translated.",
+      "reachNote": "Works inside a focused terminal without the prefix: Ctrl+Shift chords belong to the terminal window, not to the remote shell."
+    }
+  },
+
+  "terminalPrefix": {
+    "_comment_": "A hint at the end of the status bar, visible only while a terminal has the keyboard. It is preceded by the prefix's own key caps — Ctrl, Alt — so this reads as the end of a sentence that begins with them and must stay lower case and unpunctuated.",
+    "active": "prefix active in terminal",
+    "_comment_explained": "The tooltip on that hint. 'prefix' is the extra modifier held alongside a shortcut while a session owns the keyboard.",
+    "explained": "A focused terminal receives almost every keystroke. Remoter's own shortcuts are reached by adding this prefix while a session has the keyboard."
+  },
+
+  "punctuation": {
+    "_comment_chainSeparator": "Joins the hops of a jump-host chain: bastion → gateway → db-01. A locale whose readers expect a different glyph may change it; the arrow is NOT flipped for right-to-left, because each hop is wrapped in a Unicode isolate and the chain reads in the document's direction.",
+    "chainSeparator": " → ",
+    "_comment_listSeparator": "Only for lists the interface builds itself. Prose lists go through Intl.ListFormat, which knows that English says 'a, b and c' and German says 'a, b und c'.",
+    "listSeparator": ", ",
+    "_comment_factSeparator": "Joins short facts on one line that are not a prose list: 'Password only · Argon2id, 256 MiB, t=3 · Added 3 Mar 2025'. A locale whose readers expect a different glyph may change it; the spaces around it are part of the separator. Not flipped for right-to-left — a middot has no direction.",
+    "factSeparator": " · "
+  }
+}

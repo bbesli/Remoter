@@ -1,0 +1,168 @@
+{
+  "_comment_file": "The application shell: title bar, tab strip, status bar, footer, inspector, and the two full-area states (empty vault, locked vault). Loaded before the first paint, because it is on screen whenever the window is.",
+
+  "titleBar": {
+    "_comment_": "A 38px bar. Every label here is also a tooltip, so short wins — but a disabled control's tooltip says WHY, because 'why not?' is the only question a dead button raises.",
+    "noVault": "कोई वॉल्ट खुला नहीं है",
+    "unlocked": "अनलॉक",
+    "locked": "लॉक",
+    "lock": "वॉल्ट लॉक करें",
+    "lockAlreadyLocked": "लॉक करने के लिए कोई अनलॉक वॉल्ट नहीं है।",
+    "lockInProgress": "वॉल्ट लॉक हो रहा है…",
+    "_comment_lockingShort": "Shown in the bar itself, where there is room for one word. The tooltip carries lockInProgress.",
+    "lockingShort": "लॉक हो रहा है…",
+    "settings": "सेटिंग्स",
+    "vaultSettings": "वॉल्ट सेटिंग्स",
+    "audit": "ऑडिट लॉग",
+    "importer": "कनेक्शन इम्पोर्ट करें",
+    "_comment_needsVault": "{action} is one of the four labels above. Interpolated rather than concatenated: languages differ on where the subject of this sentence goes.",
+    "needsVault": "“{action}” के लिए वॉल्ट का अनलॉक होना ज़रूरी है।",
+    "minimise": "छोटा करें",
+    "maximise": "बड़ा करें",
+    "restore": "पहले जैसा आकार करें",
+    "close": "बंद करें",
+    "_comment_controlFailed": "SECURITY-ADJACENT. The window controls are the one place where doing nothing is indistinguishable from being broken. Do not soften this into 'something went wrong'.",
+    "controlFailed": "विंडो मैनेजर ने “{action}” से इनकार कर दिया।",
+    "noWindow": "यह पेज Remoter विंडो के अंदर नहीं चल रहा है, इसलिए यहाँ विंडो के बटन कुछ नहीं करते।"
+  },
+
+  "tabStrip": {
+    "sidebarShow": "कनेक्शन ट्री दिखाएँ",
+    "sidebarHide": "कनेक्शन ट्री छिपाएँ",
+    "noSessions": "कोई सेशन खुला नहीं है — शुरू करने के लिए किसी कनेक्शन पर डबल-क्लिक करें",
+    "_comment_inspector": "Ctrl-free: F4 is a bare function key and is written as-is in every language.",
+    "inspector": "प्रभावी मान · F4"
+  },
+
+  "statusBar": {
+    "nothingSelected": "कुछ चुना नहीं गया है",
+    "noSession": "कोई सेशन नहीं",
+    "resolving": "इनहेरिट किए गए मान निकाले जा रहे हैं…",
+    "unresolved": "प्रभावी मान अभी तक निकाले नहीं गए हैं",
+    "_comment_protocolUnset": "Sits where SSH, RDP, VNC or SFTP would. Lower case: it is the absence of a protocol, not the name of one.",
+    "protocolUnset": "कोई प्रोटोकॉल नहीं",
+    "showDetail": "इंस्पेक्टर में विफलता दिखाएँ"
+  },
+
+  "footer": {
+    "_comment_": "Counts. Every one is a plural: Russian needs four forms here and Arabic six, and the zero case is worth its own wording in the languages that have one.",
+    "sessions": "{count, plural, =0 {कोई सेशन नहीं} one {# सेशन} other {# सेशन}}",
+    "tunnels": "{count, plural, =0 {कोई टनल नहीं} one {# टनल} other {# टनल}}",
+    "connections": "{count, plural, =0 {कोई कनेक्शन नहीं} one {# कनेक्शन} other {# कनेक्शन}}",
+    "credentials": "{count, plural, =0 {कोई क्रेडेंशियल नहीं} one {# क्रेडेंशियल} other {# क्रेडेंशियल}}",
+    "openPanels": "सेशन और टनल पैनल खोलें",
+    "_comment_locksIn": "{clock} is mm:ss, produced by formatClock() so the digits follow the locale's numbering system.",
+    "locksIn": "वॉल्ट {clock} में लॉक होगा",
+    "noAutoLock": "ऑटो-लॉक बंद है"
+  },
+
+  "inspector": {
+    "title": "प्रभावी मान",
+    "close": "इंस्पेक्टर बंद करें",
+    "nothingSelected": "कुछ चुना नहीं गया है",
+    "nothingSelectedBody": "किसी कनेक्शन की तय हुई सेटिंग्स देखने के लिए उसे ट्री में चुनें।",
+    "notAConnection": "फ़ोल्डरों के अपने कोई प्रभावी मान नहीं होते।",
+    "notAConnectionBody": "फ़ोल्डर जो तय करता है, वह उसके नीचे के कनेक्शनों पर इनहेरिट किए गए मान के स्रोत के रूप में दिखता है।",
+    "resolving": "निकाला जा रहा है",
+    "failed": "इस कनेक्शन के मान नहीं निकाले जा सके",
+    "retry": "फिर से निकालें",
+    "notAsked": "प्रभावी मान माँगे ही नहीं गए",
+    "notAskedBody": "मान खुले हुए वॉल्ट से निकाले जाते हैं। यह वॉल्ट लॉक है, इसलिए अभी निकालने के लिए कुछ है ही नहीं।",
+    "_comment_unset": "The value of a field nobody has set, anywhere in the inheritance chain.",
+    "unset": "तय नहीं",
+    "_comment_setHere": "Provenance labels, shown under a resolved field. 'set here' means this connection's own value; the others name where an inherited value came from. Lower case: they are fragments under a value, not sentences.",
+    "setHere": "यहीं तय किया गया",
+    "fromDefault": "प्रोटोकॉल का डिफ़ॉल्ट",
+    "inherited": "इनहेरिट किया गया",
+    "_comment_fromSource": "{source} is a folder or connection name — user data, in any script, isolated before it arrives.",
+    "fromSource": "{source} से",
+    "_comment_overridesInherited": "{field} is a field name such as 'port' or 'username'. This is the case worth calling out: the tree above says something different from what will actually be used.",
+    "overridesInherited": "इनहेरिट किए गए {field} को ओवरराइड करता है",
+    "credentialOwn": "इस कनेक्शन का अपना",
+    "credentialShared": "यहीं तय किया गया · दूसरी एंट्रियों के साथ साझा",
+    "gateway": "गेटवे शृंखला",
+    "tags": "टैग",
+    "noFields": "इस कनेक्शन से कोई फ़ील्ड नहीं निकलती।"
+  },
+
+  "emptyVault": {
+    "title": "यह वॉल्ट खाली है",
+    "_comment_body": "{vault} is the vault file's name, which is user data and may be in any script. It is wrapped in a Unicode isolate before it gets here, so the sentence keeps its own direction whatever the name contains.",
+    "body": "{vault} में अभी कुछ भी सेव नहीं है। ज़्यादातर लोग वहीं से शुरू करते हैं जो उनके पास पहले से है।",
+    "unnamedVault": "यह वॉल्ट",
+    "importTitle": "किसी दूसरे टूल से इम्पोर्ट करें",
+    "_comment_importBody": "Product and file names. Not translated.",
+    "importBody": "mRemoteNG, ~/.ssh/config, CSV",
+    "createTitle": "पहला कनेक्शन बनाएँ",
+    "createBody": "शुरू करने के लिए एक होस्ट, एक प्रोटोकॉल और एक क्रेडेंशियल काफ़ी है।",
+    "createBusy": "कनेक्शन एडिटर खुल रहा है…",
+    "openTitle": "कोई दूसरा वॉल्ट खोलें",
+    "openBody": "यह वॉल्ट लॉक करके वॉल्ट चुनने की स्क्रीन पर लौटता है।",
+    "openBusy": "यह वॉल्ट लॉक हो रहा है…",
+    "openFailed": "यह वॉल्ट लॉक नहीं हुआ, इसलिए चुनने की स्क्रीन नहीं खुली।"
+  },
+
+  "main": {
+    "nothingSelected": "कुछ चुना नहीं गया है",
+    "_comment_nothingSelectedBody": "Ctrl+K is a key name. Translate the sentence around it, not the key.",
+    "nothingSelectedBody": "ट्री में कोई कनेक्शन चुनें, या खोजने के लिए Ctrl+K दबाएँ।",
+    "noProtocol": "कोई प्रोटोकॉल नहीं",
+    "_comment_sidebarLabel": "The accessible name of the connection tree's landmark region. Read aloud when a screen reader lists the regions of the window.",
+    "sidebarLabel": "कनेक्शन",
+    "_comment_nodeKind": "What a selected tree entry is, shown above its name where a connection shows its protocol. These are the node kinds from the domain model; they are shown to the user, so they are translated, unlike the protocol names beside them.",
+    "nodeKind": {
+      "folder": "फ़ोल्डर",
+      "connection": "कनेक्शन",
+      "credential": "क्रेडेंशियल",
+      "group": "समूह",
+      "separator": "विभाजक"
+    },
+    "connectHint": "ट्री में इस पर डबल-क्लिक करें, पैलेट में Enter दबाएँ, या इसके कॉन्टेक्स्ट मेन्यू में “कनेक्ट करें” चुनें।",
+    "folderSelected": "फ़ोल्डरों में वे सेटिंग्स रहती हैं जो उनके नीचे के कनेक्शन इनहेरिट करते हैं।",
+
+    "lockedTitle": "यह वॉल्ट लॉक है",
+    "_comment_lockedBody": "SECURITY-CRITICAL wording in one respect: it must keep saying that nothing was lost. A user who believes a lock destroyed their connections will go looking for a backup they do not need.",
+    "lockedBody": "यह निष्क्रिय रहने की अवधि पूरी होने पर खुद लॉक हो गया, या किसी दूसरी विंडो से लॉक किया गया। कुछ भी खोया नहीं है; आपके कनेक्शन अब भी फ़ाइल में हैं और अनलॉक करते ही वापस आ जाएँगे।",
+    "lockedAction": "यह वॉल्ट अनलॉक करें",
+    "lockedNoPath": "कोई वॉल्ट चुनें",
+
+    "vaultStateFailed": "Remoter यह नहीं बता पा रहा कि कोई वॉल्ट खुला है या नहीं।",
+    "treeFailed": "कनेक्शन ट्री पढ़ा नहीं जा सका।",
+    "lockFailed": "वॉल्ट लॉक नहीं हुआ।",
+
+    "fullscreenFailedTitle": "विंडो पूरी स्क्रीन पर नहीं गई।",
+    "fullscreenFailedBody": "या तो विंडो मैनेजर ने इनकार कर दिया, या यह पेज Remoter विंडो के अंदर नहीं चल रहा है। सेशन में कोई बदलाव नहीं हुआ।",
+
+    "checkingVault": "देखा जा रहा है कि कोई वॉल्ट खुला है या नहीं…",
+    "readingTree": "वॉल्ट से कनेक्शन पढ़े जा रहे हैं…"
+  },
+
+  "kdfUpgrade": {
+    "_comment_": "SECURITY-CRITICAL SECTION. This is the offer to strengthen a vault's key derivation. Do not soften 'weaker than the current standard' into 'could be improved', and do not drop the sentence explaining why the password is asked for again — a credential prompt without a stated reason is exactly what a phishing dialog looks like.",
+    "offer": "इस वॉल्ट की कुंजी-व्युत्पत्ति (key derivation) मौजूदा मानक से कमज़ोर है। इसे मज़बूत करने में थोड़ा समय लगता है और नया पासवर्ड नहीं चाहिए।",
+    "strengthen": "इसे मज़बूत करें",
+    "notNow": "अभी नहीं",
+    "dismissLabel": "अगली बार अनलॉक होने तक यह सुझाव न दिखाएँ",
+
+    "password": "मास्टर पासवर्ड",
+    "passwordHelp": "वही पासवर्ड जिससे आपने अभी अनलॉक किया। हर कुंजी स्लॉट उसी के इर्द-गिर्द दोबारा बनाया जाता है, इसलिए उसे फिर से टाइप करना पड़ता है।",
+    "confirm": "मज़बूत करें",
+    "_comment_working": "Short enough that reserving room for it does not widen the idle button.",
+    "working": "मज़बूत हो रहा है…",
+    "workingStage": "कुंजी को ज़्यादा लागत पर दोबारा निकाला जा रहा है…",
+
+    "reading": "वॉल्ट हेडर पढ़ा जा रहा है…",
+    "readFailed": "इस वॉल्ट का हेडर पढ़ा नहीं जा सका, इसलिए कुंजी स्लॉट मज़बूत नहीं किए जा सकते।",
+
+    "keyfile": "कुंजी फ़ाइल",
+    "keyfileMissing": "इस वॉल्ट के पासवर्ड स्लॉट को उसकी कुंजी फ़ाइल भी चाहिए।",
+    "keyfileDialog": "इस वॉल्ट के लिए कुंजी फ़ाइल चुनें",
+    "keyfileDialogFailed": "सिस्टम का फ़ाइल ब्राउज़र नहीं खुला, इसलिए कोई कुंजी फ़ाइल नहीं चुनी जा सकी। वॉल्ट को कुछ भी नहीं भेजा गया।",
+
+    "failed": "कुंजी स्लॉट मज़बूत नहीं किए गए।",
+    "done": "हो गया। इस वॉल्ट के कुंजी स्लॉट अब मौजूदा लागत पर हैं।",
+
+    "blockedPassword": "मास्टर पासवर्ड टाइप करें।",
+    "blockedKeyfile": "इस वॉल्ट को जो कुंजी फ़ाइल चाहिए, उसे चुनें।"
+  }
+}

@@ -1,0 +1,168 @@
+{
+  "_comment_file": "The application shell: title bar, tab strip, status bar, footer, inspector, and the two full-area states (empty vault, locked vault). Loaded before the first paint, because it is on screen whenever the window is.",
+
+  "titleBar": {
+    "_comment_": "A 38px bar. Every label here is also a tooltip, so short wins — but a disabled control's tooltip says WHY, because 'why not?' is the only question a dead button raises.",
+    "noVault": "Ninguna bóveda abierta",
+    "unlocked": "desbloqueada",
+    "locked": "bloqueada",
+    "lock": "Bloquear la bóveda",
+    "lockAlreadyLocked": "No hay ninguna bóveda desbloqueada que bloquear.",
+    "lockInProgress": "Bloqueando la bóveda…",
+    "_comment_lockingShort": "Shown in the bar itself, where there is room for one word. The tooltip carries lockInProgress.",
+    "lockingShort": "Bloqueando…",
+    "settings": "Configuración",
+    "vaultSettings": "Configuración de la bóveda",
+    "audit": "Registro de auditoría",
+    "importer": "Importar conexiones",
+    "_comment_needsVault": "{action} is one of the four labels above. Interpolated rather than concatenated: languages differ on where the subject of this sentence goes.",
+    "needsVault": "{action} requiere una bóveda desbloqueada.",
+    "minimise": "Minimizar",
+    "maximise": "Maximizar",
+    "restore": "Restaurar",
+    "close": "Cerrar",
+    "_comment_controlFailed": "SECURITY-ADJACENT. The window controls are the one place where doing nothing is indistinguishable from being broken. Do not soften this into 'something went wrong'.",
+    "controlFailed": "El gestor de ventanas rechazó la acción {action}.",
+    "noWindow": "Esta página no se está ejecutando dentro de la ventana de Remoter, así que aquí los controles de ventana no hacen nada."
+  },
+
+  "tabStrip": {
+    "sidebarShow": "Mostrar el árbol de conexiones",
+    "sidebarHide": "Ocultar el árbol de conexiones",
+    "noSessions": "No hay sesiones abiertas: haga doble clic en una conexión para abrir una",
+    "_comment_inspector": "Ctrl-free: F4 is a bare function key and is written as-is in every language.",
+    "inspector": "Valores efectivos · F4"
+  },
+
+  "statusBar": {
+    "nothingSelected": "Nada seleccionado",
+    "noSession": "Sin sesión",
+    "resolving": "Resolviendo los valores heredados…",
+    "unresolved": "Todavía no se han resuelto los valores efectivos",
+    "_comment_protocolUnset": "Sits where SSH, RDP, VNC or SFTP would. Lower case: it is the absence of a protocol, not the name of one.",
+    "protocolUnset": "sin protocolo",
+    "showDetail": "Ver el fallo en el inspector"
+  },
+
+  "footer": {
+    "_comment_": "Counts. Every one is a plural: Russian needs four forms here and Arabic six, and the zero case is worth its own wording in the languages that have one.",
+    "sessions": "{count, plural, =0 {sin sesiones} one {# sesión} many {# de sesiones} other {# sesiones}}",
+    "tunnels": "{count, plural, =0 {sin túneles} one {# túnel} many {# de túneles} other {# túneles}}",
+    "connections": "{count, plural, =0 {sin conexiones} one {# conexión} many {# de conexiones} other {# conexiones}}",
+    "credentials": "{count, plural, =0 {sin credenciales} one {# credencial} many {# de credenciales} other {# credenciales}}",
+    "openPanels": "Abrir el panel de sesiones y túneles",
+    "_comment_locksIn": "{clock} is mm:ss, produced by formatClock() so the digits follow the locale's numbering system.",
+    "locksIn": "la bóveda se bloquea en {clock}",
+    "noAutoLock": "bloqueo automático desactivado"
+  },
+
+  "inspector": {
+    "title": "Valores efectivos",
+    "close": "Cerrar el inspector",
+    "nothingSelected": "Nada seleccionado",
+    "nothingSelectedBody": "Elija una conexión en el árbol para ver su configuración resuelta.",
+    "notAConnection": "Las carpetas no tienen valores efectivos propios.",
+    "notAConnectionBody": "Lo que define una carpeta se ve en las conexiones que hay debajo de ella, como origen de un valor heredado.",
+    "resolving": "Resolviendo",
+    "failed": "No se pudo resolver esta conexión",
+    "retry": "Resolver de nuevo",
+    "notAsked": "No se pidieron los valores efectivos",
+    "notAskedBody": "La resolución se hace sobre una bóveda abierta. Esta está bloqueada, así que todavía no hay nada contra lo que resolver.",
+    "_comment_unset": "The value of a field nobody has set, anywhere in the inheritance chain.",
+    "unset": "sin definir",
+    "_comment_setHere": "Provenance labels, shown under a resolved field. 'set here' means this connection's own value; the others name where an inherited value came from. Lower case: they are fragments under a value, not sentences.",
+    "setHere": "definido aquí",
+    "fromDefault": "valor por defecto del protocolo",
+    "inherited": "heredado",
+    "_comment_fromSource": "{source} is a folder or connection name — user data, in any script, isolated before it arrives.",
+    "fromSource": "de {source}",
+    "_comment_overridesInherited": "{field} is a field name such as 'port' or 'username'. This is the case worth calling out: the tree above says something different from what will actually be used.",
+    "overridesInherited": "anula el valor heredado de {field}",
+    "credentialOwn": "propia de esta conexión",
+    "credentialShared": "definida aquí · compartida con otras entradas",
+    "gateway": "Cadena de pasarelas",
+    "tags": "Etiquetas",
+    "noFields": "Esta conexión no resuelve ningún campo."
+  },
+
+  "emptyVault": {
+    "title": "Esta bóveda está vacía",
+    "_comment_body": "{vault} is the vault file's name, which is user data and may be in any script. It is wrapped in a Unicode isolate before it gets here, so the sentence keeps its own direction whatever the name contains.",
+    "body": "Todavía no hay nada guardado en {vault}. La mayoría empieza trayendo lo que ya tiene en otra herramienta.",
+    "unnamedVault": "esta bóveda",
+    "importTitle": "Importar desde otra herramienta",
+    "_comment_importBody": "Product and file names. Not translated.",
+    "importBody": "mRemoteNG, ~/.ssh/config, CSV",
+    "createTitle": "Crear la primera conexión",
+    "createBody": "Con un host, un protocolo y una credencial basta para empezar.",
+    "createBusy": "Abriendo el editor de conexiones…",
+    "openTitle": "Abrir otra bóveda",
+    "openBody": "Bloquea esta bóveda y vuelve al selector de bóvedas.",
+    "openBusy": "Bloqueando esta bóveda…",
+    "openFailed": "Esta bóveda no se bloqueó, así que el selector no se abrió."
+  },
+
+  "main": {
+    "nothingSelected": "Nada seleccionado",
+    "_comment_nothingSelectedBody": "Ctrl+K is a key name. Translate the sentence around it, not the key.",
+    "nothingSelectedBody": "Elija una conexión en el árbol o pulse Ctrl+K para buscar una.",
+    "noProtocol": "sin protocolo",
+    "_comment_sidebarLabel": "The accessible name of the connection tree's landmark region. Read aloud when a screen reader lists the regions of the window.",
+    "sidebarLabel": "Conexiones",
+    "_comment_nodeKind": "What a selected tree entry is, shown above its name where a connection shows its protocol. These are the node kinds from the domain model; they are shown to the user, so they are translated, unlike the protocol names beside them.",
+    "nodeKind": {
+      "folder": "carpeta",
+      "connection": "conexión",
+      "credential": "credencial",
+      "group": "grupo",
+      "separator": "separador"
+    },
+    "connectHint": "Haga doble clic en el árbol, pulse Enter en la paleta o use Conectar en su menú contextual.",
+    "folderSelected": "Las carpetas guardan ajustes que heredan las conexiones que hay debajo.",
+
+    "lockedTitle": "Esta bóveda está bloqueada",
+    "_comment_lockedBody": "SECURITY-CRITICAL wording in one respect: it must keep saying that nothing was lost. A user who believes a lock destroyed their connections will go looking for a backup they do not need.",
+    "lockedBody": "Se bloqueó sola tras el periodo de inactividad, o la bloquearon desde otra ventana. No se perdió nada: las conexiones siguen en el archivo y vuelven a aparecer al desbloquearla.",
+    "lockedAction": "Desbloquear esta bóveda",
+    "lockedNoPath": "Elegir una bóveda",
+
+    "vaultStateFailed": "Remoter no puede determinar si hay una bóveda abierta.",
+    "treeFailed": "No se pudo leer el árbol de conexiones.",
+    "lockFailed": "La bóveda no se bloqueó.",
+
+    "fullscreenFailedTitle": "La ventana no pasó a pantalla completa.",
+    "fullscreenFailedBody": "El gestor de ventanas lo rechazó, o esta página no se está ejecutando dentro de la ventana de Remoter. La sesión no cambió en nada.",
+
+    "checkingVault": "Comprobando si hay una bóveda abierta…",
+    "readingTree": "Leyendo las conexiones de la bóveda…"
+  },
+
+  "kdfUpgrade": {
+    "_comment_": "SECURITY-CRITICAL SECTION. This is the offer to strengthen a vault's key derivation. Do not soften 'weaker than the current standard' into 'could be improved', and do not drop the sentence explaining why the password is asked for again — a credential prompt without a stated reason is exactly what a phishing dialog looks like.",
+    "offer": "La derivación de clave de esta bóveda es más débil que el estándar actual. Reforzarla lleva un momento y no requiere una contraseña nueva.",
+    "strengthen": "Reforzarla",
+    "notNow": "Ahora no",
+    "dismissLabel": "Descartar esta sugerencia hasta el próximo desbloqueo",
+
+    "password": "Contraseña maestra",
+    "passwordHelp": "La misma contraseña con la que acaba de desbloquear. Cada ranura de clave se reconstruye a partir de ella, por eso hay que escribirla otra vez.",
+    "confirm": "Reforzar",
+    "_comment_working": "Short enough that reserving room for it does not widen the idle button.",
+    "working": "Reforzando…",
+    "workingStage": "Derivando la clave de nuevo, con el coste más alto…",
+
+    "reading": "Leyendo la cabecera de la bóveda…",
+    "readFailed": "No se pudo leer la cabecera de esta bóveda, así que no se pueden reforzar las ranuras de clave.",
+
+    "keyfile": "Archivo de clave",
+    "keyfileMissing": "La ranura de contraseña de esta bóveda también necesita su archivo de clave.",
+    "keyfileDialog": "Elija el archivo de clave de esta bóveda",
+    "keyfileDialogFailed": "El explorador de archivos del sistema no se abrió, así que no se pudo elegir ningún archivo de clave. No se envió nada a la bóveda.",
+
+    "failed": "Las ranuras de clave no se reforzaron.",
+    "done": "Listo. Las ranuras de clave de esta bóveda están al coste actual.",
+
+    "blockedPassword": "Escriba la contraseña maestra.",
+    "blockedKeyfile": "Elija el archivo de clave que necesita esta bóveda."
+  }
+}

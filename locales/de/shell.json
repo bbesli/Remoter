@@ -1,0 +1,168 @@
+{
+  "_comment_file": "The application shell: title bar, tab strip, status bar, footer, inspector, and the two full-area states (empty vault, locked vault). Loaded before the first paint, because it is on screen whenever the window is.",
+
+  "titleBar": {
+    "_comment_": "A 38px bar. Every label here is also a tooltip, so short wins — but a disabled control's tooltip says WHY, because 'why not?' is the only question a dead button raises.",
+    "noVault": "Kein Tresor geöffnet",
+    "unlocked": "entsperrt",
+    "locked": "gesperrt",
+    "lock": "Tresor sperren",
+    "lockAlreadyLocked": "Es ist kein entsperrter Tresor da, der gesperrt werden könnte.",
+    "lockInProgress": "Tresor wird gesperrt…",
+    "_comment_lockingShort": "Shown in the bar itself, where there is room for one word. The tooltip carries lockInProgress.",
+    "lockingShort": "Sperren…",
+    "settings": "Einstellungen",
+    "vaultSettings": "Tresor-Einstellungen",
+    "audit": "Audit-Log",
+    "importer": "Verbindungen importieren",
+    "_comment_needsVault": "{action} is one of the four labels above. Interpolated rather than concatenated: languages differ on where the subject of this sentence goes.",
+    "needsVault": "„{action}“ benötigt einen entsperrten Tresor.",
+    "minimise": "Minimieren",
+    "maximise": "Maximieren",
+    "restore": "Wiederherstellen",
+    "close": "Schließen",
+    "_comment_controlFailed": "SECURITY-ADJACENT. The window controls are the one place where doing nothing is indistinguishable from being broken. Do not soften this into 'something went wrong'.",
+    "controlFailed": "„{action}“ wurde vom Fenstermanager abgelehnt.",
+    "noWindow": "Diese Seite läuft nicht im Remoter-Fenster, daher bewirken die Fenstersteuerungen hier nichts."
+  },
+
+  "tabStrip": {
+    "sidebarShow": "Verbindungsbaum einblenden",
+    "sidebarHide": "Verbindungsbaum ausblenden",
+    "noSessions": "Keine offenen Sitzungen – doppelklicken Sie eine Verbindung, um eine zu starten",
+    "_comment_inspector": "Ctrl-free: F4 is a bare function key and is written as-is in every language.",
+    "inspector": "Effektive Werte · F4"
+  },
+
+  "statusBar": {
+    "nothingSelected": "Nichts ausgewählt",
+    "noSession": "Keine Sitzung",
+    "resolving": "Geerbte Werte werden aufgelöst…",
+    "unresolved": "Die effektiven Werte sind noch nicht aufgelöst",
+    "_comment_protocolUnset": "Sits where SSH, RDP, VNC or SFTP would. Lower case: it is the absence of a protocol, not the name of one.",
+    "protocolUnset": "kein Protokoll",
+    "showDetail": "Fehler im Inspektor anzeigen"
+  },
+
+  "footer": {
+    "_comment_": "Counts. Every one is a plural: Russian needs four forms here and Arabic six, and the zero case is worth its own wording in the languages that have one.",
+    "sessions": "{count, plural, =0 {keine Sitzungen} one {# Sitzung} other {# Sitzungen}}",
+    "tunnels": "{count, plural, =0 {keine Tunnel} one {# Tunnel} other {# Tunnel}}",
+    "connections": "{count, plural, =0 {keine Verbindungen} one {# Verbindung} other {# Verbindungen}}",
+    "credentials": "{count, plural, =0 {keine Zugangsdaten} one {# Zugangsdatensatz} other {# Zugangsdatensätze}}",
+    "openPanels": "Bereich „Sitzungen und Tunnel“ öffnen",
+    "_comment_locksIn": "{clock} is mm:ss, produced by formatClock() so the digits follow the locale's numbering system.",
+    "locksIn": "Tresor sperrt in {clock}",
+    "noAutoLock": "automatische Sperre ist aus"
+  },
+
+  "inspector": {
+    "title": "Effektive Werte",
+    "close": "Inspektor schließen",
+    "nothingSelected": "Nichts ausgewählt",
+    "nothingSelectedBody": "Wählen Sie im Baum eine Verbindung, um ihre aufgelösten Einstellungen zu sehen.",
+    "notAConnection": "Ordner haben keine eigenen effektiven Werte.",
+    "notAConnectionBody": "Was ein Ordner festlegt, erscheint an den Verbindungen darunter – als Quelle eines geerbten Wertes.",
+    "resolving": "Wird aufgelöst",
+    "failed": "Diese Verbindung konnte nicht aufgelöst werden",
+    "retry": "Erneut auflösen",
+    "notAsked": "Effektive Werte wurden nicht angefordert",
+    "notAskedBody": "Die Auflösung läuft gegen einen geöffneten Tresor. Dieser ist gesperrt, es gibt also noch nichts, wogegen aufgelöst werden könnte.",
+    "_comment_unset": "The value of a field nobody has set, anywhere in the inheritance chain.",
+    "unset": "nicht gesetzt",
+    "_comment_setHere": "Provenance labels, shown under a resolved field. 'set here' means this connection's own value; the others name where an inherited value came from. Lower case: they are fragments under a value, not sentences.",
+    "setHere": "hier gesetzt",
+    "fromDefault": "Protokollstandard",
+    "inherited": "geerbt",
+    "_comment_fromSource": "{source} is a folder or connection name — user data, in any script, isolated before it arrives.",
+    "fromSource": "von {source}",
+    "_comment_overridesInherited": "{field} is a field name such as 'port' or 'username'. This is the case worth calling out: the tree above says something different from what will actually be used.",
+    "overridesInherited": "überschreibt geerbten Wert für {field}",
+    "credentialOwn": "eigene dieser Verbindung",
+    "credentialShared": "hier gesetzt · mit anderen Einträgen geteilt",
+    "gateway": "Gateway-Kette",
+    "tags": "Tags",
+    "noFields": "Diese Verbindung löst zu keinem Feld auf."
+  },
+
+  "emptyVault": {
+    "title": "Dieser Tresor ist leer",
+    "_comment_body": "{vault} is the vault file's name, which is user data and may be in any script. It is wrapped in a Unicode isolate before it gets here, so the sentence keeps its own direction whatever the name contains.",
+    "body": "In {vault} ist noch nichts gespeichert. Die meisten fangen damit an, zu übernehmen, was sie schon haben.",
+    "unnamedVault": "diesem Tresor",
+    "importTitle": "Aus einem anderen Programm importieren",
+    "_comment_importBody": "Product and file names. Not translated.",
+    "importBody": "mRemoteNG, ~/.ssh/config, CSV",
+    "createTitle": "Die erste Verbindung anlegen",
+    "createBody": "Ein Host, ein Protokoll und Zugangsdaten genügen für den Anfang.",
+    "createBusy": "Verbindungseditor wird geöffnet…",
+    "openTitle": "Einen anderen Tresor öffnen",
+    "openBody": "Sperrt diesen Tresor und kehrt zur Tresorauswahl zurück.",
+    "openBusy": "Dieser Tresor wird gesperrt…",
+    "openFailed": "Dieser Tresor wurde nicht gesperrt, daher hat sich die Auswahl nicht geöffnet."
+  },
+
+  "main": {
+    "nothingSelected": "Nichts ausgewählt",
+    "_comment_nothingSelectedBody": "Ctrl+K is a key name. Translate the sentence around it, not the key.",
+    "nothingSelectedBody": "Wählen Sie im Baum eine Verbindung oder drücken Sie Ctrl+K, um eine zu suchen.",
+    "noProtocol": "kein Protokoll",
+    "_comment_sidebarLabel": "The accessible name of the connection tree's landmark region. Read aloud when a screen reader lists the regions of the window.",
+    "sidebarLabel": "Verbindungen",
+    "_comment_nodeKind": "What a selected tree entry is, shown above its name where a connection shows its protocol. These are the node kinds from the domain model; they are shown to the user, so they are translated, unlike the protocol names beside them.",
+    "nodeKind": {
+      "folder": "Ordner",
+      "connection": "Verbindung",
+      "credential": "Zugangsdaten",
+      "group": "Gruppe",
+      "separator": "Trenner"
+    },
+    "connectHint": "Doppelklicken Sie sie im Baum, drücken Sie Enter in der Palette oder nutzen Sie „Verbinden“ im Kontextmenü.",
+    "folderSelected": "Ordner halten Einstellungen, die die Verbindungen darunter erben.",
+
+    "lockedTitle": "Dieser Tresor ist gesperrt",
+    "_comment_lockedBody": "SECURITY-CRITICAL wording in one respect: it must keep saying that nothing was lost. A user who believes a lock destroyed their connections will go looking for a backup they do not need.",
+    "lockedBody": "Er hat sich nach der Leerlaufzeit selbst gesperrt oder wurde aus einem anderen Fenster gesperrt. Es ist nichts verloren gegangen; die Verbindungen stehen weiterhin in der Datei und sind wieder da, sobald Sie entsperren.",
+    "lockedAction": "Diesen Tresor entsperren",
+    "lockedNoPath": "Tresor auswählen",
+
+    "vaultStateFailed": "Remoter kann nicht feststellen, ob ein Tresor geöffnet ist.",
+    "treeFailed": "Der Verbindungsbaum konnte nicht gelesen werden.",
+    "lockFailed": "Der Tresor wurde nicht gesperrt.",
+
+    "fullscreenFailedTitle": "Das Fenster ist nicht in den Vollbildmodus gewechselt.",
+    "fullscreenFailedBody": "Der Fenstermanager hat es abgelehnt, oder diese Seite läuft nicht im Remoter-Fenster. An der Sitzung hat sich nichts geändert.",
+
+    "checkingVault": "Es wird geprüft, ob ein Tresor geöffnet ist…",
+    "readingTree": "Die Verbindungen werden aus dem Tresor gelesen…"
+  },
+
+  "kdfUpgrade": {
+    "_comment_": "SECURITY-CRITICAL SECTION. This is the offer to strengthen a vault's key derivation. Do not soften 'weaker than the current standard' into 'could be improved', and do not drop the sentence explaining why the password is asked for again — a credential prompt without a stated reason is exactly what a phishing dialog looks like.",
+    "offer": "Die Schlüsselableitung dieses Tresors ist schwächer als der heutige Standard. Sie zu verstärken dauert einen Moment und erfordert kein neues Passwort.",
+    "strengthen": "Verstärken",
+    "notNow": "Jetzt nicht",
+    "dismissLabel": "Diesen Vorschlag bis zum nächsten Entsperren ausblenden",
+
+    "password": "Master-Passwort",
+    "passwordHelp": "Dasselbe Passwort, mit dem Sie gerade entsperrt haben. Jeder Schlüsselslot wird darum herum neu aufgebaut, deshalb muss es noch einmal eingegeben werden.",
+    "confirm": "Verstärken",
+    "_comment_working": "Short enough that reserving room for it does not widen the idle button.",
+    "working": "Läuft…",
+    "workingStage": "Der Schlüssel wird erneut abgeleitet, mit den höheren Kosten…",
+
+    "reading": "Tresor-Header wird gelesen…",
+    "readFailed": "Der Header dieses Tresors konnte nicht gelesen werden, daher lassen sich die Schlüsselslots nicht verstärken.",
+
+    "keyfile": "Schlüsseldatei",
+    "keyfileMissing": "Der Passwort-Slot dieses Tresors benötigt zusätzlich seine Schlüsseldatei.",
+    "keyfileDialog": "Schlüsseldatei für diesen Tresor auswählen",
+    "keyfileDialogFailed": "Der Dateibrowser des Systems hat sich nicht geöffnet, daher konnte keine Schlüsseldatei gewählt werden. An den Tresor wurde nichts gesendet.",
+
+    "failed": "Die Schlüsselslots wurden nicht verstärkt.",
+    "done": "Fertig. Die Schlüsselslots dieses Tresors liegen auf den heutigen Kosten.",
+
+    "blockedPassword": "Geben Sie das Master-Passwort ein.",
+    "blockedKeyfile": "Wählen Sie die Schlüsseldatei aus, die dieser Tresor benötigt."
+  }
+}
