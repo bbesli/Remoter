@@ -148,6 +148,51 @@ nothing.
 | Dialogs | Focus-trapped, escape-dismissible, with a clear primary action |
 | Toasts | Non-blocking; never used for anything the user must act on |
 | Progress | Determinate wherever a total is known; always cancellable |
+| Framebuffer surface | The canvas an RDP or VNC session is seen on, with the scaling controls over it and the desktop size under it |
+| Warning strip | Everything a session warned about, over the session |
+| File manager | Two panes and a transfer queue, attached to a session rather than to a node |
+
+### The warning strip
+
+A session raises warnings that are facts about the connection the user is
+looking at — a VNC server that negotiated no authentication at all, an RDP
+session running without Network Level Authentication, a clear-text RFB session
+to a routable address, a server that refused the channel smart resize needs.
+Three rules decide how they are drawn, and each one exists because the
+alternative is a warning nobody reads.
+
+**They sit over the session, not beside it.** A warning in a panel the user has
+to open has not been shown. The strip is an overlay at the inline start of the
+session area, terminal and graphical alike, so an SSH banner and a VNC security
+type land in the same place.
+
+**A `danger` warning cannot be collapsed.** The set folds to a single line once
+it has been read — a bell that rang and a clipboard that was transcoded are not
+worth a permanent panel — but "this session is not authenticated" does not fold.
+
+**An unrecognised warning is shown as itself, not suppressed.** An adapter that
+raises something nobody has written copy for should look unfinished rather than
+silent, so the key is drawn where the sentence would be.
+
+The strip redefines the ground tokens for itself. The session area is dark in
+every theme, and a callout that inherited the light theme's near-black text
+would be unreadable on it — this is the one sanctioned reason to redefine a
+semantic colour token locally rather than reach for a literal.
+
+### The file manager
+
+Two panes — local and remote — with a transfer queue beneath them. It is
+attached to a **session**, not to a node: opening one adds a channel to a
+connection a tab already holds rather than making a second handshake, host key
+check and authentication, so the pane and the shell are the same trust
+decision. The queue lives beside the session rather than in the interface, so a
+transfer survives a tab switch and shows real progress rather than a spinner.
+
+Every row is server-supplied text and is drawn as the escaped twin the DTO
+carries, never the raw field — see
+[../architecture/rendering.md](../architecture/rendering.md#remote-text-and-where-it-is-allowed-to-render).
+A name whose escaping changed it is flagged on its row, because a file called
+`invoice\u{202E}gpj.exe` and one called `invoice.jpg` must not look alike.
 
 ## Iconography
 

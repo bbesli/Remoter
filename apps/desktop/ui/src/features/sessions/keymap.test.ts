@@ -13,6 +13,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   BUTTON_BACK,
+  chordFor,
   BUTTON_FORWARD,
   BUTTON_LEFT,
   BUTTON_MIDDLE,
@@ -125,6 +126,190 @@ describe("a Turkish Q keyboard", () => {
   it("sends the 102nd key, which no US keyboard has", () => {
     expect(scancodeFor("IntlBackslash")).toBe(0x56);
     expect(scancodeFor("IntlBackslash")).not.toBe(scancodeFor("Backslash"));
+  });
+});
+
+describe("a Turkish F keyboard", () => {
+  /**
+   * The other Turkish layout, and the reason this file tests two.
+   *
+   * F is a different *arrangement of the same characters*: `ı` is at the
+   * position a US keyboard calls `KeyR`, not `KeyI`. So the pair of layouts
+   * proves the claim the whole design rests on — the scancode follows the
+   * position and the keysym follows the character — in a way one layout on its
+   * own cannot.
+   */
+  const TURKISH_F: readonly [code: string, key: string, scancode: number, keysym: number][] = [
+    ["KeyQ", "f", 0x10, 0x0066],
+    ["KeyR", "ı", 0x13, 0x0100_0131],
+    ["KeyI", "n", 0x17, 0x006e],
+    ["KeyA", "u", 0x1e, 0x0075],
+    ["KeyG", "ü", 0x22, 0x00fc],
+    ["Semicolon", "y", 0x27, 0x0079],
+    ["Quote", "ş", 0x28, 0x0100_015f],
+    ["KeyB", "ç", 0x30, 0x00e7],
+    ["Period", ".", 0x34, 0x002e],
+  ];
+
+  it.each(TURKISH_F)(
+    "sends %s as scancode %d and the character it typed",
+    (code, key, scancode, keysym) => {
+      const input = keyInputFrom(press(code, key), true);
+      expect(input?.scancode).toBe(scancode);
+      expect(input?.keysym).toBe(keysym);
+    },
+  );
+
+  it("puts the same character at a different scancode from the Q layout", () => {
+    // `ı` is `KeyI` on Q and `KeyR` on F. An RDP server applies the layout
+    // itself, so it must receive the position the user actually struck; a
+    // client that derived the scancode from the character would type `n` here.
+    const onF = keyInputFrom(press("KeyR", "ı"), true);
+    const onQ = keyInputFrom(press("KeyI", "ı"), true);
+    expect(onF?.keysym).toBe(onQ?.keysym);
+    expect(onF?.scancode).not.toBe(onQ?.scancode);
+  });
+
+  it("puts a different character at the same scancode as the Q layout", () => {
+    // And the converse: `KeyI` is `ı` on Q and `n` on F. A VNC server applies
+    // no layout at all, so it must receive the character; a client that
+    // derived the keysym from the scancode would type `ı` here.
+    const onF = keyInputFrom(press("KeyI", "n"), true);
+    const onQ = keyInputFrom(press("KeyI", "ı"), true);
+    expect(onF?.scancode).toBe(onQ?.scancode);
+    expect(onF?.keysym).not.toBe(onQ?.keysym);
+  });
+});
+
+describe("a German keyboard", () => {
+  /**
+   * QWERTZ: the two letters that are swapped are the ones that catch a client
+   * which trusts `keyCode`, and the umlauts sit where a US layout has its
+   * punctuation.
+   */
+  const GERMAN: readonly [code: string, key: string, scancode: number, keysym: number][] = [
+    ["KeyY", "z", 0x15, 0x007a],
+    ["KeyZ", "y", 0x2c, 0x0079],
+    ["Minus", "ß", 0x0c, 0x00df],
+    ["BracketLeft", "ü", 0x1a, 0x00fc],
+    ["Semicolon", "ö", 0x27, 0x00f6],
+    ["Quote", "ä", 0x28, 0x00e4],
+  ];
+
+  it.each(GERMAN)(
+    "sends %s as scancode %d and the character it typed",
+    (code, key, scancode, keysym) => {
+      const input = keyInputFrom(press(code, key), true);
+      expect(input?.scancode).toBe(scancode);
+      expect(input?.keysym).toBe(keysym);
+    },
+  );
+
+  it("sends AltGr+Q as an at sign and not as a Ctrl+Alt chord", () => {
+    const input = keyInputFrom(press("KeyQ", "@", ["AltGraph", "Control", "Alt"]), true);
+    expect(input?.keysym).toBe(0x0040);
+    expect(input?.modifiers).toBe(MOD_ALT_GRAPH);
+  });
+});
+
+describe("a US keyboard", () => {
+  /**
+   * The layout everything is accidentally written for. It is here so that the
+   * fix for the others is shown not to have broken it — the position and the
+   * character coincide, and both still have to travel.
+   */
+  const US: readonly [code: string, key: string, scancode: number, keysym: number][] = [
+    ["KeyA", "a", 0x1e, 0x0061],
+    ["KeyI", "i", 0x17, 0x0069],
+    ["Semicolon", ";", 0x27, 0x003b],
+    ["Quote", "'", 0x28, 0x0027],
+    ["Slash", "/", 0x35, 0x002f],
+    ["Backquote", "`", 0x29, 0x0060],
+  ];
+
+  it.each(US)(
+    "sends %s as scancode %d and the character it typed",
+    (code, key, scancode, keysym) => {
+      const input = keyInputFrom(press(code, key), true);
+      expect(input?.scancode).toBe(scancode);
+      expect(input?.keysym).toBe(keysym);
+    },
+  );
+});
+
+describe("the rest of the layout matrix", () => {
+  /**
+   * AZERTY and Arabic, because `docs/architecture/rendering.md` names them and
+   * a document that names a test matrix is only worth as much as the matrix.
+   *
+   * AZERTY moves the letters; Arabic replaces them with a script that has no
+   * Latin-1 code points at all, so every keysym takes the Unicode form. In both
+   * cases the scancode is the US position, which is the whole contract.
+   */
+  const OTHERS: readonly [layout: string, code: string, key: string, scancode: number, keysym: number][] =
+    [
+      ["AZERTY", "KeyQ", "a", 0x10, 0x0061],
+      ["AZERTY", "KeyA", "q", 0x1e, 0x0071],
+      ["AZERTY", "KeyW", "z", 0x11, 0x007a],
+      ["AZERTY", "KeyZ", "w", 0x2c, 0x0077],
+      ["AZERTY", "Semicolon", "m", 0x27, 0x006d],
+      ["Arabic", "KeyQ", "ض", 0x10, 0x0100_0636],
+      ["Arabic", "KeyA", "ش", 0x1e, 0x0100_0634],
+      ["Arabic", "KeyH", "ا", 0x23, 0x0100_0627],
+    ];
+
+  it.each(OTHERS)("sends %s's %s as scancode %d", (_layout, code, key, scancode, keysym) => {
+    const input = keyInputFrom(press(code, key), true);
+    expect(input?.scancode).toBe(scancode);
+    expect(input?.keysym).toBe(keysym);
+  });
+});
+
+describe("chordFor", () => {
+  it("presses in order and releases in reverse", () => {
+    // A Control released before the key it modified produces a bare Delete at
+    // the far end, which is not what the user asked for.
+    const events = chordFor(["ControlLeft", "AltLeft", "Delete"]);
+    expect(events?.map((event) => [event.scancode, event.pressed])).toEqual([
+      [0x1d, true],
+      [0x38, true],
+      [EXTENDED | 0x53, true],
+      [EXTENDED | 0x53, false],
+      [0x38, false],
+      [0x1d, false],
+    ]);
+  });
+
+  it("accumulates the modifiers on the way down and unwinds them on the way up", () => {
+    const events = chordFor(["ControlLeft", "AltLeft", "Delete"]) ?? [];
+    // The first key of a chord reports nothing held, exactly as a real keydown
+    // does: the modifier it *is* has not latched until it is down.
+    expect(events[0]?.modifiers).toBe(0);
+    expect(events[1]?.modifiers).toBe(MOD_CONTROL);
+    expect(events[2]?.modifiers).toBe(MOD_CONTROL | MOD_ALT);
+    // And the release of Delete still reports both, because both are still
+    // held at that moment.
+    expect(events[3]?.modifiers).toBe(MOD_CONTROL | MOD_ALT);
+    expect(events[5]?.modifiers).toBe(0);
+  });
+
+  it("carries no keysym, because a position is not a character", () => {
+    // The VNC adapter's own table fills these in from the scancode. Guessing
+    // one here would be a second table to drift from it.
+    expect(chordFor(["AltLeft", "Tab"])?.every((event) => event.keysym === null)).toBe(true);
+  });
+
+  it("treats the right-hand Alt as AltGr, which is what it is", () => {
+    const events = chordFor(["AltRight", "KeyQ"]) ?? [];
+    expect(events[1]?.modifiers).toBe(MOD_ALT_GRAPH);
+    expect(events[1]?.modifiers).not.toBe(MOD_ALT);
+  });
+
+  it("refuses a chord it cannot place rather than sending half of one", () => {
+    // Half a chord is worse than none: the half that arrives is a modifier
+    // that never comes back up.
+    expect(chordFor(["ControlLeft", "AudioVolumeUp"])).toBeNull();
+    expect(chordFor([])).toBeNull();
   });
 });
 

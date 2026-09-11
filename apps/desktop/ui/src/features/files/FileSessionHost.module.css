@@ -1,0 +1,23 @@
+/* One host per open file session, stacked in the session area with the
+   terminals and the framebuffers.
+
+   Unlike those two it does NOT redefine the foreground tokens onto the dark
+   terminal ground: a terminal and a framebuffer are a picture of a remote
+   machine, and this is the application's own chrome pointed at a remote
+   directory. It takes the theme the rest of the window has. */
+.host {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--bg-canvas);
+}
+
+/* Kept laid out rather than display:none, for the same reason a hidden
+   terminal is: the pane sizes its two columns from a container query, and an
+   element with no dimensions would report a container of zero — so a tab
+   brought back to the front would come back single-column until something
+   else made it reflow. */
+.hidden {
+  visibility: hidden;
+  pointer-events: none;
+}

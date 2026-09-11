@@ -51,8 +51,17 @@ export type WarningKey =
   | "warning.detail.vncClipboardSubstituted"
   | "warning.detail.vncClipboardMangled"
   | "warning.detail.vncButtonUnsupported"
+  | "warning.detail.vncResizeUnsupported"
+  | "warning.detail.vncInputUnsupported"
+  | "warning.detail.vncClipboardViewOnly"
+  | "warning.detail.vncClipboardRefused"
+  | "warning.detail.vncClipboardUnsupported"
   | "warning.detail.rdpNlaDisabled"
   | "warning.detail.rdpDisplayControlUnavailable"
+  | "warning.detail.sshAgentForwarding"
+  | "warning.detail.sshInputUnsupported"
+  | "warning.detail.sshClipboardRefused"
+  | "warning.detail.sshClipboardUnsupported"
   | "warning.kind.unencryptedTransport"
   | "warning.kind.weakAlgorithm"
   | "warning.kind.recordingStarted"
@@ -65,9 +74,25 @@ export type WarningKey =
  *
  * Written out rather than derived from the wire string, so that a translator
  * sees a finite list and a new adapter warning is a missing entry here rather
- * than a key rendered on screen. The constants they mirror are
- * `WARNING_*` in `crates/remoter-proto-vnc` and `crates/remoter-proto-rdp`, and
- * `Exposure::warning_key` in `crates/remoter-proto-vnc/src/security.rs`.
+ * than a key rendered on screen.
+ *
+ * **This table is the whole set, and the whole set was checked against the
+ * adapters.** Five of these — the VNC refusals, from `resize_unsupported` down
+ * to `clipboard_unsupported` — were absent, which meant a VNC session that
+ * refused a paste put the string `vnc.clipboard.policy_refused` on screen
+ * inside a box that otherwise contains sentences. The SSH block was absent for
+ * the same reason and is not a VNC or RDP matter at all: an SSH tab is where
+ * `ssh.agent_forwarding_enabled` shows up, and that one is a security fact.
+ *
+ * The constants mirrored here are:
+ *
+ * - `WARNING_*` in `crates/remoter-proto-vnc/src/{protocol,session}.rs`
+ * - `Exposure::warning_key` in `crates/remoter-proto-vnc/src/security.rs`
+ * - `WARNING_*` in `crates/remoter-proto-rdp/src/{protocol,session}.rs`
+ * - `WARNING_*` in `crates/remoter-proto-ssh/src/session.rs`
+ *
+ * The one thing not here is `WARNING_EXIT_SIGNAL_PREFIX`, whose details carry a
+ * signal name after the prefix. See the note below the tones.
  */
 const DETAIL_KEYS: Readonly<Record<string, WarningKey>> = {
   "vnc.cleartext.loopback": "warning.detail.vncCleartextLoopback",
@@ -80,8 +105,17 @@ const DETAIL_KEYS: Readonly<Record<string, WarningKey>> = {
   "vnc.clipboard.substituted": "warning.detail.vncClipboardSubstituted",
   "vnc.clipboard.inbound_mangled": "warning.detail.vncClipboardMangled",
   "vnc.pointer.button_unsupported": "warning.detail.vncButtonUnsupported",
+  "vnc.resize_unsupported": "warning.detail.vncResizeUnsupported",
+  "vnc.input_unsupported": "warning.detail.vncInputUnsupported",
+  "vnc.clipboard.view_only": "warning.detail.vncClipboardViewOnly",
+  "vnc.clipboard.policy_refused": "warning.detail.vncClipboardRefused",
+  "vnc.clipboard_unsupported": "warning.detail.vncClipboardUnsupported",
   "rdp.network_level_authentication_disabled": "warning.detail.rdpNlaDisabled",
   "rdp.display_control_unavailable": "warning.detail.rdpDisplayControlUnavailable",
+  "ssh.agent_forwarding_enabled": "warning.detail.sshAgentForwarding",
+  "ssh.input_unsupported": "warning.detail.sshInputUnsupported",
+  "ssh.clipboard.policy_refused": "warning.detail.sshClipboardRefused",
+  "ssh.clipboard_unsupported": "warning.detail.sshClipboardUnsupported",
 };
 
 /**
@@ -91,6 +125,13 @@ const DETAIL_KEYS: Readonly<Record<string, WarningKey>> = {
  * the same box. The default for an unrecognised key is `warning`: an adapter
  * raised it deliberately, and treating the unknown as harmless is how a real
  * one gets lost among the noise.
+ *
+ * The refusals — a paste the policy stopped, a resize the server cannot do —
+ * are `info`. Nothing is unprotected; a control the user reached for did not
+ * work, and the sentence says why. `ssh.agent_forwarding_enabled` is the
+ * exception in that block: forwarding the agent hands the remote host the use
+ * of every key in it for as long as the session lasts, which is a decision
+ * worth seeing again on the screen where it took effect.
  */
 const DETAIL_TONES: Readonly<Record<string, CalloutTone>> = {
   "vnc.cleartext.loopback": "info",
@@ -103,9 +144,34 @@ const DETAIL_TONES: Readonly<Record<string, CalloutTone>> = {
   "vnc.clipboard.substituted": "info",
   "vnc.clipboard.inbound_mangled": "info",
   "vnc.pointer.button_unsupported": "info",
+  "vnc.resize_unsupported": "info",
+  "vnc.input_unsupported": "info",
+  "vnc.clipboard.view_only": "info",
+  "vnc.clipboard.policy_refused": "info",
+  "vnc.clipboard_unsupported": "info",
   "rdp.network_level_authentication_disabled": "danger",
   "rdp.display_control_unavailable": "info",
+  "ssh.agent_forwarding_enabled": "warning",
+  "ssh.input_unsupported": "info",
+  "ssh.clipboard.policy_refused": "info",
+  "ssh.clipboard_unsupported": "info",
 };
+
+/**
+ * `WARNING_EXIT_SIGNAL_PREFIX` is deliberately **not** covered here, and this
+ * note is the record of that decision.
+ *
+ * Its details are `ssh.exit_signal.SEGV` and `ssh.exit_signal.SEGV.core` — a
+ * family, not a key, with the signal name inside the token. Covering it means
+ * interpolating that name into a sentence, which means a second interpolated
+ * value on `WarningView` and a second branch in the component that renders one.
+ * Those are worth doing; they were not done here because the component is being
+ * rewritten alongside this change and a field with no renderer is exactly the
+ * defect this file is being fixed for.
+ *
+ * Until then it falls through to the unnamed path and is shown as the key it
+ * is, which is what that path exists for.
+ */
 
 /** One warning, ready to draw. */
 export interface WarningView {
@@ -132,7 +198,7 @@ export function describeWarning(warning: SessionWarning): WarningView {
         return {
           key,
           algorithm: null,
-          remoteText: null,
+            remoteText: null,
           unnamedDetail: null,
           tone: DETAIL_TONES[detail] ?? "warning",
         };

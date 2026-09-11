@@ -66,6 +66,55 @@ describe("describeWarning", () => {
   it("treats an unnamed unencrypted-transport warning as serious anyway", () => {
     expect(describeWarning(warning("unencrypted_transport", null)).tone).toBe("danger");
   });
+
+  /**
+   * The list, read off the adapters rather than off this module.
+   *
+   * Every `WARNING_*` constant in `crates/remoter-proto-vnc`,
+   * `crates/remoter-proto-rdp` and `crates/remoter-proto-ssh`, plus the three
+   * `Exposure::warning_key` values. Five of the VNC ones had no sentence and
+   * rendered as the raw key string inside a box that otherwise contains
+   * prose — `vnc.clipboard.policy_refused` on screen next to "This VNC session
+   * is unencrypted".
+   *
+   * The assertion is deliberately `unnamedDetail === null`: a key with copy
+   * behind it takes the named path, and a key without one falls through to the
+   * path that prints itself. Asserting on the tone would pass either way.
+   */
+  it.each([
+    "vnc.cleartext.loopback",
+    "vnc.cleartext.private_network",
+    "vnc.cleartext.routable",
+    "vnc.security.none",
+    "vnc.version.legacy",
+    "vnc.password_truncated",
+    "vnc.bell",
+    "vnc.clipboard.substituted",
+    "vnc.clipboard.inbound_mangled",
+    "vnc.pointer.button_unsupported",
+    "vnc.resize_unsupported",
+    "vnc.input_unsupported",
+    "vnc.clipboard.view_only",
+    "vnc.clipboard.policy_refused",
+    "vnc.clipboard_unsupported",
+    "rdp.network_level_authentication_disabled",
+    "rdp.display_control_unavailable",
+    "ssh.agent_forwarding_enabled",
+    "ssh.input_unsupported",
+    "ssh.clipboard.policy_refused",
+    "ssh.clipboard_unsupported",
+  ])("has a sentence for %s", (detail) => {
+    const view = describeWarning(warning("other", detail));
+    expect(view.unnamedDetail).toBeNull();
+    expect(view.key.startsWith("warning.detail.")).toBe(true);
+  });
+
+  it("says agent forwarding louder than a refused paste", () => {
+    // Forwarding the agent hands the remote host the use of every key in it.
+    // A clipboard the policy stopped is a control that did not work.
+    expect(describeWarning(warning("other", "ssh.agent_forwarding_enabled")).tone).toBe("warning");
+    expect(describeWarning(warning("other", "ssh.clipboard.policy_refused")).tone).toBe("info");
+  });
 });
 
 describe("loudestTone", () => {

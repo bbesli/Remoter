@@ -65,6 +65,23 @@ interface AppStore {
   setPaletteOpen: (open: boolean) => void;
 
   /**
+   * The session tabs that have a file pane docked under them.
+   *
+   * A set rather than a single id, because a docked pane is not a view of the
+   * tab in front — it is a live SFTP channel with a transfer queue draining
+   * through it. Closing it cancels what it is copying. So a pane opened on
+   * `web-01` stays open while the user works in `db-01`'s shell, and the shell
+   * mounts every one of them, hiding the ones whose tab is not in front.
+   *
+   * Tab ids, not session ids: the pane follows the tab across a reconnect, and
+   * the tab is what the user closes. An id whose tab has gone matches nothing
+   * and mounts nothing — ids are unique for the life of the process, so a stale
+   * one can never be reused by a later tab.
+   */
+  filePaneTabs: ReadonlySet<string>;
+  toggleFilePane: (tabId: string) => void;
+
+  /**
    * Which modal surfaces are currently open.
    *
    * There is one registry because there were none, and the gaps showed: the
@@ -130,6 +147,15 @@ export const useApp = create<AppStore>((set) => ({
 
   paletteOpen: false,
   setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
+
+  filePaneTabs: new Set<string>(),
+  toggleFilePane: (tabId) =>
+    set((s) => {
+      const next = new Set(s.filePaneTabs);
+      if (next.has(tabId)) next.delete(tabId);
+      else next.add(tabId);
+      return { filePaneTabs: next };
+    }),
 
   blockingModals: new Map<string, string>(),
   pushBlockingModal: (id, atStake) =>

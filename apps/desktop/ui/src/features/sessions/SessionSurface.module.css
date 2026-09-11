@@ -228,24 +228,8 @@
   margin-top: var(--space-3);
 }
 
-/* Remote text — a keyboard-interactive challenge. Preformatted so its own
-   line breaks survive, and it is text, never markup. */
-.serverText {
-  margin: 0 0 var(--space-2);
-  padding: var(--space-2);
-  font-family: var(--font-mono);
-  font-variant-ligatures: none;
-  font-size: var(--text-xs);
-  color: var(--fg-strong);
-  background: var(--bg-inset);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-sm);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  max-height: 12rem;
-  overflow-y: auto;
-  user-select: text;
-}
+/* The remote-text block that used to live here moved to
+   PromptPanel.module.css with the panel that drew it. */
 
 /* A refused keystroke does not take the session area; it sits above the
    terminal, which is still connected and still producing output. */

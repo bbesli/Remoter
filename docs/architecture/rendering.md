@@ -125,7 +125,7 @@ changes shape, and a presenter that owns the shape can follow the local pointer
 at the display's refresh rate instead of the network's.
 
 The frontend parses this with a `DataView` — no allocation per rectangle — and
-uploads each rect with `texSubImage2D` (WebGL2) or `putImageData` (2D fallback).
+uploads each rect to the presenter described below.
 
 **3 · A custom URI scheme for the bulk path.** Tauri's
 `register_asynchronous_uri_scheme_protocol` lets the WebView fetch bytes over
@@ -212,6 +212,44 @@ differs, nothing above it changes.
 **Decision gate: end of v0.2**, when the harness has numbers from real
 hardware.
 
+### The WebView presenter, as built
+
+The `WebViewPresenter` half of that diagram exists. It is
+`apps/desktop/ui/src/features/sessions/presenter.ts`, and three of its choices
+are worth recording here because they are not obvious and they are not
+provisional.
+
+**Canvas 2D, not WebGL2 — and copy-rect is the reason.** The table above says a
+copy-rect is "almost free", which is only true of a presenter that can read its
+own surface. A 2D context can: `drawImage(canvas, sx, sy, …)` is specified to
+read a snapshot of the source, so a self-copy of overlapping regions is well
+defined. A WebGL2 presenter cannot sample the texture it is writing, so the same
+operation needs a second texture and a blit pass — which is a full-surface copy
+per scroll, on the encoding that exists to avoid copying anything. Raw and RLE
+rectangles go through `putImageData`; JPEG rectangles through
+`createImageBitmap`. This is the WebView presenter and says nothing about the
+native one, which is `wgpu` and has no such constraint.
+
+**The surface outlives the component.** The canvas is created by
+`features/sessions/surfaces.ts` at the moment the core names the session's kind,
+not by the React component that shows it — the component borrows the element and
+gives it back. Two reasons, and either alone is sufficient. The canvas holds the
+only copy of the remote screen that exists anywhere (`framebuffer.rs`: "the
+presenter owns the surface; the core streams deltas at it"), so a re-mount would
+clear the backing store and every delta after it would land on a blank screen
+with no way to ask for a repaint. And frames arrive on a channel that is
+subscribed before `session_open` is called, so the presenter has to exist before
+any component could have mounted.
+
+**Order survives an await.** A JPEG rectangle decodes asynchronously, and a
+rectangle applied out of order corrupts everything a later copy-rect reads. So
+messages queue, each message decodes all of its images *before* any of its
+rectangles are applied, and the apply pass is synchronous.
+
+The presenter also watches `seq`. A gap means the encoder dropped a frame under
+load and the surface is therefore stale — which the tab says on screen rather
+than showing pixels it knows to be wrong, until a keyframe restores it.
+
 ## Input
 
 Input travels the other way and has a much smaller budget: correctness matters
@@ -220,6 +258,33 @@ more than throughput.
 - Keyboard events are captured at the tab level with `preventDefault` on
   everything the session should receive, so `Ctrl+W` closes a remote window
   rather than a local tab
+- **The way back to Remoter's own shortcuts is the terminal prefix**, and
+  deliberately the same one: a focused remote screen holds the keyboard exactly
+  as a focused terminal does, so `Ctrl+Alt` (or whatever the prefix has been
+  rebound to) reaches an application binding, and a universal binding — the
+  palette, locking the vault — still answers to its plain form so that locking
+  is never more than one chord away. A chord with no Ctrl, Alt or Meta is never
+  taken from the remote host: it is a character someone is typing, and `?` is
+  bound to the cheat sheet. The rule is stated on the surface itself while it
+  has focus, because a user who cannot find the way out reads the application
+  as hung
+- **Alt+Tab and Ctrl+Alt+Delete are buttons, not keystrokes.** The window
+  manager takes the first and the operating system takes the second before any
+  application sees them, so there is nothing for the tab to capture. The
+  surface sends them explicitly instead, as the key transitions `chordFor` in
+  `features/sessions/keymap.ts` builds — down in order, up in reverse, because
+  a Control released before the key it modified produces a bare keypress at the
+  far end
+- **Every key the surface pressed is released when it loses focus**, and when
+  the window does. Otherwise Alt+Tab leaves Alt held at the remote host for the
+  rest of the session and every later keystroke arrives as an Alt chord
+- **Input is sent in order.** Each `session_key` and `session_pointer` call is
+  chained onto the one before it: two `invoke` calls in flight at once are two
+  promises with no ordering between them, and a keyboard that can deliver "ab"
+  as "ba" is not a keyboard
+- **A view-only session attaches no input handler at all.** Not "sends and is
+  refused" — the surface takes no keyboard focus, mounts no pointer handler,
+  and says on screen that nothing it does reaches the far end
 - **The two framebuffer protocols want different things from one keypress, and
   neither can be derived from the other in Rust.** RDP carries a PS/2 Set 1
   scancode and lets the *server* apply the layout (MS-RDPBCGR
@@ -232,30 +297,147 @@ more than throughput.
   it varies by browser and layout, and an adapter that treats it as a scancode
   types correctly on a US keyboard and wrongly everywhere else. This is where
   keyboard-layout bugs live; the mapping tables are tested against a matrix of
-  layouts including Turkish Q/F, German, French AZERTY and Arabic
+  layouts including Turkish Q/F, German, French AZERTY and Arabic. The frontend
+  half of that translation is
+  `apps/desktop/ui/src/features/sessions/keymap.ts` — `code` → PS/2 Set 1 make
+  code with the `E0` prefix carried as bit 8, `key` → X11 keysym — and the Rust
+  half, which fills in the keysyms for keys that produce no character, is
+  `crates/remoter-proto-vnc/src/keymap.rs`. Neither table guesses: a key the
+  browser reports and the table does not name produces nothing, because pressing
+  whichever key happens to sit at an invented code is worse than pressing none
+- AltGr is read from `getModifierState("AltGraph")`, never inferred from
+  `altKey`. On a Turkish, German or French layout the right-hand Alt selects a
+  third level of the layout, and sent as plain Alt it arrives at the remote host
+  as a window-manager chord the user never pressed. Windows reports AltGr as
+  Ctrl+Alt because that is how it is implemented there, so those two bits are
+  cleared when AltGraph is set
 - Lock states are carried explicitly rather than inferred, because RDP
   synchronises them with a Client Synchronize Event
   (MS-RDPBCGR §2.2.8.1.1.3.1.1.5). A session that never sends one types in the
   wrong case until the user notices and presses Caps Lock twice
-- IME composition is passed through for terminal sessions and handled natively
-  for framebuffer sessions
-- Mouse events carry sub-pixel-accurate coordinates scaled by the current zoom
-  and the device pixel ratio
+- IME composition is passed through for terminal sessions, where xterm.js
+  commits the composed text and it travels as `InputEvent::Bytes`. **On a
+  framebuffer session it does not yet travel at all**: a key event is dropped
+  while `isComposing` is set — forwarding the raw keys as well would type
+  everything twice — and there is no variant of `InputEvent` that can carry the
+  composed text, because `Key` requires a scancode and composed text has none.
+  A user on a Japanese, Chinese or Korean input method therefore has to use the
+  remote host's own input method. Closing this needs a vocabulary change in
+  `remoter-proto`, not a change in the interface
+- Mouse events carry coordinates in **remote** pixels, with the tab's scale and
+  the device pixel ratio already divided out. That division belongs in the
+  frontend because only the frontend knows what it drew —
+  `features/sessions/scaling.ts`, `remotePoint` — and the result is clamped to
+  the desktop and to `u16`, which is what both protocols carry, so a pointer
+  dragged past the edge reports the edge rather than a coordinate that wraps to
+  the opposite side of the screen
+- Wheel movement carries **both axes**, in notches of 120 to match RDP's
+  `rotationUnits`. A tilt wheel and a trackpad's horizontal swipe are a
+  different axis, not a different sign, and dropping `deltaX` is why horizontal
+  scrolling does nothing in most remote desktop clients. The vertical axis is
+  negated — the DOM calls positive "towards the user" and RDP calls it "away" —
+  and `deltaMode` is normalised to pixels first, so one notch is one notch
+  whatever the device claims to measure in
 - Multi-monitor RDP: each monitor is a separate framebuffer stream; the layout
   is negotiated at connect time
 
 ## Scaling and DPI
 
-| Mode | Behaviour |
-|---|---|
-| Fit to window | Scale the remote framebuffer to the tab, preserving aspect ratio |
-| 1:1 | Native resolution with scrollbars |
-| Smart resize | Ask the remote host to resize its desktop to the tab (RDP dynamic resolution, VNC `SetDesktopSize`) |
-| Zoom | User-controlled scale factor, independent of the above |
+Four modes, implemented in `features/sessions/scaling.ts` as pure arithmetic so
+that the geometry is testable without a canvas.
 
-"Smart resize" is the best experience where supported and is the default for
-RDP. HiDPI is handled by requesting a framebuffer at the physical pixel size,
-not the logical one, so text on a 4K display is sharp rather than upscaled.
+| Mode | Behaviour | What it needs |
+|---|---|---|
+| Smart resize | Ask the remote host to resize its desktop to the tab (RDP dynamic resolution over MS-RDPEDISP, VNC `SetDesktopSize`) | A granted resize capability |
+| Fit to window | Scale the remote framebuffer to the tab, preserving aspect ratio. Never *enlarges*: a desktop smaller than the tab is centred at 1:1 | nothing |
+| 1:1 | Native resolution with scrollbars | nothing |
+| Zoom | An **integer** magnification — 2x, 3x, 4x and nothing between | nothing |
+
+Scaling is done by the compositor, not by the presenter: the canvas backing
+store is always exactly the remote desktop's size and every rectangle lands at
+1:1, while the element's CSS size carries the scale. That keeps the per-frame
+cost proportional to the dirty area rather than to the window.
+
+**Zoom is integer-only, and that is a correctness choice rather than a
+simplification.** A remote desktop is a grid of pixels carrying text that was
+already rasterised and hinted for that grid. Resampling it by a non-integer
+factor mixes each glyph's stem across two output pixels and 8pt text becomes a
+grey smear. An integer factor with nearest-neighbour sampling replicates whole
+pixels, so a stem stays a stem — which is what `image-rendering: pixelated`
+asks the compositor for whenever one remote pixel covers at least one *device*
+pixel. Zooming out is what Fit is for, and there the smooth default is right:
+a downscale without interpolation aliases.
+
+HiDPI is handled by requesting a framebuffer at the physical pixel size, not the
+logical one, so text on a 4K display is sharp rather than upscaled.
+
+### Smart resize is the default only where the server granted it
+
+"Smart resize" is the best experience where supported, and it is the default for
+a session that can do it — Fit is the fallback, because a remote desktop is
+nearly always larger than the tab and at 1:1 the first thing a user sees of a
+1920×1080 desktop in a 1200px tab is its top-left corner.
+
+**"Where supported" has to mean what the server granted, not what the adapter
+offers.** `Capabilities.resizable` as it reaches the interface today is the
+adapter's static offer: it is fixed before the connection sequence runs and says
+"this adapter implements dynamic resize", not "this server opened the channel".
+A Windows host that never opened the Display Control Virtual Channel arrives as
+`resizable: true` all the same, and a Smart control drawn from that is a control
+that does nothing — on by default.
+
+The gap is bridged in two places and only the second one is permanent:
+
+- **In the RDP adapter**, `granted_capabilities()` and `display_control_open()`
+  are the real answer, known once the capability exchange has run.
+- **In the interface**, `features/sessions/manager.ts` treats the adapter's
+  `rdp.display_control_unavailable` warning as a capability *revision*: it
+  withdraws `resizable` from the tab's record, which takes the Smart control off
+  the screen and stops the resize requests, and moves a tab still sitting in
+  Smart to Fit. The warning itself stays on screen, because the user still has
+  to be told why the control they were reaching for is not there.
+
+The second is a stand-in for a capability-revision event on the session channel.
+Capabilities are read once, when the tab opens, and this one is not knowable
+then; until an event carries the revision, a warning is the only thing that
+crosses IPC at the moment the truth is learned.
+
+## Remote text, and where it is allowed to render
+
+Pixels are not the only thing the far end draws with. A login banner, a
+message of the day, a keyboard-interactive challenge, a directory listing, a
+hostname in an error — all of it is text chosen by a machine this application
+does not control, and the banner in particular is shown *before* the session has
+authenticated.
+
+Three defences, applied in this order, and they are not substitutes for one
+another:
+
+1. **It renders as text.** React escapes text children, ICU MessageFormat
+   substitutes arguments as data rather than re-parsing them, and
+   `dangerouslySetInnerHTML` is an ESLint error with no override. This is
+   settled and needs no per-surface thought.
+2. **It is escaped in Rust, and the escaped twin is what is drawn.** Control
+   characters, bidirectional overrides and zero-width characters become a
+   visible `\u{XXXX}`. The raw string still crosses IPC — it is what goes back
+   on the wire to address a file — but nothing renders it. The function is
+   `remoter_proto_ssh::sftp::escape_untrusted`, and every SFTP name, path, user
+   and group, plus a progress event's detail, goes through it.
+3. **It is bidi-isolated at the point of display.** Escaping bounds what the
+   text can contain; isolation bounds what its *direction* can reach.
+   `i18n/bidi.ts` wraps a value interpolated into a sentence, and a multi-line
+   block — a banner — is drawn `dir="ltr"` with one `<bdi>` per line, so a line
+   of Hebrew renders right-to-left as the server meant while no line can reorder
+   the line above it or the interface copy around the block.
+
+**`SessionWarning::Banner { text }` is the one DTO that still crosses without
+step 2.** It has no escaped twin, so today the banner gets steps 1 and 3 only,
+which bounds where a directional character takes effect without neutralising
+one. The fix is the same shape as every other: a `text_display` beside `text`,
+computed with `escape_untrusted` in `remoter-ipc`'s `warning_wire`, and rendered
+in its place. The escaping is deliberately not duplicated in TypeScript — a
+second table drifts from the first, and would double-escape the moment the twin
+lands.
 
 ## Recording
 

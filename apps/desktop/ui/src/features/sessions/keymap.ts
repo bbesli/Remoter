@@ -361,6 +361,79 @@ export function keyInputFrom(event: KeySource, pressed: boolean): KeyInput | nul
 }
 
 /**
+ * The modifier each physical modifier key latches while it is held.
+ *
+ * Only used by {@link chordFor}: a real key event carries its modifiers in the
+ * event itself, and {@link modifiersFrom} reads them from there rather than
+ * inferring them from which keys this file thinks are down.
+ *
+ * The right-hand Alt is AltGr, not Alt. On a Turkish, German or French layout
+ * it selects a third level of the layout, and a chord that claimed plain Alt
+ * would arrive at the far end as a window-manager shortcut.
+ */
+const MODIFIER_OF: Readonly<Record<string, number>> = {
+  ShiftLeft: MOD_SHIFT,
+  ShiftRight: MOD_SHIFT,
+  ControlLeft: MOD_CONTROL,
+  ControlRight: MOD_CONTROL,
+  AltLeft: MOD_ALT,
+  AltRight: MOD_ALT_GRAPH,
+  MetaLeft: MOD_META,
+  MetaRight: MOD_META,
+};
+
+/**
+ * A chord nobody can type, as the key transitions that produce it.
+ *
+ * Some combinations never reach a web page: the window manager takes Alt+Tab,
+ * and on Windows and most Linux desktops Ctrl+Alt+Delete is intercepted by the
+ * system before any application sees it. They are also the two combinations
+ * people ask a remote desktop client for by name. A control that sends them
+ * explicitly is the only way they can ever arrive — there is no keystroke for
+ * this interface to capture.
+ *
+ * The keys go down in the order given and come up in the reverse order, which
+ * is what a human hand does and what every far end expects: a Control released
+ * before the key it modified produces a bare keypress at the other side.
+ *
+ * `keysym` is null throughout. These are physical positions, not characters,
+ * and the VNC adapter's own table (`crates/remoter-proto-vnc/src/keymap.rs`)
+ * fills in the keysym from the scancode. Guessing one here would be a second
+ * table to drift from it.
+ *
+ * Null if any name is one {@link scancodeFor} cannot place: half a chord is
+ * worse than none, because the half that arrives is a modifier that never comes
+ * back up.
+ */
+export function chordFor(codes: readonly string[]): KeyInput[] | null {
+  if (codes.length === 0) return null;
+
+  const scancodes: number[] = [];
+  for (const code of codes) {
+    const scancode = scancodeFor(code);
+    if (scancode === null) return null;
+    scancodes.push(scancode);
+  }
+
+  const events: KeyInput[] = [];
+  let modifiers = 0;
+  codes.forEach((code, index) => {
+    // The modifiers a key carries are the ones already held when it goes down,
+    // so the first key of a chord reports none — exactly as a real keydown
+    // does.
+    const scancode = scancodes[index] ?? 0;
+    events.push({ scancode, keysym: null, modifiers, pressed: true });
+    modifiers |= MODIFIER_OF[code] ?? 0;
+  });
+  for (let index = codes.length - 1; index >= 0; index -= 1) {
+    const code = codes[index] ?? "";
+    modifiers &= ~(MODIFIER_OF[code] ?? 0);
+    events.push({ scancode: scancodes[index] ?? 0, keysym: null, modifiers, pressed: false });
+  }
+  return events;
+}
+
+/**
  * Which buttons are down, from `MouseEvent.buttons`.
  *
  * A full state rather than a transition, because that is what both protocols

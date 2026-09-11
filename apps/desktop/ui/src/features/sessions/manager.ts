@@ -26,7 +26,7 @@ import {
 } from "@/lib/ipc";
 import { i18n } from "@/i18n";
 
-import { failureFromClose, newTabId, useSessions } from "./store";
+import { failureFromClose, newTabId, useSessions, type SessionRecord } from "./store";
 import {
   disposeTerminal,
   ensureTerminal,
@@ -53,6 +53,81 @@ import { defaultScaleMode, smartResizeRequest, type Size } from "./scaling";
  * (`crates/remoter-proto-vnc/src/protocol.rs`, `SETTING_VIEW_ONLY`).
  */
 const VIEW_ONLY_FIELD = "settings.view_only";
+
+/**
+ * The warning that tells this tab its desktop cannot be resized after all.
+ *
+ * # Why a warning is doing a capability's job
+ *
+ * `SessionOpened.capabilities` is read exactly once, when `ready` arrives, and
+ * `capabilities.resizable` as it reaches the frontend today is **the adapter's
+ * static offer** — the set of things an RDP client can do, fixed before the
+ * connection sequence runs. It is not what the server granted. A Windows host
+ * that never opened the Display Control Virtual Channel (MS-RDPEDISP) still
+ * arrives here as `resizable: true`, so Smart resize was drawn, chosen as the
+ * default, and quietly did nothing on every such session.
+ *
+ * `crates/remoter-proto-rdp` knows the difference — it has `granted_capabilities()`
+ * and `display_control_open()` — and nothing carries that across IPC yet. What
+ * *does* cross is this warning, raised by the adapter at the moment it learns
+ * the channel is not there. So it is the revision: one observable fact, arriving
+ * later than the capabilities did, that says the offer was not honoured.
+ *
+ * This is a stand-in and is meant to be replaced. The proper fix is a
+ * capability-revision event on the session channel, and it is written up in the
+ * hand-off for `crates/remoter-ipc/src/session.rs`; when it lands, this becomes
+ * one more source of the same revision rather than the only one.
+ *
+ * The string is the constant the RDP adapter emits, mirrored in `warnings.ts`
+ * where the sentence for it lives.
+ */
+const DISPLAY_CONTROL_UNAVAILABLE = "rdp.display_control_unavailable";
+
+/** Whether this tab has already been told the resize channel is not open. */
+function displayControlRefused(tabId: string): boolean {
+  const record = useSessions.getState().byId[tabId];
+  if (record === undefined) return false;
+  return record.warnings.some((warning) => warning.detail === DISPLAY_CONTROL_UNAVAILABLE);
+}
+
+/**
+ * Withdraws the resize capability from a tab, and the control that rests on it.
+ *
+ * Two things follow from the server's refusal and both are done here, because
+ * doing only one of them leaves a lie on screen:
+ *
+ * - **The capability is revised on the record.** `FramebufferHost` draws the
+ *   Smart control only where `capabilities.resizable` is true, and
+ *   {@link requestDesktopSize} sends nothing where it is false. Revising the
+ *   record is therefore what makes the button disappear and the requests stop,
+ *   without either of them having to learn about warnings.
+ * - **A tab sitting in Smart is moved to the fallback**, which is what
+ *   `defaultScaleMode` returns for a session that cannot resize. Leaving it in
+ *   Smart would keep the picture unscaled at whatever size the server chose,
+ *   with no control left to change it.
+ *
+ * Idempotent: the adapter may raise the warning more than once, and a second
+ * revision of an already-revised record must not move a mode the user has since
+ * chosen for themselves.
+ */
+function revokeResize(tabId: string): void {
+  const record = useSessions.getState().byId[tabId];
+  if (record === undefined) return;
+
+  const patch: Partial<SessionRecord> = {};
+  const opened = record.opened;
+  if (opened !== null && opened.capabilities.resizable) {
+    patch.opened = {
+      ...opened,
+      capabilities: { ...opened.capabilities, resizable: false },
+    };
+  }
+  if (record.scale.mode === "smart") {
+    patch.scale = { ...record.scale, mode: defaultScaleMode(false) };
+  }
+  if (patch.opened === undefined && patch.scale === undefined) return;
+  useSessions.getState().patch(tabId, patch);
+}
 
 /** `host:port` as configured, for the tab before the core reports its own. */
 function targetOf(node: Pick<TreeNode, "host" | "port">): string | null {
@@ -216,6 +291,17 @@ function onReady(tabId: string, opened: SessionOpened): void {
     return;
   }
 
+  if (opened.capabilities.kind === "file_transfer") {
+    // An `sftp` session has no PTY and no grid: `capabilities.resizable` is
+    // false and `session_input` has nothing to write to. The terminal created
+    // speculatively at the start of the attempt goes, for the same reason a
+    // framebuffer session's does — it would otherwise take the keyboard
+    // whenever this tab came forward and send the typing at a session with no
+    // input channel to receive it. `FileSessionHost` is what the tab draws.
+    disposeTerminal(tabId);
+    return;
+  }
+
   // The PTY was opened at the core's default size. The tab knows the real one,
   // and a terminal told the wrong width draws wrongly rather than safely.
   const size = sizeOf(tabId);
@@ -252,13 +338,21 @@ function startFramebuffer(tabId: string, opened: SessionOpened): void {
   });
 
   useSessions.getState().patch(tabId, {
-    // rendering.md makes smart resize the default where it is supported, and
-    // `capabilities.resizable` is the adapter's report of whether the channel
-    // that performs it is actually open — not a guess from the protocol name.
+    // rendering.md makes smart resize the default where it is supported. What
+    // `capabilities.resizable` actually says is weaker than that — see
+    // {@link DISPLAY_CONTROL_UNAVAILABLE} — so this is the opening position and
+    // the line below is the correction where the session has already refused.
     scale: { mode: defaultScaleMode(opened.capabilities.resizable), zoom: 2 },
     // The renderer probe belongs to the terminal that was just disposed of.
     renderer: null,
   });
+
+  // The RDP adapter learns the Display Control channel is missing during the
+  // capability exchange, which finishes *before* `ready` — so by the time a tab
+  // becomes graphical the refusal may already be sitting in its warnings.
+  // Applying it after the default rather than instead of it keeps one code path
+  // for both orders of arrival.
+  if (displayControlRefused(tabId)) revokeResize(tabId);
 
   void readViewOnly(tabId);
 }
@@ -299,9 +393,10 @@ async function readViewOnly(tabId: string): Promise<void> {
  * for VNC — so the same command the terminal uses for columns and rows does
  * this without a second one.
  *
- * A refusal is not reported here: the adapter raises a warning the surface
- * already shows (`rdp.display_control_unavailable`), and the next request would
- * only repeat it.
+ * A refusal is not reported here, because it is not swallowed either: the
+ * adapter raises `rdp.display_control_unavailable`, the surface shows it, and
+ * {@link revokeResize} withdraws the capability — so there is no next request
+ * to repeat it, and the guard below stops sending as soon as that lands.
  */
 export function requestDesktopSize(tabId: string, viewport: Size, devicePixelRatio: number): void {
   const record = useSessions.getState().byId[tabId];
@@ -356,11 +451,21 @@ function handleMessage(tabId: string, message: SessionMessage): void {
       return;
 
     case "prompt":
-      // There is no command in this build that answers a password, passphrase
-      // or keyboard-interactive question. Saying so beats a dialog whose
-      // answer would go nowhere.
+      // A certificate question is answerable and is answered through
+      // `decideHostKey`; a password, passphrase or keyboard-interactive
+      // question is not, and saying so beats a dialog whose answer would go
+      // nowhere. The surface decides which of the two it is drawing — the
+      // whole prompt is carried here so it can, the certificate's fingerprint
+      // and reason included.
       store.patch(tabId, {
-        prompt: { promptId: message.promptId, kind: message.kind, text: message.text, echo: message.echo },
+        prompt: {
+          promptId: message.promptId,
+          kind: message.kind,
+          text: message.text,
+          echo: message.echo,
+          fingerprint: message.fingerprint,
+          reason: message.reason,
+        },
       });
       return;
 
@@ -382,6 +487,9 @@ function handleMessage(tabId: string, message: SessionMessage): void {
 
     case "warning":
       store.addWarning(tabId, { kind: message.kind, detail: message.detail, at: Date.now() });
+      // One warning is not only a sentence to draw: it is the only report this
+      // build gets that a capability the tab was told about was never granted.
+      if (message.detail === DISPLAY_CONTROL_UNAVAILABLE) revokeResize(tabId);
       return;
 
     case "progress":
@@ -416,7 +524,13 @@ function handleMessage(tabId: string, message: SessionMessage): void {
 }
 
 /**
- * Answers a suspended host key question.
+ * Answers a suspended trust decision.
+ *
+ * Two questions travel this command, not one. An SSH **host key** arrives as a
+ * `hostKey` message and is answered here with `accept`, `replace` or `reject`.
+ * An RDP **certificate** arrives as a `prompt` message — it is the same kind of
+ * decision about a different kind of key — and the core answers it through the
+ * same command, taking `accept` and `reject` and refusing `replace` outright.
  *
  * The three decisions travel as they came from the core: `accept` for a first
  * use, `replace` with the typed confirmation for a changed key, `reject` for
@@ -431,9 +545,19 @@ export async function decideHostKey(tabId: string, decision: HostKeyDecision): P
   store.patch(tabId, { hostKeyBusy: true, hostKeyError: null });
   try {
     await ipc.decideHostKey(record.sessionId, decision);
+    const answered = useSessions.getState().byId[tabId]?.prompt;
     useSessions.getState().patch(tabId, {
       hostKeyBusy: false,
       hostKey: null,
+      // A certificate question lives in `prompt`, so answering one has to take
+      // that question off the screen too. Matched by id rather than cleared
+      // outright: dismissing whatever happens to be there would close a
+      // question this decision did not answer.
+      ...(answered !== undefined &&
+      answered !== null &&
+      answered.promptId === decision.promptId
+        ? { prompt: null }
+        : {}),
       // Rejecting ends the session; the `closed` message will say so. Accepting
       // hands the handshake back its answer, so the next observable stage is
       // authentication.

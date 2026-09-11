@@ -92,8 +92,12 @@ export interface SessionRecord {
   hostKeyError: IpcFailure | null;
 
   /**
-   * Anything else the server asked for. This build has no command to answer
-   * one, so it is shown and named rather than silently dropped.
+   * Anything else the server asked for.
+   *
+   * The `certificate` kind is answerable — it is a first-use trust decision,
+   * and `host_key_decide` takes it. The other three are shown and named rather
+   * than silently dropped, because this build has no command that carries an
+   * answer to them.
    */
   prompt: SessionPrompt | null;
 

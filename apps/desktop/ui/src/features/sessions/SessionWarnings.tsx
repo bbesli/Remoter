@@ -22,9 +22,11 @@
  * **The server's own words are quarantined.** A banner is remote text of
  * arbitrary length in an arbitrary script: it goes in its own preformatted
  * block, as text, never spliced into a translated sentence and never as markup.
+ * See {@link BannerText} for the half of that quarantine which is not about
+ * markup at all.
  */
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 
 import { Callout } from "@/components/Callout";
 import { Icon } from "@/components/Icon";
@@ -33,6 +35,78 @@ import type { SessionRecord } from "./store";
 import { canCollapse, describeWarning, loudestTone } from "./warnings";
 
 import s from "./SessionWarnings.module.css";
+
+/**
+ * Splits remote text into the lines it claims to have.
+ *
+ * All three line endings, because the far end chooses them and an SSH banner
+ * carries CRLF (RFC 4253 §11.3 sends the text as the server wrote it). Splitting
+ * on the pair as well as on each character alone means a lone carriage return —
+ * which a preformatted block renders as nothing at all, while still sitting in
+ * the DOM as a control character — is consumed here rather than shown as
+ * nothing.
+ */
+function bannerLines(text: string): string[] {
+  return text.split(/\r\n|\r|\n/);
+}
+
+/**
+ * A login banner or keyboard-interactive instruction, drawn as the server's
+ * own text.
+ *
+ * # This is the direction problem, not the markup problem
+ *
+ * Markup is already handled and always was: React escapes text children, so
+ * nothing in a banner can become an element. What was not handled is the
+ * Unicode bidirectional algorithm, and a banner is the worst input it can get —
+ * arbitrary text from an unauthenticated peer, shown *before* the session has
+ * authenticated, in a block the user is being asked to read and trust.
+ *
+ * Two defences, and they are different:
+ *
+ * - **`dir="ltr"` on the block.** Without it the banner inherits the interface's
+ *   direction, so under an Arabic or Hebrew interface an ASCII banner is drawn
+ *   right-aligned with its trailing punctuation moved to the front, and any
+ *   box-drawing or aligned columns in it collapse. The banner is not interface
+ *   copy and does not follow the interface. `surfaces.ts` pins the same
+ *   attribute on the framebuffer canvas for the same reason.
+ * - **One isolate per line.** Each line is wrapped in `<bdi>`, whose direction
+ *   is resolved from its own first strong character and whose resolution cannot
+ *   escape it. So a line of Hebrew renders right-to-left as the server meant,
+ *   and a line carrying a stray directional mark cannot reorder the line above
+ *   it, the interface text around the block, or the count in the header.
+ *
+ * The separators are text nodes between the isolates rather than block elements,
+ * so selecting the banner and copying it yields the banner — line breaks
+ * included — and not one run-on line.
+ *
+ * # What this cannot do, and who has to
+ *
+ * Isolation bounds where a directional character takes effect. It does not
+ * neutralise one: an explicit override inside a line still reorders that line,
+ * and a C0 control or a zero-width character inside it is still invisible.
+ * Every other piece of remote text in this application is defended against
+ * those by an **escaped twin** computed in Rust —
+ * `remoter_proto_ssh::sftp::escape_untrusted`, which every SFTP name, path,
+ * user and group goes through. `SessionWarning::Banner { text }` is the one DTO
+ * that crosses IPC without one, so this is the one surface that has to make do
+ * with isolation. The escaping is deliberately *not* duplicated here: a second
+ * table in TypeScript would drift from the first, and would double-escape the
+ * moment the twin lands. The DTO change is written up in the hand-off.
+ */
+function BannerText({ text }: { text: string }) {
+  const lines = bannerLines(text);
+  return (
+    <pre className={s.remoteText} dir="ltr">
+      {lines.map((line, index) => (
+        <Fragment key={index}>
+          {index > 0 ? "\n" : null}
+          <bdi>{line}</bdi>
+        </Fragment>
+      ))}
+    </pre>
+  );
+}
 
 export function SessionWarnings({ record }: { record: SessionRecord }) {
   const t = useT("sessions");
@@ -78,8 +152,9 @@ export function SessionWarnings({ record }: { record: SessionRecord }) {
                   </p>
                 )}
                 {view.remoteText !== null && view.remoteText !== "" && (
-                  /* The server's own text. Untrusted, and rendered as text. */
-                  <pre className={s.remoteText}>{view.remoteText}</pre>
+                  /* The server's own text. Untrusted: rendered as text, and
+                     isolated line by line. See BannerText. */
+                  <BannerText text={view.remoteText} />
                 )}
               </Callout>
             </li>

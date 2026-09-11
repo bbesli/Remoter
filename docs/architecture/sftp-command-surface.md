@@ -11,14 +11,24 @@ implementation differs](#where-the-implementation-differs) says so and why.
 
 `crates/remoter-proto-ssh/src/sftp.rs` is finished and tested: `SftpBrowser`
 does the browsing and the transfers, `TransferQueue` holds the work, and
-`run_queue` drains it. What is missing is everything above that line — there is
-no Tauri command, no DTO and no interface, so nothing a user can click reaches
-any of it.
+`run_queue` drains it. The commands, the DTOs and the interface above that line
+now exist too, and a user reaches them by two routes — both of them a *session*,
+because a pane is a channel on one:
 
 ```
 apps/desktop/ui  ──▶  remoter-ipc  ──▶  remoter-proto-ssh::sftp
-   missing             exists              exists
+   exists              exists              exists
 ```
+
+- An `sftp` connection opened from the tree runs the ordinary pipeline and gets
+  a session whose `capabilities.kind` is `file_transfer`. Its tab draws the file
+  manager instead of a terminal
+  (`apps/desktop/ui/src/features/files/FileSessionHost.tsx`).
+- A session that is already connected and whose adapter reports
+  `capabilities.file_transfer` — SSH — gets a pane docked under its terminal,
+  from the Files control in the tab strip. Every docked pane stays mounted while
+  its session runs, including while another tab is in front: unmounting it would
+  close the pane, and closing the pane stops the drain task mid-transfer.
 
 The layering rule of CLAUDE.md §3 applies unchanged: `remoter-ipc` is a seam. It
 maps DTOs, checks permissions and forwards. If a decision is being written in it

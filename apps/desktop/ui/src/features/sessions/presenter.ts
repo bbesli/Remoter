@@ -110,6 +110,31 @@ const EMPTY_STATUS: PresenterStatus = {
   cursor: null,
 };
 
+/**
+ * Releases a decoded image the moment its rectangle has been drawn.
+ *
+ * `createImageBitmap` hands back an `ImageBitmap`, and an `ImageBitmap` owns
+ * decoded pixels that do **not** live on the JavaScript heap — roughly eight
+ * megabytes for one 1080p rectangle. The collector sees a small wrapper object
+ * and has no reason to hurry, so a JPEG-encoded stream left to it accumulates
+ * decoded frames for as long as the tab is open. An all-day RDP session is the
+ * case this matters in, and `close()` is the only way to hand the memory back.
+ *
+ * Duck-typed rather than `instanceof ImageBitmap`: the decoder is injected, a
+ * test's decoder returns something else entirely, and jsdom has no
+ * `ImageBitmap` constructor to test against in the first place.
+ */
+function releaseImage(image: CanvasImageSource): void {
+  const closable = image as { close?: () => void };
+  if (typeof closable.close !== "function") return;
+  try {
+    closable.close();
+  } catch {
+    // Closing twice, or closing a bitmap the browser already reclaimed, is not
+    // a reason to lose the frame that was just drawn.
+  }
+}
+
 /** The default decoder. `createImageBitmap` is the only synchronous-enough one. */
 async function decodeJpeg(bytes: Uint8Array): Promise<CanvasImageSource> {
   // `slice` rather than the subarray the decoder was handed: `Blob` keeps a
@@ -269,32 +294,43 @@ export class FramebufferPresenter {
     // Every image in the message is decoded before any rectangle is applied.
     // Decoding between rectangles would let a later copy-rect read a region an
     // earlier rectangle had not written yet.
+    //
+    // The `finally` is the lifetime of every one of them. Decoded pixels are
+    // off-heap (see `releaseImage`), the draw is synchronous and finished by
+    // the time the block exits, and there is no path — a decode that threw
+    // half way through the message, a tab disposed while one was in flight, a
+    // target that raised on `drawImage` — where one may be left to the
+    // collector.
     const images = new Map<number, CanvasImageSource>();
-    for (const [index, rect] of update.rects.entries()) {
-      if (rect.encoding !== "jpeg") continue;
-      try {
-        images.set(index, await this.decodeImage(rect.payload));
-      } catch {
-        // One unreadable region, not a dead session. It stays as it was, and
-        // the next keyframe repairs it — which is what `stale` announces.
-        if (!this.state.stale) {
-          this.state = { ...this.state, stale: true };
-          structural = true;
+    try {
+      for (const [index, rect] of update.rects.entries()) {
+        if (rect.encoding !== "jpeg") continue;
+        try {
+          images.set(index, await this.decodeImage(rect.payload));
+        } catch {
+          // One unreadable region, not a dead session. It stays as it was, and
+          // the next keyframe repairs it — which is what `stale` announces.
+          if (!this.state.stale) {
+            this.state = { ...this.state, stale: true };
+            structural = true;
+          }
         }
       }
-    }
-    if (this.disposed) return;
+      if (this.disposed) return;
 
-    for (const [index, rect] of update.rects.entries()) {
-      this.applyRect(rect, images.get(index));
-    }
+      for (const [index, rect] of update.rects.entries()) {
+        this.applyRect(rect, images.get(index));
+      }
 
-    this.state = { ...this.state, frames: this.state.frames + 1 };
-    if (update.keyframe && this.state.stale) {
-      this.state = { ...this.state, stale: false };
-      structural = true;
+      this.state = { ...this.state, frames: this.state.frames + 1 };
+      if (update.keyframe && this.state.stale) {
+        this.state = { ...this.state, stale: false };
+        structural = true;
+      }
+      if (structural) this.onChange();
+    } finally {
+      for (const image of images.values()) releaseImage(image);
     }
-    if (structural) this.onChange();
   }
 
   private applyRect(rect: FrameRect, image: CanvasImageSource | undefined): void {

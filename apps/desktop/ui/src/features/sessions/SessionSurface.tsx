@@ -21,7 +21,12 @@ import { Button } from "@/components/Button";
 import { Callout } from "@/components/Callout";
 import { FailureNotice } from "@/components/FailureNotice";
 import { isolate, useT } from "@/i18n";
-import type { CloseReason, SessionPrompt } from "@/lib/ipc";
+// The file manager is session content — `docs/ui/information-architecture.md`
+// gives this area "terminal / framebuffer / file grid". The import goes this
+// way only: nothing in `features/files` imports this feature, so the two are
+// not circular.
+import { FileSessionHost } from "@/features/files";
+import type { CloseReason } from "@/lib/ipc";
 import { useSessions, type SessionRecord } from "./store";
 import { attachTerminal, focusTerminal, hasTerminal } from "./terminals";
 import { cancelConnect, closeTab, decideHostKey, dismissTab, reconnect } from "./manager";
@@ -29,6 +34,7 @@ import { ConnectProgress } from "./ConnectProgress";
 import { FindBar } from "./FindBar";
 import { FramebufferHost } from "./FramebufferHost";
 import { HostKeyDialog } from "./HostKeyDialog";
+import { PromptPanel } from "./PromptPanel";
 import { SessionWarnings } from "./SessionWarnings";
 import { isConnecting } from "./stages";
 
@@ -50,20 +56,6 @@ const ENDED_KEYS = {
   panicked: "surface.endedReason.panicked",
   aborted: "surface.endedReason.aborted",
 } as const satisfies Record<CloseReason, string>;
-
-/**
- * What the server asked for, as the object of "It asked for …".
- *
- * The old code printed the core's own token with the underscores swapped for
- * spaces, which produced "key passphrase" in English and nothing usable in any
- * other language.
- */
-const PROMPT_KIND_KEYS = {
-  password: "surface.prompt.kind.password",
-  key_passphrase: "surface.prompt.kind.key_passphrase",
-  keyboard_interactive: "surface.prompt.kind.keyboard_interactive",
-  certificate: "surface.prompt.kind.certificate",
-} as const satisfies Record<SessionPrompt["kind"], string>;
 
 /** Mounts one session's terminal element and keeps it fitted to the area. */
 function TerminalHost({ tabId, name, active }: { tabId: string; name: string; active: boolean }) {
@@ -136,36 +128,6 @@ function EndedPanel({ record }: { record: SessionRecord }) {
   );
 }
 
-function PromptPanel({ record }: { record: SessionRecord }) {
-  const t = useT("sessions");
-  const prompt = record.prompt;
-  if (prompt === null) return null;
-
-  return (
-    <div className={s.overlay}>
-      <div className={s.notice}>
-        <Callout tone="warning" title={t("surface.prompt.title")}>
-          <p className={s.noticeBody}>
-            {t("surface.prompt.body", { kind: t(PROMPT_KIND_KEYS[prompt.kind]) })}
-          </p>
-          {prompt.text !== "" && (
-            <>
-              <p className={s.noticeBody}>{t("surface.prompt.serverText")}</p>
-              {/* The server's own text. Untrusted, and rendered as text. */}
-              <pre className={s.serverText}>{prompt.text}</pre>
-            </>
-          )}
-          <div className={s.noticeActions}>
-            <Button variant="secondary" size="sm" onClick={() => void cancelConnect(record.tabId)}>
-              {t("surface.prompt.cancel")}
-            </Button>
-          </div>
-        </Callout>
-      </div>
-    </div>
-  );
-}
-
 export function SessionSurface({ empty }: { empty: ReactNode }) {
   const t = useT("sessions");
   const order = useSessions((st) => st.order);
@@ -207,6 +169,22 @@ export function SessionSurface({ empty }: { empty: ReactNode }) {
         if (tab !== undefined && tab.opened?.capabilities.kind === "framebuffer") {
           return <FramebufferHost key={tabId} record={tab} active={tabId === activeTabId} />;
         }
+        // An `sftp` connection opens a session of its own — same pipeline, same
+        // host key check, same credential — and the core names it
+        // `file_transfer`. Its tab is the file manager; there is no shell
+        // behind it to draw. Before this branch existed such a tab got a
+        // terminal that could never print a byte, which is how a finished file
+        // manager shipped as a black rectangle.
+        if (tab !== undefined && tab.opened?.capabilities.kind === "file_transfer") {
+          return (
+            <FileSessionHost
+              key={tabId}
+              sessionId={tab.sessionId}
+              name={tab.name}
+              active={tabId === activeTabId}
+            />
+          );
+        }
         return (
           <TerminalHost
             key={tabId}
@@ -218,12 +196,15 @@ export function SessionSurface({ empty }: { empty: ReactNode }) {
       })}
 
       {/* Only over a live terminal: searching the scrollback of a tab that is
-          showing a failure notice would be searching an empty buffer, and a
-          framebuffer session has no scrollback to search at all. */}
+          showing a failure notice would be searching an empty buffer, and
+          neither a framebuffer nor a file session has scrollback to search at
+          all. Stated as "is a terminal" rather than "is not a framebuffer",
+          so a third kind cannot arrive on the terminal's side of the test by
+          default — which is exactly how the file session got a terminal. */}
       {finding &&
         active !== undefined &&
         active.phase === "running" &&
-        active.opened?.capabilities.kind !== "framebuffer" && (
+        active.opened?.capabilities.kind === "terminal" && (
           <FindBar tabId={active.tabId} onClose={() => setFinding(false)} />
         )}
 
@@ -253,6 +234,11 @@ export function SessionSurface({ empty }: { empty: ReactNode }) {
         />
       )}
 
+      {/* The certificate question inside this is the one an RDP session against
+          a default Windows host stops at, and `PromptPanel` is where it is
+          answered. Guarded on `hostKey === null` for the same reason the
+          connect panel is: two blocking decisions on one tab would stack, and
+          the host key one is the earlier of the two. */}
       {active !== undefined && active.prompt !== null && active.hostKey === null && (
         <PromptPanel record={active} />
       )}

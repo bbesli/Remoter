@@ -48,6 +48,15 @@
   direction: ltr;
 }
 
+/* The screen takes the keyboard, so it has to show that it can: a region that
+   is in the tab order and does nothing visible when it is reached is a region
+   a keyboard user cannot find. The ring is drawn inside, because the stage is
+   flush against the edges of the tab and an outside outline would be clipped. */
+.stage[data-input="live"]:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--border-focus);
+}
+
 /* A view-only session has to LOOK view-only, not merely be labelled one.
    The inset rule runs around the whole stage so it is visible whatever part of
    the desktop is scrolled into view, and it is drawn in the warning tone that
@@ -119,10 +128,10 @@
   max-width: min(34rem, calc(100% - var(--space-8)));
 }
 
-/* The standing statement that this build sends nothing to the far end. It is
-   a panel rather than a chip because it has to be readable at a glance from
-   across a desk: the failure it prevents is a user typing a command into a
-   window that looks live. */
+/* The standing statement that a view-only session sends nothing to the far
+   end. It is a panel rather than a chip because it has to be readable at a
+   glance from across a desk: the failure it prevents is a user typing a
+   command into a window that looks live and is not. */
 .inputNotice {
   margin: 0;
   display: flex;
@@ -141,10 +150,6 @@
   flex: none;
   margin-block-start: 2px;
   color: var(--warning);
-}
-
-.inputTitle {
-  font-weight: 600;
 }
 
 .problem {
@@ -187,6 +192,13 @@
 .meta {
   font-family: var(--font-mono);
   font-variant-ligatures: none;
+}
+
+/* Which keys this screen is taking, in the strip along the bottom beside the
+   desktop size. Quiet: it is a standing statement, not a warning, and it is
+   read once and then ignored by anyone who already knows the rule. */
+.capture {
+  color: var(--fg-subtle);
 }
 
 .cursorChip {

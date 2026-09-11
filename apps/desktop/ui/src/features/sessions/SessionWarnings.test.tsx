@@ -81,11 +81,36 @@ describe("SessionWarnings", () => {
     const banner = "Authorised users only\nAll access is logged";
     render(<SessionWarnings record={record([warning("banner", banner)])} />);
 
-    const block = screen.getByText(/Authorised users only/);
-    // A <pre>, so the server's own line breaks survive and nothing in it is
-    // interpreted. It is not spliced into the introducing sentence.
-    expect(block.tagName).toBe("PRE");
-    expect(block.textContent).toBe(banner);
+    const line = screen.getByText("Authorised users only");
+    // Each line is its own bidi isolate, so a directional character in one line
+    // cannot reorder the next one or the translated sentence around the block.
+    expect(line.tagName).toBe("BDI");
+
+    // Inside a <pre>, so the server's own line breaks survive and nothing in it
+    // is interpreted. The separators are text nodes rather than block elements,
+    // so copying the block yields the banner rather than one run-on line.
+    const block = line.closest("pre");
+    expect(block).not.toBeNull();
+    expect(block?.textContent).toBe(banner);
+  });
+
+  it("does not let the banner take its direction from the interface", () => {
+    // The banner is the far end's text, not interface copy. Under an RTL
+    // interface an inherited direction right-aligns it and moves its trailing
+    // punctuation to the front, which misrepresents what the server sent.
+    render(<SessionWarnings record={record([warning("banner", "Authorised users only.")])} />);
+    expect(screen.getByText("Authorised users only.").closest("pre")?.dir).toBe("ltr");
+  });
+
+  it("keeps a carriage return out of the document", () => {
+    // A CRLF banner is ordinary — RFC 4253 §11.3 sends the text as the server
+    // wrote it — and a lone CR renders as nothing while still sitting in the
+    // DOM as a control character.
+    const banner = "first\r\nsecond\rthird";
+    render(<SessionWarnings record={record([warning("banner", banner)])} />);
+
+    const block = screen.getByText("first").closest("pre");
+    expect(block?.textContent).toBe("first\nsecond\nthird");
   });
 
   it("names a warning it has no wording for rather than swallowing it", () => {

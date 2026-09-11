@@ -1,19 +1,28 @@
 /**
- * The SFTP file manager: two panes, a queue, and the dialogs between them.
+ * The SFTP file manager, bound to one session: two panes, a queue, and the
+ * dialogs between them.
  *
  * # It attaches to a session; it does not make one
  *
  * `SftpBrowser::open` takes the connection a tab is already using and opens one
  * more channel on it (RFC 4254 §6.5), so a file pane on a host with a shell
  * costs a channel rather than a handshake, a host key check and an
- * authentication. That is why this screen offers a *chooser over open sessions*
- * and no connect button: there is one place in this application where a host
- * key question is asked and a credential is used, and it is the session
- * pipeline. Opening a second one here would be a second lifetime to get wrong.
+ * authentication. That is why this component takes a session id rather than a
+ * node id and offers no connect button: there is one place in this application
+ * where a host key question is asked and a credential is used, and it is the
+ * session pipeline. Opening a second one here would be a second lifetime to get
+ * wrong.
+ *
+ * It used to choose its own session from a dropdown over every open tab, and
+ * that was the shape of a screen that was never mounted. A pane belongs to the
+ * tab it is looking at — an SFTP tab *is* this component, and an SSH tab docks
+ * it under its terminal — so the session is now a prop and the two callers in
+ * `features/shell` and `features/sessions` decide which one it is. That also
+ * leaves this file with no import of the sessions feature at all, which is what
+ * lets the session surface import *this* one without a cycle.
  *
  * A session that ends takes its pane with it — the pane's cancellation token is
- * a child of the session's — so nothing here has to watch for that. What this
- * screen does is stop pointing at a session that is no longer running.
+ * a child of the session's — so nothing here has to watch for that.
  *
  * # What crosses between the panes
  *
@@ -31,12 +40,13 @@
 import { useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 
+import { Button } from "@/components/Button";
 import { Callout } from "@/components/Callout";
 import { FailureNotice } from "@/components/FailureNotice";
 import { BusyStatus } from "@/components/Busy";
+import { Icon } from "@/components/Icon";
 import { isolate, useT } from "@/i18n";
 import { asFailure, ipc, type DirectoryEntry, type IpcFailure, type SftpPane, type TransferRequest } from "@/lib/ipc";
-import { useSessions, type SessionRecord } from "@/features/sessions";
 
 import { DeleteDialog } from "./DeleteDialog";
 import { LocalPane } from "./LocalPane";
@@ -47,59 +57,53 @@ import { joinPath, parentPath, validateName } from "./path";
 import { usePane } from "./usePane";
 import { useDirectory } from "./useDirectory";
 
-import s from "./FileManager.module.css";
+import s from "./FilePane.module.css";
 
-/**
- * A session a file pane can attach to.
- *
- * The capability is read from the adapter rather than from the protocol name,
- * so a plugin protocol that carries files gets the same treatment as SSH and an
- * RDP session is refused by the same rule that lets SSH through.
- */
-function usable(record: SessionRecord): boolean {
-  return (
-    record.sessionId !== null &&
-    record.phase === "running" &&
-    record.opened !== null &&
-    record.opened.capabilities.fileTransfer
-  );
+export interface FilePaneProps {
+  /**
+   * The core's id for the session this pane opens its channel on. Null while
+   * the tab is still connecting — the pane cannot exist before the connection
+   * has authenticated, and this says so rather than drawing an empty browser.
+   */
+  sessionId: number | null;
+  /** The connection's own name, from the vault. */
+  name: string;
+  /**
+   * Puts the pane away again. Passed by the tab strip's dock, where the pane is
+   * a panel over a terminal the user still has. A file session's own tab passes
+   * nothing: there is no terminal underneath it, and closing it is closing the
+   * tab.
+   */
+  onClose?: (() => void) | undefined;
 }
 
-export function FileManager() {
+export function FilePane({ sessionId, name, onClose }: FilePaneProps) {
   const t = useT("files");
-  const order = useSessions((state) => state.order);
-  const byId = useSessions((state) => state.byId);
-
-  const candidates = useMemo(
-    () => order.map((id) => byId[id]).filter((record): record is SessionRecord => record !== undefined && usable(record)),
-    [order, byId],
-  );
-
-  const [chosenTab, setChosenTab] = useState<string | null>(null);
-  // Falls back to the first usable session rather than to nothing, so the
-  // screen is useful on arrival and the chooser is for changing the answer.
-  const active = candidates.find((record) => record.tabId === chosenTab) ?? candidates[0] ?? null;
-  const sessionId = active?.sessionId ?? null;
-
   const { pane, opening, problem, retry } = usePane(sessionId);
 
-  if (candidates.length === 0) {
-    return (
-      <section className={s.screen}>
-        <Header candidates={candidates} chosen={null} onChoose={setChosenTab} />
+  return (
+    <section className={s.screen} aria-label={t("header.title")}>
+      <header className={s.header}>
+        <h2 className={s.title}>{t("header.title")}</h2>
+        {/* The connection's own name, from the vault. Isolated: a name in any
+            script must not reorder the heading around it. */}
+        <span className={s.on}>{t("header.on", { name: isolate(name) })}</span>
+        <div className={s.spacer} />
+        {onClose !== undefined && (
+          <Button variant="ghost" size="sm" onClick={onClose} title={t("header.close")}>
+            <Icon name="x" size={13} />
+            <span className={s.closeLabel}>{t("header.close")}</span>
+          </Button>
+        )}
+      </header>
+
+      {sessionId === null && (
         <div className={s.centred}>
-          <Callout tone="neutral" title={t("session.noneTitle")}>
-            <p>{t("session.noneBody")}</p>
-            <p>{t("session.noneUsable")}</p>
+          <Callout tone="neutral" title={t("pane.notConnectedTitle")}>
+            <p>{t("pane.notConnectedBody")}</p>
           </Callout>
         </div>
-      </section>
-    );
-  }
-
-  return (
-    <section className={s.screen}>
-      <Header candidates={candidates} chosen={active?.tabId ?? null} onChoose={setChosenTab} />
+      )}
 
       {opening && (
         <div className={s.centred}>
@@ -113,56 +117,11 @@ export function FileManager() {
         </div>
       )}
 
-      {/* Keyed by the pane, so switching session resets the folder, the
-          selection and the staged files together rather than carrying one
-          host's state onto another's. */}
+      {/* Keyed by the pane, so a reconnect resets the folder, the selection and
+          the staged files together rather than carrying one connection's state
+          onto its successor's. */}
       {pane !== null && <PaneWorkspace key={pane.paneId} pane={pane} />}
     </section>
-  );
-}
-
-function Header({
-  candidates,
-  chosen,
-  onChoose,
-}: {
-  candidates: readonly SessionRecord[];
-  chosen: string | null;
-  onChoose: (tabId: string) => void;
-}) {
-  const t = useT("files");
-  const active = candidates.find((record) => record.tabId === chosen) ?? candidates[0];
-
-  return (
-    <header className={s.header}>
-      <h2 className={s.title}>{t("header.title")}</h2>
-      {active !== undefined && (
-        // The connection's own name, from the vault. Isolated: a name in any
-        // script must not reorder the heading around it.
-        <span className={s.on}>{t("header.on", { name: isolate(active.name) })}</span>
-      )}
-      <div className={s.spacer} />
-      {candidates.length > 1 && (
-        <label className={s.chooser}>
-          <span className={s.chooserLabel}>{t("header.sessionLabel")}</span>
-          <select
-            className={s.select}
-            value={active?.tabId ?? ""}
-            onChange={(e) => {
-              onChoose(e.target.value);
-            }}
-          >
-            {candidates.map((record) => (
-              // A connection name and a host:port, neither of them translated.
-              <option key={record.tabId} value={record.tabId}>
-                {record.name}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
-      <span className={s.hint}>{t("header.sessionHint")}</span>
-    </header>
   );
 }
 
@@ -308,6 +267,9 @@ function PaneWorkspace({ pane }: { pane: SftpPane }) {
         />
       </div>
 
+      {/* Beside the buttons that fill it, and mounted for as long as the pane
+          is — including while its tab is in the background, which is what lets
+          a transfer outlive a tab switch rather than being cancelled by one. */}
       <TransferQueuePanel
         paneId={pane.paneId}
         resume={resume}

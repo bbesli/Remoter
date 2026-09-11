@@ -274,4 +274,102 @@ describe("FramebufferPresenter", () => {
     await Promise.resolve();
     expect(calls).toHaveLength(0);
   });
+
+  /*
+   * A decoded `ImageBitmap` owns pixels the collector cannot see — about eight
+   * megabytes for a 1080p rectangle, held outside the JavaScript heap. A
+   * JPEG-encoded stream left to the collector therefore grows for the life of
+   * the tab, which is a problem measured in gigabytes on an all-day RDP
+   * session and in nothing at all on a thirty-second one. Every path has to
+   * close them, which is why there are three of these.
+   */
+  describe("decoded images", () => {
+    /** A stand-in bitmap that records its own close. */
+    function bitmap(): { image: CanvasImageSource; closed: () => number } {
+      let count = 0;
+      const image = {
+        close: () => {
+          count += 1;
+        },
+      } as unknown as CanvasImageSource;
+      return { image, closed: () => count };
+    }
+
+    it("are closed once their rectangle has been drawn", async () => {
+      const { target, calls } = recorder();
+      const first = bitmap();
+      const presenter = new FramebufferPresenter({
+        target,
+        onChange: () => undefined,
+        decodeImage: () => Promise.resolve(first.image),
+      });
+
+      presenter.accept(
+        encode({
+          seq: 0,
+          keyframe: true,
+          rects: [{ x: 0, y: 0, width: 4, height: 4, encoding: 2, format: 0, payload: [0xff] }],
+        }),
+      );
+
+      await vi.waitFor(() => expect(calls).toHaveLength(2));
+      expect(first.closed()).toBe(1);
+    });
+
+    it("are closed even when the tab is disposed mid-decode", async () => {
+      const { target } = recorder();
+      const late = bitmap();
+      const presenter = new FramebufferPresenter({
+        target,
+        onChange: () => undefined,
+        decodeImage: () =>
+          new Promise((resolve) => {
+            setTimeout(() => resolve(late.image), 0);
+          }),
+      });
+
+      presenter.accept(
+        encode({
+          seq: 0,
+          keyframe: true,
+          rects: [{ x: 0, y: 0, width: 4, height: 4, encoding: 2, format: 0, payload: [0xff] }],
+        }),
+      );
+      // Closing the tab while a rectangle is in flight is the ordinary case,
+      // not an edge one: a tab is usually closed while frames are arriving.
+      presenter.dispose();
+
+      await vi.waitFor(() => expect(late.closed()).toBe(1));
+    });
+
+    it("are closed for the rectangles that decoded when a later one did not", async () => {
+      const { target, calls } = recorder();
+      const good = bitmap();
+      let nth = 0;
+      const presenter = new FramebufferPresenter({
+        target,
+        onChange: () => undefined,
+        decodeImage: () => {
+          nth += 1;
+          return nth === 1 ? Promise.resolve(good.image) : Promise.reject(new Error("truncated"));
+        },
+      });
+
+      presenter.accept(
+        encode({
+          seq: 0,
+          keyframe: true,
+          rects: [
+            { x: 0, y: 0, width: 4, height: 4, encoding: 2, format: 0, payload: [0xff] },
+            { x: 4, y: 0, width: 4, height: 4, encoding: 2, format: 0, payload: [0xd8] },
+          ],
+        }),
+      );
+
+      await vi.waitFor(() => expect(good.closed()).toBe(1));
+      // The unreadable region is skipped rather than ending the session, and
+      // the readable one is still drawn — and still released.
+      expect(calls.filter((call) => call.op === "image")).toHaveLength(1);
+    });
+  });
 });

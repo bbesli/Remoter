@@ -33,6 +33,22 @@ The sidebar collapses to icons or hides entirely. The inspector — connection
 properties, inheritance provenance, session statistics — opens on the right as a
 third column or as an overlay on narrow windows.
 
+The session area draws whichever of the three kinds of content the session
+itself reports — terminal, framebuffer, file grid — never a guess from the
+protocol name, so a plugin protocol is treated exactly as a built-in one. The
+file grid reaches it two ways, and both of them are a session rather than a
+screen of their own:
+
+- an `sftp` connection opened from the tree fills its whole tab with it;
+- a session that is already connected and carries files — SSH — docks a pane
+  under its terminal from the tab strip's Files control. That pane is one more
+  channel on the connection the tab already authenticated (RFC 4254 §6.5), not
+  a second sign-in, which is why the control is offered per session and not as
+  a destination in the title bar.
+
+A docked pane belongs to its tab and keeps running while another tab is in
+front: it holds a transfer queue, and a tab switch must not cancel a copy.
+
 ## Screens
 
 | Screen | Purpose |
