@@ -17,6 +17,7 @@
 //! | [`credentials`] | [`CredentialProvider`] — secrets borrowed, never handed over |
 //! | [`hostkey`] | [`TrustStore`], [`Fingerprint`], and what happens when a key changes |
 //! | [`event`] | [`SessionEvent`], the bounded coalescing [`EventSink`] |
+//! | [`framebuffer`] | The graphical vocabulary RDP and VNC share: rectangles, encodings, the frame format, [`FrameCoalescer`] |
 //! | [`supervisor`] | [`SessionSupervisor`], one task per session, and the registry |
 //! | [`error`] | [`ProtocolError`], the failure taxonomy |
 //!
@@ -43,6 +44,7 @@ pub mod coalesce;
 pub mod credentials;
 pub mod error;
 pub mod event;
+pub mod framebuffer;
 pub mod gateway;
 pub mod hostkey;
 pub mod protocol;
@@ -61,6 +63,11 @@ pub use event::{
     CloseReason, DEFAULT_EVENT_CAPACITY, EventSink, ProgressUpdate, Prompt, PromptAnswer, PromptId,
     PromptKind, SessionEvent, SessionWarning, TrustedHostKey, event_channel,
 };
+pub use framebuffer::{
+    COPY_RECT_PAYLOAD_BYTES, CursorUpdate, DEFAULT_MAX_PENDING_BYTES, FLAG_KEYFRAME,
+    FRAME_HEADER_BYTES, FRAME_RECT_BYTES, FrameCoalescer, FrameEncoding, FrameMessage, FrameRect,
+    FrameUpdate, MESSAGE_CURSOR, MESSAGE_FRAMEBUFFER, PixelFormat, Rect,
+};
 pub use gateway::{
     ChainBuilder, DEFAULT_HOP_TIMEOUT, EntryDialer, GatewayChainPlan, HopConfig, HopDialer,
     TcpDialer,
@@ -78,4 +85,6 @@ pub use supervisor::{
     SessionCommand, SessionContext, SessionHandle, SessionId, SessionInfo, SessionSpec,
     SessionState, SessionSupervisor, SupervisorConfig, run_session,
 };
-pub use transport::{HostPort, TcpTransport, Transport, TransportKind, TransportPeer};
+pub use transport::{
+    HostPort, SyncTransport, TcpTransport, Transport, TransportKind, TransportPeer,
+};

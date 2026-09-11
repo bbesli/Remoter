@@ -546,6 +546,105 @@ impl AsyncWrite for TcpTransport {
     }
 }
 
+/// A transport that is additionally `Sync`.
+///
+/// [`Transport`] requires `Send` and not `Sync`, because a stream lives in one
+/// task and nothing in this workspace reads it from two. Some protocol
+/// libraries ask for more than that anyway: `vnc-rs` 0.5 bounds its connector
+/// on `AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static`, so
+/// `Box<dyn Transport>` does not satisfy it and the adapter cannot hand its
+/// injected transport straight over.
+///
+/// The obvious workaround — a task pumping bytes between the transport and a
+/// `tokio::io::duplex` pair — is the wrong one twice over. It copies every
+/// byte of a framebuffer stream, and it adds a task that has to be cancelled
+/// with the session. A task that is *nearly* always cancelled is how one task
+/// and one socket leaked per cancelled connection attempt once already.
+///
+/// This wrapper adds `Sync` structurally instead. The mutex is never contended
+/// — `poll_read` and `poll_write` take `Pin<&mut Self>`, so the caller already
+/// holds exclusive access — and it is never held across an await, because a
+/// `poll_*` method cannot await. It costs an uncontended atomic per call and
+/// no copy, and it needs no `unsafe`.
+pub struct SyncTransport {
+    inner: parking_lot::Mutex<Box<dyn Transport>>,
+    /// Cloned at construction: `Transport::peer` returns a reference, and a
+    /// reference cannot outlive the guard it would have to be read through.
+    peer: TransportPeer,
+}
+
+impl SyncTransport {
+    /// Wraps an injected transport so it can be handed to a library that
+    /// demands `Sync`.
+    #[must_use]
+    pub fn new(inner: Box<dyn Transport>) -> Self {
+        let peer = inner.peer().clone();
+        Self {
+            inner: parking_lot::Mutex::new(inner),
+            peer,
+        }
+    }
+
+    /// Gives the wrapped transport back.
+    ///
+    /// The point of returning it rather than dropping it is that a handshake
+    /// which fails part way can hand the stream on — to a retry, or to an
+    /// error path that wants to send a protocol-level goodbye — instead of
+    /// silently abandoning a connected socket.
+    #[must_use]
+    pub fn into_inner(self) -> Box<dyn Transport> {
+        self.inner.into_inner()
+    }
+}
+
+impl Transport for SyncTransport {
+    fn peer(&self) -> &TransportPeer {
+        &self.peer
+    }
+}
+
+impl fmt::Debug for SyncTransport {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SyncTransport")
+            .field("peer", &self.peer)
+            .finish()
+    }
+}
+
+// `Box<dyn Transport>` is `Unpin`, so every projection below is a safe
+// `Pin::new` on the value behind the guard.
+impl AsyncRead for SyncTransport {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
+        let mut inner = self.inner.lock();
+        Pin::new(&mut *inner).poll_read(cx, buf)
+    }
+}
+
+impl AsyncWrite for SyncTransport {
+    fn poll_write(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
+        let mut inner = self.inner.lock();
+        Pin::new(&mut *inner).poll_write(cx, buf)
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        let mut inner = self.inner.lock();
+        Pin::new(&mut *inner).poll_flush(cx)
+    }
+
+    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        let mut inner = self.inner.lock();
+        Pin::new(&mut *inner).poll_shutdown(cx)
+    }
+}
+
 #[cfg(test)]
 #[allow(
     clippy::unwrap_used,
@@ -811,5 +910,44 @@ mod tests {
             panic!("expected a DNS failure, got {error:?}");
         };
         assert_eq!(host, "nothing.here.invalid");
+    }
+
+    /// A transport wrapped for a library that demands `Sync` must still be a
+    /// transport: same peer, same bytes, no pump task in between.
+    #[tokio::test]
+    async fn a_sync_wrapped_transport_carries_bytes_and_keeps_its_peer() {
+        // `Send + Sync + 'static` is the bound `vnc-rs` 0.5 applies to its
+        // stream. Asserting it here means the VNC adapter finds out at this
+        // test rather than at its own integration point.
+        fn assert_send_sync<T: Send + Sync + 'static>() {}
+        assert_send_sync::<SyncTransport>();
+
+        let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let echo = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut buf = [0u8; 5];
+            stream.read_exact(&mut buf).await.unwrap();
+            stream.write_all(&buf).await.unwrap();
+        });
+
+        let target = HostPort::new("127.0.0.1", port).unwrap();
+        let direct = TcpTransport::connect(&target, Duration::from_secs(5))
+            .await
+            .unwrap();
+        let peer = direct.peer().clone();
+        let mut wrapped = SyncTransport::new(Box::new(direct));
+
+        assert_eq!(wrapped.peer(), &peer);
+        wrapped.write_all(b"hello").await.unwrap();
+        let mut back = [0u8; 5];
+        wrapped.read_exact(&mut back).await.unwrap();
+        assert_eq!(&back, b"hello");
+
+        // The stream is handed back rather than abandoned, so a handshake that
+        // fails part way still has a socket to say goodbye on.
+        let recovered = wrapped.into_inner();
+        assert_eq!(recovered.peer(), &peer);
+        echo.await.unwrap();
     }
 }

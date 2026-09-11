@@ -70,22 +70,59 @@ Three techniques, applied together:
 **1 · Dirty rectangles only.** RDP and RFB both transmit incremental updates
 already. A typical interactive desktop changes 2–5 % of its pixels per frame.
 Sending only changed regions cuts the volume by more than an order of magnitude
-before anything else is optimised. The core merges overlapping rectangles and
-coalesces updates that arrive faster than the display refresh.
+before anything else is optimised. The core coalesces updates that arrive faster
+than the display refresh.
+
+Rectangles are **not** merged in the general case, and the reason is copy-rect:
+a copy-rect *reads* the surface the presenter holds, so dropping an earlier
+rectangle that a later copy-rect copies from corrupts the display. Doing it
+safely means tracking the surface in Rust, which is a second full copy of every
+session's framebuffer. `remoter_proto::framebuffer::FrameCoalescer` therefore
+applies only the supersession that is unconditionally sound — a full-surface
+repaint of real pixels makes everything queued before it unobservable, so the
+batch is cleared and marked a keyframe. Finer merging belongs to the encoder,
+which knows what it emitted.
 
 **2 · Raw byte payloads, never JSON.** Tauri v2's IPC rewrite supports raw
 payloads specifically to avoid JSON serialisation of binary data. Frame updates
-are returned as `tauri::ipc::Response` byte slices with a compact binary header:
+are returned as `tauri::ipc::Response` byte slices with a compact binary header.
+The format is defined and implemented in
+`crates/remoter-proto/src/framebuffer.rs`; that module is the normative
+description and this is its summary. Little-endian throughout, because every
+platform Remoter builds for is little-endian and a `DataView` takes the
+endianness as an argument anyway:
 
 ```
-┌────────────────────────────────────────────────────────────┐
-│ u32 session_id │ u32 seq │ u8 encoding │ u8 flags │ u16 n   │
-├────────────────────────────────────────────────────────────┤
-│ n × rect { u16 x, u16 y, u16 w, u16 h, u32 byte_length }    │
-├────────────────────────────────────────────────────────────┤
-│ pixel payload, concatenated, encoding as declared           │
-└────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│ u64 session │ u32 seq │ u8 message │ u8 flags │ u16 n                 │  16 B
+├──────────────────────────────────────────────────────────────────────┤
+│ n × rect { u16 x, u16 y, u16 w, u16 h,                                │  14 B
+│            u8 encoding, u8 pixel_format, u32 byte_length }            │  each
+├──────────────────────────────────────────────────────────────────────┤
+│ payloads, concatenated, in descriptor order                           │
+└──────────────────────────────────────────────────────────────────────┘
+
+message  0 framebuffer, 1 cursor shape
+flags    bit 0 = keyframe: this update depends on nothing before it
 ```
+
+Two fields differ from the sketch this document first carried, and both were
+changed deliberately rather than drifted into:
+
+- **The session identifier is 64 bits.** `SessionId` is a `u64` counter, and
+  truncating it into a 32-bit header is how two tabs quietly become one.
+- **The encoding byte moved into the rectangle descriptor.** The encoding table
+  below says the encoder chooses *per rectangle*, which a single message-level
+  byte cannot express. The descriptor also carries the pixel format, so a
+  message can mix a JPEG region with raw ones — which is exactly what a desktop
+  showing a video in a window produces.
+
+A **cursor** message is one rectangle whose `x`/`y` are the hot spot rather than
+a position on the desktop, and whose payload is the cursor image; a width and
+height of zero hide the pointer. It is a separate message rather than pixels
+drawn into the framebuffer because the pointer moves far more often than it
+changes shape, and a presenter that owns the shape can follow the local pointer
+at the display's refresh rate instead of the network's.
 
 The frontend parses this with a `DataView` — no allocation per rectangle — and
 uploads each rect with `texSubImage2D` (WebGL2) or `putImageData` (2D fallback).
@@ -183,10 +220,23 @@ more than throughput.
 - Keyboard events are captured at the tab level with `preventDefault` on
   everything the session should receive, so `Ctrl+W` closes a remote window
   rather than a local tab
-- Scancode-level translation for RDP, which expects scancodes rather than
-  characters. This is where keyboard-layout bugs live; the layout mapping tables
-  are tested against a matrix of layouts including Turkish Q/F, German, French
-  AZERTY and Arabic
+- **The two framebuffer protocols want different things from one keypress, and
+  neither can be derived from the other in Rust.** RDP carries a PS/2 Set 1
+  scancode and lets the *server* apply the layout (MS-RDPBCGR
+  §2.2.8.1.1.3.1.1.1). RFB carries an X11 keysym, layout already applied by the
+  client (RFC 6143 §7.5.4). The browser has both — `KeyboardEvent.code` is the
+  physical key and maps to a scancode, `KeyboardEvent.key` is the character the
+  layout produced and maps to a keysym — and it is the only place the layout is
+  known. So `InputEvent::Key` carries both, and each adapter takes the one it
+  needs. `KeyboardEvent.keyCode` is neither, despite its name: it is deprecated,
+  it varies by browser and layout, and an adapter that treats it as a scancode
+  types correctly on a US keyboard and wrongly everywhere else. This is where
+  keyboard-layout bugs live; the mapping tables are tested against a matrix of
+  layouts including Turkish Q/F, German, French AZERTY and Arabic
+- Lock states are carried explicitly rather than inferred, because RDP
+  synchronises them with a Client Synchronize Event
+  (MS-RDPBCGR §2.2.8.1.1.3.1.1.5). A session that never sends one types in the
+  wrong case until the user notices and presses Caps Lock twice
 - IME composition is passed through for terminal sessions and handled natively
   for framebuffer sessions
 - Mouse events carry sub-pixel-accurate coordinates scaled by the current zoom

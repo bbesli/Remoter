@@ -23,8 +23,57 @@ allow = [
     # no copyleft and no further obligations, so it imposes nothing on a
     # GPL-3.0 work that ships it.
     "CDLA-Permissive-2.0",
+    # `async_io_stream`, reached only through `vnc-rs`. The Unlicense is a
+    # public domain dedication with a permissive fallback licence; the FSF
+    # lists it as GPL-compatible, and a dedication imposes no condition a
+    # GPL-3.0 work could conflict with. Note that it is the *sole* licence on
+    # that crate — `Unlicense OR MIT`, which several other dependencies carry,
+    # already resolved through the MIT arm.
+    "Unlicense",
 ]
 confidence-threshold = 0.9
+
+# Protocol implementations, checked against GPL-3.0 before they were added
+# (CLAUDE.md §8.1). Recorded here rather than only in a commit message because
+# this file is where the next person looks.
+#
+#   ironrdp 0.17 and every `ironrdp-*` crate it re-exports  MIT OR Apache-2.0
+#   vnc-rs 0.5                                              MIT OR Apache-2.0
+#
+# Both offer an Apache-2.0 arm, which GPL-3.0 permits incorporating, and an MIT
+# arm, which it also permits. Neither carries an additional restriction, a
+# non-commercial clause or a source-availability obligation, so neither
+# conflicts with distributing Remoter under GPL-3.0-or-later. Their transitive
+# trees resolved to licences already allowed above, with the single exception
+# of `async_io_stream` under the Unlicense, noted in the allow list.
+
+# The RDP adapter's own dependencies, checked before they were added
+# (CLAUDE.md §8.1). Only one of them is new to the dependency graph:
+#
+#   tokio-rustls 0.26    MIT OR Apache-2.0    NEW
+#   rustls 0.23          Apache-2.0 OR ISC OR MIT   already present via russh
+#   rustls-pki-types 1   MIT OR Apache-2.0    already present
+#   webpki-roots 1       CDLA-Permissive-2.0  already present, noted above
+#   x509-cert 0.2        Apache-2.0 OR MIT    already present via ironrdp-pdu
+#   hmac 0.13            MIT OR Apache-2.0    already present
+#
+# Every one offers a permissive arm GPL-3.0 permits incorporating, and none
+# carries an additional restriction, a non-commercial clause or a
+# source-availability obligation.
+#
+# Two crates were deliberately *not* added, and the reasons are recorded in
+# `crates/remoter-proto-rdp/src/lib.rs` rather than only here:
+#
+#   ironrdp-connector    pins `picky =7.0.0-rc.25`, whose default features pin
+#                        `aes-gcm =0.11.0-rc.4`, which contradicts
+#                        `remoter-import`'s released `aes-gcm ^0.11`
+#   sspi                 pins `curve25519-dalek =5.0.0-rc.1` on Apple targets,
+#                        which contradicts `russh`'s released `^5`; cargo
+#                        resolves target-specific dependencies for every target
+#
+# Both are resolver conflicts, not licence problems: adding either fails every
+# cargo command in the repository. MS-CSSP, MS-NLMP and the MS-RDPBCGR
+# connection sequence are implemented in-crate as a result.
 
 [[licenses.clarify]]
 crate = "ring"

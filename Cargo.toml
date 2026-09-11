@@ -8,6 +8,8 @@ members = [
     "crates/remoter-import",
     "crates/remoter-proto",
     "crates/remoter-proto-ssh",
+    "crates/remoter-proto-rdp",
+    "crates/remoter-proto-vnc",
     "crates/remoter-ipc",
     "apps/desktop/src-tauri",
 ]
@@ -28,6 +30,8 @@ remoter-plugin-abi = { path = "crates/remoter-plugin-abi" }
 remoter-import = { path = "crates/remoter-import" }
 remoter-proto = { path = "crates/remoter-proto" }
 remoter-proto-ssh = { path = "crates/remoter-proto-ssh" }
+remoter-proto-rdp = { path = "crates/remoter-proto-rdp" }
+remoter-proto-vnc = { path = "crates/remoter-proto-vnc" }
 remoter-ipc = { path = "crates/remoter-ipc" }
 
 # --- cryptography ---

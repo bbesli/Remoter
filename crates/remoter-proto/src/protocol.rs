@@ -130,6 +130,16 @@ impl Modifiers {
     pub const META: Self = Self(1 << 3);
     /// AltGr, which is not Alt and matters on every non-US layout.
     pub const ALT_GRAPH: Self = Self(1 << 4);
+    /// Caps Lock is latched. A *lock* state, not a held key: it is here
+    /// because RDP synchronises lock states explicitly with a Client
+    /// Synchronize Event (MS-RDPBCGR §2.2.8.1.1.3.1.1.5), and a session that
+    /// never sends one types in the wrong case until the user notices and
+    /// presses the key twice.
+    pub const CAPS_LOCK: Self = Self(1 << 5);
+    /// Num Lock is latched. Same reason as [`Modifiers::CAPS_LOCK`].
+    pub const NUM_LOCK: Self = Self(1 << 6);
+    /// Scroll Lock is latched. Same reason as [`Modifiers::CAPS_LOCK`].
+    pub const SCROLL_LOCK: Self = Self(1 << 7);
 
     /// Combines two sets.
     #[must_use]
@@ -170,6 +180,19 @@ impl PointerButtons {
     pub const RIGHT: Self = Self(1 << 1);
     /// The middle button.
     pub const MIDDLE: Self = Self(1 << 2);
+    /// The first extra button — "back" on most mice. RDP carries it as
+    /// `PTRXFLAGS_BUTTON1` in the extended pointer event
+    /// (MS-RDPBCGR §2.2.8.1.1.3.1.1.4).
+    ///
+    /// RFC 6143 §7.5.5 has no equivalent: its eight `button-mask` bits are
+    /// buttons 1 to 8, and buttons 4 to 7 are already the wheel. A VNC adapter
+    /// therefore has to choose between the community extended-mask extension
+    /// and dropping the event, and dropping it is a legitimate answer as long
+    /// as it is written down rather than left to be inferred.
+    pub const BACK: Self = Self(1 << 3);
+    /// The second extra button — "forward" on most mice. RDP's
+    /// `PTRXFLAGS_BUTTON2`; see [`PointerButtons::BACK`] for RFB.
+    pub const FORWARD: Self = Self(1 << 4);
 
     /// Combines two sets.
     #[must_use]
@@ -197,6 +220,35 @@ impl PointerButtons {
 /// prompt, into `passwd`, or at a Windows login screen all arrive here. A
 /// derived `Debug` plus one `tracing::debug!` on the input path would put them
 /// in a log file.
+///
+/// # A browser key event is neither a scancode nor a keysym
+///
+/// This is where keyboard-layout bugs live, so the contract is written out
+/// rather than left to each adapter to rediscover.
+///
+/// A `KeyboardEvent` in the WebView carries three things worth having:
+///
+/// - **`code`** — the physical key, independent of layout. `"KeyA"` is the key
+///   where `A` sits on a US keyboard, whatever the user's layout prints on it.
+///   This is what maps to a **scancode**, and it is what RDP wants: the Client
+///   Keyboard Event carries a PS/2 Set 1 make code (MS-RDPBCGR
+///   §2.2.8.1.1.3.1.1.1) and the *server* applies the layout.
+/// - **`key`** — the character the layout produced, `"a"` or `"ä"` or
+///   `"Dead"`. This is what maps to an **X11 keysym**, and it is what VNC
+///   wants: `KeyEvent` carries a keysym (RFC 6143 §7.5.4) and the layout has
+///   already been applied by the client.
+/// - **`keyCode`** — a deprecated number that is neither. It varies by browser
+///   and by layout, it is not a scancode despite the name, and any adapter
+///   that treats it as one produces a session that types correctly on a US
+///   keyboard and wrongly on a Turkish, German or AZERTY one. It is named here
+///   only so that nobody reaches for it.
+///
+/// The two protocols therefore want different things from the same keypress,
+/// and neither can be derived from the other without the layout — which lives
+/// in the browser, not in Rust. So [`InputEvent::Key`] carries **both**, and
+/// each adapter takes the one it needs. `scancode` is always present because a
+/// physical key was always pressed; `keysym` is optional because a key such as
+/// a dead key or a bare modifier produces no character at all.
 #[derive(Clone, PartialEq, Eq)]
 pub enum InputEvent {
     /// Bytes for a terminal, already encoded by the frontend — an escape
@@ -204,28 +256,48 @@ pub enum InputEvent {
     /// re-deriving it from key events in Rust would be a second, divergent
     /// implementation of what xterm.js already does correctly.
     Bytes(Bytes),
-    /// A key transition, for framebuffer protocols that speak scancodes.
-    /// `scancode` is a physical position, not a character: RDP and VNC both
-    /// want the position, and translating it to a character here is where
-    /// keyboard-layout bugs live.
+    /// A key transition, for framebuffer protocols. See the type
+    /// documentation for why both a scancode and a keysym are carried.
     Key {
-        /// The physical key.
+        /// The physical key, as a PS/2 Set 1 make code, with the `E0` prefix
+        /// represented as bit 8 (`0x100`). Right Control is therefore `0x11d`
+        /// and Left Control is `0x1d`, which is exactly the "extended
+        /// scancode" convention MS-RDPBCGR §2.2.8.1.1.3.1.1.1 encodes as
+        /// `KBDFLAGS_EXTENDED` beside an 8-bit `keyCode`.
         scancode: u32,
-        /// Modifiers held at the time.
+        /// The X11 keysym the user's layout produced, where it produced one.
+        /// Latin-1 characters are their own code point; everything else uses
+        /// the `0x01000000 + code point` form. `None` for a key that produced
+        /// no character — a bare modifier, or a dead key mid-composition.
+        keysym: Option<u32>,
+        /// Modifiers held, and lock states latched, at the time.
         modifiers: Modifiers,
         /// Whether the key went down (`true`) or up.
         pressed: bool,
     },
     /// Pointer movement, buttons and wheel.
     Pointer {
-        /// X, in remote display coordinates.
+        /// X, in remote display coordinates — remote pixels, after the tab's
+        /// zoom and the device pixel ratio have been divided out. Scaling in
+        /// the frontend and not here is deliberate: only the frontend knows
+        /// what it drew.
         x: u16,
         /// Y, in remote display coordinates.
         y: u16,
-        /// Which buttons are down.
+        /// Which buttons are down. A full state, not a transition, because
+        /// that is what both protocols put on the wire.
         buttons: PointerButtons,
-        /// Wheel delta; positive is away from the user.
+        /// Vertical wheel delta; positive is away from the user, and one
+        /// notch is 120, matching RDP's `rotationUnits`
+        /// (MS-RDPBCGR §2.2.8.1.1.3.1.1.3) and the `WHEEL_DELTA` every mouse
+        /// driver reports. RFB has no delta at all — a notch is a press and
+        /// release of button 4 or 5 (RFC 6143 §7.5.5) — so the VNC adapter
+        /// divides, and carrying the finer number here is what lets it.
         wheel: i16,
+        /// Horizontal wheel delta; positive is to the right. Same units.
+        /// Separate from `wheel` because a tilt wheel is a different axis, not
+        /// a different sign, and RDP encodes it with its own flag.
+        wheel_x: i16,
     },
 }
 
@@ -235,15 +307,26 @@ impl fmt::Debug for InputEvent {
             Self::Bytes(bytes) => write!(f, "Bytes(<redacted, {} bytes>)", bytes.len()),
             Self::Key {
                 scancode,
+                keysym,
                 modifiers,
                 pressed,
             } => {
                 // A scancode is a physical position, not a character, so it
                 // reveals which key was struck but not which glyph a layout
                 // maps it to. It is still input: shown only as a number.
+                //
+                // The keysym is not shown at all, not even as a number: it
+                // *is* the character. Printing it would put the password
+                // typed at a Windows login screen into a log one code point
+                // per line.
                 write!(
                     f,
-                    "Key {{ scancode: {scancode}, modifiers: {:#04x}, pressed: {pressed} }}",
+                    "Key {{ scancode: {scancode}, keysym: {}, modifiers: {:#04x}, pressed: {pressed} }}",
+                    if keysym.is_some() {
+                        "<redacted>"
+                    } else {
+                        "None"
+                    },
                     modifiers.bits()
                 )
             }
@@ -252,9 +335,10 @@ impl fmt::Debug for InputEvent {
                 y,
                 buttons,
                 wheel,
+                wheel_x,
             } => write!(
                 f,
-                "Pointer {{ x: {x}, y: {y}, buttons: {:#04x}, wheel: {wheel} }}",
+                "Pointer {{ x: {x}, y: {y}, buttons: {:#04x}, wheel: {wheel}, wheel_x: {wheel_x} }}",
                 buttons.bits()
             ),
         }
@@ -772,12 +856,69 @@ mod tests {
         assert!(!rendered.contains("hunter2"), "{rendered}");
         assert!(rendered.contains("<redacted, 8 bytes>"), "{rendered}");
 
+        // A keysym *is* the character the user typed, so it is redacted even
+        // though it is only a number: `0x68` in a log is `h`, and the rest of
+        // the password follows it one event at a time.
         let key = InputEvent::Key {
-            scancode: 30,
+            scancode: 0x23,
+            keysym: Some(0x68),
             modifiers: Modifiers::SHIFT,
             pressed: true,
         };
-        assert!(format!("{key:?}").contains("scancode: 30"));
+        let rendered = format!("{key:?}");
+        assert!(rendered.contains("scancode: 35"), "{rendered}");
+        assert!(rendered.contains("keysym: <redacted>"), "{rendered}");
+        assert!(!rendered.contains("104"), "{rendered}");
+
+        let modifier_only = InputEvent::Key {
+            scancode: 0x2a,
+            keysym: None,
+            modifiers: Modifiers::NONE,
+            pressed: true,
+        };
+        assert!(format!("{modifier_only:?}").contains("keysym: None"));
+    }
+
+    #[test]
+    fn a_lock_state_has_a_modifier_bit_of_its_own() {
+        // RDP synchronises lock states explicitly; a session that cannot
+        // express "Caps Lock is latched" types in the wrong case until the
+        // user notices.
+        let held = Modifiers::SHIFT.with(Modifiers::CAPS_LOCK);
+        assert!(held.contains(Modifiers::CAPS_LOCK));
+        assert!(!held.contains(Modifiers::NUM_LOCK));
+        assert_eq!(
+            Modifiers::CAPS_LOCK
+                .with(Modifiers::NUM_LOCK)
+                .with(Modifiers::SCROLL_LOCK)
+                .bits(),
+            0b1110_0000
+        );
+    }
+
+    #[test]
+    fn the_extra_pointer_buttons_are_distinct_from_the_first_three() {
+        let pressed = PointerButtons::BACK.with(PointerButtons::FORWARD);
+        assert!(pressed.contains(PointerButtons::BACK));
+        assert!(pressed.contains(PointerButtons::FORWARD));
+        assert!(!pressed.contains(PointerButtons::LEFT));
+        assert!(!pressed.contains(PointerButtons::MIDDLE));
+    }
+
+    #[test]
+    fn the_two_wheel_axes_are_separate_fields_not_a_sign() {
+        // A tilt wheel is a different axis; RDP gives it its own flag, and
+        // folding it into the vertical delta loses the distinction.
+        let tilt = InputEvent::Pointer {
+            x: 10,
+            y: 20,
+            buttons: PointerButtons::NONE,
+            wheel: 0,
+            wheel_x: -120,
+        };
+        let rendered = format!("{tilt:?}");
+        assert!(rendered.contains("wheel: 0"), "{rendered}");
+        assert!(rendered.contains("wheel_x: -120"), "{rendered}");
     }
 
     #[test]
