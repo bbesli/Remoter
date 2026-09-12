@@ -7,6 +7,14 @@
  * published default, and the moment to learn that is while deciding what to do
  * with its contents — not in a summary after they are in the vault.
  *
+ * Detection is not the only thing that can ask for a password. A file whose
+ * format the sniffer could not place carries no header for this step to read,
+ * and a `confCons.xml` the owner protected then reaches the parse and is
+ * refused for the one reason the user can do something about. So the field is
+ * put on the screen by either voice — the header saying a password is wanted,
+ * or the core saying so after the fact — because a refusal that says "enter the
+ * document password" beside no box to enter it in is a dead end.
+ *
  * The password lives in this component's state for as long as it takes to hand
  * it to `import_parse`, and nowhere else: not in a store, not in a query cache,
  * not in a log line. It travels inward and never comes back.
@@ -21,6 +29,7 @@ import { TextInput } from "@/components/TextInput";
 import { formatBytes, isolateLtr, useLocale, useT } from "@/i18n";
 import type { ImportDetection, IpcFailure } from "@/lib/ipc";
 
+import { wantsDocumentPassword } from "./steps";
 import s from "./ImportWizard.module.css";
 
 interface SecretsStepProps {
@@ -47,7 +56,8 @@ export function SecretsStep({
 }: SecretsStepProps) {
   const t = useT("import");
   const { code: locale } = useLocale();
-  const needsPassword = detection?.passwordRequired ?? false;
+  const needsPassword =
+    (detection?.passwordRequired ?? false) || wantsDocumentPassword(failure);
   const doc = detection?.document ?? null;
   // mRemoteNG writes a file that asks for no password by encrypting it with a
   // password published in its own source. "No password" and "the default

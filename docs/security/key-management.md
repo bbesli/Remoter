@@ -3,6 +3,15 @@
 Lifecycle of the keys and unlock methods described in
 [vault-format.md](vault-format.md), from the user's point of view.
 
+> **What ships.** Creation, unlock, lock, rotation and revocation are built, for
+> three of the four slot kinds: master password, password plus key file,
+> recovery key, and the OS keychain. ⏳ **The hardware-key (FIDO2) slot is not
+> implemented** — `kek_for` answers `UnlockError::Fido2Unsupported` for it,
+> `Vault::open` refuses it before touching the file, and adding one is refused
+> too. Every sentence below about a hardware key is design, not behaviour, and is
+> marked. ⏳ Two of the five auto-lock triggers also cannot be observed from this
+> build; see *Auto-lock*.
+
 ## Creating a vault
 
 The creation wizard is four steps. It is deliberately not skippable — the
@@ -33,8 +42,8 @@ continuing. Buttons: copy, download as text, print. The warning text is in
 translators; the i18n review checklist flags that string specifically.
 
 After creation, the vault is unlocked and the user is offered — not
-automatically given — the optional slots: hardware key, and "remember on this
-device".
+automatically given — the optional slots: "remember on this device" (the OS
+keychain), and ⏳ a hardware key, once that slot kind exists.
 
 ## Unlocking
 
@@ -107,14 +116,31 @@ Locking is real: it zeroizes the VMK, the CEK, the SEK and every cached
 plaintext secret, then drops the in-memory database. Reopening requires a full
 unlock.
 
-| Trigger | Default |
-|---|---|
-| Idle timeout | 15 minutes |
-| OS screen lock / session lock | Lock |
-| System suspend or hibernate | Lock |
-| User switch (Windows) | Lock |
-| Manual (`Ctrl/Cmd+L`) | — |
-| Application minimised | Off |
+| Trigger | Default | |
+|---|---|---|
+| Idle timeout | 15 minutes | ✅ |
+| Manual (`Ctrl/Cmd+L`) | — | ✅ |
+| System suspend or hibernate | Lock | ◐ — see below |
+| OS screen lock / session lock | Lock | ⏳ not observable |
+| Application minimised | Off | ⏳ not observable |
+| User switch (Windows) | Lock | ⏳ not observable |
+
+**Suspend is seen on the way back, not on the way out.** logind's
+`PrepareForSleep` would give advance notice and needs a D-Bus client this build
+does not carry. What is free is the return: `Instant` is `CLOCK_MONOTONIC` and
+does not advance while the machine is suspended, while `SystemTime` does, so a
+thread sampling both and finding the wall clock far ahead has just watched the
+machine wake. **The keys were therefore in memory for the whole sleep, and inside
+the hibernation image if it hibernated.** The interface says exactly that; it is
+not a caveat a user should have to discover. Linux only.
+
+**The screen lock and minimise are not seen at all.** The freedesktop screensaver
+and login1 signals are D-Bus, every other platform has its own API, and Tauri
+2.11's `WindowEvent` has no minimise variant — the polled `is_minimized()`
+underneath it is fed by GTK's `ICONIFIED` state, which a Wayland compositor never
+sends. A switch that worked on X11 and silently did nothing on Wayland would be
+the same defect in a smaller box, so both are reported to the interface as
+`"unobserved"`, and the Vault settings screen disables them and says why.
 
 Active sessions are, by default, **kept alive** across a lock — an
 administrator watching a long-running deployment does not want their SSH session
@@ -122,25 +148,33 @@ killed because they went for coffee. A per-vault setting can change this to
 "freeze input" or "disconnect all", and the choice is recorded in the audit log
 when it is changed.
 
-Idle detection uses OS-level input idle time, not window focus, so a session
-that is being watched but not typed into does not count as idle while it is
+**Idle is Remoter's own traffic, not the desktop's.** It is not OS-level input
+idle time — reading that per platform is work this build has not done, and the
+interface says so rather than claiming otherwise. What touches the clock is vault
+activity *and* session input and output, which is what matters: idle was once
+measured from the last vault-touching IPC call, so working inside a terminal was
+not activity at all and the vault locked out from under a user who was typing. A
+session being watched but not typed into does not count as idle while it is
 producing output.
 
 ## Rotating and revoking
 
-| Operation | What changes | Re-encrypts the body? |
-|---|---|---|
-| Change master password | Slot 0 re-wrapped with a new KEK | No |
-| Change or remove key file | Slot 0 re-wrapped | No |
-| Rotate the recovery key | Recovery slot replaced; old key becomes useless | No |
-| Enrol a hardware key | New slot appended | No |
-| Revoke a hardware key | Slot deleted | No |
-| Disable "remember on this device" | Slot deleted, keychain token erased | No |
-| **Rotate the Vault Master Key** | New VMK; every slot re-wrapped; body re-encrypted | **Yes** |
+| Operation | What changes | Re-encrypts the body? | |
+|---|---|---|---|
+| Change master password | Slot 0 re-wrapped with a new KEK | No | ✅ |
+| Change or remove key file | Slot 0 re-wrapped | No | ✅ |
+| Add a second password slot | New slot appended | No | ✅ |
+| Issue or rotate a recovery key | Recovery slot added or replaced; the old key becomes useless | No | ✅ |
+| Disable "remember on this device" | Slot deleted, keychain token erased | No | ✅ |
+| **Rotate the Vault Master Key** | New VMK; every slot re-wrapped; body re-encrypted | **Yes** | ✅ |
+| Enrol a hardware key | New slot appended | No | ⏳ |
+| Revoke a hardware key | Slot deleted | No | ⏳ — though revocation only deletes the entry, so it needs no device |
 
-Only the last is expensive, and it is the correct response to "I think a copy of
+Rotating the master key is the expensive one, and it is the correct response to "I think a copy of
 this file leaked while a key was compromised". Remoter offers it explicitly in
-that language rather than hiding it under "advanced".
+that language rather than hiding it under "advanced" — and says on the screen
+what it does **not** do: a leaked copy of the file still opens with the old keys,
+including the rolling backups beside it, which the rotating save also rotates.
 
 **A vault must always retain at least one usable slot.** The UI refuses to
 delete the last one, and refuses to delete the recovery slot without an explicit
@@ -213,7 +247,7 @@ attacker who can impersonate one.
 
 - Store the recovery key offline — printed, in a safe, or in a *different*
   password manager
-- Enrol two hardware keys if you use one at all
+- ⏳ Enrol two hardware keys if you use one at all — once hardware keys exist
 - Keep the rolling backups; they cost almost nothing
 - Export a plaintext archive before a risky operation only if you can protect it
   properly, and delete it afterwards. Remoter warns loudly on plaintext export

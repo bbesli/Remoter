@@ -2,6 +2,9 @@
 
 - **Status**: Accepted
 - **Date**: 2026-09-10
+- **Implementation**: ⏳ Not started. `remoter-plugin-abi` and
+  `remoter-plugin-sdk` exist; there is no host, no Wasmtime or Extism
+  dependency, and nothing loads a module.
 
 ## Context
 

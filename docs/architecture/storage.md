@@ -3,6 +3,14 @@
 The SQLite database inside the encrypted vault body: schema, migrations, and the
 decisions that keep future synchronisation possible.
 
+> **What ships.** All of it. The schema below is
+> `crates/remoter-vault/migrations/001_initial.sql` plus one migration, the
+> migration runner is built, backups roll, and the write path is
+> write-to-temp + `fsync` + atomic rename. The exception is `session_history`'s
+> `recording` column, which is never set because nothing records, and its
+> `bytes_in`/`bytes_out`, which are written as zero because nothing counts them.
+> Everything in *Sync-readiness* is preparation for v2, not behaviour.
+
 ## Why SQLite inside an encrypted container
 
 The body of a `.rvault` file is a complete SQLite database, encrypted as one

@@ -19,10 +19,11 @@
 //! build did, made the private-key option unusable for the majority of `.pem`
 //! files that actually exist.
 //!
-//! Only *unencrypted* bodies are re-enveloped. A legacy PEM whose body is
-//! enciphered carries an RFC 1421 `DEK-Info` header, and its plaintext cannot
-//! be reached without the passphrase; that case is refused by name in
-//! [`crate::credential`] rather than guessed at here.
+//! What arrives here is always a plaintext body. A legacy PEM whose body is
+//! enciphered carries an RFC 1421 `DEK-Info` header, and its plaintext is
+//! reached first by [`crate::legacy_pem`], with the passphrase the interface
+//! asked for; the deciphered DER then comes through these functions like any
+//! other. Nothing in this module has a passphrase or wants one.
 //!
 //! Wire references, per `CLAUDE.md` §0.4:
 //!

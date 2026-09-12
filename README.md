@@ -4,22 +4,26 @@
 
 **A modern, cross-platform remote connection manager.**
 
-RDP · SSH · VNC · SFTP · FTP — every session in a tab, every secret in a vault you control.
+RDP · SSH · VNC · SFTP — every session in a tab, every secret in a vault you control.
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
-[![Status: Design](https://img.shields.io/badge/status-design%20phase-orange.svg)](docs/roadmap.md)
+[![Status: Alpha](https://img.shields.io/badge/status-alpha%20%C2%B7%20v0.1.0-yellow.svg)](docs/roadmap.md)
 [![Platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey.svg)](#platform-support)
 
 </div>
 
 ---
 
-> **Project status: v0.1 in progress.** The specification came first and is in
-> [`docs/`](docs/); implementation of the v0.1 foundation — the encrypted vault,
-> the connection tree, and the vault picker, unlock and create-vault screens —
-> is underway. There are no live sessions yet; SSH and SFTP are the v0.2
-> milestone. See the [roadmap](docs/roadmap.md) for what lands when, and
-> [CONTRIBUTING.md](CONTRIBUTING.md) if you want to help build it.
+> **Project status: alpha, and it runs.** The vault, the connection tree and all
+> four protocol adapters — SSH, SFTP, RDP and VNC — are implemented and have
+> been used against real servers. Several advertised-looking features are not
+> built yet: no session recording, no FIDO2 key slot, no FTP, no plugin host, no
+> export, no clipboard. [What works, and what does not](#what-works-today) is
+> the honest table; the [roadmap](docs/roadmap.md) is where the rest sits.
+>
+> Do not put your only copy of a credential in it yet. Builds are unsigned and
+> the vault format has not had its independent cryptographic review, which is a
+> v1.0 release gate.
 
 ## What is Remoter?
 
@@ -32,85 +36,74 @@ It is a spiritual successor to tools like mRemoteNG and Royal TS, rebuilt around
 three commitments:
 
 1. **Real cross-platform parity.** Linux, Windows and macOS are first-class
-   targets, not ports. The same vault file opens everywhere.
+   targets, not ports. The same vault file opens everywhere. *All three are
+   tested in CI; Linux is the only one with day-to-day use behind it.*
 2. **Cryptography you can audit.** Secrets are protected by an envelope scheme
-   with independent key slots (password, key file, hardware key, recovery key).
-   The design is written down in [docs/security/](docs/security/) before a line
-   of it is implemented.
+   with independent key slots. The design is written down in
+   [docs/security/](docs/security/), and the code that implements it is in
+   [`crates/remoter-vault`](crates/remoter-vault).
 3. **Extensibility by design.** Protocols, importers and credential backends sit
-   behind stable interfaces. Third-party plugins run in a WebAssembly sandbox
-   with explicitly granted capabilities.
+   behind stable interfaces. *The plugin ABI crates exist; the WebAssembly host
+   that would load a plugin does not.*
 
-## Feature overview
+## What works today
 
-### Connections
-- Hierarchical folder tree with drag-and-drop organisation
-- **Property inheritance** — set a credential, gateway or port on a folder and
-  every connection beneath it inherits, with per-field override
-- Reusable credential sets, decoupled from the connections that use them
-- Fast fuzzy search, tags, favourites and recently-used
-- Bulk edit and multi-select actions
+The left column is what a user can do in a running build. The right column is
+what the [docs](docs/) still describe as the destination.
 
-### Protocols
-| Protocol | Transport | Status |
+| Area | Works now | Not built yet |
 |---|---|---|
-| SSH (shell, exec, PTY) | `russh` — pure Rust | Planned v0.2 |
-| SFTP | `russh-sftp` | Planned v0.2 |
-| RDP | `IronRDP` — pure Rust | Planned v0.3 |
-| VNC / RFB | `vnc-rs` | Planned v0.4 |
-| FTP / FTPS | `suppaftp` | Planned v0.5 |
-| Telnet, Serial, Local shell | native | Planned post-1.0 |
-| HTTP/HTTPS panel, PowerShell, Kubernetes, Docker | plugin | Post-1.0 |
-
-Every session opens as a tab. Tabs can be split, detached into their own window,
-grouped and reordered.
-
-### Networking
-- SSH tunnels: local (`-L`), remote (`-R`) and dynamic SOCKS (`-D`) forwarding
-- **Jump host chains** — connect through one or more bastions, with per-hop
-  credentials, for any protocol (not just SSH)
-- SSH agent integration (`ssh-agent`, `gpg-agent`, Pageant, Windows OpenSSH agent)
-- Per-connection proxy configuration
-
-### Security
-- Vault encrypted with XChaCha20-Poly1305; key derived with Argon2id
-- Multiple independent **key slots**: master password, optional key file,
-  FIDO2/WebAuthn hardware key (YubiKey, Nitrokey, SoloKey), OS keychain,
-  and a one-time **recovery key**
-- Secrets are decrypted only at the moment of use, then zeroed from memory
-- Auto-lock on idle, on screen lock and on suspend
-- Host key and TLS certificate pinning with an explicit trust-on-first-use prompt
-
-### Auditing
-- SSH session recording in [asciicast v2](https://docs.asciinema.org/manual/asciicast/v2/)
-  format — replayable, greppable, diffable
-- Graphical session recording for RDP/VNC
-- Local append-only audit log: what connected where, when, as whom, and for how long
-
-### Migration
-Import from mRemoteNG (`confCons.xml`), Royal TS, PuTTY, Remote Desktop Connection
-Manager, `~/.ssh/config`, and CSV. Export to a documented, portable format so you
-are never locked in.
-
-### Interface
-- Modern UI built with React and Tailwind; light, dark and high-contrast themes
-- Full keyboard navigation and a command palette
-- **10 languages**: English, 简体中文, Español, हिन्दी, العربية (RTL), Português (BR),
-  Русский, Français, Deutsch, Türkçe
+| **Vault** | XChaCha20-Poly1305 body, Argon2id KDF, atomic saves, rolling backups, migrations | — |
+| **Key slots** | Master password, password + key file, recovery key, OS keychain | **FIDO2 / hardware key** — the slot kind is reserved in the format and every code path refuses it |
+| **Locking** | Manual lock, idle auto-lock, lock on resume from suspend (Linux) | Lock on screen lock or minimise — neither event is observable from this build, and the settings screen says so |
+| **Tree** | Folders, connections, credential nodes, drag-and-drop, inheritance with per-field provenance and override, search with `tag:` `proto:` `host:` `user:` filters, a favourites section projected from the `favourite` tag, command palette | Multi-select and bulk edit, cut/copy/paste, undo, quick-connect address bar, "test connection", recently-used ordering, the inheritance diff shown before a move |
+| **SSH** | PTY shell and `exec`, public key / password / keyboard-interactive, host key TOFU and pinning, agent auth and agent forwarding (both off by default), environment variables, initial command, compression, keep-alive | GSSAPI/Kerberos, SSH certificates, X11 forwarding, per-connection algorithm preferences |
+| **SFTP** | Dual-pane file manager on the session's own channel, transfer queue with live progress, resume, per-transfer cancel, rename, mkdir, delete, chmod, symlinks | Edit-in-place, pause, server-to-server, sync/mirror modes |
+| **RDP** | TLS, NLA via CredSSP/NTLMv2, framebuffer, keyboard and pointer, keyboard layout taken from the local machine, server certificate pinning | Clipboard, audio, printing, drive redirection, multi-monitor, Kerberos, RD Gateway |
+| **VNC** | RFB with Raw and CopyRect, `None` and VNC Authentication, view-only mode, an exposure warning on clear-text sessions | VeNCrypt/TLS, Tight/ZRLE/Hextile/RRE encodings, client-initiated resize, the clipboard |
+| **Clipboard** | Nothing, on any protocol. Both framebuffer adapters report `clipboard: none`, there is no `session_clipboard` command, and the interface draws no control | Text both ways for RDP and VNC. VNC can already write the remote clipboard on the wire; what is missing is an event that carries text back and an IPC command to reach either direction |
+| **Tunnels** | Local (`-L`), remote (`-R`) and dynamic SOCKS5 (`-D`) forwards, opened against a node with or without a shell, loopback by default with an explicit opt-in to expose | Persistent tunnels with auto-start and reconnect, SOCKS5 `UDP ASSOCIATE`, using a SOCKS or HTTP `CONNECT` proxy as a connection's transport |
+| **Jump hosts** | Multi-hop chains in the core, honoured by every protocol and by tunnels; imported from `ssh_config`'s `ProxyJump` | **A field to configure one.** The connection editor has no gateway control, so a chain can only arrive by import today |
+| **Import** | mRemoteNG `confCons.xml` (GCM and legacy CBC), `~/.ssh/config`, CSV — each with detection, preview, findings report and an all-or-nothing commit | Royal TS, PuTTY, RDCMan, `.rdp`; `known_hosts` into the trust store |
+| **Export** | — | **Everything.** No archive, JSON, CSV or `ssh_config` export exists |
+| **Audit log** | Append-only inside the vault: vault lifecycle, key slots, node changes, secret use, trust decisions, sessions, settings. Filterable viewer, JSON and CSV export | File transfer, import and plugin events; retention policy; the external audit sink |
+| **Recording** | — | **Everything.** There is no recorder, no player and no `remoter-record` crate. Sessions report a `recordable` capability that nothing consumes |
+| **Interface** | React 19 + CSS modules, four themes (light, dark and a high-contrast pair) following the OS by default, editable terminal palette with a live contrast check, full keyboard navigation, ten languages including RTL | Tab detach, split view, session groups and layouts, broadcast typing, the WCAG 2.2 AA audit across all four themes |
+| **Protocols** | SSH, SFTP, RDP, VNC | FTP/FTPS, Telnet, serial, local shell, and everything behind the plugin host |
 
 ## Platform support
 
 | | Linux | Windows | macOS |
 |---|---|---|---|
 | Minimum | glibc 2.35+ (WebKitGTK 2.38+) | Windows 10 1809+ | macOS 12+ |
-| Packages | AppImage, `.deb`, `.rpm`, Flatpak | `.msi`, NSIS installer, portable `.zip` | `.dmg` (universal) |
-| Architectures | x86_64, aarch64 | x86_64, aarch64 | x86_64, aarch64 |
+| Tested in CI | ✅ | ✅ | ✅ |
+| Run by a person | Daily | Yes — the drag-and-drop and linker fixes came from it | Not that anyone has reported |
+| Packages | AppImage, `.deb`, `.rpm` | `.msi`, NSIS | `.dmg` (universal) |
+
+Builds are **unsigned**, so Windows SmartScreen and macOS Gatekeeper will warn
+about them; checksums are the only integrity story a release has today. See
+[build-release.md](docs/development/build-release.md).
+
+## Installing
+
+Take the file for your platform from
+[Releases](https://github.com/bbesli/Remoter/releases) — no Rust toolchain, no
+build. The notes on each release say which file is which, list the SHA-256 of
+every one, and walk through the security warning your operating system will show
+for an unsigned application: *More info → Run anyway* on Windows, and
+*System Settings → Privacy & Security → Open Anyway* on macOS 15 or newer
+(Control-click → Open on macOS 12 to 14).
+
+On Windows 10 the installer fetches the Edge WebView2 runtime if it is missing,
+so the machine needs to be online while it installs. Windows 11 already has it.
+
+To build from source instead, carry on below.
 
 ## Architecture at a glance
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│  Web frontend  (React · TypeScript · Tailwind · xterm.js)│
+│  Web frontend  (React · TypeScript · CSS modules · xterm)│
 │  connection tree · tabs · terminal · framebuffer canvas   │
 └───────────────────────────┬──────────────────────────────┘
                             │  Tauri IPC (typed commands, raw byte payloads)
@@ -119,25 +112,37 @@ are never locked in.
 │                                                           │
 │  remoter-vault    envelope crypto, key slots, storage     │
 │  remoter-core     connection tree, inheritance resolution │
-│  remoter-proto    Protocol trait + session supervisor     │
-│    ├─ ssh (russh)   ├─ rdp (IronRDP)   ├─ vnc (vnc-rs)    │
-│  remoter-tunnel   port forwarding, jump host chains       │
-│  remoter-record   asciicast + framebuffer recording       │
-│  remoter-plugin   WebAssembly host (Extism / Wasmtime)    │
+│  remoter-proto    Protocol trait, supervisor, hop chains  │
+│    ├─ ssh (russh) — shell, SFTP, forwarding, SOCKS5       │
+│    ├─ rdp (IronRDP)                                       │
+│    └─ vnc (vnc-rs)                                        │
+│  remoter-import   confCons.xml · ssh_config · CSV         │
+│  remoter-ipc      the Tauri command surface               │
+│  remoter-plugin-abi / -sdk   plugin ABI, no host yet      │
 └───────────────────────────────────────────────────────────┘
 ```
 
-Read the full design in [docs/architecture/overview.md](docs/architecture/overview.md).
+SFTP, port forwarding and the SOCKS5 server live inside `remoter-proto-ssh`
+rather than in crates of their own: they are channels on an SSH connection, and
+splitting them out would have meant one crate re-exporting another's session
+handle. Read the full design in
+[docs/architecture/overview.md](docs/architecture/overview.md).
 
 ## Why Tauri and Rust?
 
 Because a tool that holds every credential you own should be small, memory-safe
 and inspectable. The Rust core gives us memory-safe protocol parsers and a
-first-class cryptography ecosystem; Tauri gives us a native, ~15 MB binary
-instead of a 150 MB bundled browser. The reasoning, including what we gave up,
-is recorded in [ADR-0001](docs/architecture/decisions/0001-technology-stack.md).
+first-class cryptography ecosystem; Tauri gives us a native binary instead of a
+bundled browser. The reasoning, including what we gave up, is recorded in
+[ADR-0001](docs/architecture/decisions/0001-technology-stack.md).
 
 ## Documentation
+
+The documents in [`docs/`](docs/) are **specifications**: they describe the
+product being built, and most of them describe more than is built. Each feature
+and architecture document opens with a note saying which part of it ships, and
+individual claims are marked ✅ / ◐ / ⏳ in place. Where a document and the code
+disagree about what exists, the code is what you get.
 
 | Document | What it covers |
 |---|---|
@@ -147,16 +152,22 @@ is recorded in [ADR-0001](docs/architecture/decisions/0001-technology-stack.md).
 | [Vault format](docs/security/vault-format.md) | On-disk format, key slots, recovery key |
 | [Data model](docs/architecture/data-model.md) | Connections, folders, credentials, inheritance |
 | [Session pipeline](docs/architecture/session-pipeline.md) | How a click becomes a live remote session |
+| [Protocols](docs/features/protocols.md) | Per-protocol capability matrix, shipped and planned |
 | [Plugin system](docs/architecture/plugin-system.md) | WebAssembly ABI, capabilities, sandbox |
-| [Roadmap](docs/roadmap.md) | Milestones from v0.1 to v1.0 and beyond |
+| [Roadmap](docs/roadmap.md) | What shipped, and what lands when |
 | [Getting started](docs/development/getting-started.md) | Toolchain setup and first build |
 | [Glossary](docs/glossary.md) | Terms used throughout the docs |
 
 ## Building from source
 
-You need Rust 1.85+, Node 22+, and your platform's WebView development
+You need **Rust 1.89+**, **Node 22+**, and your platform's WebView development
 packages — [docs/development/getting-started.md](docs/development/getting-started.md)
 lists them per distribution.
+
+> The workspace's `Cargo.toml` still declares `rust-version = "1.85"`. That is
+> knowingly stale and documented there: `ironrdp` 0.17 requires 1.89 and
+> `keyring` 4.2 requires 1.88, so nothing has actually built on 1.85 since the
+> RDP adapter landed.
 
 ```bash
 git clone https://github.com/bbesli/Remoter.git
@@ -178,7 +189,10 @@ cd apps/desktop && ./ui/node_modules/.bin/tauri build --no-bundle
 ```
 
 `--no-bundle` stops at the executable instead of building an installer. The
-binary lands in `target/release/` at the top of the workspace.
+binary is `target/release/remoter-desktop`, at the top of the workspace — not
+under `apps/desktop`, because the whole Cargo workspace shares one target
+directory. Drop `--no-bundle` and the installers land in
+`target/release/bundle/`.
 
 On Windows, in PowerShell, the same two commands with the platform's path
 separator and the `.cmd` shim npm installs:
@@ -197,6 +211,20 @@ the current user, replacing any running instance:
 ```bash
 scripts/install-local.sh
 ```
+
+### Checks
+
+```bash
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+npm run typecheck --prefix apps/desktop/ui
+npm run lint --prefix apps/desktop/ui
+npm test --prefix apps/desktop/ui
+```
+
+Live protocol tests are behind the `integration-tests` feature and need a real
+server. `scripts/dev-sshd.sh` starts a throwaway OpenSSH instance for the SSH
+and SFTP ones; there is no fixture yet for RDP or VNC.
 
 ## Contributing
 

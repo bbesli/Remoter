@@ -221,6 +221,70 @@ describe("step gating", () => {
     expect(mocked.parseImport).not.toHaveBeenCalled();
   });
 
+  /**
+   * The case detection cannot see coming: the user picked the format by hand,
+   * so there is no `<Connections>` header to read, and the file turns out to be
+   * one its owner put a password on. The core says which password is missing —
+   * and until this, it said so above a step with no box to type one into.
+   */
+  it("puts the password field on screen when the core asks for one", async () => {
+    const user = userEvent.setup();
+    mocked.parseImport
+      .mockRejectedValueOnce({
+        code: "import.password-required",
+        message: "That file is encrypted and needs its document password to be read.",
+        detail: null,
+        actions: ["Enter the document password"],
+      })
+      .mockResolvedValueOnce(preview());
+    draw(<ImportWizard />);
+
+    // Detection saw no header: no document, no password wanted.
+    await reachSecrets(user, detection({ passwordRequired: false, document: null }));
+    expect(screen.getByText("Nothing to supply")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Document password")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Read the file" }));
+    expect(
+      await screen.findByText(
+        "That file is encrypted and needs its document password to be read.",
+      ),
+    ).toBeInTheDocument();
+
+    // The field is there now, and Read the file will not fire again empty.
+    const field = screen.getByLabelText("Document password");
+    expect(field).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Read the file" })).toBeDisabled();
+
+    await user.type(field, "correct horse");
+    await user.click(screen.getByRole("button", { name: "Read the file" }));
+    await waitFor(() =>
+      expect(mocked.parseImport).toHaveBeenLastCalledWith(PATH, "correct horse", null),
+    );
+    await screen.findByText("This is what you will get");
+  });
+
+  it("keeps the field on screen when the password typed was the wrong one", async () => {
+    const user = userEvent.setup();
+    mocked.parseImport.mockRejectedValue({
+      code: "import.wrong-password",
+      message: "That is not the password the file was encrypted with.",
+      detail: null,
+      actions: ["Try again"],
+    });
+    draw(<ImportWizard />);
+
+    await reachSecrets(user, detection({ passwordRequired: false, document: null }));
+    await user.click(screen.getByRole("button", { name: "Read the file" }));
+    await screen.findByText("That is not the password the file was encrypted with.");
+
+    const field = screen.getByLabelText("Document password");
+    await user.type(field, "nope");
+    // A wrong password is not a missing one: the user may try another.
+    expect(screen.getByRole("button", { name: "Read the file" })).toBeEnabled();
+    expect(mocked.commitImport).not.toHaveBeenCalled();
+  });
+
   it("says the file was not really protected as soon as detection knows", async () => {
     const user = userEvent.setup();
     draw(<ImportWizard />);

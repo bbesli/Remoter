@@ -72,7 +72,7 @@ const DELIMITERS: [char; 3] = [',', ';', '\t'];
 /// bounded-parse refusals. A row that cannot be mapped is reported, not raised.
 pub fn parse(bytes: &[u8], limits: &Limits) -> Result<ImportPreview, ImportError> {
     let text = as_text(bytes, limits)?;
-    let records = read(text, limits)?;
+    let records = read(&text, limits)?;
     let Some((header, rows)) = records.split_first() else {
         return Err(ImportError::WrongFormat {
             expected: "a CSV with a header row",

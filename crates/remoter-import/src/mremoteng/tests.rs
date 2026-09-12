@@ -22,8 +22,12 @@ use crate::report::Severity;
 
 const GCM: CipherMode = CipherMode::Gcm { iterations: 1000 };
 
-/// Wraps a body in a `<Connections>` root with the attributes a given scheme
-/// would produce.
+/// Wraps a body in the root element mRemoteNG writes.
+///
+/// Namespaced, because that is what is in the file. `XmlRootNodeSerializer`
+/// builds the root as `XNamespace "http://mremoteng.org" + "Connections"` with
+/// the prefix `mrng` declared beside it, and has since 1.76 — so a fixture
+/// spelled `<Connections>` is a fixture of a file nobody has.
 fn document(cipher: CipherMode, password: &str, full_file: bool, body: &str) -> String {
     let protected = encrypt(
         cipher,
@@ -46,9 +50,10 @@ fn document(cipher: CipherMode, password: &str, full_file: bool, body: &str) -> 
     };
     format!(
         r#"<?xml version="1.0" encoding="utf-8"?>
-<Connections xmlns:mrng="http://mremoteng.org" Name="Acme Production" Export="false" \
+<mrng:Connections xmlns:mrng="http://mremoteng.org" Name="Acme Production" Export="false" \
 EncryptionEngine="AES" BlockCipherMode="{mode}" KdfIterations="{iterations}" \
-FullFileEncryption="{full_file}" Protected="{protected}" ConfVersion="2.6">{body}</Connections>"#
+FullFileEncryption="{full_file}" Protected="{protected}" ConfVersion="2.6">{body}\
+</mrng:Connections>"#
     )
     .replace("\\\n", "")
 }
@@ -1163,4 +1168,80 @@ fn a_partial_import_counts_and_names_what_did_not_come_in() {
         item: "Open the ticket system".to_owned(),
         reason: SkipReason::UnsupportedKind,
     }));
+}
+
+/// mRemoteNG's export dialog can leave the passwords out, and an administrator
+/// sending their estate to a colleague usually does. Every `Password` is then
+/// the empty string while `Username` and `Domain` are still there, and what has
+/// to come across is everything but the secret.
+#[test]
+fn an_export_written_without_passwords_still_brings_the_accounts() {
+    let xml = document(
+        GCM,
+        DEFAULT_PASSWORD,
+        false,
+        &r#"
+  <Node Name="Datacentre EU-West" Type="Container" Expanded="true" Username="svc-deploy" \
+Domain="" Password="" Hostname="" Protocol="SSH2" Port="2222">
+    <Node Name="web-01" Type="Connection" Hostname="web-01.eu.acme.internal" Protocol="SSH2" \
+Port="22" Username="" Domain="" Password="" InheritPort="true" InheritUsername="true" \
+InheritPassword="true" InheritDomain="true" />
+  </Node>
+  <Node Name="SRV-DC01" Type="Connection" Hostname="srv-dc01.corp.local" Protocol="RDP" \
+Port="3389" Username="administrator" Domain="CORP" Password="" />
+"#
+        .replace("\\\n", ""),
+    );
+    let preview = preview(&xml, None);
+
+    // Nothing was skipped for want of a password, and nothing was recovered.
+    assert_eq!(preview.report().counts().connections, 2);
+    assert_eq!(preview.report().counts().skipped, 0);
+    assert_eq!(preview.report().counts().secrets, 0);
+    assert!(
+        !preview
+            .report()
+            .findings()
+            .iter()
+            .any(|finding| matches!(finding, Finding::SecretsRecovered { .. })),
+        "a file with no passwords in it must not claim to have recovered any"
+    );
+
+    // The structure, the hosts and the accounts are all there.
+    let dc01 = connection(&preview, "SRV-DC01");
+    assert_eq!(dc01.host, "srv-dc01.corp.local");
+    assert_eq!(dc01.protocol.as_str(), "rdp");
+    assert_eq!(dc01.port, Inherited::Explicit(3389));
+    assert!(dc01.credential.is_explicit(), "the account was dropped");
+    // The domain travels with the account rather than being dropped: one
+    // credential, named the way the file named it.
+    let credentials: Vec<&str> = preview
+        .nodes()
+        .iter()
+        .filter(|node| matches!(node.kind, Kind::Credential(_)))
+        .map(|node| node.name.as_str())
+        .collect();
+    assert!(
+        credentials.contains(&"CORP\\administrator"),
+        "credentials: {credentials:?}"
+    );
+    assert!(
+        credentials.contains(&"svc-deploy"),
+        "credentials: {credentials:?}"
+    );
+    // And none of them claims to hold a password.
+    assert!(
+        preview.nodes().iter().all(|node| node.secret().is_none()),
+        "a file with no passwords in it produced one"
+    );
+
+    // And the folder's account still reaches the connection that inherits it.
+    assert_eq!(
+        connection(&preview, "web-01").credential,
+        Inherited::Inherit
+    );
+    let Kind::Folder(folder) = &find(&preview, "Datacentre EU-West").kind else {
+        panic!("the container did not become a folder");
+    };
+    assert!(folder.credential.is_explicit());
 }

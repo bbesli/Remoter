@@ -22,6 +22,16 @@
  * on the platform most of its users are on, and jsdom cannot express the HTML5
  * version either, so nothing in the suite noticed.
  *
+ * The gesture is owned here, at the scroller, and not by the rows. The pointer
+ * is captured for the length of the drag and the target is found by hit-testing
+ * the document at the pointer's coordinates — `pointerTarget` below. Rows
+ * answering `pointermove` themselves made the drop target a function of which
+ * element the webview decided to deliver the move to, and a captured pointer
+ * delivers every move to one element: the drag then kept its source row and
+ * silently refused everything, which is "dragging does nothing" for a second
+ * time and for a second reason. Capture is also what keeps the moves coming
+ * when the pointer leaves the window, which no per-row handler can do.
+ *
  * A refusal is shown on the tree as well as announced. A drop the application
  * refused and a drag the application never received look identical when the
  * only channel is a visually hidden live region — which is the ambiguity that
@@ -60,7 +70,7 @@ import { useApp } from "@/stores/app";
 import { useModalRegistration } from "@/hooks/useModalRegistration";
 import { isConnectable, openSession } from "@/features/sessions";
 
-import { NodeRow, type DropBand } from "./NodeRow";
+import { bandAt, NodeRow, nodeGlyph, protocolClass, type DropBand } from "./NodeRow";
 import { useConnectionEditor } from "./ConnectionEditor";
 import { useFocusTrap } from "./focusTrap";
 import s from "./ConnectionTree.module.css";
@@ -170,10 +180,36 @@ interface DragGesture {
   id: string;
   startX: number;
   startY: number;
+  /** The pointer this gesture belongs to, so the capture can be given back. */
+  pointerId: number;
+  /** The row the press landed on, which is what holds the capture. */
+  row: HTMLElement;
   /** False until the pointer has moved far enough to mean a drag. */
   active: boolean;
   /** The dragged node's subtree: everywhere it cannot land. Empty until active. */
   blocked: ReadonlySet<string>;
+}
+
+/**
+ * The row under a point, by hit test rather than by event target.
+ *
+ * `elementFromPoint` is the only thing that answers "what is the pointer over"
+ * once the pointer is captured, because from then on every event names the
+ * capturing element and nothing else. The fallback to the event's own target
+ * is for jsdom, which has no layout and therefore no `elementFromPoint`; a
+ * test that dispatches on the row it means still reads the way it did.
+ *
+ * A row publishes `data-drop-id` only when it is a real place in the tree, so
+ * the favourites projection resolves to null here and is read as background.
+ */
+function pointerTarget(x: number, y: number, fallback: EventTarget | null): HTMLElement | null {
+  const hit =
+    typeof document.elementFromPoint === "function"
+      ? document.elementFromPoint(x, y)
+      : fallback instanceof Element
+        ? fallback
+        : null;
+  return hit?.closest<HTMLElement>("[data-drop-id]") ?? null;
 }
 
 /** One `node_move` call. A reorder sometimes needs several. */
@@ -343,6 +379,8 @@ export function ConnectionTree() {
   const [refusal, setRefusal] = useState<string | null>(null);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const confirmRef = useRef<HTMLDivElement | null>(null);
+  const chipRef = useRef<HTMLDivElement | null>(null);
+  const dragPoint = useRef({ x: 0, y: 0 });
 
   // `pointermove` fires many times a second and the release has to read the
   // plan the last one computed, so the plan lives in a ref and the state
@@ -788,6 +826,28 @@ export function ConnectionTree() {
 
   useEffect(() => stopEdgeScroll, [stopEdgeScroll]);
 
+  /**
+   * Put the chip where the pointer is.
+   *
+   * Written straight to the element rather than kept in state: the chip has to
+   * track the pointer at the rate the pointer moves, and a render per
+   * `pointermove` across a few hundred rows is the one place in this component
+   * where that cost is real. The last point is remembered so the chip can be
+   * placed on the frame it first appears, which is after the move that started
+   * the drag has already been handled.
+   */
+  const chipTo = useCallback((x: number, y: number) => {
+    dragPoint.current = { x, y };
+    const chip = chipRef.current;
+    if (chip !== null) chip.style.transform = `translate(${String(x)}px, ${String(y)}px)`;
+  }, []);
+
+  useEffect(() => {
+    if (dragId === null) return;
+    const { x, y } = dragPoint.current;
+    chipTo(x, y);
+  }, [dragId, chipTo]);
+
   const setDropState = useCallback((next: DropState | null) => {
     if (sameDrop(dropRef.current, next)) return;
     dropRef.current = next;
@@ -861,15 +921,60 @@ export function ConnectionTree() {
   );
 
   /** A press landed on a row. It is not a drag until the pointer moves. */
-  const onPressRow = useCallback((id: string, x: number, y: number) => {
-    gesture.current = { id, startX: x, startY: y, active: false, blocked: new Set() };
+  const onPressRow = useCallback(
+    (id: string, x: number, y: number, pointerId: number, row: HTMLElement) => {
+      gesture.current = {
+        id,
+        startX: x,
+        startY: y,
+        pointerId,
+        row,
+        active: false,
+        blocked: new Set(),
+      };
+    },
+    [],
+  );
+
+  /**
+   * Take the pointer for the rest of the gesture.
+   *
+   * What capture buys is that the moves keep coming when the pointer leaves
+   * the window or passes over anything that would otherwise take it — which is
+   * the half of a pointer drag that no per-row handler can provide, and the
+   * half that differs most between webviews.
+   *
+   * Two things about it are deliberate and were both learned the hard way.
+   *
+   * It happens when the press becomes a **drag**, not when the press lands. A
+   * captured pointer retargets the compatibility mouse events too, so a
+   * capture taken on `pointerdown` sends the `click` that follows an ordinary
+   * press to the capturing element instead of to the row — and clicking a row
+   * stops selecting it. A click is a press that never travelled, so deferring
+   * the capture past the threshold leaves clicks alone entirely.
+   *
+   * It is taken on the **row**, not on the scroller, for the same reason: the
+   * click after a drag then still belongs to the row it came from. A row can
+   * be replaced mid-gesture, and losing the capture that way is survivable —
+   * moves bubble to the scroller, which is where they are handled anyway.
+   *
+   * Guarded because jsdom has no pointer capture at all, and because a
+   * `pointerId` the webview has already released throws `NotFoundError`.
+   */
+  const capture = useCallback((held: DragGesture) => {
+    if (typeof held.row.setPointerCapture !== "function") return;
+    try {
+      held.row.setPointerCapture(held.pointerId);
+    } catch {
+      // Capture is an improvement, not a requirement — see above.
+    }
   }, []);
 
   /**
    * Promotes a press to a drag once the pointer has really travelled.
    *
-   * Returns whether a drag is in flight, so both the row handler and the
-   * background handler can start one and plan against it in the same event.
+   * Returns whether a drag is in flight, so the move handler can start one and
+   * plan against it in the same event.
    */
   const advanceGesture = useCallback(
     (x: number, y: number): boolean => {
@@ -884,6 +989,7 @@ export function ConnectionTree() {
       }
       held.active = true;
       held.blocked = subtreeOf(held.id);
+      capture(held);
       setMenu(null);
       // Whatever the last refusal was about, the user is answering it by
       // dragging again; leaving it up would make the tree accumulate stale
@@ -892,13 +998,47 @@ export function ConnectionTree() {
       setDragId(held.id);
       return true;
     },
-    [subtreeOf],
+    [subtreeOf, capture],
   );
 
-  const onPointerOverRow = useCallback(
-    (id: string, band: DropBand, x: number, y: number): boolean => {
-      if (!advanceGesture(x, y)) return false;
+  /**
+   * The pointer moved, wherever the event happened to be delivered.
+   *
+   * Everything the drag needs is decided from the coordinates: which row is
+   * under them, which band of it, and whether the pointer is over the tree at
+   * all. A point outside the scroller plans nothing — a release over the
+   * session area or the title bar has to move nothing, and reading it as the
+   * top level would turn every drag abandoned off the side of the sidebar into
+   * a re-parent nobody asked for.
+   */
+  const onPointerAt = useCallback(
+    (x: number, y: number, from: EventTarget | null) => {
+      if (!advanceGesture(x, y)) return;
+      chipTo(x, y);
       updateEdgeScroll(y);
+
+      const scroller = scrollerRef.current;
+      const box = scroller?.getBoundingClientRect();
+      // A zero-sized box is jsdom, which has no layout; there the pointer is
+      // taken to be over the tree, because nothing else can be established.
+      const outside =
+        box !== undefined &&
+        (box.width > 0 || box.height > 0) &&
+        (x < box.left || x > box.right || y < box.top || y > box.bottom);
+      if (outside) {
+        clearDrop();
+        return;
+      }
+
+      const row = pointerTarget(x, y, from);
+      const id = row?.dataset["dropId"];
+      if (row === null || id === undefined) {
+        cancelAutoExpand();
+        setDropState(planDrop(null, "into"));
+        return;
+      }
+
+      const band = bandAt(row.getBoundingClientRect(), y, row.dataset["container"] === "true");
       const next = planDrop(id, band);
       setDropState(next);
 
@@ -913,16 +1053,12 @@ export function ConnectionTree() {
         !expanded.has(id);
       if (canOpen) armAutoExpand(id);
       else cancelAutoExpand();
-
-      // Claimed either way: a refused row is still the row the pointer is
-      // over, and letting the background claim it instead would paint the
-      // whole tree as a valid top-level target while the user is being told
-      // "no" by the row under the cursor.
-      return true;
     },
     [
       advanceGesture,
+      chipTo,
       updateEdgeScroll,
+      clearDrop,
       planDrop,
       setDropState,
       index,
@@ -932,25 +1068,15 @@ export function ConnectionTree() {
     ],
   );
 
-  const onPointerLeaveRow = useCallback(
-    (id: string) => {
-      if (autoExpand.current?.id === id) cancelAutoExpand();
-    },
-    [cancelAutoExpand],
-  );
-
-  /** The pointer is over the background, which is the top level. */
-  const onPointerOverBackground = useCallback(
-    (x: number, y: number) => {
-      if (!advanceGesture(x, y)) return;
-      updateEdgeScroll(y);
-      cancelAutoExpand();
-      setDropState(planDrop(null, "into"));
-    },
-    [advanceGesture, updateEdgeScroll, cancelAutoExpand, planDrop, setDropState],
-  );
-
   const endGesture = useCallback(() => {
+    const held = gesture.current;
+    if (held !== null && typeof held.row.releasePointerCapture === "function") {
+      try {
+        held.row.releasePointerCapture(held.pointerId);
+      } catch {
+        // Already released, which is the ordinary case after a `pointerup`.
+      }
+    }
     gesture.current = null;
     stopEdgeScroll();
     clearDrop();
@@ -1228,6 +1354,12 @@ export function ConnectionTree() {
   const deleteFailure = deleteMutation.error !== null ? asFailure(deleteMutation.error) : null;
   const moveFailure = moveMutation.error !== null ? asFailure(moveMutation.error) : null;
   const rootTargeted = drop !== null && drop.targetId === null;
+  const draggedNode = dragId === null ? null : (index.byId.get(dragId) ?? null);
+  // What the chip says when the pointer is somewhere the drop cannot happen.
+  // Shown while the pointer is still down, which is the only moment it can
+  // change anything: the same sentence after the release explains a failure,
+  // and before it prevents one.
+  const hoverRefusal = drop !== null && drop.plan === null ? drop.reason : null;
 
   return (
     <div className={s.sidebar}>
@@ -1294,28 +1426,6 @@ export function ConnectionTree() {
         </div>
       )}
 
-      {/*
-        Why nothing moved, where the person who made the gesture is looking.
-        A refused drop used to reach the live region alone — a 1×1 clipped box
-        — so a sighted user released the pointer and saw the tree simply not
-        change, which is indistinguishable from a drag the application never
-        received. Tone is `warning` rather than `danger`: nothing broke, and a
-        `danger` callout carries `role="alert"`, which would announce the same
-        sentence a second time over the live region below.
-      */}
-      {refusal !== null && (
-        <div className={s.notice}>
-          <Callout tone="warning" title={t("move.failed")}>
-            {refusal}
-            <div className={s.noticeActions}>
-              <Button variant="ghost" size="sm" onClick={() => setRefusal(null)}>
-                {tCommon("action.dismiss")}
-              </Button>
-            </div>
-          </Callout>
-        </div>
-      )}
-
       <div
         ref={scrollerRef}
         className={clsx(s.scroller, dragId !== null && s.dragging, rootTargeted && s.dropRoot)}
@@ -1330,16 +1440,19 @@ export function ConnectionTree() {
           setMenu({ ...menuAnchor(e.clientX, e.clientY), nodeId: null });
         }}
         onPointerMove={(e) => {
-          // A row that can take the drop stops its own move, so anything
-          // arriving here is the background — including a move over a
-          // favourite row, which is a projection of a tag and not a place.
-          onPointerOverBackground(e.clientX, e.clientY);
+          // Every move in the gesture arrives here, whether it bubbled from a
+          // row or was delivered straight to this element by the capture. What
+          // it is over is a question for the hit test, not for the target.
+          onPointerAt(e.clientX, e.clientY, e.target);
         }}
         onPointerLeave={(e) => {
+          // Only reached when the capture was refused: a captured pointer is
+          // treated as though it were still over this element, so it fires no
+          // boundary events until it is released. Without the capture the
+          // drag is still in flight — the release is handled on the window —
+          // but it is over nothing, so it plans nothing.
           const next = e.relatedTarget;
           if (next instanceof Node && e.currentTarget.contains(next)) return;
-          // The drag is still in flight — the release is handled on the window
-          // — but it is over nothing, so it plans nothing.
           clearDrop();
         }}
       >
@@ -1396,8 +1509,6 @@ export function ConnectionTree() {
                 onActivate={onActivate}
                 onContextMenu={onContextMenu}
                 onPressRow={onPressRow}
-                onPointerOverRow={onPointerOverRow}
-                onPointerLeaveRow={onPointerLeaveRow}
               />
             </div>
           );
@@ -1411,6 +1522,69 @@ export function ConnectionTree() {
           </p>
         )}
       </div>
+
+      {/*
+        Why nothing moved, where the person who made the gesture is looking.
+        A refused drop used to reach the live region alone — a 1×1 clipped box
+        — so a sighted user released the pointer and saw the tree simply not
+        change, which is indistinguishable from a drag the application never
+        received. Tone is `warning` rather than `danger`: nothing broke, and a
+        `danger` callout carries `role="alert"`, which would announce the same
+        sentence a second time over the live region below.
+
+        Below the tree and not above it. Above, the callout appeared between
+        the search box and the first row and pushed every row down the height
+        of three of them — so the answer to "that did not work, try again" was
+        a list that had moved under the pointer, and the second attempt landed
+        two rows off. A refusal must not rearrange the thing it is about.
+      */}
+      {refusal !== null && (
+        <div className={s.notice}>
+          <Callout tone="warning" title={t("move.failed")}>
+            {refusal}
+            <div className={s.noticeActions}>
+              <Button variant="ghost" size="sm" onClick={() => setRefusal(null)}>
+                {tCommon("action.dismiss")}
+              </Button>
+            </div>
+          </Callout>
+        </div>
+      )}
+
+      {/*
+        What is in the air, under the pointer that is carrying it.
+
+        The drag had no cursor-borne affordance at all: the source row dimmed
+        and a two-pixel rule appeared somewhere in a list of twenty-eight-pixel
+        rows. That is enough to confirm a gesture you already believe in and
+        not enough to discover one, and "it does nothing" is what an
+        undiscoverable gesture looks like from outside. The chip names the
+        entry so there is no doubt what was picked up, and carries the refusal
+        while the pointer is still down, so the reason arrives before the
+        release rather than after it.
+
+        `aria-hidden`, because this is the sighted half of a channel whose
+        other half is the live region below; both describing the same drag
+        would mean hearing it twice.
+      */}
+      {draggedNode !== null && (
+        <div ref={chipRef} className={s.chipAnchor} aria-hidden="true">
+          <div className={clsx(s.chip, hoverRefusal !== null && s.chipRefused)}>
+            <span className={s.chipRow}>
+              <span
+                className={clsx(
+                  s.chipGlyph,
+                  draggedNode.kind === "connection" && protocolClass(draggedNode.protocol),
+                )}
+              >
+                <Icon name={nodeGlyph(draggedNode)} size={13} />
+              </span>
+              <span className={s.chipName}>{draggedNode.name}</span>
+            </span>
+            {hoverRefusal !== null && <span className={s.chipReason}>{hoverRefusal}</span>}
+          </div>
+        </div>
+      )}
 
       {/* Drag-and-drop is invisible to a screen reader; this is where it speaks. */}
       <div className={s.live} role="status" aria-live="polite">

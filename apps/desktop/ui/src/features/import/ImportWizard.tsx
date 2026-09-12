@@ -72,7 +72,15 @@ import {
   toggleNode,
   type ImportTreeIndex,
 } from "./selection";
-import { canGoTo, forwardBlock, jumpBlock, STEPS, type StepNumber, type WizardFacts } from "./steps";
+import {
+  canGoTo,
+  forwardBlock,
+  jumpBlock,
+  STEPS,
+  wantsDocumentPassword,
+  type StepNumber,
+  type WizardFacts,
+} from "./steps";
 import s from "./ImportWizard.module.css";
 
 /**
@@ -251,11 +259,17 @@ export function ImportWizard() {
   const needsDetect = path !== "" && detectedFor !== path && sourceOverride === null;
   const busy = detect.isPending || parse.isPending || commit.isPending || cancel.isPending;
 
+  const parseFailure = parse.isError ? asFailure(parse.error) : null;
+
   const facts: WizardFacts = {
     hasFile: path !== "",
     format: source,
     detected: detection !== null && !needsDetect,
-    passwordRequired: detection?.passwordRequired ?? false,
+    // Either voice: the file's own header, or the parse coming back to say the
+    // document password is what is missing. Detection cannot always know —
+    // a format the sniffer would not commit to has no header read at all.
+    passwordRequired:
+      (detection?.passwordRequired ?? false) || wantsDocumentPassword(parseFailure),
     hasPassword: password !== "",
     hasPreview: preview !== null,
     includedCount: counts.total,
@@ -474,7 +488,7 @@ export function ImportWizard() {
             onPassword={setPassword}
             reveal={reveal}
             onReveal={setReveal}
-            failure={parse.isError ? asFailure(parse.error) : null}
+            failure={parseFailure}
             onRetry={runParse}
           />
         )}

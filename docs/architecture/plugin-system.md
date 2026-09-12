@@ -4,9 +4,17 @@ Third-party extensions run as WebAssembly modules in a sandbox with no ambient
 authority. This document specifies what they can do, how they ask, and what the
 host guarantees.
 
-> **Status: designed, not stabilised.** The plugin ABI ships as *unstable* in
-> v1.1 and is stabilised no earlier than v1.2. Freezing a public contract before
-> the internal traits have settled would preserve our early mistakes forever.
+> **Status: designed, not built.** `remoter-plugin-abi` and `remoter-plugin-sdk`
+> exist and define the boundary's types and the guest-side helpers. **There is no
+> host.** No `remoter-plugin` crate, no Wasmtime or Extism dependency, no
+> manifest parser, no capability enforcement, no plugin manager screen — nothing
+> loads a WebAssembly module, and `session_open` refuses a plugin protocol by
+> name because no adapter in this workspace speaks it. Everything below except
+> the two ABI crates and the licence arrangement is specification.
+>
+> The plugin ABI is then to ship as *unstable* in v1.1 and be stabilised no
+> earlier than v1.2. Freezing a public contract before the internal traits have
+> settled would preserve our early mistakes forever.
 
 ## Why WebAssembly
 

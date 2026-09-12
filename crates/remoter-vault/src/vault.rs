@@ -1033,9 +1033,10 @@ impl Vault {
     /// holding an OpenSSH container is ordinary. A file that is not a private
     /// key is refused with [`VaultError::NotAPrivateKey`]; a key of a kind no
     /// protocol here can authenticate with, with
-    /// [`VaultError::UnsupportedKeyFormat`]; a key whose legacy PEM container
-    /// is itself encrypted, with [`VaultError::LegacyEncryptedKey`]. No
-    /// message, and no log line on this path, contains any part of the key.
+    /// [`VaultError::UnsupportedKeyFormat`]; a legacy PEM enciphered with a
+    /// cipher this build cannot read, with
+    /// [`VaultError::UnsupportedKeyCipher`]. No message, and no log line on
+    /// this path, contains any part of the key.
     ///
     /// Returns the format the key was *stored* under, which is also written to
     /// the node. That is not always the container the file was in: a legacy
@@ -1065,12 +1066,32 @@ impl Vault {
     ///
     /// Passing `None` for the passphrase removes any passphrase already stored,
     /// which is what replacing an encrypted key with an unencrypted one means.
+    ///
+    /// A key still locked in a legacy PEM container is deciphered here, with
+    /// the passphrase given, and stored as the PKCS#8 document it becomes. Its
+    /// passphrase is then *not* stored: it belonged to an envelope that no
+    /// longer exists, and a passphrase kept beside a key it does not open is
+    /// one the protocol adapter would hand to a parser that has no use for it —
+    /// which fails the connection rather than the import, a long way from the
+    /// cause. See `crate::credential` for why the envelope is not preserved.
     pub fn set_private_key(
         &mut self,
         node: Uuid,
         key: &ImportedKey,
         passphrase: Option<&Secret<String>>,
     ) -> Result<(), VaultError> {
+        // Before the row is touched: a locked key that cannot be opened must
+        // leave the credential exactly as it was.
+        let unlocked = match (key.material(), passphrase) {
+            (Some(_), _) => None,
+            (None, Some(passphrase)) => Some(key.unlock(passphrase.expose_secret().as_bytes())?),
+            (None, None) => return Err(VaultError::KeyPassphraseRequired),
+        };
+        let stored = unlocked.as_ref().unwrap_or(key);
+        let material = stored.material().ok_or(VaultError::KeyPassphraseRequired)?;
+        // The passphrase opened the PEM container and has no second job.
+        let passphrase = if unlocked.is_some() { None } else { passphrase };
+
         let row = self.store.node(node)?.ok_or(VaultError::NoSuchNode(node))?;
         let mut domain = node_from_row(&row)?;
         let NodeKind::Credential(credential) = &mut domain.kind else {
@@ -1080,7 +1101,7 @@ impl Vault {
         credential.secret = SecretKind::PrivateKey {
             sealed_key: Self::sealed_placeholder(),
             sealed_passphrase: passphrase.map(|_| Self::sealed_placeholder()),
-            format: key.format(),
+            format: stored.format(),
         };
 
         // The revision does not move: the row's own secrets stay bound to the
@@ -1092,7 +1113,7 @@ impl Vault {
             &self.keys.sek,
             node,
             FIELD_PRIVATE_KEY,
-            key.material(),
+            material,
             now_millis(),
         )?;
 

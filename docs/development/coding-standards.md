@@ -1,5 +1,11 @@
 # Coding Standards
 
+> **What ships.** These are enforced, not aspirational: the lints in the table
+> are `deny` in the workspace `Cargo.toml`, `unsafe_code` is `forbid`, and the
+> two ESLint rules that fail a build on a hardcoded string or a stray `invoke()`
+> are in the frontend config. CI runs clippy with `-D warnings` on three
+> platforms.
+
 ## Rust
 
 ### Errors

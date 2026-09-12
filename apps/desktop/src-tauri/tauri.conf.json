@@ -33,7 +33,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["appimage", "deb", "rpm"],
+    "targets": ["appimage", "deb", "rpm", "msi", "nsis", "app", "dmg"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -42,6 +42,8 @@
       "icons/icon.ico"
     ],
     "category": "Utility",
+    "publisher": "The Remoter contributors",
+    "homepage": "https://github.com/bbesli/Remoter",
     "shortDescription": "Remote connection manager",
     "longDescription": "A modern, cross-platform remote connection manager for RDP, SSH, VNC and SFTP, with an encrypted credential vault.",
     "licenseFile": "../../../LICENSE",
@@ -49,6 +51,18 @@
       "deb": {
         "depends": ["libwebkit2gtk-4.1-0", "libgtk-3-0"]
       }
+    },
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper",
+        "silent": true
+      },
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    },
+    "macOS": {
+      "minimumSystemVersion": "12.0"
     }
   }
 }

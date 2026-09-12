@@ -51,9 +51,29 @@
 //! changed. Everything below the vault therefore sees one representation and
 //! never has to know which file it came from.
 //!
-//! Enciphered legacy PEM bodies are the exception, and are refused by name:
-//! reaching their plaintext needs the passphrase, and this is the step that
-//! runs *before* the interface knows to ask for one.
+//! # The passphrase-protected `.pem`
+//!
+//! An enciphered legacy PEM — `Proc-Type: 4,ENCRYPTED` and a `DEK-Info` line —
+//! cannot be re-enveloped at this step, because reaching its plaintext needs a
+//! passphrase and this step runs *before* the interface knows to ask for one.
+//! It used to be refused outright here, which is the refusal a user reads as
+//! ".pem is not supported": it arrives the moment the file is chosen, with no
+//! passphrase field anywhere on screen to suggest otherwise.
+//!
+//! So it is not refused. It is identified, reported as encrypted — which is
+//! precisely what makes the interface ask for the passphrase — and carried in
+//! [`ImportedKey`] as ciphertext until [`ImportedKey::unlock`] is handed that
+//! passphrase, at which point [`crate::legacy_pem`] deciphers it and
+//! [`crate::pkcs8`] re-envelopes the result like any other legacy PEM.
+//!
+//! What is stored afterwards is therefore an *unenciphered* PKCS#8 document and
+//! no stored passphrase, where an encrypted OpenSSH or PKCS#8 container is
+//! stored as it stands with its passphrase beside it. That asymmetry is a
+//! consequence of the container, not a policy: this build can read a legacy PEM
+//! but cannot write one, so keeping the file's own envelope would mean storing
+//! a key nothing downstream could open. The material is sealed under the SEK
+//! either way, and a passphrase held in the same vault as the key it opens adds
+//! nothing an attacker who has the vault open does not already have.
 
 use std::fmt;
 use std::path::Path;
@@ -84,7 +104,35 @@ const OPENSSH_MAGIC: &[u8] = b"openssh-key-v1\0";
 pub struct ImportedKey {
     format: KeyFormat,
     encrypted: bool,
-    material: Secret<Vec<u8>>,
+    material: Material,
+}
+
+/// What an [`ImportedKey`] is holding: something the vault can seal as it
+/// stands, or a legacy PEM still waiting for its passphrase.
+enum Material {
+    /// A document in the container [`ImportedKey::format`] names.
+    Ready(Secret<Vec<u8>>),
+    /// The enciphered body of a legacy PEM, with the `DEK-Info` header that
+    /// says how to read it. [`ImportedKey::unlock`] is what turns this into a
+    /// `Ready` PKCS#8 document.
+    Locked {
+        kind: LegacyKind,
+        /// The `DEK-Info` value: a cipher name and an IV. Neither is secret —
+        /// both are written in the clear in the file — so this is an ordinary
+        /// `String`.
+        dek_info: String,
+        body: Secret<Vec<u8>>,
+    },
+}
+
+/// Which legacy PEM container a locked body came out of, so that the right
+/// re-envelope runs once it has been deciphered.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LegacyKind {
+    /// RFC 8017 §A.1.2 `RSAPrivateKey`.
+    Pkcs1Rsa,
+    /// RFC 5915 §3 `ECPrivateKey`.
+    Sec1Ec,
 }
 
 impl ImportedKey {
@@ -105,8 +153,28 @@ impl ImportedKey {
             Identified::AsIs { format, encrypted } => Ok(Self {
                 format,
                 encrypted,
-                material,
+                material: Material::Ready(material),
             }),
+            Identified::Locked {
+                kind,
+                dek_info,
+                body,
+            } => {
+                drop(material);
+                Ok(Self {
+                    // What this *will* be stored as, which is what the
+                    // interface shows and what the credential will record. The
+                    // file's own container is not one the domain model names,
+                    // and naming it here would mean naming it twice.
+                    format: KeyFormat::Pkcs8,
+                    encrypted: true,
+                    material: Material::Locked {
+                        kind,
+                        dek_info,
+                        body: Secret::new(body),
+                    },
+                })
+            }
             Identified::Normalised { pkcs8 } => {
                 // Explicit rather than left to the end of the function: the
                 // file's own bytes have no further use once the PKCS#8 copy
@@ -115,11 +183,11 @@ impl ImportedKey {
                 drop(material);
                 Ok(Self {
                     format: KeyFormat::Pkcs8,
-                    // Only an unencrypted body is ever re-enveloped, so this
-                    // is a fact about the rewrite and not an assumption about
-                    // the file.
+                    // The rewrite produces an unenciphered document, whatever
+                    // the file it came from was: an enciphered one arrives
+                    // here only after `unlock` deciphered it.
                     encrypted: false,
-                    material: Secret::new(pkcs8),
+                    material: Material::Ready(Secret::new(pkcs8)),
                 })
             }
         }
@@ -129,11 +197,14 @@ impl ImportedKey {
     ///
     /// The error says which of the three it is: a file that is not a key at all
     /// ([`VaultError::NotAPrivateKey`]), a key of a kind no protocol here can
-    /// authenticate with ([`VaultError::UnsupportedKeyFormat`]), or a key whose
-    /// legacy PEM container is itself encrypted
-    /// ([`VaultError::LegacyEncryptedKey`]) — three different remedies, which
+    /// authenticate with ([`VaultError::UnsupportedKeyFormat`]), or a legacy
+    /// PEM enciphered with a cipher this build cannot read
+    /// ([`VaultError::UnsupportedKeyCipher`]) — three different remedies, which
     /// is why they are three errors. None of the messages quotes the file's
     /// contents.
+    ///
+    /// A legacy PEM enciphered with one this build *can* read is not an error:
+    /// it comes back locked, and [`ImportedKey::unlock`] opens it.
     pub fn read(path: &Path) -> Result<Self, VaultError> {
         let metadata = std::fs::metadata(path)
             .map_err(|e| VaultError::io("reading the private key", path, e))?;
@@ -162,10 +233,71 @@ impl ImportedKey {
         self.encrypted
     }
 
-    /// The key material, for the vault to seal. Crate-private: nothing outside
-    /// this crate has a reason to hold the plaintext.
-    pub(crate) const fn material(&self) -> &Secret<Vec<u8>> {
-        &self.material
+    /// Whether this key is still enciphered in a container the vault cannot
+    /// store, and therefore has to be opened with its passphrase first.
+    ///
+    /// True only for a legacy PEM. An encrypted OpenSSH or PKCS#8 container is
+    /// stored exactly as it stands, ciphertext and all, and never needs this.
+    #[must_use]
+    pub const fn is_locked(&self) -> bool {
+        matches!(self.material, Material::Locked { .. })
+    }
+
+    /// The key material, for the vault to seal, or `None` while the key is
+    /// still locked.
+    ///
+    /// Crate-private, and an `Option` rather than a slice so that sealing a
+    /// locked key's ciphertext under a label claiming PKCS#8 is not something a
+    /// caller can do by forgetting a step.
+    pub(crate) const fn material(&self) -> Option<&Secret<Vec<u8>>> {
+        match &self.material {
+            Material::Ready(material) => Some(material),
+            Material::Locked { .. } => None,
+        }
+    }
+
+    /// Deciphers a locked legacy PEM and re-envelopes it as PKCS#8.
+    ///
+    /// Returns a new key holding the re-enveloped document, which is what the
+    /// vault seals. A key that is not locked is returned to the caller's
+    /// attention as an error rather than silently: calling this on an
+    /// already-readable key means the caller's model of the import is wrong.
+    ///
+    /// # Errors
+    ///
+    /// [`VaultError::KeyPassphraseRejected`] when the passphrase does not open
+    /// the container — which is also what a corrupt body looks like, there
+    /// being no authentication tag to tell them apart;
+    /// [`VaultError::UnsupportedKeyCipher`] when the `DEK-Info` header names a
+    /// cipher this build cannot read; [`VaultError::NotAPrivateKey`] when the
+    /// deciphered body is not the key structure its banner promised.
+    pub fn unlock(&self, passphrase: &[u8]) -> Result<Self, VaultError> {
+        let Material::Locked {
+            kind,
+            dek_info,
+            body,
+        } = &self.material
+        else {
+            return Err(VaultError::NotAPrivateKey);
+        };
+
+        let der = crate::legacy_pem::decipher(dek_info, passphrase, body.expose_secret())?;
+        // A wrong passphrase usually fails the padding check above, but one
+        // time in a few hundred the padding is accidentally well-formed and the
+        // plaintext is noise. Re-enveloping is what catches that, and the
+        // answer for the user is the same either way: this passphrase did not
+        // open this file.
+        let pkcs8 = match kind {
+            LegacyKind::Pkcs1Rsa => crate::pkcs8::from_pkcs1_rsa(&der),
+            LegacyKind::Sec1Ec => crate::pkcs8::from_sec1_ec(&der),
+        }
+        .map_err(|_| VaultError::KeyPassphraseRejected)?;
+
+        Ok(Self {
+            format: KeyFormat::Pkcs8,
+            encrypted: false,
+            material: Material::Ready(Secret::new(pkcs8)),
+        })
     }
 }
 
@@ -275,6 +407,14 @@ enum Identified {
     /// PKCS#8 document; see [`crate::pkcs8`]. Always unencrypted, because only
     /// an unencrypted body can be re-enveloped without the passphrase.
     Normalised { pkcs8: Vec<u8> },
+    /// The file is a legacy PEM whose body is enciphered. It can become a
+    /// PKCS#8 document like the one above, but not until someone supplies the
+    /// passphrase — see [`ImportedKey::unlock`].
+    Locked {
+        kind: LegacyKind,
+        dek_info: String,
+        body: Vec<u8>,
+    },
 }
 
 /// Identifies a private key container, and decides how it is stored.
@@ -313,18 +453,33 @@ fn detect(bytes: &[u8]) -> Result<Identified, VaultError> {
         // PKCS#8, which is a structural rewrite of the same key material.
         //
         // A body carrying an RFC 1421 `DEK-Info` header is ciphertext, so
-        // there is nothing to re-envelope without the passphrase. This step
-        // runs before the interface knows to ask for one, so the honest answer
-        // is to name the container and say what is in the way.
-        "RSA PRIVATE KEY" if block.enciphered => {
-            Err(VaultError::LegacyEncryptedKey("PKCS#1 RSA PEM"))
+        // there is nothing to re-envelope yet. It is carried as it stands and
+        // opened by `unlock` once the interface — which is told the key is
+        // encrypted, and asks — has the passphrase.
+        "RSA PRIVATE KEY" | "EC PRIVATE KEY" if block.dek_info.is_some() => {
+            let kind = if block.label == "RSA PRIVATE KEY" {
+                LegacyKind::Pkcs1Rsa
+            } else {
+                LegacyKind::Sec1Ec
+            };
+            // The guard above has already decided this; the `else` is how the
+            // arm says so without an `unwrap`.
+            let Some(dek_info) = block.dek_info else {
+                return Err(VaultError::NotAPrivateKey);
+            };
+            // Whether the cipher can be read at all is knowable now, without a
+            // passphrase. Answering it here is what stops the interface from
+            // asking for one it is going to refuse anyway.
+            crate::legacy_pem::check_readable(dek_info)?;
+            Ok(Identified::Locked {
+                kind,
+                dek_info: dek_info.to_owned(),
+                body: block.body.to_vec(),
+            })
         }
         "RSA PRIVATE KEY" => Ok(Identified::Normalised {
             pkcs8: crate::pkcs8::from_pkcs1_rsa(&block.body)?,
         }),
-        "EC PRIVATE KEY" if block.enciphered => {
-            Err(VaultError::LegacyEncryptedKey("SEC 1 elliptic curve PEM"))
-        }
         "EC PRIVATE KEY" => Ok(Identified::Normalised {
             pkcs8: crate::pkcs8::from_sec1_ec(&block.body)?,
         }),
@@ -342,9 +497,12 @@ struct PemBlock<'a> {
     label: &'a str,
     /// The base64 body, decoded.
     body: Zeroizing<Vec<u8>>,
-    /// Whether the block carried an RFC 1421 §4.6.1.3 `DEK-Info:` header,
-    /// which means the body below it is enciphered whatever the banner said.
-    enciphered: bool,
+    /// The value of the block's RFC 1421 §4.6.1.3 `DEK-Info:` header — a
+    /// cipher name and an IV — when it has one, which means the body below it
+    /// is enciphered whatever the banner said. Borrowed from the document, and
+    /// not a secret: both halves are written in the clear beside the
+    /// ciphertext they describe.
+    dek_info: Option<&'a str>,
 }
 
 /// The label and decoded body of the first PEM block in a document.
@@ -355,7 +513,7 @@ struct PemBlock<'a> {
 fn pem_block(text: &str) -> Option<PemBlock<'_>> {
     let mut label: Option<&str> = None;
     let mut base64 = Zeroizing::new(String::new());
-    let mut enciphered = false;
+    let mut dek_info: Option<&str> = None;
 
     for line in text.lines() {
         let line = line.trim();
@@ -373,8 +531,8 @@ fn pem_block(text: &str) -> Option<PemBlock<'_>> {
             // block still decode, and noting the `DEK-Info` lets the caller
             // tell ciphertext from a key it can re-envelope.
             if line.contains(':') {
-                if line.starts_with("DEK-Info:") {
-                    enciphered = true;
+                if let Some(value) = line.strip_prefix("DEK-Info:") {
+                    dek_info = Some(value.trim());
                 }
                 continue;
             }
@@ -387,7 +545,7 @@ fn pem_block(text: &str) -> Option<PemBlock<'_>> {
     Some(PemBlock {
         label,
         body: Zeroizing::new(decoded),
-        enciphered,
+        dek_info,
     })
 }
 
@@ -571,18 +729,59 @@ mod tests {
 
     #[test]
     fn a_legacy_pem_header_does_not_make_the_block_undecodable() {
-        // `Proc-Type:` and `DEK-Info:` sit inside the block. The container is
-        // refused by name, which is only possible if the block parsed.
+        // `Proc-Type:` and `DEK-Info:` sit inside the block, where base64 is
+        // expected. Reaching a locked key at all proves the block parsed around
+        // them and that the `DEK-Info` value came back out.
         let mut document = String::from("-----BEGIN RSA PRIVATE KEY-----\n");
         document.push_str("Proc-Type: 4,ENCRYPTED\n");
-        document.push_str("DEK-Info: AES-128-CBC,0123456789ABCDEF\n\n");
-        document.push_str(&data_encoding::BASE64.encode(&[0x30, 0x03, 0x02, 0x01, 0x00]));
+        document.push_str("DEK-Info: AES-128-CBC,0123456789ABCDEF0123456789ABCDEF\n\n");
+        document.push_str(&data_encoding::BASE64.encode(&[0u8; 16]));
         document.push_str("\n-----END RSA PRIVATE KEY-----\n");
 
-        assert!(matches!(
-            ImportedKey::from_bytes(document.into_bytes()),
-            Err(VaultError::LegacyEncryptedKey("PKCS#1 RSA PEM"))
-        ));
+        let key = ImportedKey::from_bytes(document.into_bytes()).unwrap();
+        assert!(key.is_locked());
+        assert!(key.is_encrypted(), "which is what makes the editor ask");
+        assert_eq!(key.format(), KeyFormat::Pkcs8, "what it will be stored as");
+        assert!(key.material().is_none(), "ciphertext is not storable");
+    }
+
+    #[test]
+    fn a_cipher_this_build_cannot_read_is_named_rather_than_attempted() {
+        // DES-EDE3-CBC is what OpenSSL wrote before 1.1. The refusal has to be
+        // its own sentence: the remedy is one `ssh-keygen -p` over a copy,
+        // where an unsupported key *type* would still be refused afterwards.
+        //
+        // And it has to arrive here, while the file is being identified, rather
+        // than after a passphrase has been asked for and typed: the cipher name
+        // is written in the clear beside the ciphertext, so nothing about this
+        // answer needed the passphrase.
+        let document = |dek_info: &str| {
+            format!(
+                "-----BEGIN RSA PRIVATE KEY-----\n\
+                 Proc-Type: 4,ENCRYPTED\n\
+                 DEK-Info: {dek_info}\n\n\
+                 {}\n\
+                 -----END RSA PRIVATE KEY-----\n",
+                data_encoding::BASE64.encode(&[0u8; 16])
+            )
+            .into_bytes()
+        };
+
+        match ImportedKey::from_bytes(document("DES-EDE3-CBC,0123456789ABCDEF")) {
+            Err(VaultError::UnsupportedKeyCipher(named)) => {
+                assert_eq!(named, "DES-EDE3-CBC");
+            }
+            other => panic!("expected UnsupportedKeyCipher, got {other:?}"),
+        }
+
+        // Whatever the file said. A message assembled from the file's own bytes
+        // is a message the file wrote.
+        match ImportedKey::from_bytes(document("PANTHER-9000-CBC,0123456789ABCDEF")) {
+            Err(VaultError::UnsupportedKeyCipher(named)) => {
+                assert_eq!(named, "an unrecognised cipher");
+            }
+            other => panic!("expected UnsupportedKeyCipher, got {other:?}"),
+        }
     }
 
     #[test]
@@ -732,6 +931,23 @@ mod real_keys {
         ssh_keygen(&["-y", "-f", path])
     }
 
+    /// The same, for a key file whose own container is enciphered.
+    ///
+    /// `-P` is how `ssh-keygen` takes the passphrase without a terminal. It is
+    /// a test passphrase for a key generated seconds earlier and thrown away
+    /// seconds later; no real one ever goes on a command line.
+    fn public_half_of_locked(dir: &Path, name: &str, key: &[u8], passphrase: &str) -> Vec<u8> {
+        let path = dir.join(name);
+        std::fs::write(&path, key).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+        }
+        let path = path.to_str().expect("a temporary path is valid UTF-8");
+        ssh_keygen(&["-y", "-P", passphrase, "-f", path])
+    }
+
     #[test]
     fn an_aws_style_pkcs1_rsa_pem_is_accepted_and_is_still_the_same_key() {
         // This is the file AWS EC2 hands out with every key pair it generates,
@@ -753,7 +969,7 @@ mod real_keys {
         assert_eq!(key.format(), KeyFormat::Pkcs8);
         assert!(!key.is_encrypted());
 
-        let stored = key.material().expose_secret();
+        let stored = key.material().unwrap().expose_secret();
         assert!(
             stored.starts_with(b"-----BEGIN PRIVATE KEY-----"),
             "the vault stored something that is not a PKCS#8 document"
@@ -784,7 +1000,7 @@ mod real_keys {
         assert_eq!(key.format(), KeyFormat::Pkcs8);
         assert!(!key.is_encrypted());
 
-        let stored = key.material().expose_secret();
+        let stored = key.material().unwrap().expose_secret();
         assert!(stored.starts_with(b"-----BEGIN PRIVATE KEY-----"));
         assert_eq!(
             public_half(dir.path(), "stored", stored),
@@ -796,7 +1012,7 @@ mod real_keys {
     #[test]
     fn every_container_ssh_keygen_writes_is_recognised() {
         let dir = tempfile::tempdir().unwrap();
-        let cases: [(&str, &str, &[&str], KeyFormat, bool); 6] = [
+        let cases: [(&str, &str, &[&str], KeyFormat, bool); 8] = [
             // (name, passphrase, ssh-keygen arguments, stored as, encrypted)
             ("openssh", "", &["-t", "ed25519"], KeyFormat::OpenSsh, false),
             (
@@ -834,6 +1050,23 @@ mod real_keys {
                 KeyFormat::Pkcs8,
                 false,
             ),
+            // The two that were refused outright. They are reported under the
+            // container they will be stored in and as encrypted, which is what
+            // the interface reads to decide whether to ask for a passphrase.
+            (
+                "pkcs1-locked",
+                "correct horse battery staple",
+                &["-t", "rsa", "-b", "2048", "-m", "PEM"],
+                KeyFormat::Pkcs8,
+                true,
+            ),
+            (
+                "sec1-locked",
+                "correct horse battery staple",
+                &["-t", "ecdsa", "-b", "256", "-m", "PEM"],
+                KeyFormat::Pkcs8,
+                true,
+            ),
         ];
 
         for (name, passphrase, extra, format, encrypted) in cases {
@@ -846,30 +1079,67 @@ mod real_keys {
     }
 
     #[test]
-    fn a_passphrase_protected_legacy_pem_is_named_rather_than_mis_stored() {
-        // `ssh-keygen -m PEM -N <passphrase>` writes PKCS#1 with an RFC 1421
-        // `DEK-Info` header: the body is ciphertext. Re-enveloping it needs the
-        // passphrase, which this step does not have — it is the step that runs
-        // so the interface knows whether to ask for one. The refusal therefore
-        // names the container and the reason rather than calling the file
-        // something it is not.
+    fn a_passphrase_protected_legacy_pem_opens_and_is_still_the_same_key() {
+        // The file the report was about. `ssh-keygen -m PEM -N <passphrase>`
+        // writes PKCS#1 with an RFC 1421 `DEK-Info` header, which is also what
+        // an AWS EC2 `.pem` becomes the moment its owner protects it. The
+        // identification step has no passphrase — it is the step that runs so
+        // the interface knows to ask for one — so it reports the key as
+        // encrypted and leaves it locked, and `unlock` is where the passphrase
+        // arrives.
+        //
+        // Both containers are exercised: `ssh-keygen` reads an enciphered
+        // PKCS#1 and `russh` does too, but neither reads an enciphered SEC 1,
+        // so the EC arm is a case that works here and nowhere downstream.
         let dir = tempfile::tempdir().unwrap();
-        let bytes = generate(
-            dir.path(),
-            "locked.pem",
-            "correct horse battery staple",
-            &["-t", "rsa", "-b", "2048", "-m", "PEM"],
-        );
-        assert!(
-            String::from_utf8_lossy(&bytes).contains("DEK-Info:"),
-            "ssh-keygen did not write a legacy encrypted PEM"
-        );
+        let passphrase = "correct horse battery staple";
 
-        match ImportedKey::from_bytes(bytes) {
-            Err(VaultError::LegacyEncryptedKey(named)) => {
-                assert_eq!(named, "PKCS#1 RSA PEM");
-            }
-            other => panic!("expected LegacyEncryptedKey, got {other:?}"),
+        for (name, extra) in [
+            ("locked-rsa.pem", ["-t", "rsa", "-b", "2048", "-m", "PEM"]),
+            ("locked-ec.pem", ["-t", "ecdsa", "-b", "256", "-m", "PEM"]),
+        ] {
+            let bytes = generate(dir.path(), name, passphrase, &extra);
+            assert!(
+                String::from_utf8_lossy(&bytes).contains("DEK-Info:"),
+                "ssh-keygen did not write a legacy encrypted PEM for {name}"
+            );
+
+            let locked = ImportedKey::from_bytes(bytes.clone()).unwrap();
+            assert!(locked.is_locked(), "{name}");
+            assert!(locked.is_encrypted(), "{name}");
+
+            // The wrong passphrase is not a corrupt file, and does not claim
+            // to be one.
+            assert!(
+                matches!(
+                    locked.unlock(b"hunter2"),
+                    Err(VaultError::KeyPassphraseRejected)
+                ),
+                "{name}: a wrong passphrase must say so"
+            );
+
+            let opened = locked.unlock(passphrase.as_bytes()).unwrap();
+            assert!(!opened.is_locked(), "{name}");
+            assert!(
+                !opened.is_encrypted(),
+                "{name}: what is stored is no longer enciphered"
+            );
+            assert_eq!(opened.format(), KeyFormat::Pkcs8, "{name}");
+
+            let stored = opened.material().unwrap().expose_secret();
+            assert!(
+                stored.starts_with(b"-----BEGIN PRIVATE KEY-----"),
+                "{name}: the vault stored something that is not a PKCS#8 document"
+            );
+
+            // The assertion that matters: a real SSH implementation reads the
+            // document that came out, and it is the same identity a server
+            // would have checked for the file that went in.
+            assert_eq!(
+                public_half(dir.path(), "stored", stored),
+                public_half_of_locked(dir.path(), "original", &bytes, passphrase),
+                "{name}: the deciphered key is not the key that went in"
+            );
         }
     }
 
@@ -885,14 +1155,27 @@ mod real_keys {
             &["-t", "rsa", "-b", "2048", "-m", "PEM"],
         );
 
-        let error = ImportedKey::from_bytes(bytes.clone()).unwrap_err();
-        let rendered = format!("{error:?} {error}");
+        // The refusal a wrong passphrase earns, which is the one whose error is
+        // built while the ciphertext and the passphrase are both in hand.
+        let locked = ImportedKey::from_bytes(bytes.clone()).unwrap();
+        let error = locked.unlock(b"hunter2").unwrap_err();
+        let rendered = format!("{error:?} {error} {locked:?}");
+        assert!(
+            !rendered.contains("hunter2"),
+            "the passphrase reached the error"
+        );
         for line in String::from_utf8_lossy(&bytes)
             .lines()
             .filter(|line| !line.starts_with("-----") && !line.contains(':') && !line.is_empty())
         {
             assert!(!rendered.contains(line), "a key fragment reached the error");
         }
+
+        // And the refusal for a file that is not a key at all, which is built
+        // from the same code path with nothing decipherable in it.
+        let error =
+            ImportedKey::from_bytes(b"ssh-rsa AAAAB3 nobody@example\n".to_vec()).unwrap_err();
+        assert!(matches!(error, VaultError::NotAPrivateKey));
 
         let accepted = generate(
             dir.path(),
@@ -903,7 +1186,7 @@ mod real_keys {
         let key = ImportedKey::from_bytes(accepted).unwrap();
         let rendered = format!("{key:?}");
         assert!(rendered.contains("<redacted>"));
-        for line in String::from_utf8_lossy(key.material().expose_secret())
+        for line in String::from_utf8_lossy(key.material().unwrap().expose_secret())
             .lines()
             .filter(|line| !line.starts_with("-----"))
         {

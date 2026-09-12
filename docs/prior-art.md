@@ -148,25 +148,32 @@ Windows-strongest.
 
 ## Where Remoter fits
 
+The Remoter column is what Remoter *does today*, not what it intends to do.
+Every other column describes a shipping product, so a column of intentions
+beside them would be a lie by table layout.
+
 | | mRemoteNG | Royal TS | Termius | Remmina | Guacamole | **Remoter** |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
 | Open source | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ |
 | Free | ✅ | ❌ | Partial | ✅ | ✅ | ✅ |
 | Linux | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ |
 | Windows | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ |
-| macOS | ❌ | ✅ | ✅ | ❌ | ✅ | ✅ |
+| macOS | ❌ | ✅ | ✅ | ❌ | ✅ | Builds and is tested in CI; unused by anyone |
 | Inheritance | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ |
 | Modern UI | ❌ | ✅ | ✅ | ❌ | Partial | ✅ |
-| Audited crypto design | ❌ | Unknown | Unknown | ❌ | Partial | Planned |
-| Hardware key unlock | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| Audited crypto design | ❌ | Unknown | Unknown | ❌ | Partial | ⏳ specified in public; not reviewed |
+| Hardware key unlock | ❌ | ❌ | ❌ | ❌ | ❌ | ⏳ not built |
 | No server required | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ |
-| Sandboxed plugins | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| Sandboxed plugins | ❌ | ❌ | ❌ | ❌ | ❌ | ⏳ ABI only; no host |
 | 10 languages | ❌ | Partial | Partial | ✅ | ✅ | ✅ |
+| Session recording | ✅ | ✅ | ✅ | ❌ | ✅ | ⏳ not built |
 
 The gap Remoter aims at: **open source, genuinely cross-platform, with
 inheritance, a modern interface, and cryptography specified in public.** No
-existing tool occupies all five at once.
+existing tool occupies all five at once, and Remoter occupies all five today.
 
-The honest counterweight: every product above is mature and shipping, and
-several have a decade's worth of protocol edge cases handled that Remoter will
-have to learn the hard way. Being new is not by itself a virtue.
+The honest counterweight, which matters more than the table: every product above
+is mature and shipping, and several have a decade's worth of protocol edge cases
+handled that Remoter will have to learn the hard way. Remoter is alpha, unsigned
+and unreviewed, and three of the rows above are still empty. Being new is not by
+itself a virtue.

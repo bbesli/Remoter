@@ -159,7 +159,13 @@ crisp".
 Settled by [ADR-0010](decisions/0010-framebuffer-transport.md). The short
 version:
 
-**A harness comes first.** `remoter-bench-framepath` is built in **v0.1**,
+**A harness comes first.** ⏳ **It was not.** `remoter-bench-framepath` does not
+exist, RDP and VNC were built before it, and so the presenter decision gate below
+was never run — every platform uses the WebView presenter by default rather than
+by measurement. The design is unchanged and the harness is still the right next
+step; what follows describes what should have happened and did not.
+
+`remoter-bench-framepath` is built in **v0.1**,
 before any RDP work, and replays synthetic and captured dirty-rectangle streams
 through the real transport and presenter. It needs no protocol implementation,
 which is precisely why it can run this early.
@@ -192,7 +198,12 @@ are different rendering paths with different costs. And the acceptance bar has
 to be met on the path users will actually get, which on NVIDIA + Wayland is the
 one without DMA-BUF.
 
-### The presenter is an interface, and it is per-platform
+### The presenter is an interface, and it is per-platform — ◐ one of two exists
+
+The WebView presenter is built and is documented below as built. ⏳ The
+`NativePresenter` is not: there is no `wgpu` dependency and no child surface.
+Because the gate that would choose between them never ran, the choice was made by
+absence.
 
 ```
 FrameEncoder ──▶ binary frame format ──▶ ┌ WebViewPresenter  (IPC → canvas/WebGL2)
@@ -348,7 +359,7 @@ that the geometry is testable without a canvas.
 
 | Mode | Behaviour | What it needs |
 |---|---|---|
-| Smart resize | Ask the remote host to resize its desktop to the tab (RDP dynamic resolution over MS-RDPEDISP, VNC `SetDesktopSize`) | A granted resize capability |
+| Smart resize | Ask the remote host to resize its desktop to the tab (RDP dynamic resolution over MS-RDPEDISP, VNC `SetDesktopSize`) | A granted resize capability. ⏳ **VNC cannot**: `SetDesktopSize` and ExtendedDesktopSize are community extensions outside RFC 6143 and `vnc-rs` 0.5 does not implement them, so VNC reports `resizable: false`. RDP's answer depends on a channel the server opens, and there is no event that revises a tab's capabilities mid-session |
 | Fit to window | Scale the remote framebuffer to the tab, preserving aspect ratio. Never *enlarges*: a desktop smaller than the tab is centred at 1:1 | nothing |
 | 1:1 | Native resolution with scrollbars | nothing |
 | Zoom | An **integer** magnification — 2x, 3x, 4x and nothing between | nothing |

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-10
 - **Resolves the open question in**: [rendering.md](../rendering.md)
+- **Implementation**: ◐ The WebView presenter and the budgeted adaptive encoder are built. ⏳ `remoter-bench-framepath` was never written, the native `wgpu` presenter does not exist, and the per-platform decision gate below was therefore never run — the WebView presenter ships everywhere by default rather than by measurement.
 
 ## Context
 

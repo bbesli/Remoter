@@ -11,16 +11,26 @@
  * What jsdom still cannot supply is layout: every element reports a zero-sized
  * rectangle, and the band maths is entirely about where in a row's height the
  * pointer is. `layOutRows` gives the rendered rows the geometry a browser
- * would, so "the top quarter of this row" means something. That is the one
- * piece of the real thing being stood in for; everything else here is the
- * component's own code path.
+ * would, so "the top half of this row" means something, and `installHitTest`
+ * answers `elementFromPoint` from the same geometry. Those two are the whole
+ * of what is stood in for; everything else here is the component's own code
+ * path.
+ *
+ * The hit test is not a convenience. This suite passed in full while the
+ * feature did not work, because it dispatched `pointermove` straight at the
+ * row each case had in mind — which skips both of the decisions a browser
+ * makes and the tree was wrong about: which element receives the event, and
+ * which element is under the point. The gesture below travels across the rows
+ * in the steps a mouse takes, and the cases that matter most run twice: once
+ * delivered to the row under the pointer, and once delivered to the scroller,
+ * as a captured pointer delivers everything.
  *
  * Every case below is one the owner tries within a minute of it working.
  */
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { TFunction } from "i18next";
 
@@ -112,6 +122,46 @@ function layOutRows(): void {
   });
 }
 
+/**
+ * The browser's own hit test, answered from the geometry above.
+ *
+ * This is the piece that makes the gesture below a gesture rather than a
+ * sequence of well-aimed function calls. A mouse does not dispatch events at
+ * elements; it dispatches them at coordinates, and the browser decides what is
+ * underneath. Firing `pointermove` straight at the row the test has in mind
+ * skips that decision — and the decision is where the component was wrong, so
+ * every test that skipped it passed while the feature did not work.
+ *
+ * jsdom has no layout and therefore no `elementFromPoint` of its own, so the
+ * tree falls back to the event's target when it is missing. Installing it is
+ * how the suite gets to exercise the path a browser actually takes.
+ */
+function installHitTest(): void {
+  const target = document as Document & {
+    elementFromPoint?: (x: number, y: number) => Element | null;
+  };
+  target.elementFromPoint = (x: number, y: number): Element | null => {
+    for (const row of screen.queryAllByRole("treeitem")) {
+      const r = row.getBoundingClientRect();
+      if (x >= r.left && x < r.right && y >= r.top && y < r.bottom) return row;
+    }
+    return screen.queryByRole("tree");
+  };
+}
+
+function removeHitTest(): void {
+  const target = document as Document & { elementFromPoint?: unknown };
+  // Put jsdom back the way it was found — no `elementFromPoint` at all — so a
+  // test in another file cannot inherit this one's pretend layout.
+  Reflect.deleteProperty(target, "elementFromPoint");
+}
+
+/** The y coordinate `fraction` of the way down `el`. */
+function inRow(el: HTMLElement, fraction: number): number {
+  const rect = el.getBoundingClientRect();
+  return rect.top + rect.height * fraction;
+}
+
 /** The y coordinate inside `el` that means `band`, per `bandAt`. */
 function bandY(el: HTMLElement, band: DropBand): number {
   const rect = el.getBoundingClientRect();
@@ -144,11 +194,61 @@ function release(el: HTMLElement): void {
   fireEvent.pointerUp(el, { ...POINTER, clientX: 10, clientY: bandY(el, "into") });
 }
 
-/** The whole gesture: pick `from` up, hover `band` of `to`, let go. */
-function drag(from: HTMLElement, to: HTMLElement, band: DropBand): void {
+/**
+ * Move the pointer to `y`, delivered the way the platform would deliver it.
+ *
+ * `to` is the element the event is dispatched at. A webview that has granted
+ * the capture the tree asks for names the scroller every time, whatever the
+ * pointer is over; one that has not names the row under it. Both have to end
+ * in the same place, which is the whole point of hit-testing rather than
+ * trusting the target.
+ */
+function moveTo(y: number, to: HTMLElement): void {
+  fireEvent.pointerMove(to, { ...POINTER, clientX: 10, clientY: y });
+}
+
+/**
+ * A pointer travelling from where it is to `y`, in the steps a mouse takes.
+ *
+ * A mouse emits a move every few pixels, and the first several of them are
+ * still over the row the press landed on — so the drag threshold, the refusal
+ * on the source row and the crossing of every row in between all happen, in
+ * that order, before the target is ever reached. One jump to the destination
+ * exercises none of it.
+ */
+function travel(fromY: number, toY: number, captured: boolean): void {
+  const scroller = screen.getByRole("tree");
+  const step = fromY < toY ? 6 : -6;
+  for (let y = fromY + step; (step > 0 ? y < toY : y > toY); y += step) {
+    moveTo(y, captured ? scroller : rowAt(y));
+  }
+  moveTo(toY, captured ? scroller : rowAt(toY));
+}
+
+/** The row the geometry puts under `y`, or the scroller when there is none. */
+function rowAt(y: number): HTMLElement {
+  for (const row of screen.queryAllByRole("treeitem")) {
+    const r = row.getBoundingClientRect();
+    if (y >= r.top && y < r.bottom) return row;
+  }
+  return screen.getByRole("tree");
+}
+
+/** The whole gesture: pick `from` up, travel to `y`, let go there. */
+function dragTo(from: HTMLElement, y: number, captured = false): void {
+  const startY = inRow(from, 0.5);
   press(from);
-  moveOver(to, bandY(to, band));
-  release(to);
+  travel(startY, y, captured);
+  fireEvent.pointerUp(captured ? screen.getByRole("tree") : rowAt(y), {
+    ...POINTER,
+    clientX: 10,
+    clientY: y,
+  });
+}
+
+/** The whole gesture, aimed at a band of `to`. */
+function drag(from: HTMLElement, to: HTMLElement, band: DropBand): void {
+  dragTo(from, bandY(to, band));
 }
 
 function renderTree() {
@@ -170,6 +270,8 @@ function rowNames(): string[] {
     .map((text) => text.trim());
 }
 
+afterEach(removeHitTest);
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.useRealTimers();
@@ -185,6 +287,9 @@ beforeEach(() => {
 /**
  * Berlin holds two servers and a sub-folder; Munich is closed and holds one.
  *
+ * Ops is a *group*: it wears the folder glyph and cannot hold anything, which
+ * is the one case where refusing a drop is still the right answer.
+ *
  *   📁 Berlin        f1   (open)
  *      🖥 db-01      c2
  *      🖥 db-02      c3
@@ -192,6 +297,7 @@ beforeEach(() => {
  *   📁 Munich        f2   (closed)
  *      🖥 cache-01   c4
  *   🖥 web-01        c1
+ *   📁 Ops           g1   (a group)
  */
 const TREE: TreeNode[] = [
   node({ id: "f1", kind: "folder", name: "Berlin", sortOrder: 0 }),
@@ -201,6 +307,7 @@ const TREE: TreeNode[] = [
   node({ id: "f2", kind: "folder", name: "Munich", sortOrder: 1 }),
   node({ id: "c4", name: "cache-01", protocol: "ssh", parentId: "f2", sortOrder: 0 }),
   node({ id: "c1", name: "web-01", protocol: "ssh", sortOrder: 2 }),
+  node({ id: "g1", kind: "group", name: "Ops", sortOrder: 3 }),
 ];
 
 async function mountTree(nodes: TreeNode[] = TREE) {
@@ -208,6 +315,7 @@ async function mountTree(nodes: TreeNode[] = TREE) {
   renderTree();
   await screen.findByRole("treeitem", { name: /Berlin/ });
   layOutRows();
+  installHitTest();
 }
 
 function row(name: RegExp): HTMLElement {
@@ -227,15 +335,96 @@ describe("dropping a connection onto a folder", () => {
     expect(ipcMock.moveNode).toHaveBeenCalledTimes(1);
   });
 
-  it("refuses a connection dropped onto another connection, and says why", async () => {
+  it("refuses a connection dropped onto a group, which only looks like a folder", async () => {
     await mountTree();
 
-    drag(row(/web-01/), row(/db-01/), "into");
+    drag(row(/web-01/), row(/Ops/), "into");
 
     // Twice over, by design: once on the tree and once in the live region.
     const reason = message()("move.refuseNotFolder");
     await waitFor(() => expect(screen.getAllByText(reason)).toHaveLength(2));
     expect(ipcMock.moveNode).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The half of the row that used to answer "only a folder can hold other
+ * entries".
+ *
+ * A connection has no inside, so its height is halved rather than split in
+ * three: the top half means above it and the bottom half below it, and there
+ * is no band in the middle whose only possible answer is a refusal. Every one
+ * of these lands on the body of the row — 35% and 65% of the way down, which
+ * is where a person aims when they mean "put it next to this one" and which
+ * the three-band split read as "put it inside this one".
+ */
+describe("reordering by dropping on the body of a row", () => {
+  it("lands above the row when the drop is on its top half", async () => {
+    await mountTree();
+    ipcMock.moveNode.mockResolvedValue(undefined);
+
+    dragTo(row(/db-02/), inRow(row(/db-01/), 0.35));
+
+    await waitFor(() => expect(ipcMock.moveNode).toHaveBeenCalledWith("c3", "f1", -1));
+    expect(screen.queryByText(message()("move.refuseNotFolder"))).not.toBeInTheDocument();
+  });
+
+  it("lands below the row when the drop is on its bottom half", async () => {
+    await mountTree();
+    ipcMock.moveNode.mockResolvedValue(undefined);
+
+    dragTo(row(/web-01/), inRow(row(/db-01/), 0.65));
+
+    // Announced as what it is, which is also the only description of where it
+    // went that does not depend on the sort orders the respacing picks.
+    const below = message()("move.movedBelow", {
+      name: isolate("web-01"),
+      anchor: isolate("db-01"),
+    });
+    await waitFor(() => expect(screen.getByRole("status").textContent).toContain(below));
+    expect(ipcMock.moveNode).toHaveBeenCalled();
+  });
+
+  it("still reaches the inside of a folder, which does keep a middle band", async () => {
+    await mountTree();
+    ipcMock.moveNode.mockResolvedValue(undefined);
+
+    dragTo(row(/web-01/), inRow(row(/Berlin/), 0.5));
+
+    await waitFor(() => expect(ipcMock.moveNode).toHaveBeenCalledWith("c1", "f1", 3));
+  });
+});
+
+/**
+ * Where the pointer is, not where the event was delivered.
+ *
+ * Once a webview grants the pointer capture the tree asks for, every move in
+ * the gesture is dispatched at the capturing element — here the scroller —
+ * whatever the pointer is over. A tree that reads the target of the event
+ * instead of hit-testing the point sees the same element for the whole drag,
+ * finds no row under it, and reads every move as the background: the node goes
+ * to the top level, or nowhere, and never into the folder the pointer was
+ * plainly sitting on. That is a drag that stops working the moment something
+ * takes the pointer, which is a thing platforms do differently and none of
+ * them announce.
+ */
+describe("a drag whose moves are all delivered to one element", () => {
+  it("still drops into the folder the pointer is over", async () => {
+    await mountTree();
+    ipcMock.moveNode.mockResolvedValue(undefined);
+
+    dragTo(row(/web-01/), inRow(row(/Berlin/), 0.5), true);
+
+    await waitFor(() => expect(ipcMock.moveNode).toHaveBeenCalledWith("c1", "f1", 3));
+  });
+
+  it("still reorders against the row the pointer is over", async () => {
+    await mountTree();
+    ipcMock.moveNode.mockResolvedValue(undefined);
+
+    dragTo(row(/db-02/), inRow(row(/db-01/), 0.35), true);
+
+    await waitFor(() => expect(ipcMock.moveNode).toHaveBeenCalledWith("c3", "f1", -1));
   });
 });
 
@@ -363,7 +552,7 @@ describe("dropping on the empty space below the tree", () => {
     fireEvent.pointerUp(scroller, { ...POINTER, clientX: 10, clientY: 400 });
 
     // Three roots already (0, 1, 2), so the newcomer lands after the last.
-    await waitFor(() => expect(ipcMock.moveNode).toHaveBeenCalledWith("c2", null, 3));
+    await waitFor(() => expect(ipcMock.moveNode).toHaveBeenCalledWith("c2", null, 4));
   });
 
   it("treats a favourite row as background rather than as a dead band", async () => {
@@ -384,7 +573,7 @@ describe("dropping on the empty space below the tree", () => {
     moveOver(favourite);
     release(favourite);
 
-    await waitFor(() => expect(ipcMock.moveNode).toHaveBeenCalledWith("c2", null, 3));
+    await waitFor(() => expect(ipcMock.moveNode).toHaveBeenCalledWith("c2", null, 4));
   });
 });
 
@@ -450,6 +639,32 @@ describe("gestures that are not a drag", () => {
 
     expect(ipcMock.moveNode).not.toHaveBeenCalled();
     expect(useApp.getState().selectedNodeId).toBe("c1");
+  });
+
+  it("takes no pointer capture until the press has become a drag", async () => {
+    // A guard on the mechanism, because what it protects is platform
+    // behaviour jsdom cannot express — the same kind of guard, and for the
+    // same reason, as the `draggable` one below.
+    //
+    // A captured pointer retargets the compatibility mouse events as well as
+    // the pointer ones, so a capture taken on `pointerdown` sends the `click`
+    // that ends an ordinary press to whatever holds the capture rather than to
+    // the row. Under WebView2 that meant clicking a connection stopped
+    // selecting it, which is a far worse failure than the one the capture is
+    // there to prevent — and every test in this file still passed, because
+    // jsdom has no pointer capture to retarget anything.
+    await mountTree();
+    const target = row(/web-01/);
+    const captured: number[] = [];
+    target.setPointerCapture = (id: number) => captured.push(id);
+
+    fireEvent.pointerDown(target, { ...POINTER, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(target, { ...POINTER, clientX: 12, clientY: 11 });
+    expect(captured).toEqual([]);
+
+    // Past the threshold, and now it is worth holding on to.
+    fireEvent.pointerMove(target, { ...POINTER, clientX: 40, clientY: 11 });
+    expect(captured).toEqual([POINTER.pointerId]);
   });
 
   it("a touch press scrolls the sidebar rather than picking a row up", async () => {
@@ -601,6 +816,75 @@ describe("the gesture is not HTML5 drag-and-drop", () => {
     await mountTree();
     for (const el of screen.getAllByRole("treeitem")) {
       expect(el).not.toHaveAttribute("draggable", "true");
+    }
+  });
+});
+
+/**
+ * What a person can see while the pointer is still down.
+ *
+ * The drag reported as broken twice was, on the second round, a drag that
+ * worked: a row dimmed by 60% and a two-pixel rule between two rows of a
+ * twenty-eight-pixel list. There was nothing under the pointer at all, so
+ * there was nothing to tell you that the thing you had picked up was in your
+ * hand, and no way to find out that the gesture existed by trying it. These
+ * are about the visible half.
+ */
+describe("what the pointer carries", () => {
+  it("names the entry in the air, under the pointer", async () => {
+    await mountTree();
+
+    press(row(/web-01/));
+    travel(inRow(row(/web-01/), 0.5), inRow(row(/Berlin/), 0.5), false);
+
+    // Twice on screen now: the row it came from, and the chip carrying it.
+    expect(screen.getAllByText("web-01").length).toBeGreaterThan(1);
+  });
+
+  it("says why a target will not take it, before the pointer is released", async () => {
+    await mountTree();
+    const reason = message()("move.refuseNotFolder");
+    expect(screen.queryByText(reason)).not.toBeInTheDocument();
+
+    // Held over a group, not released. The sentence has to be readable now,
+    // while the gesture can still be redirected — afterwards it only explains
+    // a move that has already failed to happen.
+    press(row(/web-01/));
+    travel(inRow(row(/web-01/), 0.5), inRow(row(/Ops/), 0.5), false);
+
+    expect(screen.getByText(reason)).toBeInTheDocument();
+    expect(ipcMock.moveNode).not.toHaveBeenCalled();
+  });
+
+  it("puts the chip down when the drag ends", async () => {
+    await mountTree();
+    ipcMock.moveNode.mockResolvedValue(undefined);
+
+    dragTo(row(/web-01/), inRow(row(/Berlin/), 0.5));
+
+    await waitFor(() => expect(screen.getAllByText("web-01")).toHaveLength(1));
+  });
+});
+
+describe("a refused drop", () => {
+  it("explains itself below the tree, so the rows do not move under the pointer", async () => {
+    // The explanation used to open between the search box and the first row,
+    // which pushed the whole list down the height of three rows — so the
+    // answer to "that did not work, try again" was a tree that had moved, and
+    // the second attempt landed somewhere else again.
+    await mountTree();
+
+    drag(row(/web-01/), row(/Ops/), "into");
+
+    const reason = message()("move.refuseNotFolder");
+    const tree = screen.getByRole("tree");
+    const live = screen.getByRole("status");
+    await waitFor(() => expect(screen.getAllByText(reason).length).toBeGreaterThan(0));
+
+    const onScreen = screen.getAllByText(reason).filter((el) => !live.contains(el));
+    expect(onScreen.length).toBeGreaterThan(0);
+    for (const el of onScreen) {
+      expect(tree.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     }
   });
 });

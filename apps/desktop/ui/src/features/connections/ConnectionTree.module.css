@@ -136,6 +136,87 @@
   margin-top: var(--space-1);
 }
 
+/* --------------------------------------------------------- the drag chip -- */
+
+/*
+ * The chip is placed in two steps on purpose. The anchor is a zero-sized box
+ * that JavaScript moves to the pointer with a `transform`, because a transform
+ * is the one way to follow a pointer without laying anything out again. The
+ * chip inside it is offset with logical properties, so under an RTL layout it
+ * sits on the other side of the pointer without the script knowing anything
+ * about direction — the same reason the context menu is positioned with
+ * `inset-inline-start`.
+ *
+ * `pointer-events: none` on both is load-bearing and not cosmetic: the drop
+ * target is found by hit-testing the document at the pointer, and a chip that
+ * answered that hit test would make every drop land on itself.
+ */
+.chipAnchor {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  z-index: 60;
+  pointer-events: none;
+}
+
+.chip {
+  position: absolute;
+  inset-inline-start: 14px;
+  top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  /*
+   * The anchor is a zero-sized box, so shrink-to-fit has no width to fit into
+   * and collapses the chip to one word per line. `max-content` gives it the
+   * width of its own contents instead, and the cap keeps a long entry name
+   * from covering the tree it is being dragged through.
+   */
+  width: max-content;
+  max-width: 15rem;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-2);
+  color: var(--fg-default);
+  font-size: var(--text-sm);
+  line-height: var(--leading-tight);
+}
+
+.chipRefused {
+  border-color: var(--danger);
+}
+
+.chipRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.chipGlyph {
+  display: flex;
+  flex: none;
+  color: var(--fg-muted);
+}
+
+.chipName {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.chipReason {
+  color: var(--danger);
+  font-size: var(--text-xs);
+  text-wrap: pretty;
+  white-space: normal;
+}
+
 /*
  * The announcement channel for structural changes. Off-screen rather than
  * hidden: `display: none` and `visibility: hidden` are both skipped by screen

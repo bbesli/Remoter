@@ -3,6 +3,13 @@
 The `.rvault` container: how it is laid out on disk, how it is encrypted, and
 how the key slots work.
 
+> **What ships.** Everything in this document except the `fido2` slot, which is
+> reserved in the format and refused by every code path — see that section. The
+> container, the KDF floor and its upgrade, the AEAD and its associated data, the
+> `password`, `recovery` and `keychain` slots, atomic saves, rolling backups and
+> migrations are all implemented and covered by known-answer and round-trip
+> tests.
+
 > **A note on wording.** People often ask for passwords to be "hashed and
 > irreversible". For a connection manager that is impossible by definition:
 > Remoter must send the actual password to an SSH or RDP server, so it must be
@@ -228,7 +235,15 @@ Recovery keys can be rotated at any time from vault settings (which replaces the
 slot and invalidates the old key), and a vault may hold more than one — useful
 for a team that wants a sealed break-glass envelope in a safe.
 
-### `fido2` slot
+### `fido2` slot — ⏳ not implemented
+
+**The format reserves this slot kind; the code refuses it.** `SlotKind::Fido2`
+round-trips through the header so that a vault written by a future build is not
+unreadable garbage to this one, and `kek_for` answers
+`UnlockError::Fido2Unsupported` for it — a named refusal rather than a guess.
+`Vault::open` refuses the method before touching the file, and adding a slot of
+this kind is refused as well. `ctap-hid-fido2` is not a dependency. Everything
+below is the design the eventual implementation must match.
 
 Uses the CTAP2 `hmac-secret` extension, supported by YubiKey 5, Nitrokey 3,
 SoloKey and most modern FIDO2 authenticators.

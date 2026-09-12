@@ -9,9 +9,23 @@
  * Everything here is remote-authored text — names, hostnames, tags — so it is
  * rendered as text and never as markup.
  *
- * The row is also the drag source and the drop target. It decides only which
- * band of itself the pointer is in; whether that band can accept the drag is
- * the tree's question, because only the tree knows what is being dragged.
+ * The row is the drag source. It is **not** the drop target any more: a row
+ * that can take a drop publishes `data-drop-id`, and the tree hit-tests the
+ * pointer against the document to find it. The row used to answer
+ * `pointermove` itself, which made the drop target whichever element the
+ * webview chose to deliver the move to — and once the pointer is captured, as
+ * it is here for the length of the drag, every move goes to the one element
+ * holding the capture and no other row hears a thing. That is a drag that
+ * works until the moment something takes the pointer, which is the failure
+ * that kept coming back.
+ *
+ * `data-container` says whether this row *presents itself* as something that
+ * holds entries, which is not the same as whether it can. A group wears the
+ * folder glyph and holds nothing (docs/architecture/data-model.md), and it
+ * keeps its middle band anyway: someone who aims at the inside of a thing that
+ * looks like a folder has to be told why it is not one, and a row that
+ * silently reordered instead would answer a question nobody asked. Whether the
+ * drop can then happen is the tree's to decide — see `planDrop`.
  *
  * **The gesture is built on pointer events, not on HTML5 drag-and-drop.**
  * Under Tauri on Windows the webview's own drop target is revoked before the
@@ -50,13 +64,22 @@ export type DropBand = "before" | "into" | "after";
 /**
  * Which band of the row the pointer is in.
  *
- * Outer quarters mean "between two rows", the middle half means "inside this
- * row". Every file manager splits a row this way, so the gesture needs no
- * teaching — but it does mean the between-bands are only a few pixels tall,
- * which is why the indicator has to be unmistakable once you are in one.
+ * A row that reads as a container is split in three: outer quarters mean
+ * "between two rows", the middle half means "inside this one". Every file
+ * manager splits a container this way, so the gesture needs no teaching.
+ *
+ * A row that plainly holds nothing is split in **two**, and that is the whole
+ * of why reordering was reported as broken. Giving a connection a middle band
+ * meant that aiming at the row you want to sit next to — which is what
+ * everyone does — landed in a band whose only possible answer was "only a
+ * folder can hold other entries". Half of every attempt to reorder was refused
+ * by construction, and the refusal was about containment, so it read as though
+ * the tree had misunderstood the gesture. It had: there was nothing to
+ * understand, because there is no "inside" a connection.
  */
-export function bandAt(rect: DOMRect, clientY: number): DropBand {
+export function bandAt(rect: DOMRect, clientY: number, container: boolean): DropBand {
   const offset = rect.height === 0 ? 0.5 : (clientY - rect.top) / rect.height;
+  if (!container) return offset < 0.5 ? "before" : "after";
   if (offset < 0.25) return "before";
   if (offset > 0.75) return "after";
   return "into";
@@ -138,16 +161,7 @@ export interface NodeRowProps {
   onActivate: (id: string) => void;
   onContextMenu: (id: string, x: number, y: number) => void;
   /** A press landed on this row; the tree decides whether it becomes a drag. */
-  onPressRow: (id: string, x: number, y: number) => void;
-  /**
-   * The pointer is over this row's `band`.
-   *
-   * Returns true when the tree claimed the move — a drag is in flight and this
-   * row is its target, accepted or refused. An unclaimed move must be left to
-   * bubble; see `handlePointerMove`.
-   */
-  onPointerOverRow: (id: string, band: DropBand, x: number, y: number) => boolean;
-  onPointerLeaveRow: (id: string) => void;
+  onPressRow: (id: string, x: number, y: number, pointerId: number, row: HTMLElement) => void;
 }
 
 export const NodeRow = memo(function NodeRow({
@@ -168,8 +182,6 @@ export const NodeRow = memo(function NodeRow({
   onActivate,
   onContextMenu,
   onPressRow,
-  onPointerOverRow,
-  onPointerLeaveRow,
 }: NodeRowProps) {
   const t = useT("connections");
   const indent = { "--tree-depth": String(depth) } as CSSProperties;
@@ -199,36 +211,22 @@ export const NodeRow = memo(function NodeRow({
     // worse trade than one that cannot be reordered by finger. The keyboard
     // path in the tree is the equivalent that is always available.
     if (e.button !== 0 || e.pointerType === "touch") return;
-    onPressRow(node.id, e.clientX, e.clientY);
-  };
-
-  const handlePointerMove = (e: PointerEvent<HTMLDivElement>) => {
-    // A row that is a projection rather than a place in the tree — the
-    // favourites section — cannot take a drop, so it must not swallow the
-    // move either: the scroller behind it reads an unclaimed move as the top
-    // level, and without this fall-through the favourites are a dead band
-    // that silently eats the drag. (The HTML5 version stopped the event
-    // *before* this guard, which is exactly how that happened.)
-    if (!droppable) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    if (!onPointerOverRow(node.id, bandAt(rect, e.clientY), e.clientX, e.clientY)) return;
-    // Claimed: this row is the drag's target, so the background must not also
-    // read the same move as a drop onto the top level.
-    e.stopPropagation();
-  };
-
-  const handlePointerLeave = (e: PointerEvent<HTMLDivElement>) => {
-    // Moving onto the row's own glyph or label fires a leave; ignore those or
-    // the indicator flickers across the width of the row.
-    const next = e.relatedTarget;
-    if (next instanceof Node && e.currentTarget.contains(next)) return;
-    onPointerLeaveRow(node.id);
+    onPressRow(node.id, e.clientX, e.clientY, e.pointerId, e.currentTarget);
   };
 
   return (
     <div
       id={domId}
       role="treeitem"
+      /*
+       * The tree's hit test looks for these. A row that is a projection rather
+       * than a place — the favourites section — carries neither, so the hit
+       * test walks past it to the scroller and reads the move as the top
+       * level, which is what a favourite has to mean: it cannot take a drop
+       * and it must not swallow the drag either.
+       */
+      {...(droppable ? { "data-drop-id": node.id } : {})}
+      {...(droppable && isFolder ? { "data-container": "true" } : {})}
       aria-level={depth + 1}
       aria-selected={selected}
       {...(hasChildren ? { "aria-expanded": expanded } : {})}
@@ -247,8 +245,6 @@ export const NodeRow = memo(function NodeRow({
       onDoubleClick={() => onActivate(node.id)}
       onContextMenu={handleContextMenu}
       onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerLeave={handlePointerLeave}
     >
       {hasChildren ? (
         <button

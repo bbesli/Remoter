@@ -72,6 +72,25 @@ const OPENSSH: PrivateKeyInfo = {
 
 const ENCRYPTED: PrivateKeyInfo = { ...OPENSSH, encrypted: true };
 
+/**
+ * A passphrase-protected AWS EC2 `.pem`, exactly as `key_inspect` answers for
+ * one.
+ *
+ * Every field here was read off the real command in
+ * `commands::credential_tests::a_passphrase_protected_pem_becomes_a_working_credential`:
+ * a legacy PKCS#1 container is reported under the label it will be *stored*
+ * under, which is PKCS#8, and as encrypted. The file this came from used to be
+ * refused outright, and the interface's part of that failure was that a
+ * refusal, not a passphrase field, is what appeared.
+ */
+const AWS_PEM: PrivateKeyInfo = {
+  path: "/home/ada/Downloads/dvp-api-srv-key-pair.pem",
+  format: "pkcs8",
+  formatLabel: "PKCS#8",
+  encrypted: true,
+  sizeBytes: 1876,
+};
+
 function node(over: Partial<TreeNode> & { id: string }): TreeNode {
   return {
     parentId: null,
@@ -652,6 +671,48 @@ describe("private key authentication", () => {
     });
     // The password shorthand and a credential together are refused by the core.
     expect(input["password"]).toBeNull();
+  });
+
+  it("takes a passphrase-protected .pem from the file picker to the core", async () => {
+    // The reported failure, from this side of the boundary. The file picker
+    // has to offer `.pem` at all; the answer that comes back has to draw the
+    // passphrase field; and what is sent has to be the path and the
+    // passphrase, because the core reads the file itself and the frontend
+    // never holds key material.
+    ipcMock.inspectKey.mockResolvedValue(AWS_PEM);
+    dialogOpen.mockResolvedValue(AWS_PEM.path);
+
+    const user = userEvent.setup();
+    renderEditor(NEW_CONNECTION);
+
+    await fillIdentity(user);
+    await user.click(screen.getByRole("radio", { name: /Private key/ }));
+    await user.click(screen.getByRole("button", { name: "Choose a key file" }));
+
+    const filters = (
+      dialogOpen.mock.calls[0]?.[0] as {
+        filters: { extensions: string[] }[];
+      }
+    ).filters;
+    expect(filters.flatMap((filter) => filter.extensions)).toContain("pem");
+
+    expect(await screen.findByText("PKCS#8")).toBeInTheDocument();
+    await user.type(
+      await screen.findByLabelText("Key passphrase"),
+      "correct horse battery staple",
+    );
+    await user.click(screen.getByRole("button", { name: "Create" }));
+
+    await waitFor(() => expect(ipcMock.createNode).toHaveBeenCalledTimes(1));
+    const input = ipcMock.createNode.mock.calls[0]?.[0] as Record<
+      string,
+      unknown
+    >;
+    expect(input["credential"]).toEqual({
+      kind: "privateKey",
+      path: AWS_PEM.path,
+      passphrase: "correct horse battery staple",
+    });
   });
 });
 

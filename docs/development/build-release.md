@@ -2,35 +2,118 @@
 
 ## CI matrix
 
+`.github/workflows/ci.yml`, on every pull request and every push to `main`:
+
 | Job | Runner | Does |
 |---|---|---|
-| `check` | ubuntu-latest | `cargo check`, `clippy -D warnings`, `fmt --check` |
-| `test-linux` | ubuntu-latest | Unit + integration, Docker fixtures |
-| `test-windows` | windows-latest | Unit + integration |
-| `test-macos` | macos-latest | Unit + integration |
-| `frontend` | ubuntu-latest | `typecheck`, `lint`, `test`, `build` |
-| `security` | ubuntu-latest | `cargo audit`, `cargo deny`, `gitleaks` |
-| `fuzz` | ubuntu-latest | Nightly, 15 minutes per target |
-| `build` | matrix | Release bundles for every target |
-| `e2e` | matrix | WebDriver against the built app |
+| `check` | ubuntu-latest | Each crate on its own without test targets, every feature-gated target, `fmt --check`, `clippy -D warnings` |
+| `test` | ubuntu-latest, windows-latest, macos-latest | `cargo test --locked --workspace` |
+| `frontend` | ubuntu-latest, windows-latest, macos-latest | `npm ci`, `npm run build`, `vitest`; `typecheck` and `lint` on Linux only |
+| `security` | ubuntu-latest | `cargo deny`, `cargo audit`, advisory-exception expiry, wildcard scan, `gitleaks` |
+| `plugin-licence` | ubuntu-latest | No copyleft under `remoter-plugin-abi` or `-sdk` (ADR-0009) |
 
-Pull requests run everything except `fuzz` and `build`. `main` runs everything.
+Everything runs on every pull request; nothing is deferred to `main`.
+
+The split between what fans out and what does not is deliberate. `clippy`,
+`rustfmt`, licence policy and the plugin ABI boundary are questions about the
+source, and the source is the same on all three platforms — asking them three
+times costs runner minutes and answers nothing. `cargo test` and the frontend
+build are questions about the *machine*, and the answers differ: this workspace
+carries a `cfg(windows)` dependency on `winreg` in `remoter-proto-rdp`, a
+credential backend per platform in `remoter-vault`, and `cfg(unix)` arms in
+`remoter-ipc` and `remoter-proto-ssh` whose Windows counterparts nothing had
+ever compiled. `npm ci` resolves the per-platform native binaries that rollup
+and esbuild ship as optional dependencies, which a Linux-only install never
+fetches.
+
+Until the matrix above, every job in this file ran on `ubuntu-latest`: nothing
+in the repository had ever been compiled for Windows or macOS by anything but
+the owner's own machine. Treat the first few runs on those two as a source of
+findings rather than as a gate.
+
+**Not built yet, despite being worth building:** a scheduled `fuzz` job over the
+targets in `fuzz/`, an `e2e` job driving the built application through WebDriver,
+and a Docker-fixture integration run (`tests/fixtures/compose.yaml` does not
+exist; `scripts/dev-sshd.sh` is what there is). Do not read them into the table
+above.
 
 ## Targets
 
-| Platform | Architecture | Artefacts |
-|---|---|---|
-| Linux | `x86_64-unknown-linux-gnu` | AppImage, `.deb`, `.rpm` |
-| Linux | `aarch64-unknown-linux-gnu` | AppImage, `.deb`, `.rpm` |
-| Windows | `x86_64-pc-windows-msvc` | `.msi`, NSIS `.exe`, portable `.zip` |
-| Windows | `aarch64-pc-windows-msvc` | `.msi`, NSIS `.exe` |
-| macOS | `universal-apple-darwin` | `.dmg`, `.app` |
+What the release workflow actually produces, one job per row:
 
-Flatpak and a Windows Store package are planned once the release process is
-settled.
+| Platform | Runner | Architecture | Artefacts |
+|---|---|---|---|
+| Linux | ubuntu-22.04 | `x86_64-unknown-linux-gnu` | `.AppImage`, `.deb`, `.rpm` |
+| Windows | windows-latest | `x86_64-pc-windows-msvc` | `.msi`, NSIS `-setup.exe` |
+| macOS | macos-latest | `universal-apple-darwin` | `.dmg` |
+
+The Linux job is pinned to `ubuntu-22.04` rather than `ubuntu-latest`. The build
+host sets the glibc floor for everyone who downloads the result, and
+`ubuntu-latest` is 24.04 with glibc 2.39 — a binary from it refuses to start on
+Ubuntu 22.04, which is the oldest release named below. Pinning is what makes the
+floor a fact rather than a claim.
+
+macOS builds `universal-apple-darwin`, not the runner's native architecture.
+`macos-latest` is Apple silicon, so a plain build there would serve Apple
+silicon and leave Intel Macs with nothing. The universal binary is two
+compilations fused into one file, so the job installs both Rust targets first
+and its output lands under `target/universal-apple-darwin/release/bundle` rather
+than `target/release/bundle`.
+
+A `.app` is produced on macOS and left in `bundle/macos` for local builds, but
+only the `.dmg` is attached to a release: the `.dmg` already contains the `.app`,
+and a bundle is a directory, which is not something a release asset can be
+without being zipped first.
+
+**Not built:** `aarch64-unknown-linux-gnu`, `aarch64-pc-windows-msvc`, and the
+portable Windows `.zip`. Flatpak and a Windows Store package are still planned
+once the release process has been through a few real runs.
 
 Minimum supported platforms: glibc 2.35 with WebKitGTK 2.38 (Ubuntu 22.04 and
 equivalents), Windows 10 1809, macOS 12.
+
+## Bundle configuration
+
+One `bundle.targets` list in `apps/desktop/src-tauri/tauri.conf.json` names all
+seven bundle types, and each platform gets the subset that belongs to it. That
+is not sloppiness: `tauri-bundler` intersects the configured list with the
+types the host platform can produce and silently drops the rest, so `msi` in the
+list is a no-op on Linux and `deb` is a no-op on Windows. One list therefore
+serves three platforms, and the Linux artefacts keep working unchanged.
+
+The cost of "silently" is that a platform can produce nothing without failing,
+which is why the release workflow names what each platform owes and checks the
+directories before uploading.
+
+Three platform-specific settings are worth explaining, because each is a
+decision rather than a default that happened:
+
+**`bundle.windows.webviewInstallMode` is `downloadBootstrapper`, silent.**
+Tauri v2 on Windows renders through the Edge WebView2 runtime. It is part of
+Windows 11; on Windows 10 it may be absent, and without it the application
+starts and shows nothing. Of the five modes, `skip` leaves those users with a
+blank window and no explanation, `offlineInstaller` embeds the whole runtime and
+adds about 127 MB to every download for every user including the Windows 11
+majority who already have it, and `fixedRuntime` pins a private copy that never
+gets security updates — an unreviewed browser engine inside a credential
+manager. `embedBootstrapper` still needs the network to fetch the runtime, so
+its extra 1.8 MB on every download buys nothing the default does not already
+give. `downloadBootstrapper` installs the runtime only where
+it is missing, at the cost of needing the machine online during installation,
+which the release notes state plainly.
+
+**`bundle.windows.nsis.installMode` is `currentUser`.** A per-user install needs
+no administrator prompt. The user is already being asked to click past
+SmartScreen on an unsigned binary; adding a UAC elevation to the same minute is
+how people learn to approve things without reading them.
+
+**`bundle.macOS.minimumSystemVersion` is `12.0`**, matching the minimum this
+document promises. Tauri's own default is `10.13`, which would produce a bundle
+claiming to support ten macOS releases nobody has tested it on.
+
+`bundle.publisher` is set explicitly. Left unset, Tauri derives it from the
+second element of the bundle identifier, which for `io.github.bbesli.remoter`
+would list the publisher as "github" in Add/Remove Programs.
 
 ## Build profiles
 
@@ -73,11 +156,25 @@ fatal, because those components have no isolation boundary.
 Unsigned builds show OS warnings that train users to click through security
 prompts. Signing is a security feature, not a polish item.
 
-Every release publishes an SBOM (CycloneDX) and SHA-256 checksums.
+**None of this is in place yet.** There is no Authenticode certificate and no
+Apple Developer ID, both of which cost money annually that this project does not
+have. It is also why the in-app update check opens a release page instead of
+installing anything — see [Updates](#updates) for the order the two land in.
 
-**None of this is in place yet**, which is why the in-app update check opens a
-release page instead of installing anything. See [Updates](#updates) for the
-order the two land in.
+What ships instead is `SHA256SUMS.txt`, generated in the release job over every
+attached artefact. A checksum proves the download arrived intact; it proves
+nothing about who produced it, and the release notes say so in those words
+rather than implying otherwise. (An SBOM is not generated yet either. The table
+above and this paragraph are the whole of the truth.)
+
+Because the builds are unsigned, **both Windows and macOS will stop the user on
+first run**, and an unexplained security warning on a credential manager reads
+as malware. `.github/release-notes-template.md` is the body of every draft
+release and carries the click-by-click instructions: More info → Run anyway for
+SmartScreen; System Settings → Privacy & Security → Open Anyway on macOS 15 and
+newer, Control-click → Open on macOS 12 to 14. That text is a release artefact
+in its own right. Edit it when the dialogs change, and do not remove it before
+the certificates exist.
 
 ## Versioning
 
@@ -98,15 +195,42 @@ clear message rather than a parse attempt.
 
 1. Update `CHANGELOG.md` — user-facing changes, in the user's language, not
    commit subjects
-2. Bump versions in `Cargo.toml` and `tauri.conf.json`
-3. Tag `vX.Y.Z`
-4. CI builds, signs, generates the SBOM and publishes a draft release
-5. Manually verify: install each artefact on a clean machine, create a vault,
-   connect a session
-6. Publish. The GitHub release itself is what the in-app check reads and what
+2. Bump versions in `Cargo.toml` and `tauri.conf.json`. Both, and to the same
+   number: the release workflow's first job compares them against the tag and
+   refuses to spend three platform builds producing artefacts labelled with a
+   version nobody asked for
+3. Tag `vX.Y.Z` and push the tag. That is the trigger —
+   `.github/workflows/release.yml` runs on `v[0-9]+.[0-9]+.[0-9]+*` and on
+   nothing else
+4. The workflow builds on all three platforms, checks that each produced every
+   bundle it owes, gathers the artefacts, writes `SHA256SUMS.txt` over them, and
+   opens a **draft** release whose body is
+   `.github/release-notes-template.md` with the version substituted
+5. Replace the notes' "What changed" section with this version's entries from
+   `CHANGELOG.md`. Leave the rest: the SmartScreen and Gatekeeper instructions
+   apply to every unsigned release and the person hitting them has no other
+   source for the answer
+6. Manually verify: install each artefact on a clean machine, create a vault,
+   connect a session. The draft exists so that this step has somewhere to
+   happen. A release that published itself would remove the only gate an
+   unsigned build has
+7. Publish. The GitHub release itself is what the in-app check reads and what
    its button opens, so the tag, the title and the notes are user-facing text —
    write them for somebody deciding whether to upgrade. There is no updater
-   manifest yet; see below.
+   manifest yet; see below
+
+The tag pattern ends in `*`, so a pre-release tag triggers the same workflow —
+and a release candidate is the cheapest way to find out whether the Windows and
+macOS halves of this process work, neither of which has been run for real yet.
+Two constraints on the suffix, both worth knowing before spending a tag on it:
+
+- The preflight job compares the tag to both manifests **exactly**, suffix
+  included. `v0.2.0-1` needs `version = "0.2.0-1"` in `Cargo.toml` and
+  `"version": "0.2.0-1"` in `tauri.conf.json`.
+- The MSI bundler accepts only a **numeric** pre-release identifier, no greater
+  than 65535 — because Windows Installer's `ProductVersion` has nowhere to put
+  anything else. `v0.2.0-1` builds; `v0.2.0-rc1` fails the Windows job with
+  "optional pre-release identifier in app version must be numeric-only".
 
 ## Updates
 

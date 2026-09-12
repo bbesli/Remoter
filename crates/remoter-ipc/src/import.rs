@@ -800,3 +800,474 @@ mod vault_tests {
         }
     }
 }
+
+#[cfg(test)]
+mod mremoteng_tests {
+    //! The wizard's own path over a `confCons.xml` shaped the way mRemoteNG
+    //! shapes one.
+    //!
+    //! Not a parser test — `remoter-import` has those. This is `import_detect`
+    //! → `import_parse` → `import_commit`, the three calls the wizard makes,
+    //! against a document with the root element, the attribute set and the
+    //! ciphertext a real export carries, asserting what ends up in the vault.
+    //!
+    //! **The ciphertext below was produced outside this workspace**, by an
+    //! independent implementation of the scheme in
+    //! `mRemoteNG/Security/SymmetricEncryption/AeadCryptographyProvider.cs`:
+    //! PBKDF2-HMAC-SHA1 to 256 bits over a 16-byte salt, AES-GCM with a 16-byte
+    //! nonce and the salt as associated data, base64 of
+    //! `salt‖nonce‖ciphertext‖tag`. A fixture encrypted by the same code that
+    //! decrypts it would prove only that the code agrees with itself.
+
+    use super::*;
+    use crate::commands::{node_resolve_impl, tree_list_impl};
+    use crate::dto::NodeDto;
+    use crate::test_support::{Scratch, open_vault, why};
+    use remoter_vault::ExposeSecret;
+
+    /// `Protected`, under mRemoteNG's published default password.
+    const PROTECTED_DEFAULT: &str =
+        "EREREREREREREREREREREe7u7u7u7u7u7u7u7u7u7u5eR8E9z/RfG1wmBH9Ka9P4DZkprbAa+gcL6bJHHfjyDFNG";
+    /// The datacentre folder's account password: `hunter2`.
+    const SVC_PASSWORD: &str =
+        "ISEhISEhISEhISEhISEhId7e3t7e3t7e3t7e3t7e3t7MFk6snE233t6K4XjkvVfV0wCW1TmEGg==";
+    /// The domain administrator's password: `Tr0ub4dor&3`.
+    const ADMIN_PASSWORD: &str =
+        "MTExMTExMTExMTExMTExMc7Ozs7Ozs7Ozs7Ozs7Ozs7tda2OyY8DI1/VSG6hH2DGKicVv+81guVajuo=";
+    /// `Protected`, under the password `correct horse`.
+    const PROTECTED_CUSTOM: &str =
+        "QUFBQUFBQUFBQUFBQUFBQb6+vr6+vr6+vr6+vr6+vr4dJ7FEEZFjst08HafaeDOLKLKQVdnQwqrIcI1yCN8c";
+    /// `hunter2` again, under `correct horse`.
+    const CUSTOM_SVC_PASSWORD: &str =
+        "UVFRUVFRUVFRUVFRUVFRUa6urq6urq6urq6urq6urq5awsLbsERQmJKmAg5opTeOku+aaKqgdw==";
+
+    /// The plaintexts inside the document, asserted absent from everything that
+    /// crosses the boundary.
+    const PLAINTEXTS: &[&str] = &["hunter2", "Tr0ub4dor&3"];
+
+    /// The attributes mRemoteNG writes on every node and this application has
+    /// no field for.
+    ///
+    /// Abbreviated — a real node carries about eighty of these and another
+    /// sixty `Inherit*` flags — but present, because a fixture with six
+    /// attributes is not the file anybody has, and because what happens to
+    /// them is part of what is asserted: they are preserved verbatim under
+    /// `mremoteng.*` unless the node says it inherits them.
+    const SETTINGS: &str = concat!(
+        r#" Icon="mRemoteNG" Panel="General" RdpVersion="rdc" PuttySession="Default Settings""#,
+        r#" ConnectToConsole="false" UseCredSsp="true" RenderingEngine="IE""#,
+        r#" RDPAuthenticationLevel="NoAuth" Colors="Colors16Bit" Resolution="FitToWindow""#,
+        r#" RedirectDiskDrives="None" RedirectClipboard="true" RedirectSound="DoNotPlay""#,
+        r#" VNCCompression="CompNone" VNCAuthMode="AuthVNC" RDGatewayUsageMethod="Never""#,
+        r#" Connected="false" MacAddress="" UserField="""#,
+    );
+
+    /// A `confCons.xml` as mRemoteNG writes one.
+    ///
+    /// The root element is namespaced — `XmlRootNodeSerializer` has built it as
+    /// `XNamespace "http://mremoteng.org" + "Connections"` with the prefix
+    /// `mrng` beside it since 1.76, so this is the first line of every export a
+    /// person has made this decade. It is also written with a byte-order mark
+    /// and CRLF line endings, which is what a file off a Windows machine has.
+    fn confcons(protected: &str, svc: &str, admin: &str) -> String {
+        let body = format!(
+            concat!(
+                r#"<Node Name="Datacentre EU-West" Type="Container" Expanded="true" "#,
+                r#"Descr="Frankfurt" Username="svc-deploy" Domain="" Password="{svc}" "#,
+                r#"Hostname="" Protocol="RDP" Port="13389"{settings}>
+    <Node Name="web-01" Type="Connection" Descr="" Username="" Domain="" Password="" "#,
+                r#"Hostname="web-01.eu.acme.internal" Protocol="RDP" Port="3389"{settings} "#,
+                r#"InheritPort="true" InheritUsername="true" InheritPassword="true" "#,
+                r#"InheritDomain="true" InheritColors="true" InheritIcon="true" "#,
+                r#"InheritResolution="true" />
+    <Node Name="web-02" Type="Connection" Descr="" Username="root" Domain="" "#,
+                r#"Password="{admin}" Hostname="web-02.eu.acme.internal" Protocol="SSH2" "#,
+                r#"Port="2022"{settings} />
+  </Node>
+  <Node Name="SRV-DC01" Type="Connection" Descr="Domain controller" "#,
+                r#"Username="administrator" Domain="CORP" Password="{admin}" "#,
+                r#"Hostname="srv-dc01.corp.local" Protocol="RDP" Port="3390"{settings} />"#,
+            ),
+            svc = svc,
+            admin = admin,
+            settings = SETTINGS,
+        );
+        format!(
+            concat!(
+                "\u{feff}<?xml version=\"1.0\" encoding=\"utf-8\"?>\n",
+                "<mrng:Connections xmlns:mrng=\"http://mremoteng.org\" Name=\"Acme Production\" ",
+                "Export=\"false\" EncryptionEngine=\"AES\" BlockCipherMode=\"GCM\" ",
+                "KdfIterations=\"1000\" FullFileEncryption=\"false\" Protected=\"{protected}\" ",
+                "ConfVersion=\"2.7\">\n  {body}\n</mrng:Connections>\n",
+            ),
+            protected = protected,
+            body = body,
+        )
+        .replace('\n', "\r\n")
+    }
+
+    fn named<'a>(tree: &'a [NodeDto], name: &str) -> &'a NodeDto {
+        #[expect(
+            clippy::panic,
+            reason = "an assertion about a node that is not there has nothing to say"
+        )]
+        tree.iter()
+            .find(|node| node.name == name)
+            .unwrap_or_else(|| panic!("no node named {name} in {tree:#?}"))
+    }
+
+    /// What one node kept from the file, read out of the vault's own tree.
+    fn node_custom_fields(
+        state: &AppState,
+        id: &str,
+    ) -> Result<BTreeMap<String, String>, IpcError> {
+        let id = crate::commands::parse_node_id(id, "id")?;
+        let mut guard = state.lock();
+        let vault = guard.vault_ref()?;
+        let tree = read_tree(vault)?;
+        Ok(tree
+            .get(id)
+            .map(|node| node.custom_fields.clone())
+            .unwrap_or_default())
+    }
+
+    /// The effective value of one field, after inheritance.
+    fn resolved(state: &AppState, id: &str, field: &str) -> Option<String> {
+        node_resolve_impl(state, id.to_owned())
+            .ok()?
+            .fields
+            .into_iter()
+            .find(|resolved| resolved.field == field)
+            .and_then(|resolved| resolved.value)
+    }
+
+    #[test]
+    #[expect(
+        clippy::panic,
+        reason = "an import test without a vault has nothing left to assert"
+    )]
+    fn a_real_confcons_is_detected_parsed_and_committed_as_a_tree() {
+        let scratch = Scratch::new();
+        let Some(state) = open_vault(&scratch) else {
+            panic!("the vault could not be created");
+        };
+        let file = scratch.write(
+            "confCons.xml",
+            &confcons(PROTECTED_DEFAULT, SVC_PASSWORD, ADMIN_PASSWORD),
+        );
+        let path = file.display().to_string();
+
+        // Step 1. The wizard preselects the format from this, and a file it
+        // cannot place is a file whose Continue button will not move.
+        let detected = import_detect_impl(path.clone());
+        assert!(detected.is_ok(), "detecting failed: {}", why(&detected));
+        let Ok(detected) = detected else {
+            panic!("detecting failed");
+        };
+        assert_eq!(
+            detected.format.as_deref(),
+            Some("mremoteng"),
+            "a real confCons.xml was not recognised as one"
+        );
+        let Some(document) = detected.document else {
+            panic!("an mRemoteNG file must carry its header");
+        };
+        assert_eq!(document.name, "Acme Production");
+        assert_eq!(document.conf_version.as_deref(), Some("2.7"));
+        assert_eq!(document.cipher, "gcm");
+        assert_eq!(document.kdf_iterations, Some(1000));
+        assert!(!document.legacy_cipher);
+        assert!(
+            !document.password_required,
+            "a file on the published default needs nothing from the user"
+        );
+
+        // Step 3. No password: the file is on mRemoteNG's own default.
+        let preview = import_parse_impl(&state, path, None, None);
+        assert!(preview.is_ok(), "parsing failed: {}", why(&preview));
+        let Ok(preview) = preview else {
+            panic!("parsing failed");
+        };
+        assert_eq!(preview.source, "mremoteng");
+        assert_eq!(preview.report.counts.connections, 3);
+        assert_eq!(preview.report.counts.skipped, 0);
+        // The file being on the published default is told to the user before
+        // the import, not after it.
+        assert!(preview.report.needs_attention);
+
+        let rendered = serde_json::to_string(&preview).unwrap_or_default();
+        for plaintext in PLAINTEXTS {
+            assert!(
+                !rendered.contains(plaintext),
+                "the preview leaked a password"
+            );
+        }
+
+        // Step 7.
+        let committed = import_commit_impl(
+            &state,
+            ImportCommitDto {
+                import_id: preview.import_id,
+                destination_id: None,
+                excluded_ids: None,
+            },
+        );
+        assert!(committed.is_ok(), "committing failed: {}", why(&committed));
+        let Ok(committed) = committed else {
+            panic!("committing failed");
+        };
+        assert_eq!(committed.connections, 3);
+        assert_eq!(
+            committed.folders, 2,
+            "the estate's folder, and one for the credentials"
+        );
+        assert_eq!(committed.skipped, 0);
+        assert!(committed.secrets_stored >= 2);
+
+        // And now the only thing that matters: what is in the vault.
+        let tree = tree_list_impl(&state).unwrap_or_default();
+
+        let folder = named(&tree, "Datacentre EU-West");
+        assert_eq!(folder.kind, "folder");
+        assert_eq!(folder.parent_id, None);
+        assert_eq!(folder.description, "Frankfurt");
+
+        let web01 = named(&tree, "web-01");
+        assert_eq!(web01.kind, "connection");
+        assert_eq!(
+            web01.parent_id.as_deref(),
+            Some(folder.id.as_str()),
+            "the folder tree was flattened"
+        );
+        assert_eq!(web01.host.as_deref(), Some("web-01.eu.acme.internal"));
+        assert_eq!(web01.protocol.as_deref(), Some("rdp"));
+        // The row shows the port that would be used, and web-01 stores none of
+        // its own: what it shows is RDP's default, not the 13389 on the folder.
+        // The resolved view below is where inheritance is asserted.
+        assert_eq!(web01.port, Some(3389));
+
+        let web02 = named(&tree, "web-02");
+        assert_eq!(web02.parent_id.as_deref(), Some(folder.id.as_str()));
+        assert_eq!(web02.host.as_deref(), Some("web-02.eu.acme.internal"));
+        assert_eq!(web02.protocol.as_deref(), Some("ssh"));
+        assert_eq!(web02.port, Some(2022));
+
+        let dc01 = named(&tree, "SRV-DC01");
+        assert_eq!(
+            dc01.parent_id, None,
+            "a top-level connection stays at the top"
+        );
+        assert_eq!(dc01.host.as_deref(), Some("srv-dc01.corp.local"));
+        assert_eq!(dc01.protocol.as_deref(), Some("rdp"));
+        assert_eq!(dc01.port, Some(3390));
+
+        // An account out of mRemoteNG becomes a shared credential rather than
+        // a field on the connection, which is why the row carries no username
+        // of its own: `Username`, `Domain` and `Password` are one credential,
+        // and two connections using the same account share one. It is named
+        // the way the file named it — domain and account together.
+        let admin = named(&tree, "CORP\\administrator");
+        assert_eq!(admin.kind, "credential");
+        assert_eq!(admin.secret_kind.as_deref(), Some("password"));
+        assert_eq!(
+            dc01.credential_id.as_deref(),
+            Some(admin.id.as_str()),
+            "SRV-DC01 did not get the account the file gave it"
+        );
+        assert_eq!(
+            resolved(&state, &dc01.id, "username").as_deref(),
+            Some("administrator")
+        );
+        // web-02's account has no domain, so it is a second, different
+        // credential — and the same one both connections that use it point at.
+        let root = named(&tree, "root");
+        assert_eq!(root.kind, "credential");
+        assert_eq!(web02.credential_id.as_deref(), Some(root.id.as_str()));
+        assert_eq!(
+            resolved(&state, &web02.id, "username").as_deref(),
+            Some("root")
+        );
+
+        // Inheritance is not decoration: web-01 stores no port and no account,
+        // and resolves to the folder's.
+        assert_eq!(
+            resolved(&state, &web01.id, "port").as_deref(),
+            Some("13389"),
+            "web-01 did not inherit the folder's port"
+        );
+        assert_eq!(
+            resolved(&state, &web01.id, "username").as_deref(),
+            Some("svc-deploy"),
+            "web-01 did not inherit the folder's account"
+        );
+
+        // The settings the model has no field for came across rather than
+        // being dropped, and the `Inherit*` flags did not become data. Read
+        // from the vault's own tree: no command exposes `custom_fields` yet, so
+        // this asserts what was written rather than what is drawn.
+        let Ok(custom) = node_custom_fields(&state, &dc01.id) else {
+            panic!("the vault closed");
+        };
+        assert_eq!(
+            custom.get("mremoteng.Colors").map(String::as_str),
+            Some("Colors16Bit"),
+            "mRemoteNG's own settings were dropped: {custom:#?}"
+        );
+        assert!(
+            custom.keys().all(|key| !key.contains("Inherit")),
+            "an inheritance flag was stored as a setting: {custom:#?}"
+        );
+        let Ok(inheriting) = node_custom_fields(&state, &web01.id) else {
+            panic!("the vault closed");
+        };
+        assert!(
+            !inheriting.contains_key("mremoteng.Colors"),
+            "a value web-01 inherits was flattened onto it: {inheriting:#?}"
+        );
+        // What it does not inherit, it keeps: the flags decide, not the
+        // presence of the attribute — mRemoteNG writes every attribute on
+        // every node whether or not the node owns its value.
+        assert_eq!(
+            inheriting.get("mremoteng.PuttySession").map(String::as_str),
+            Some("Default Settings")
+        );
+
+        // The recovered password is in the vault, sealed, and readable. This is
+        // the whole point of the import: not that a credential row exists, but
+        // that the password out of the file is the password behind it.
+        let Ok(uuid) = Uuid::parse_str(&admin.id) else {
+            panic!("the credential id is not a uuid");
+        };
+        let mut guard = state.lock();
+        let Ok(vault) = guard.vault_mut() else {
+            panic!("the vault closed");
+        };
+        let Ok(secret) = vault.borrow_secret(uuid, PASSWORD_FIELD, remoter_vault::Purpose::Reveal)
+        else {
+            panic!("the administrator's password did not reach the vault");
+        };
+        assert_eq!(
+            secret.expose_secret().as_slice(),
+            b"Tr0ub4dor&3",
+            "the password in the vault is not the one in the file"
+        );
+    }
+
+    #[test]
+    #[expect(
+        clippy::panic,
+        reason = "an import test without a vault has nothing left to assert"
+    )]
+    fn a_file_the_owner_put_a_password_on_says_so_before_it_fails() {
+        let scratch = Scratch::new();
+        let Some(state) = open_vault(&scratch) else {
+            panic!("the vault could not be created");
+        };
+        let file = scratch.write(
+            "confCons.xml",
+            &confcons(PROTECTED_CUSTOM, CUSTOM_SVC_PASSWORD, CUSTOM_SVC_PASSWORD),
+        );
+        let path = file.display().to_string();
+
+        // Detection says a password is wanted, which is what puts the field on
+        // the screen — before the parse, not after it.
+        let Ok(detected) = import_detect_impl(path.clone()) else {
+            panic!("detecting failed");
+        };
+        assert_eq!(detected.format.as_deref(), Some("mremoteng"));
+        assert!(
+            detected.password_required,
+            "a file with an owner's password must ask for one"
+        );
+
+        // Parsing without it is refused as "we need one", not "yours is wrong".
+        let refused = import_parse_impl(&state, path.clone(), None, None);
+        assert!(
+            refused.is_err_and(|err| err.code == "import.password-required"),
+            "a missing password must be told apart from a wrong one"
+        );
+        let wrong = import_parse_impl(&state, path.clone(), Some("nope".to_owned()), None);
+        assert!(wrong.is_err_and(|err| err.code == "import.wrong-password"));
+
+        // And with it, the same file imports.
+        let preview = import_parse_impl(&state, path, Some("correct horse".to_owned()), None);
+        assert!(preview.is_ok(), "parsing failed: {}", why(&preview));
+        let Ok(preview) = preview else {
+            panic!("parsing failed");
+        };
+        assert_eq!(preview.report.counts.connections, 3);
+        // A file the owner protected is not on the published default, so the
+        // report must not accuse it of being.
+        assert!(
+            !serde_json::to_string(&preview.report)
+                .unwrap_or_default()
+                .contains("DefaultFilePassword"),
+            "a protected file was reported as unprotected"
+        );
+    }
+
+    /// The three shapes a `confCons.xml` arrives in that are not the tool's own
+    /// output, and one file that is not a `confCons.xml` at all.
+    #[test]
+    fn the_shapes_a_file_arrives_in_are_all_the_same_file() {
+        let scratch = Scratch::new();
+        let document = confcons(PROTECTED_DEFAULT, SVC_PASSWORD, ADMIN_PASSWORD);
+
+        // Without the byte-order mark and with Unix line endings, as a file
+        // that has been through a text editor on Linux.
+        let stripped = document
+            .trim_start_matches('\u{feff}')
+            .replace("\r\n", "\n");
+        let plain = scratch.write("plain.xml", &stripped);
+        assert_eq!(
+            import_detect_impl(plain.display().to_string())
+                .ok()
+                .and_then(|detected| detected.format),
+            Some("mremoteng".to_owned())
+        );
+
+        // UTF-16, which is what a `>` redirect in Windows PowerShell 5 makes of
+        // it. mRemoteNG writes UTF-8; the file does not always arrive the way
+        // mRemoteNG wrote it.
+        let mut utf16 = vec![0xff, 0xfe];
+        for unit in stripped.encode_utf16() {
+            utf16.extend_from_slice(&unit.to_le_bytes());
+        }
+        let wide = scratch.join("wide.xml");
+        let _ = fs::write(&wide, &utf16);
+        assert_eq!(
+            import_detect_impl(wide.display().to_string())
+                .ok()
+                .and_then(|detected| detected.format),
+            Some("mremoteng".to_owned()),
+            "a UTF-16 confCons.xml was not recognised"
+        );
+
+        // An empty tree is a file, not a failure.
+        let empty = scratch.write(
+            "empty.xml",
+            &format!(
+                "<mrng:Connections xmlns:mrng=\"http://mremoteng.org\" Name=\"Connections\" \
+                 EncryptionEngine=\"AES\" BlockCipherMode=\"GCM\" KdfIterations=\"1000\" \
+                 Protected=\"{PROTECTED_DEFAULT}\" ConfVersion=\"2.7\" />"
+            ),
+        );
+        let detected = import_detect_impl(empty.display().to_string());
+        assert!(detected.is_ok(), "detecting failed: {}", why(&detected));
+        assert_eq!(
+            detected.ok().and_then(|detected| detected.format),
+            Some("mremoteng".to_owned())
+        );
+
+        // And a file that is not one says so rather than being parsed as one.
+        let other = scratch.write(
+            "royal.rtsz",
+            r#"<?xml version="1.0"?><RoyalDocument><Objects/></RoyalDocument>"#,
+        );
+        let detected = import_detect_impl(other.display().to_string());
+        assert!(
+            detected.is_ok_and(|detected| detected.format.is_none()),
+            "a Royal TS document was taken for an mRemoteNG one"
+        );
+    }
+}

@@ -3,6 +3,14 @@
 Reaching machines that are not directly reachable — which, in any serious
 network, is most of them.
 
+> **What ships.** Local, remote and dynamic forwarding, against a node, with or
+> without a shell; the loopback default and its opt-in; the live tunnel list.
+> Jump host chains work in the core and are honoured by every protocol —
+> ⏳ but the connection editor has no gateway field, so a chain can only reach a
+> connection by importing an `ssh_config` that has `ProxyJump`. ⏳ Also not
+> built: persistent tunnels with auto-start, reconnect and health checks; SOCKS5
+> `UDP ASSOCIATE`; and every entry in the *Proxy support* table.
+
 ## Jump host chains
 
 A connection can specify an ordered list of hops. Each hop is another connection
@@ -43,9 +51,16 @@ hop 2 of 3" — rather than reporting a generic connection error.
 | **Remote** | `-R [bind:]port:host:hostport` | A port on the remote forwards back to `host:hostport` as seen from here |
 | **Dynamic** | `-D [bind:]port` | A SOCKS5 proxy on this machine, routing through the remote |
 
-Forwards are defined per connection and can be inherited from a folder. They can
-be configured to start automatically with the session or to be toggled manually
-from the session panel.
+A forward is opened from the session panel against a node — the same stages a
+session runs, ending in a forward instead of a PTY, so a forward does not need a
+shell tab to exist. ⏳ Forwards are **not** yet stored on a connection, so they
+are not inherited from a folder and none starts automatically; each one is
+created for the session and closed with it.
+
+**A tunnel has no tab, so it cannot ask anything.** Without a prompt channel an
+unknown host key is refused rather than accepted — a machine that cannot ask a
+human has not obtained consent — and the refusal says to open a session to that
+node first, which is where the fingerprint can be reviewed.
 
 ```
 ┌─ Port forwards ─────────────────────────────────────────────────┐
@@ -64,19 +79,20 @@ to the local network, and in the remote case exposes a path back into your
 machine. It requires an explicit setting and carries the warning badge shown
 above.
 
-Status is live: active or inactive, bytes transferred, current connection count,
-and the error if a listener failed to bind (a port already in use is the common
-case, and the message says so).
+Status is live to the extent that the listener is either open or gone, and a
+bind failure is reported with its reason (a port already in use is the common
+case, and the message says so). ⏳ Bytes transferred and the current connection
+count are not tracked, so the mock-up above draws two columns that do not exist.
 
-## Persistent tunnels
+## Persistent tunnels — ◐ partly built
 
-A tunnel can be defined independently of any session — a "tunnel-only"
-connection that establishes forwards and holds them open without a shell.
-Useful for a database port you want available all day.
+A tunnel **is** already defined independently of any session: `tunnel_open` takes
+a node, not a session, so a forward can be held open all day without a shell.
+That much works.
 
-Persistent tunnels support auto-start on vault unlock, auto-reconnect with
-exponential backoff, and a health check. They appear in a dedicated panel with
-their state.
+⏳ What does not: auto-start on vault unlock, auto-reconnect with exponential
+backoff, and health checks. A tunnel whose connection drops is gone, and
+reopening it is a manual act.
 
 ## SOCKS proxy
 
@@ -88,11 +104,20 @@ Dynamic forwarding runs a SOCKS5 server locally. Common uses:
 - Chain it into another Remoter connection: a connection can use a SOCKS proxy
   as its transport, including one Remoter itself provides
 
-CONNECT and UDP ASSOCIATE are supported; BIND is not.
+Only `CONNECT` is supported. ⏳ `UDP ASSOCIATE` and `BIND` are both parsed —
+specifically so that they can be refused with the right SOCKS5 reply rather than
+by dropping the connection — and then refused. SSH carries `direct-tcpip` and
+`direct-streamlocal` and nothing that carries UDP, so `UDP ASSOCIATE` is not a
+missing feature so much as a thing the transport cannot do.
 
-## Proxy support
+## Proxy support — ⏳ not built
 
-Independently of SSH tunnelling, a connection can route through:
+None of this exists. `TransportKind` names `Socks5` and `HttpConnect` so that
+the VNC adapter can answer "does my transport encrypt me?" correctly — the
+answer for both is *no* — but there is no dialler for either, and no proxy
+setting on a connection.
+
+Independently of SSH tunnelling, a connection would route through:
 
 | Proxy | Notes |
 |---|---|
@@ -115,7 +140,8 @@ mechanisms with very different risk profiles:
   remote machine. Anyone with root on that machine can use your agent to
   impersonate you on every host that key opens, for as long as you are connected.
 
-Remoter prefers chains, keeps agent forwarding off by default, and states the
-risk inline where it is enabled. When a user configures agent forwarding on a
-connection that already has a gateway chain, the editor points out that the
-chain probably already does what they wanted.
+Remoter prefers chains and keeps agent forwarding off by default, with the risk
+stated inline where it is enabled — turning it on raises a session warning the
+user sees. ⏳ The editor does not yet point out that a connection with a gateway
+chain probably does not need agent forwarding, because the editor has no gateway
+field to notice.

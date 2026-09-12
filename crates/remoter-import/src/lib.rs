@@ -90,13 +90,14 @@ pub fn detect(bytes: &[u8]) -> Option<SourceFormat> {
     // Only the head is examined: a format marker that is a megabyte into a file
     // is not a format marker.
     let head = &bytes[..bytes.len().min(8192)];
-    let text = core::str::from_utf8(head).unwrap_or_else(|err| {
-        // A truncated multi-byte character at the window's edge is not a reason
-        // to give up on the bytes before it.
-        core::str::from_utf8(&head[..err.valid_up_to()]).unwrap_or("")
-    });
+    // Through the same byte-order-mark reading the parsers use, so a file this
+    // crate can read is a file this function can name. A UTF-16 document is
+    // not valid UTF-8 from its first byte, and sniffing its raw bytes would
+    // give up on a file the importer goes on to parse without complaint.
+    let head = xml::sniff_head(head);
+    let text: &str = &head;
 
-    if text.contains("<Connections") {
+    if opens_connections_element(text) {
         return Some(SourceFormat::MRemoteNg);
     }
     if text.lines().map(str::trim_start).any(|line| {
@@ -113,6 +114,31 @@ pub fn detect(bytes: &[u8]) -> Option<SourceFormat> {
         return Some(SourceFormat::Csv);
     }
     None
+}
+
+/// Whether a start tag anywhere in the head opens a `<Connections>` element,
+/// whatever namespace prefix it carries.
+///
+/// The prefix is the whole point. mRemoteNG has put its root element in its own
+/// XML namespace since 1.76 — `XmlRootNodeSerializer.SerializeRootNodeInfo`
+/// builds it as `XNamespace "http://mremoteng.org" + "Connections"` and declares
+/// the prefix `mrng` beside it — so every export a person has made this decade
+/// opens `<mrng:Connections xmlns:mrng="http://mremoteng.org" …>` and not
+/// `<Connections …>`. Matching the local name and ignoring the prefix is also
+/// what [`xml::BoundedXmlReader`] does when it goes on to parse the file, so the
+/// sniffer and the parser agree about what a `confCons.xml` is.
+fn opens_connections_element(text: &str) -> bool {
+    text.match_indices('<').any(|(at, _)| {
+        // Everything after the `<` up to the first character an XML name cannot
+        // contain. A `<?xml` declaration, a `<!--` comment and a `</` end tag
+        // all stop immediately and yield a name that matches nothing.
+        let rest = &text[at + 1..];
+        let end = rest
+            .find(|c: char| !(c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.' | ':')))
+            .unwrap_or(rest.len());
+        let name = &rest[..end];
+        name.rsplit(':').next().unwrap_or(name) == "Connections"
+    })
 }
 
 #[cfg(test)]
@@ -136,6 +162,57 @@ mod tests {
         );
         assert_eq!(detect(b""), None);
         assert_eq!(detect(b"nothing recognisable here"), None);
+    }
+
+    /// The shape a person's own `confCons.xml` is actually in.
+    ///
+    /// mRemoteNG has written the root element in the `mrng` namespace since
+    /// 1.76, so a sniffer looking for the literal `<Connections` matches the
+    /// fixtures in mRemoteNG's own test resources — which predate the change —
+    /// and nothing a user has exported since. This is that file, and the two
+    /// older spellings it has to keep recognising.
+    #[test]
+    fn the_namespaced_root_a_real_export_carries_is_recognised() {
+        for head in [
+            br#"<?xml version="1.0" encoding="utf-8"?>
+<mrng:Connections xmlns:mrng="http://mremoteng.org" Name="Connections" Export="false" ConfVersion="2.7">"#
+                .as_slice(),
+            // A prefix is a local choice; only the local name is the format.
+            br#"<x:Connections xmlns:x="http://mremoteng.org" Name="Connections">"#.as_slice(),
+            // Pre-1.76, and mRemoteNG's own checked-in test resources.
+            br#"<Connections Name="Connections" ConfVersion="2.6">"#.as_slice(),
+        ] {
+            assert_eq!(
+                detect(head),
+                Some(SourceFormat::MRemoteNg),
+                "not recognised: {}",
+                String::from_utf8_lossy(head)
+            );
+        }
+    }
+
+    /// A UTF-16 `confCons.xml` is not valid UTF-8 from its first byte, so a
+    /// sniffer reading the raw bytes gives up on a file the importer parses
+    /// without complaint.
+    #[test]
+    fn a_utf16_document_is_recognised_as_the_format_it_is() {
+        let document = r#"<mrng:Connections xmlns:mrng="http://mremoteng.org" Name="x">"#;
+        let mut bytes = vec![0xff, 0xfe];
+        for unit in document.encode_utf16() {
+            bytes.extend_from_slice(&unit.to_le_bytes());
+        }
+        assert_eq!(detect(&bytes), Some(SourceFormat::MRemoteNg));
+    }
+
+    /// A root element is a start tag, not the word. Nothing else in a document
+    /// should make it an mRemoteNG file.
+    #[test]
+    fn the_word_alone_is_not_a_format() {
+        assert_eq!(detect(b"Connections are listed below.\n"), None);
+        assert_eq!(
+            detect(b"<RoyalDocument><Connections-ish/></RoyalDocument>"),
+            None
+        );
     }
 
     #[test]

@@ -27,6 +27,7 @@ mod credential;
 mod crypto;
 mod error;
 mod header;
+mod legacy_pem;
 mod pkcs8;
 mod recovery;
 mod secret;

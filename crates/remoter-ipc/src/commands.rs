@@ -1112,7 +1112,10 @@ pub(crate) fn node_resolve(
     node_resolve_impl(&state, id)
 }
 
-fn node_resolve_impl(state: &AppState, id: String) -> Result<EffectiveConnectionDto, IpcError> {
+pub(crate) fn node_resolve_impl(
+    state: &AppState,
+    id: String,
+) -> Result<EffectiveConnectionDto, IpcError> {
     let id = parse_node_id(&id, "id")?;
     let mut guard = state.lock();
     let vault = guard.vault_ref()?;
@@ -2187,7 +2190,14 @@ fn build_kind(input: &CreateNodeDto, material: &CredentialMaterial) -> Result<No
             // its secret immediately afterwards.
             Ok(NodeKind::Credential(match material {
                 CredentialMaterial::PrivateKey { key, passphrase } => {
-                    private_key_credential(username, key.format(), passphrase.is_some())
+                    // A locked legacy PEM is opened with its passphrase as it
+                    // is stored, and what is stored afterwards has none. The
+                    // placeholder has to say so: this node is what the editor
+                    // is handed back, and a credential that claims a passphrase
+                    // the vault did not keep reads as a stored one until the
+                    // next time the tree is fetched.
+                    let keeps_passphrase = passphrase.is_some() && !key.is_locked();
+                    private_key_credential(username, key.format(), keeps_passphrase)
                 }
                 CredentialMaterial::Agent { comment_filter } => {
                     agent_credential(username, comment_filter.clone())
@@ -2365,7 +2375,13 @@ fn attached_props(
 ) -> CredentialProps {
     let mut props = match material {
         CredentialMaterial::PrivateKey { key, passphrase } => {
-            private_key_credential(username, key.format(), passphrase.is_some())
+            // As in `build_kind`: a locked legacy PEM's passphrase opens the
+            // container and is not stored beside the key it produced.
+            private_key_credential(
+                username,
+                key.format(),
+                passphrase.is_some() && !key.is_locked(),
+            )
         }
         CredentialMaterial::Agent { comment_filter } => {
             agent_credential(username, comment_filter.clone())
@@ -5654,10 +5670,13 @@ mod credential_tests {
             }
         }
 
-        // A legacy PEM whose body is enciphered cannot be re-enveloped without
-        // the passphrase, and this call is what runs before the editor knows to
-        // ask for one. It is refused by name, with a remedy that does not
-        // rewrite the user's own file.
+        // A legacy PEM whose body is enciphered cannot be re-enveloped until
+        // the passphrase arrives, and this call is what runs *before* the
+        // editor knows to ask for one. It used to be refused here, and that
+        // refusal — at the moment the file was chosen, with no passphrase field
+        // anywhere on screen — is what the owner read as ".pem is not
+        // supported". It is now identified and reported as encrypted, which is
+        // the single fact that makes the editor draw that field.
         let locked = ssh_keygen(
             &scratch,
             "locked.pem",
@@ -5666,21 +5685,60 @@ mod credential_tests {
         );
         assert!(locked.is_some(), "ssh-keygen must be on PATH for this test");
         if let Some(locked) = locked {
-            let refused = key_inspect_impl(locked.display().to_string());
+            let inspected = key_inspect_impl(locked.display().to_string());
             assert!(
-                refused
-                    .as_ref()
-                    .is_err_and(|err| err.code == "key.legacy-encrypted"),
-                "expected key.legacy-encrypted, got {}",
-                why(&refused)
+                inspected.is_ok(),
+                "a passphrase-protected .pem was refused: {}",
+                why(&inspected)
             );
-            if let Err(err) = refused {
-                assert!(err.message.contains("PKCS#1"), "message: {}", err.message);
+            if let Ok(info) = inspected {
                 assert!(
-                    err.actions.iter().any(|action| action.contains("copy")),
-                    "the remedy must not tell the user to rewrite their own key file"
+                    info.encrypted,
+                    "the editor asks for a passphrase only when this is true"
                 );
+                // What it will be stored as, so the badge the editor draws and
+                // the credential it then writes agree with each other.
+                assert_eq!(info.format, "pkcs8");
             }
+        }
+
+        // A cipher this build cannot read is still refused, and the refusal
+        // names the cipher rather than calling the file corrupt. The remedy
+        // does not tell the user to rewrite their own key file.
+        let des = scratch.write(
+            "des3.pem",
+            &format!(
+                "-----BEGIN RSA PRIVATE KEY-----\n\
+                 Proc-Type: 4,ENCRYPTED\n\
+                 DEK-Info: DES-EDE3-CBC,0123456789ABCDEF\n\n\
+                 {}\n\
+                 -----END RSA PRIVATE KEY-----\n",
+                data_encoding::BASE64.encode(&[0u8; 16])
+            ),
+        );
+        // It arrives at this call and not later: the cipher's name is written
+        // in the clear beside the ciphertext, so refusing it needs no
+        // passphrase and asking for one first would waste the typing.
+        let refused = key_inspect_impl(des.display().to_string());
+        assert!(
+            refused
+                .as_ref()
+                .is_err_and(|err| err.code == "key.legacy-encrypted"),
+            "expected key.legacy-encrypted for a cipher this build cannot read, got {}",
+            why(&refused)
+        );
+        if let Err(err) = refused {
+            assert!(
+                err.detail
+                    .as_deref()
+                    .is_some_and(|detail| detail.contains("DES-EDE3-CBC")),
+                "the cipher has to be named where the reader can see it: {:?}",
+                err.detail
+            );
+            assert!(
+                err.actions.iter().any(|action| action.contains("copy")),
+                "the remedy must not tell the user to rewrite their own key file"
+            );
         }
     }
 
@@ -5832,6 +5890,180 @@ mod credential_tests {
             "the vault sealed something that is not a PKCS#8 document"
         );
         assert!(borrowed.passphrase().is_none());
+
+        // And the leg that matters, which stopping at "it was sealed" never
+        // checked: the SSH adapter reads what came out of the vault. This is
+        // the same call `auth.rs` makes with the same bytes, so a key that
+        // parses here is a key that can offer a signature to a server.
+        let parsed = remoter_proto_ssh::parse_private_key(borrowed.key().expose_secret(), None);
+        assert!(
+            parsed.is_ok_and(|key| key.algorithm().to_string() == "ssh-rsa"),
+            "the stored key is not one the SSH adapter can authenticate with"
+        );
+    }
+
+    /// The passphrase-protected `.pem`, all the way through.
+    ///
+    /// The unencrypted case above already worked; this one was refused the
+    /// moment the file was chosen, which is the failure that was reported. It
+    /// goes through every layer a person's click goes through — identify the
+    /// file, ask for the passphrase because the answer said encrypted, seal it,
+    /// borrow it back, and hand it to the parser a session uses.
+    #[test]
+    #[expect(
+        clippy::panic,
+        reason = "a credential test without a vault has nothing left to assert"
+    )]
+    fn a_passphrase_protected_pem_becomes_a_working_credential() {
+        let scratch = Scratch::new();
+        let Some(state) = open_vault(&scratch) else {
+            panic!("the vault could not be created");
+        };
+        let passphrase = "correct horse battery staple";
+        let Some(key_file) = ssh_keygen(
+            &scratch,
+            "prod-bastion.pem",
+            passphrase,
+            &["-t", "rsa", "-b", "2048", "-m", "PEM"],
+        ) else {
+            panic!("ssh-keygen must be on PATH for this test");
+        };
+        let path = key_file.display().to_string();
+
+        // 1. The editor inspects the file and learns it must ask.
+        let inspected = key_inspect_impl(path.clone());
+        assert!(inspected.is_ok(), "inspecting failed: {}", why(&inspected));
+        assert!(inspected.is_ok_and(|info| info.encrypted));
+
+        // 2. Saving without the passphrase is refused, and says which field is
+        //    missing rather than blaming the file.
+        let refused = node_create_impl(
+            &state,
+            &mut credential(
+                "ec2-user",
+                CredentialInputDto::PrivateKey {
+                    path: path.clone(),
+                    passphrase: None,
+                },
+            ),
+        );
+        assert!(
+            refused
+                .as_ref()
+                .is_err_and(|err| err.code == "key.passphrase-required"),
+            "expected key.passphrase-required, got {}",
+            why(&refused)
+        );
+
+        // 3. A wrong passphrase is its own answer, and is not a corrupt file.
+        let refused = node_create_impl(
+            &state,
+            &mut credential(
+                "ec2-user",
+                CredentialInputDto::PrivateKey {
+                    path: path.clone(),
+                    passphrase: Some(String::from("hunter2")),
+                },
+            ),
+        );
+        assert!(
+            refused
+                .as_ref()
+                .is_err_and(|err| err.code == "key.passphrase-required"),
+            "expected key.passphrase-required for a wrong passphrase, got {}",
+            why(&refused)
+        );
+        if let Err(err) = refused {
+            assert!(
+                err.detail
+                    .as_deref()
+                    .is_some_and(|detail| detail.contains("did not decipher")),
+                "a wrong passphrase and a missing one must not read alike: {:?}",
+                err.detail
+            );
+        }
+
+        // 4. The right one stores the key.
+        let created = node_create_impl(
+            &state,
+            &mut credential(
+                "ec2-user",
+                CredentialInputDto::PrivateKey {
+                    path,
+                    passphrase: Some(String::from(passphrase)),
+                },
+            ),
+        );
+        assert!(created.is_ok(), "creating failed: {}", why(&created));
+        let Ok(created) = created else {
+            panic!("creating failed");
+        };
+        assert_eq!(created.key_format.as_deref(), Some("pkcs8"));
+        // The PEM container it arrived in is gone, so its passphrase has
+        // nothing left to open; see `remoter_vault::credential`.
+        assert!(!created.has_passphrase);
+
+        let Ok(id) = Uuid::parse_str(&created.id) else {
+            panic!("the node id should be a uuid");
+        };
+        let mut guard = state.lock();
+        let Ok(vault) = guard.vault_mut() else {
+            panic!("the vault should be open");
+        };
+        let Ok(borrowed) = vault.borrow_private_key(id, remoter_vault::Purpose::SshPrivateKey)
+        else {
+            panic!("the stored key could not be borrowed back");
+        };
+
+        // 5. The session's own parser, on the bytes the session would get.
+        let parsed = remoter_proto_ssh::parse_private_key(borrowed.key().expose_secret(), None);
+        assert!(
+            parsed.is_ok_and(|key| key.algorithm().to_string() == "ssh-rsa"),
+            "a .pem that the editor accepted still cannot authenticate a session"
+        );
+        drop(guard);
+
+        // The elliptic-curve sibling, which is the case that could go wrong
+        // unnoticed: `ssh-keygen -m PEM -t ecdsa` with a passphrase writes a
+        // SEC 1 container that `russh` cannot read at all, so it works here
+        // only because the vault deciphered and re-enveloped it.
+        let Some(ec_file) = ssh_keygen(
+            &scratch,
+            "prod-bastion-ec.pem",
+            passphrase,
+            &["-t", "ecdsa", "-b", "256", "-m", "PEM"],
+        ) else {
+            panic!("ssh-keygen must be on PATH for this test");
+        };
+        let created = node_create_impl(
+            &state,
+            &mut credential(
+                "ec2-user",
+                CredentialInputDto::PrivateKey {
+                    path: ec_file.display().to_string(),
+                    passphrase: Some(String::from(passphrase)),
+                },
+            ),
+        );
+        assert!(created.is_ok(), "creating failed: {}", why(&created));
+        let Ok(id) = created.map(|node| node.id).and_then(|id| {
+            Uuid::parse_str(&id).map_err(|_| IpcError::invalid_request("id", "not a uuid"))
+        }) else {
+            panic!("the node id should be a uuid");
+        };
+        let mut guard = state.lock();
+        let Ok(vault) = guard.vault_mut() else {
+            panic!("the vault should be open");
+        };
+        let Ok(borrowed) = vault.borrow_private_key(id, remoter_vault::Purpose::SshPrivateKey)
+        else {
+            panic!("the stored key could not be borrowed back");
+        };
+        let parsed = remoter_proto_ssh::parse_private_key(borrowed.key().expose_secret(), None);
+        assert!(
+            parsed.is_ok_and(|key| key.algorithm().to_string() == "ecdsa-sha2-nistp256"),
+            "an enciphered SEC 1 .pem did not survive the round trip"
+        );
     }
 
     #[test]

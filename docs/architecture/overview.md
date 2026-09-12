@@ -1,5 +1,13 @@
 # Architecture Overview
 
+> **What ships.** The layering, the `Protocol` trait, the session supervisor and
+> the transport injection are all real and are what the code does. The crate
+> boxes below name **three crates that do not exist** — `remoter-tunnel`,
+> `remoter-record` and `remoter-plugin` — and one, `proto-sftp`, that turned out
+> to belong inside `proto-ssh`. Each is annotated where it appears, and
+> [project-structure.md](../development/project-structure.md#crates-that-were-planned-and-do-not-exist)
+> has the table of where their work actually went.
+
 ## The shape of the problem
 
 A remote connection manager does four things, and each pulls the design in a
@@ -29,9 +37,9 @@ Requirement 3 is where those two meet, and it is the hardest part of the design
 ║   React 19 + TypeScript                                               ║
 ║   ┌─────────────┬──────────────────────────────┬──────────────────┐  ║
 ║   │ Connection  │  Tab host                    │  Inspector       │  ║
-║   │ tree        │  ├ xterm.js (SSH, serial)    │  properties,     │  ║
-║   │ search      │  ├ canvas/WebGL (RDP, VNC)   │  inheritance,    │  ║
-║   │ favourites  │  ├ file grid (SFTP, FTP)     │  session stats   │  ║
+║   │ tree        │  ├ xterm.js (SSH)            │  properties,     │  ║
+║   │ search      │  ├ canvas (RDP, VNC)         │  inheritance     │  ║
+║   │ favourites  │  └ file panes (SFTP)         │                  │  ║
 ║   └─────────────┴──────────────────────────────┴──────────────────┘  ║
 ╚═══════════════════════════════════════╤═══════════════════════════════╝
                                         │
@@ -47,18 +55,25 @@ Requirement 3 is where those two meet, and it is the hardest part of the design
 ║                                                                       ║
 ║  remoter-core        node tree · inheritance resolver · validation    ║
 ║  remoter-proto       Protocol trait · SessionSupervisor · event bus   ║
-║  remoter-tunnel      local/remote/dynamic forwards · jump host chains ║
-║  remoter-record      asciicast writer · frame recorder · audit log    ║
-║  remoter-import      confCons.xml · Royal TS · PuTTY · ssh_config     ║
+║                      framebuffer contract · gateway chain builder     ║
+║  remoter-tunnel      NOT A CRATE — forwards live in proto-ssh,        ║
+║                      chains in remoter-proto                          ║
+║  remoter-record      NOT A CRATE — the audit log is in remoter-vault; ║
+║                      recording does not exist at all                  ║
+║  remoter-import      confCons.xml · ssh_config · CSV                  ║
 ╠═══════════════════════════════════════════════════════════════════════╣
 ║  PROTOCOL ADAPTERS                                                    ║
-║  proto-ssh (russh) · proto-sftp (russh-sftp)                          ║
+║  proto-ssh (russh) — shell, SFTP, forwards, SOCKS5                    ║
 ║  proto-rdp (IronRDP) · proto-vnc (vnc-rs)                             ║
+║  proto-sftp          NOT A CRATE — a subsystem on an SSH channel      ║
 ╠═══════════════════════════════════════════════════════════════════════╣
 ║  PLATFORM                                                             ║
 ║  remoter-vault   envelope crypto · key slots · SQLite · migrations    ║
-║  remoter-plugin  Wasmtime/Extism host · capability grants             ║
-║  OS integration  keychain · FIDO2/HID · agent sockets · idle detect   ║
+║                  the append-only audit log                            ║
+║  remoter-plugin  NOT A CRATE — only the ABI and SDK exist; nothing    ║
+║                  loads a WebAssembly module                           ║
+║  OS integration  keychain · agent sockets · idle detect               ║
+║                  (no FIDO2/HID — the slot kind is refused)            ║
 ╚═══════════════════════════════════════════════════════════════════════╝
 ```
 
@@ -75,11 +90,17 @@ crate and implemented above it.
 | `remoter-vault` | Container format, key slots, KDF, AEAD, SQLite storage, migrations | Knowledge of what a "connection" means beyond opaque records |
 | `remoter-proto` | `Protocol` trait, `SessionSupervisor`, session lifecycle, event bus | Any specific protocol's wire format |
 | `remoter-proto-*` | One protocol each: handshake, framing, capability negotiation | Session policy, retry strategy, UI decisions |
-| `remoter-tunnel` | Forward listeners, SOCKS5 server, hop chain construction | Which connection wants a tunnel |
-| `remoter-record` | asciicast v2 writer, frame encoder, append-only audit log | Retention policy UI |
 | `remoter-import` | Parsers for foreign formats → `remoter-core` types | Writing to the vault |
-| `remoter-plugin` | WASM runtime, manifest parsing, capability enforcement | Plugin business logic |
+| `remoter-plugin-abi` / `-sdk` | The plugin boundary's types and guest helpers | Loading anything |
 | `remoter-ipc` | Tauri commands, DTOs, event channels, rate limits | Business rules |
+
+The three crates this table used to list and no longer does:
+
+| Was to be | Reality |
+|---|---|
+| `remoter-tunnel` — forward listeners, SOCKS5 server, hop chain construction | Forward listeners and the SOCKS5 server are in `remoter-proto-ssh`, because they are channels on an SSH connection. Hop-chain construction is genuinely protocol-agnostic and is in `remoter-proto` |
+| `remoter-record` — asciicast writer, frame encoder, audit log | The audit log is in `remoter-vault`, because it is a table in the vault body. Nothing else was written |
+| `remoter-plugin` — WASM runtime, manifest parsing, capability enforcement | Does not exist |
 
 ## Process and thread model
 
@@ -100,12 +121,12 @@ tokio multi-thread runtime (worker threads = CPU count)
  │   │   └─ decode task        protocol state machine → frames/bytes
  │   └─ session task #2 …
  ├─ tunnel listener tasks      one per active forward
- ├─ recorder tasks             one per recorded session, buffered writes
+ ├─ recorder tasks             ⏳ none — recording does not exist
  └─ vault task                 serialised access; the vault is single-writer
 
 blocking pool (spawn_blocking)
  ├─ Argon2id derivation        deliberately CPU-heavy, never on the runtime
- ├─ FIDO2 / HID transactions   blocking USB I/O with user presence waits
+ ├─ FIDO2 / HID transactions   ⏳ none — the FIDO2 slot is refused
  └─ OS keychain calls          platform APIs are synchronous
 ```
 
@@ -114,16 +135,19 @@ blocking pool (spawn_blocking)
 - Closing a tab cancels its session token; the session task must release all
   sockets, file handles and recorder buffers before the tab is removed from the
   UI. Leaked sessions are a correctness bug, not a cosmetic one.
-- A panic inside a session task is caught at the supervisor boundary. It fails
-  one tab, not the process — the vault must never be brought down by a
-  malformed frame from a remote host.
+- A panic inside a session task surfaces at the supervisor boundary as
+  `JoinError::is_panic()` — each session is its own `tokio::spawn`ed task, so
+  nothing is *caught* and no `catch_unwind` is used. It fails one tab, not the
+  process; the vault must never be brought down by a malformed frame from a
+  remote host. A panicked session is destroyed rather than resumed
+  ([ADR-0011](decisions/0011-panic-strategy.md)).
 - The vault is a single-writer resource. All mutations funnel through one task;
   readers get consistent snapshots.
 
 ## Data flow: opening an SSH session through a jump host
 
 ```
-UI                remoter-ipc      remoter-core     remoter-vault    remoter-tunnel   remoter-proto-ssh
+UI                remoter-ipc      remoter-core     remoter-vault    remoter-proto    remoter-proto-ssh
 │  open(node_id)      │                 │                 │                │                │
 ├────────────────────▶│                 │                 │                │                │
 │                     │ resolve(node)   │                 │                │                │

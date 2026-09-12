@@ -2,6 +2,9 @@
 
 - **Status**: Accepted
 - **Date**: 2026-09-10
+- **Implementation**: ✅ The decision here is to ship *no* hash chain, and that
+  is what ships. ⏳ The external audit sink offered as the escape hatch for
+  compliance users is not built.
 - **Resolves the open question in**: [recording-audit.md](../../features/recording-audit.md)
 
 ## Context

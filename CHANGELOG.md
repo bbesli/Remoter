@@ -236,6 +236,32 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 - `docs/architecture/sftp-command-surface.md`: what the file manager needs from
   `remoter-ipc`
 
+#### Packaging and release
+- Installers for Windows and macOS beside the Linux ones that already existed:
+  an NSIS `-setup.exe` and an `.msi` on Windows, and a universal `.dmg` on
+  macOS covering both Apple silicon and Intel. Running Remoter no longer
+  requires a Rust toolchain and an afternoon with linker errors
+- A release workflow on a `vX.Y.Z` tag. It refuses to start if the tag and the
+  two version fields disagree, builds on all three platforms, checks that each
+  one produced every bundle it owes rather than trusting that it did, writes
+  `SHA256SUMS.txt` over the result, and opens a **draft** GitHub release for a
+  person to install and verify before anyone else can download it
+- Release notes that explain the security warning instead of leaving the reader
+  to guess. The builds are unsigned — there is no code-signing certificate —
+  so Windows SmartScreen and macOS Gatekeeper both stop the first launch, and
+  the notes carry the click-by-click way through each, on every macOS version
+  where the steps differ. An unexplained warning on a credential manager reads
+  as malware
+- On Windows 10 the installer fetches the Edge WebView2 runtime when it is
+  missing, so the blank window its absence causes cannot happen. Windows 11
+  already ships it
+- The Linux release build is pinned to Ubuntu 22.04, so the published `.deb`,
+  `.rpm` and AppImage sit on the glibc 2.35 floor the documentation promises
+  rather than on whatever the newest runner image happens to carry
+- CI builds and tests on Windows and macOS as well as Linux. Until now nothing
+  in this workspace had been compiled for either by anything but one developer's
+  own machine, while three crates carried platform-specific code
+
 #### v0.1 foundation — implementation
 - Cargo workspace: `remoter-core`, `remoter-vault`, `remoter-plugin-abi`,
   `remoter-plugin-sdk`, `remoter-ipc`, and the Tauri desktop application
@@ -271,6 +297,52 @@ this project adheres to [Semantic Versioning](https://semver.org/).
   to Fit — while still showing the warning that explains why
 
 ### Fixed
+- **Reordering a connection by dragging it was refused half the time, by
+  construction.** Every row divided its height into three bands — above,
+  inside, below — including rows that cannot hold anything. Aiming at the
+  connection you want to sit next to, which is where everyone aims, landed in
+  the middle band, and the only answer that band has for a connection is "only
+  a folder can hold other entries". A row that reads as a container still
+  splits in three; everything else is halved into above and below. A *group*
+  keeps its middle band and still refuses it by name, because it wears the
+  folder glyph and a gesture aimed at its inside deserves an answer rather than
+  a silent reinterpretation
+- **The drop target was read from the event's target rather than from where the
+  pointer was.** Each row answered `pointermove` for itself, which holds only
+  as long as the platform delivers every move to the element under the pointer
+  — and stops the moment anything captures the pointer, after which one element
+  receives the whole gesture and the tree sees the source row for all of it.
+  The tree now captures the pointer itself once the press becomes a drag, and
+  finds the target by hit-testing the point. The capture is deliberately not
+  taken on `pointerdown`: a captured pointer retargets the compatibility mouse
+  events too, which would send the `click` ending an ordinary press somewhere
+  other than the row and stop clicking a connection from selecting it
+- **A drag carried nothing under the pointer.** The source row dimmed and a
+  two-pixel rule appeared somewhere in a list of twenty-eight-pixel rows, which
+  is enough to confirm a gesture you already trust and not enough to discover
+  one. The pointer now carries a chip naming the entry, and the chip carries
+  the reason when the row under it will not take the drop — before the release
+  rather than after it. The insertion line is thicker and capped, and a refusal
+  is explained *below* the tree, so the rows no longer move under the pointer
+  between one attempt and the next
+- **A passphrase-protected `.pem` was refused as though the format were
+  unsupported.** `ssh-keygen -m PEM` and `openssl rsa -aes256` write PKCS#1 or
+  SEC 1 with an RFC 1421 `DEK-Info` header, and the vault refused every one of
+  them at the step that identifies a key file — which runs before the interface
+  knows to ask for a passphrase, so the refusal arrived the moment the file was
+  chosen with no passphrase field anywhere on screen. Such a file is now
+  identified, reported as encrypted so that the field is drawn, deciphered with
+  the passphrase (`crates/remoter-vault/src/legacy_pem.rs`, AES-128/192/256-CBC
+  with OpenSSL's `EVP_BytesToKey`) and re-enveloped as PKCS#8 like any other
+  legacy PEM. Its passphrase is not kept afterwards: it opened a container the
+  vault does not store. A PEM enciphered with DES-EDE3-CBC is still refused, and
+  now says so by name rather than as a generic failure
+- A wrong key passphrase and a missing one were the same message. They are now
+  separated by the diagnostic the failure carries, which also distinguishes both
+  from a cipher this build cannot read
+- A passphrase stored beside a key that needs none made authentication fail with
+  a key that was perfectly good: `ssh-key` refuses that pairing outright. The
+  passphrase is dropped when the container says the key is not enciphered
 - **The Smart resize control was drawn on every RDP session, and chosen as the
   default, whether or not the server could honour it.** `capabilities.resizable`
   as it reaches the interface is the adapter's static offer — fixed before the

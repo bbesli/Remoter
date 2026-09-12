@@ -31,6 +31,7 @@
 use quick_xml::errors::{Error as XmlError, IllFormedError, SyntaxError};
 use quick_xml::events::{BytesRef, Event};
 use quick_xml::{Reader, XmlVersion};
+use zeroize::Zeroizing;
 
 use crate::error::{ImportError, XmlLocation, XmlProblem};
 use crate::limits::Limits;
@@ -440,24 +441,170 @@ fn resolve_reference(reference: &BytesRef<'_>) -> Result<char, ()> {
     }
 }
 
+/// A document's text, however the file spelled it.
+///
+/// Two cases rather than a `Cow` because the second one holds the file's
+/// plaintext — a CSV export carries its passwords in the clear, and an
+/// mRemoteNG document carries the base64 its passwords are inside — and the
+/// buffer it was transcoded into has to wipe itself the way the buffer it was
+/// read from does. `Cow::Owned(String)` would leave a second copy of the file
+/// on the heap for the allocator to hand to whatever asks next.
+pub(crate) enum SourceText<'a> {
+    /// The file was UTF-8 and the text is the caller's own bytes.
+    Borrowed(&'a str),
+    /// The file was in another encoding and had to be converted.
+    Transcoded(Zeroizing<String>),
+}
+
+impl core::ops::Deref for SourceText<'_> {
+    type Target = str;
+
+    fn deref(&self) -> &str {
+        match self {
+            Self::Borrowed(text) => text,
+            Self::Transcoded(text) => text,
+        }
+    }
+}
+
+/// A byte-order mark, and what it says the file is.
+enum ByteOrderMark {
+    Utf8,
+    Utf16Le,
+    Utf16Be,
+}
+
+impl ByteOrderMark {
+    /// Reads the mark at the head of `bytes`, if there is one.
+    ///
+    /// Only a mark is honoured, never a guess: an XML declaration's `encoding`
+    /// pseudo-attribute is content, and a heuristic over byte frequencies would
+    /// make the encoding of a file depend on what its hostnames happen to be.
+    const fn read(bytes: &[u8]) -> Option<(Self, usize)> {
+        match bytes {
+            [0xef, 0xbb, 0xbf, ..] => Some((Self::Utf8, 3)),
+            // A UTF-32LE file opens FF FE 00 00, which is a UTF-16LE mark
+            // followed by a NUL. Reading it as UTF-16 yields a document whose
+            // first character is a NUL, which no parser here accepts — a
+            // refusal, which is the right answer for an encoding this does not
+            // read.
+            [0xff, 0xfe, ..] => Some((Self::Utf16Le, 2)),
+            [0xfe, 0xff, ..] => Some((Self::Utf16Be, 2)),
+            _ => None,
+        }
+    }
+}
+
+/// Decodes UTF-16 code units into a buffer that wipes itself.
+///
+/// `lossy` is for the fixed-size window [`crate::detect`] sniffs, which can cut
+/// a surrogate pair in half at its edge; a whole document is decoded strictly,
+/// so a file that is not the encoding its mark claims is refused rather than
+/// filled with replacement characters.
+fn decode_utf16(bytes: &[u8], big_endian: bool, lossy: bool) -> Option<Zeroizing<String>> {
+    if !lossy && bytes.len() % 2 != 0 {
+        return None;
+    }
+    let units: Vec<u16> = bytes
+        .chunks_exact(2)
+        .map(|pair| {
+            let pair = [pair[0], pair[1]];
+            if big_endian {
+                u16::from_be_bytes(pair)
+            } else {
+                u16::from_le_bytes(pair)
+            }
+        })
+        .collect();
+    if lossy {
+        return Some(Zeroizing::new(String::from_utf16_lossy(&units)));
+    }
+    String::from_utf16(&units).ok().map(Zeroizing::new)
+}
+
+/// Reads the head of a file as text, for format detection.
+///
+/// Lossy throughout: the window is a fixed number of bytes and will cut a
+/// character in half at its edge, which is not a reason to give up on the bytes
+/// before it. Nothing here decides whether a file is readable — [`as_text`]
+/// does that, strictly, once a format has been chosen.
+pub(crate) fn sniff_head(bytes: &[u8]) -> SourceText<'_> {
+    match ByteOrderMark::read(bytes) {
+        Some((ByteOrderMark::Utf16Le, skip)) => decode_utf16(&bytes[skip..], false, true),
+        Some((ByteOrderMark::Utf16Be, skip)) => decode_utf16(&bytes[skip..], true, true),
+        Some((ByteOrderMark::Utf8, skip)) => return utf8_head(&bytes[skip..]),
+        // No mark means UTF-8, which is what every exporter this crate reads
+        // writes.
+        None => return utf8_head(bytes),
+    }
+    .map_or(SourceText::Borrowed(""), SourceText::Transcoded)
+}
+
+/// The UTF-8 half of [`sniff_head`], truncated at the first byte that is not
+/// part of a character.
+fn utf8_head(bytes: &[u8]) -> SourceText<'_> {
+    SourceText::Borrowed(
+        core::str::from_utf8(bytes)
+            .unwrap_or_else(|err| core::str::from_utf8(&bytes[..err.valid_up_to()]).unwrap_or("")),
+    )
+}
+
 /// Checks the size and encoding of an input before any parser sees it.
+///
+/// UTF-8 is the encoding every format this crate reads is written in, and is
+/// the only one a file gets without saying so. A file that opens with a UTF-16
+/// byte-order mark is converted rather than refused: mRemoteNG writes UTF-8,
+/// but a `confCons.xml` that has been through a `>` redirect in Windows
+/// PowerShell 5 or re-saved from Notepad as "Unicode" arrives as UTF-16, and
+/// the file is otherwise perfectly readable.
 ///
 /// # Errors
 ///
 /// [`ImportError::TooLarge`] or [`ImportError::NotUtf8`].
-pub(crate) fn as_text<'a>(bytes: &'a [u8], limits: &Limits) -> Result<&'a str, ImportError> {
+pub(crate) fn as_text<'a>(bytes: &'a [u8], limits: &Limits) -> Result<SourceText<'a>, ImportError> {
     if bytes.len() > limits.max_input_bytes {
         return Err(ImportError::TooLarge {
             size: bytes.len(),
             limit: limits.max_input_bytes,
         });
     }
-    // A UTF-8 byte-order mark is legal at the head of an XML document and of a
-    // CSV written by a spreadsheet, and is not part of the content.
-    let bytes = bytes.strip_prefix("\u{feff}".as_bytes()).unwrap_or(bytes);
-    core::str::from_utf8(bytes).map_err(|err| ImportError::NotUtf8 {
-        offset: err.valid_up_to(),
-    })
+
+    let (mark, skip) = match ByteOrderMark::read(bytes) {
+        // A file with no mark is UTF-8, which is what every exporter this crate
+        // reads actually writes.
+        None => (ByteOrderMark::Utf8, 0),
+        Some(found) => found,
+    };
+    let body = &bytes[skip..];
+
+    let text = match mark {
+        // A UTF-8 byte-order mark is legal at the head of an XML document and
+        // of a CSV written by a spreadsheet, and is not part of the content.
+        ByteOrderMark::Utf8 => {
+            return core::str::from_utf8(body)
+                .map(SourceText::Borrowed)
+                .map_err(|err| ImportError::NotUtf8 {
+                    offset: err.valid_up_to().saturating_add(skip),
+                });
+        }
+        ByteOrderMark::Utf16Le => decode_utf16(body, false, false),
+        ByteOrderMark::Utf16Be => decode_utf16(body, true, false),
+    };
+    // The mark promised UTF-16 and the bytes are not: an odd length, or a
+    // surrogate with no partner. Reported at the mark, which is the claim that
+    // turned out to be false.
+    let text = text.ok_or(ImportError::NotUtf8 { offset: 0 })?;
+
+    // UTF-16 grows by half when it converts — a three-byte UTF-8 character is
+    // one code unit — so a document that was inside the limit as bytes can be
+    // outside it as text, and the parsers below work against the text.
+    if text.len() > limits.max_input_bytes {
+        return Err(ImportError::TooLarge {
+            size: text.len(),
+            limit: limits.max_input_bytes,
+        });
+    }
+    Ok(SourceText::Transcoded(text))
 }
 
 #[cfg(test)]
@@ -702,6 +849,12 @@ mod tests {
         assert_eq!(root.attribute("Name"), Some("a"));
     }
 
+    /// `SourceText` has no `Debug` on purpose — it holds the file's plaintext
+    /// — so a test reads it through the deref rather than comparing `Result`s.
+    fn text_of(result: Result<SourceText<'_>, ImportError>) -> Result<String, ImportError> {
+        result.map(|text| text.to_string())
+    }
+
     #[test]
     fn oversized_and_non_utf8_input_is_refused_before_parsing() {
         let limits = Limits {
@@ -709,16 +862,91 @@ mod tests {
             ..Limits::new()
         };
         assert_eq!(
-            as_text(b"aaaaaaaa", &limits),
+            text_of(as_text(b"aaaaaaaa", &limits)),
             Err(ImportError::TooLarge { size: 8, limit: 4 })
         );
         assert_eq!(
-            as_text(b"ab\xffcd", &Limits::new()),
+            text_of(as_text(b"ab\xffcd", &Limits::new())),
             Err(ImportError::NotUtf8 { offset: 2 })
         );
         assert_eq!(
-            as_text("\u{feff}<a/>".as_bytes(), &Limits::new()),
-            Ok("<a/>")
+            text_of(as_text("\u{feff}<a/>".as_bytes(), &Limits::new())),
+            Ok("<a/>".to_owned())
+        );
+    }
+
+    /// mRemoteNG writes UTF-8, but a `confCons.xml` does not always reach
+    /// Remoter the way mRemoteNG wrote it: a `>` redirect in Windows
+    /// PowerShell 5 and Notepad's "Unicode" both produce UTF-16LE, and the
+    /// document inside is unchanged.
+    #[test]
+    fn a_utf16_document_is_converted_rather_than_refused() {
+        let document = r#"<Connections Name="Acme"><Node Name="web-01"/></Connections>"#;
+
+        let mut le = vec![0xff, 0xfe];
+        for unit in document.encode_utf16() {
+            le.extend_from_slice(&unit.to_le_bytes());
+        }
+        assert_eq!(
+            text_of(as_text(&le, &Limits::new())),
+            Ok(document.to_owned())
+        );
+
+        let mut be = vec![0xfe, 0xff];
+        for unit in document.encode_utf16() {
+            be.extend_from_slice(&unit.to_be_bytes());
+        }
+        assert_eq!(
+            text_of(as_text(&be, &Limits::new())),
+            Ok(document.to_owned())
+        );
+
+        // And the parse that follows sees an ordinary document.
+        let events = events(&as_text(&le, &Limits::new()).unwrap(), Limits::new()).unwrap();
+        let XmlEvent::Start(root) = &events[0] else {
+            panic!("expected a start event");
+        };
+        assert_eq!(root.name, "Connections");
+        assert_eq!(root.attribute("Name"), Some("Acme"));
+    }
+
+    #[test]
+    fn a_mark_that_lies_about_the_encoding_is_refused_rather_than_mangled() {
+        // An odd number of bytes cannot be UTF-16 code units.
+        assert_eq!(
+            text_of(as_text(&[0xff, 0xfe, b'<', b'\0', b'a'], &Limits::new())),
+            Err(ImportError::NotUtf8 { offset: 0 })
+        );
+        // A high surrogate with no partner is not a character.
+        assert_eq!(
+            text_of(as_text(
+                &[0xff, 0xfe, 0x00, 0xd8, 0x3c, 0x00],
+                &Limits::new()
+            )),
+            Err(ImportError::NotUtf8 { offset: 0 })
+        );
+    }
+
+    /// The conversion is where a document can cross the size limit it was
+    /// inside as bytes, and the parsers below work against the text.
+    #[test]
+    fn a_transcoded_document_is_measured_again_after_it_grows() {
+        // Six UTF-16 code units — twelve bytes plus the mark — that become
+        // eighteen bytes of UTF-8.
+        let mut bytes = vec![0xff, 0xfe];
+        for unit in "日本語日本語".encode_utf16() {
+            bytes.extend_from_slice(&unit.to_le_bytes());
+        }
+        let limits = Limits {
+            max_input_bytes: 14,
+            ..Limits::new()
+        };
+        assert_eq!(
+            text_of(as_text(&bytes, &limits)),
+            Err(ImportError::TooLarge {
+                size: 18,
+                limit: 14
+            })
         );
     }
 }

@@ -70,13 +70,13 @@ the three blocking questions that are allowed to cover a session.
 | **Unlock** | Slot selection and credential entry. Also where a vault that locks while open lands — the file is already known, so it asks for one credential rather than for a file, and says why it locked and what became of the open sessions |
 | **Main window** | The layout above — the application's home |
 | **Connection editor** | Modal or inspector; form generated from the protocol's settings schema |
-| **Vault settings** | Key slots, auto-lock, recording policy, backups |
-| **Application settings** | Theme, language, shortcuts, plugins, updates |
-| **Import wizard** | The seven-step flow in [import-export.md](../features/import-export.md) |
+| **Vault settings** | Key slots, auto-lock, session-on-lock, backups. ⏳ The recording policy is stored and read by nothing |
+| **Application settings** | Theme, language, shortcuts, terminal palette, updates. ⏳ No plugins section — there is no plugin host |
+| **Import wizard** | The flow in [import-export.md](../features/import-export.md) |
 | **Audit log viewer** | Filterable, searchable, exportable |
-| **Recording player** | Playback with seek, speed, and search |
-| **Session panel** | Everything open, with uptime, latency, throughput |
-| **Tunnel panel** | Active and persistent forwards |
+| **Recording player** | ⏳ Does not exist. Nothing records, so there is nothing to play |
+| **Session panel** | Everything open. ⏳ Uptime, latency and throughput are not shown |
+| **Tunnel panel** | Active forwards, in the session panel rather than a screen of its own |
 
 ## Navigation model
 
@@ -84,8 +84,8 @@ Three ways to reach a connection, because different users work differently:
 
 1. **The tree** — browsing, for people who know where things live
 2. **Search (`Ctrl/Cmd+K`)** — typing, for people who know the name
-3. **Recents and favourites** — for the twenty machines that account for most
-   sessions
+3. **Favourites** — for the twenty machines that account for most sessions.
+   ⏳ There are no connection recents; nothing records when a node was last used
 
 All three are always available. None is privileged.
 
@@ -95,11 +95,13 @@ The full shortcut table is in
 [connections.md](../features/connections.md#keyboard). The design constraint
 that shapes it:
 
-**A focused terminal must receive almost every keystroke.** `Ctrl+C`, `Ctrl+D`,
-`Ctrl+W`, `Alt+F` all belong to the remote host. Application shortcuts inside a
-focused session therefore use a configurable prefix (`Ctrl+Alt` by default),
-and the small set of universal shortcuts — lock the vault, the command palette
-— are chosen not to collide with common terminal bindings.
+**A focused terminal must receive almost every keystroke.** `Ctrl+C`, `Ctrl+D`
+and `Alt+F` belong to the remote host. ⏳ The configurable prefix key
+(`Ctrl+Alt`) was the design and is not what was built. What was built instead is
+a **scope** on each shortcut plus a reserved list: a *universal* shortcut cannot
+be bound to any of those three at all, and the settings screen refuses the
+binding with the reason rather than accepting one the terminal will swallow.
+`Ctrl+W` is bound to closing a tab, which is the one deliberate exception.
 
 Every action is keyboard-reachable, every shortcut is user-editable, and the
 current bindings are visible in a searchable cheat sheet (`?`).

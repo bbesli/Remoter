@@ -371,17 +371,47 @@ impl IpcError {
             // A conversion gap, and the remedy says `copy` on purpose: the key
             // file is very often shared with other tools, and `ssh-keygen -p`
             // rewrites the file it is given in place.
-            VaultError::LegacyEncryptedKey(what) => Self::new(
+            //
+            // The cipher's name goes in the detail rather than the sentence:
+            // the catalogue owns the sentence, and a reader who has to act on
+            // this needs to know it was DES-EDE3-CBC and not AES.
+            VaultError::UnsupportedKeyCipher(cipher) => Self::new(
                 "key.legacy-encrypted",
-                format!(
-                    "That {what} key is encrypted inside its own PEM container, and Remoter \
-                     has to be able to read the container before it can store the key. \
-                     Nothing was written."
-                ),
+                "That key is encrypted inside its own PEM container with a cipher this \
+                 build cannot read. Nothing was written.",
             )
+            .with_detail(format!("PEM container cipher: {cipher}"))
             .with_actions([
                 "Convert a copy: `cp <file> <copy>` then `ssh-keygen -p -m PKCS8 -f <copy>`",
                 "Use the platform SSH agent instead",
+            ]),
+            // Both of these are about the passphrase and not about the file,
+            // and the remedy for both is the same field. They share the code
+            // `take_credential` raises when the interface sent no passphrase at
+            // all; the detail is what separates "none given" from "that one
+            // does not open it", because the catalogue owns the sentence and
+            // `locales/*/errors.json` is shared across the whole interface.
+            VaultError::KeyPassphraseRequired => Self::new(
+                "key.passphrase-required",
+                "That key is passphrase-protected, and without the passphrase Remoter \
+                 cannot use it to authenticate.",
+            )
+            .with_detail("no passphrase was supplied for an enciphered key")
+            .with_actions([
+                "Enter the key's passphrase",
+                "Choose a key that is not passphrase-protected",
+            ]),
+            VaultError::KeyPassphraseRejected => Self::new(
+                "key.passphrase-required",
+                "That passphrase does not open the key. Nothing was written.",
+            )
+            .with_detail(
+                "the passphrase did not decipher the PEM container; a corrupt file looks \
+                 the same, this container carrying no authentication tag",
+            )
+            .with_actions([
+                "Enter the key's passphrase",
+                "Choose a key that is not passphrase-protected",
             ]),
             VaultError::NotAPrivateKeyCredential(id) => Self::new(
                 "credential.not-a-private-key",

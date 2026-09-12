@@ -42,16 +42,36 @@ A cross-platform remote connection manager: an encrypted vault of servers and
 credentials, plus embedded RDP / SSH / VNC / SFTP sessions in a tabbed desktop
 application. Comparable to mRemoteNG and Royal TS. Licensed GPL-3.0.
 
-**Current state: design phase.** The repository holds specifications only. There
-is no `Cargo.toml`, no `package.json` and no source tree yet. When implementation
-starts, follow the layout in §3 exactly — the docs reference those paths.
+**Current state: alpha, and it runs.** There is a Cargo workspace, a React
+frontend and a Tauri shell. The vault, the connection tree, SSH, SFTP, RDP, VNC,
+port forwarding, three importers, the audit log and ten localisations are
+implemented and have been used against real servers.
+
+What is **not** implemented, so that you do not go looking for it: session
+recording of any kind, the FIDO2 key slot, FTP, the plugin host, export in any
+format, the clipboard, and tab detach or split view. `docs/` is a specification
+that describes the finished product, so it describes more than exists —
+[README.md](README.md#what-works-today) carries the shipped-versus-planned
+table, and §3 below is the tree as it actually is.
 
 ---
 
 ## 2. Where the truth lives
 
-Design documents are normative. Code that contradicts them is a bug in the code,
-unless the document has been amended first.
+Design documents are normative **about design** — the shape of the vault format,
+what a nonce is bound to, which layer owns which decision. Code that contradicts
+them on any of that is a bug in the code, unless the document has been amended
+first.
+
+They are **not** a statement of what exists. Every document in `docs/` describes
+the finished product, and much of the finished product is not written; the
+feature and architecture documents open with a note saying which part of them
+ships, and individual claims carry ✅ / ◐ / ⏳ markers. So a document describing a
+feature is never evidence that the feature is there — grep for it before you
+build on it, and if you find it missing, say so rather than assuming you have
+looked in the wrong place. `README.md`'s *What works today* table and
+`docs/roadmap.md` are where shipped-versus-planned is recorded, and both must be
+updated when that changes.
 
 | Question | Authoritative document |
 |---|---|
@@ -75,19 +95,22 @@ copying `0000-template.md`).
 
 ## 3. Repository layout
 
+This is the tree as it exists, which is the ten crates in `Cargo.toml`'s
+`members` and nothing else. Four crates the older drafts of this file listed —
+`remoter-proto-sftp`, `remoter-tunnel`, `remoter-record`, `remoter-plugin` —
+have never been created. Where their work lives instead is noted below.
+
 ```
 crates/
   remoter-core/         Domain model: tree, nodes, inheritance resolution
-  remoter-vault/        Envelope crypto, key slots, storage, migrations
-  remoter-proto/        `Protocol` trait, session supervisor, event bus
-  remoter-proto-ssh/    SSH + PTY (russh)
-  remoter-proto-sftp/   SFTP (russh-sftp)
-  remoter-proto-rdp/    RDP (IronRDP)
-  remoter-proto-vnc/    VNC / RFB (vnc-rs)
-  remoter-tunnel/       Local/remote/dynamic forwarding, jump host chains
-  remoter-import/       mRemoteNG, Royal TS, PuTTY, RDCMan, ssh_config, CSV
-  remoter-record/       asciicast v2 writer, framebuffer recorder, audit log
-  remoter-plugin/       WebAssembly host, manifest parsing, capability grants
+  remoter-vault/        Envelope crypto, key slots, storage, migrations, audit log
+  remoter-proto/        `Protocol` trait, session supervisor, event bus,
+                        framebuffer contract, gateway chain builder
+  remoter-proto-ssh/    SSH + PTY (russh), SFTP (russh-sftp), local/remote/
+                        dynamic forwarding, the SOCKS5 server
+  remoter-proto-rdp/    RDP (IronRDP), CredSSP/NTLMv2
+  remoter-proto-vnc/    VNC / RFB (vnc-rs), with the handshake owned here
+  remoter-import/       mRemoteNG confCons.xml, ssh_config, CSV
   remoter-plugin-abi/   Plugin ABI types and wire format   (Apache-2.0 OR MIT)
   remoter-plugin-sdk/   Guest-side helpers for plugin authors (Apache-2.0 OR MIT)
   remoter-ipc/          Tauri command surface — the ONLY crate Tauri touches
@@ -95,12 +118,32 @@ apps/
   desktop/
     src-tauri/          Tauri shell; thin. Business logic belongs in crates/
     ui/                 React + TypeScript frontend
-  cli/                  Headless companion (vault ops, scripted connects)
 docs/                   Specifications (see §2)
 locales/                i18n message catalogs, one directory per language
+fuzz/                   cargo-fuzz targets for the importers
+scripts/                Local install, a throwaway sshd, the source-is-text check
 ```
 
-**Layering rule.** Dependencies point downward only:
+**Where the four missing crates' work went.**
+
+- **SFTP** is `remoter-proto-ssh/src/sftp.rs`. It is a subsystem on an SSH
+  channel; a separate crate would have had to re-export `SshConnection` to say
+  anything at all.
+- **Tunnelling** is `remoter-proto-ssh/src/{forward,socks,bind}.rs` for the same
+  reason, with the node-level surface in `remoter-ipc/src/tunnel.rs`. The
+  gateway-chain builder that is genuinely protocol-agnostic lives one layer
+  down, in `remoter-proto/src/gateway.rs`.
+- **The audit log** is `remoter-vault/src/{audit,storage}.rs` — it is a table in
+  the vault body, so it is written by whoever holds the vault.
+- **Recording** does not exist anywhere. Not in a crate, not in the interface.
+  `Capabilities::recordable` is reported by three adapters and read by nobody.
+- **The plugin host** does not exist. `remoter-plugin-abi` and
+  `remoter-plugin-sdk` define the boundary; nothing loads a module.
+
+If you add a protocol, `crates/remoter-proto-<name>/` is still the right shape.
+Do not recreate the crates above speculatively — §10 forbids scaffolding.
+
+**Layering rule.** This is design intent, and the tree still satisfies it:
 
 ```
 apps/ ──▶ remoter-ipc ──▶ remoter-proto-* ──▶ remoter-proto ──▶ remoter-core
@@ -114,9 +157,6 @@ place — introduce a trait in the lower crate instead.
 ---
 
 ## 4. Commands
-
-Once the workspace exists, these are the commands. Until then they are the
-contract for what the workspace must support.
 
 ```bash
 # Rust
@@ -142,8 +182,11 @@ npm test
 cd apps/desktop && ./ui/node_modules/.bin/tauri dev
 cd apps/desktop && ./ui/node_modules/.bin/tauri build --no-bundle
 
-# Integration fixtures (Docker: openssh-server, xrdp, tigervnc)
-docker compose -f tests/fixtures/compose.yaml up -d
+# Live protocol tests. There is no `tests/fixtures/compose.yaml` — the only
+# fixture that exists is a throwaway sshd, which covers the SSH and SFTP live
+# tests. RDP and VNC have no fixture, so their `integration-tests` targets need
+# a server you point them at yourself.
+scripts/dev-sshd.sh
 cargo test --workspace --features integration-tests
 ```
 
@@ -209,7 +252,11 @@ Importers additionally get `cargo-fuzz` targets — they parse hostile input.
 
 - React 19 function components, TypeScript `strict`, no `any` without a comment
 - Server-ish state via TanStack Query over Tauri commands; UI state via Zustand
-- Tailwind for styling; design tokens live in `apps/desktop/ui/src/styles/tokens.css`
+- **CSS modules**, one `.module.css` beside each component, over design tokens in
+  `apps/desktop/ui/src/styles/tokens.css`. Tailwind was the original plan and is
+  not installed; do not add a utility class expecting it to resolve
+- Logical CSS properties only (`margin-inline-start`, not `margin-left`). Arabic
+  is a shipped language and RTL is a layout, not a mirror
 - Every user-visible string goes through `t()` — no hardcoded English in JSX.
   New strings are added to `locales/en/*.json` only; translators handle the rest
 - Components that render remote content (hostnames, banners, MOTD, directory
@@ -253,7 +300,19 @@ Adding a crate or npm package requires:
 Pinned major choices (do not swap without an ADR): `tauri` 2.x, `russh` 0.63,
 `russh-sftp` 3.x, `ironrdp` 0.17, `vnc-rs` 0.5, `argon2` 0.6,
 `chacha20poly1305` 0.11, `zeroize` 1.x, `rusqlite` 0.40, `keyring` 4.x,
-`ctap-hid-fido2` 3.x, `extism` 1.x.
+`quick-xml` 0.41 (the reason it is not 0.42 is a long comment in `Cargo.toml`;
+read it before bumping).
+
+Two more were chosen and are not in the graph, because the features that would
+use them are not built: `ctap-hid-fido2` 3.x for the FIDO2 slot and `extism` 1.x
+for the plugin host. They are decisions, not dependencies — do not add either
+until the feature it serves is actually being written.
+
+**The workspace `rust-version` is `1.85` and that is knowingly wrong**: `ironrdp`
+0.17 declares 1.89 and `keyring` 4.2 declares 1.88, so nothing has built on 1.85
+since the RDP adapter landed. The comment above it in `Cargo.toml` explains what
+correcting it costs and why that belongs in its own change; read it before
+"fixing" the line.
 
 ---
 

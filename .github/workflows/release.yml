@@ -1,0 +1,245 @@
+name: Release
+
+# A tag is the trigger, and the tag is the version. Everything downstream —
+# the artefact filenames, the release title, the text in the notes — is derived
+# from it rather than typed twice, because the two copies always drift and the
+# one nobody is reading is the one that goes wrong.
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+*"]
+
+# Read-only by default and widened for exactly the one job that needs it. The
+# three bundle jobs run a full `cargo build` over the whole dependency tree,
+# which is the largest amount of third-party code this repository ever executes;
+# there is no reason for that job's token to be able to write anything.
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # Three release builds are roughly forty minutes of runner time. Spending
+  # them to produce artefacts named 0.1.0 for a tag that says v0.2.0 is a waste
+  # that is only discovered by a human reading the filenames, so the cheap
+  # question is asked first and the expensive jobs wait on the answer.
+  preflight:
+    name: Tag matches the manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compare the tag against tauri.conf.json and Cargo.toml
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME#v}"
+          conf="$(python3 -c '
+          import json, pathlib
+          print(json.loads(pathlib.Path("apps/desktop/src-tauri/tauri.conf.json").read_text())["version"])
+          ')"
+          crate="$(python3 -c '
+          import pathlib, tomllib
+          print(tomllib.loads(pathlib.Path("Cargo.toml").read_text())["workspace"]["package"]["version"])
+          ')"
+          echo "tag=$tag tauri.conf.json=$conf Cargo.toml=$crate"
+          if [ "$tag" != "$conf" ] || [ "$tag" != "$crate" ]; then
+            echo "::error::the tag, tauri.conf.json and the workspace version disagree. Step 2 of the release process in docs/development/build-release.md is bumping both files; do that, amend, and re-tag."
+            exit 1
+          fi
+
+  bundle:
+    name: Bundle (${{ matrix.os }})
+    needs: preflight
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # One platform failing must not cancel the other two. A release where
+      # Windows is broken and Linux and macOS are fine is a useful thing to
+      # know in one run rather than three.
+      fail-fast: false
+      matrix:
+        include:
+          # Not ubuntu-latest. That label is Ubuntu 24.04, and a binary linked
+          # against its glibc 2.39 will not start on Ubuntu 22.04 — the oldest
+          # release docs/development/build-release.md promises to support. The
+          # build host sets the floor for everyone who downloads the result, so
+          # the floor is pinned rather than inherited.
+          - os: ubuntu-22.04
+            bundles: target/release/bundle
+            expected: deb rpm appimage
+          - os: windows-latest
+            bundles: target/release/bundle
+            expected: msi nsis
+          # macos-latest is Apple silicon, so an ordinary build there serves
+          # Apple silicon and nobody else. `universal-apple-darwin` fuses an
+          # x86_64 and an arm64 build into one binary, which is the difference
+          # between an Intel Mac getting an application and getting nothing.
+          # Passing `--target` also moves the output under target/<triple>/,
+          # which is why the bundle directory is carried in the matrix rather
+          # than written out three times.
+          - os: macos-latest
+            target: universal-apple-darwin
+            bundles: target/universal-apple-darwin/release/bundle
+            expected: dmg macos
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      # Deliberately no Swatinem/rust-cache here, unlike ci.yml. A release
+      # happens weeks apart, so its cache would always have aged out of the
+      # repository's 10 GB budget before the next tag — while a release-profile
+      # target directory, built with `lto = "fat"`, is large enough to evict the
+      # CI caches that are used dozens of times a day. Paying for three cold
+      # builds a few times a year is the cheaper side of that trade.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/desktop/ui/package-lock.json
+      - name: System dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev \
+            libayatana-appindicator3-dev librsvg2-dev libudev-dev
+      # A universal binary is literally two builds stitched together, so both
+      # halves have to be installed before either can be produced.
+      - name: Both halves of the universal macOS binary
+        if: matrix.target == 'universal-apple-darwin'
+        run: rustup target add x86_64-apple-darwin aarch64-apple-darwin
+      - name: Frontend dependencies
+        working-directory: apps/desktop/ui
+        run: npm ci
+      # Invoked as `node <path to tauri.js>` rather than through the `.bin`
+      # shim, because the shim is a POSIX shell script beside a `.cmd` and
+      # which of the two a shell picks depends on the shell: this way one line
+      # means the same thing under bash, zsh and PowerShell.
+      #
+      # `working-directory` is apps/desktop and not apps/desktop/ui: the Tauri
+      # CLI searches for tauri.conf.json in the directories *below* the one it
+      # runs from, and this workspace keeps it in apps/desktop/src-tauri. Run
+      # from ui/ it fails with "Couldn't recognize the current folder as a Tauri
+      # project". The same split is why the path to the CLI is a ui/ path.
+      #
+      # `-- --locked` reaches cargo, for the reason spelled out at length in
+      # ci.yml: a release must be built from the dependency graph that was
+      # audited, not from whatever the resolver picks on the day.
+      #
+      # The `--target` flag is substituted by the runner before any shell sees
+      # the line, so it stays one command under both bash and PowerShell. An
+      # env var would not: `$TARGET` is a variable in bash and something else
+      # entirely in PowerShell, where it would be `$env:TARGET`.
+      - name: Build the bundles
+        working-directory: apps/desktop
+        run: node ui/node_modules/@tauri-apps/cli/tauri.js build ${{ matrix.target && format('--target {0}', matrix.target) || '' }} -- --locked
+      # `bundle.targets` lists all seven bundle types and the bundler silently
+      # drops the ones that do not belong to the host platform — which is what
+      # lets one config serve three platforms, and also what would let a
+      # platform produce nothing at all without saying so. upload-artifact only
+      # fails when *no* pattern matches, so a Windows run that built the .msi
+      # and quietly skipped the NSIS .exe would still be green. Name what each
+      # platform owes and check for it.
+      - name: Every bundle this platform owes was produced
+        shell: bash
+        env:
+          BUNDLES: ${{ matrix.bundles }}
+          EXPECTED: ${{ matrix.expected }}
+        run: |
+          set -euo pipefail
+          missing=""
+          for dir in $EXPECTED; do
+            # The `-d` test is not decoration. Written as
+            # `count=$(find "$BUNDLES/$dir" ... 2>/dev/null | wc -l)`, a missing
+            # directory makes `find` exit non-zero, `pipefail` propagates that
+            # through the substitution and `set -e` kills the step *there* —
+            # before the echo, before the `::error::` line. Measured: the step
+            # still exited 1, and said nothing at all about which bundle was
+            # missing, which is the failure it exists to explain.
+            #
+            # `find` rather than a glob, because an unmatched glob in bash
+            # expands to itself and would then "exist" as a literal path.
+            if [ -d "$BUNDLES/$dir" ]; then
+              count="$(find "$BUNDLES/$dir" -mindepth 1 -maxdepth 1 | wc -l)"
+            else
+              count=0
+            fi
+            echo "$BUNDLES/$dir: $count entries"
+            if [ "$count" -eq 0 ]; then
+              missing="$missing $dir"
+            fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::$RUNNER_OS produced no bundle for:$missing"
+            exit 1
+          fi
+          # No `-printf` here: that is a GNU extension and this step runs under
+          # BSD find on the macOS runner.
+          find "$BUNDLES" -maxdepth 2 | sort
+      # The .app under bundle/macos is a directory and the .dmg already carries
+      # a copy of it, so only the installers travel. Everything listed here is
+      # a single file a person can download and open.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bundles-${{ matrix.os }}
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            ${{ matrix.bundles }}/deb/*.deb
+            ${{ matrix.bundles }}/rpm/*.rpm
+            ${{ matrix.bundles }}/appimage/*.AppImage
+            ${{ matrix.bundles }}/msi/*.msi
+            ${{ matrix.bundles }}/nsis/*.exe
+            ${{ matrix.bundles }}/dmg/*.dmg
+
+  release:
+    name: Draft release
+    needs: bundle
+    runs-on: ubuntu-latest
+    # The only job that writes anything: it creates the draft release and
+    # attaches the artefacts the three bundle jobs handed over.
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: bundles-*
+          merge-multiple: true
+      # Checksums are the only integrity story an unsigned release has, so they
+      # are generated where the artefacts are gathered and attached beside them.
+      # They prove the download survived the network; they prove nothing about
+      # who built it, which is what signing would add and why the notes say so.
+      - name: Checksums
+        working-directory: dist
+        run: |
+          set -euo pipefail
+          sha256sum -- * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      # The notes are a file in the repository rather than a string in this
+      # workflow, so that the sentences a user reads when SmartScreen stops them
+      # can be edited by somebody who is not editing YAML. `${VERSION}` is the
+      # only substitution.
+      - name: Release notes
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          python3 -c '
+          import os, pathlib
+          template = pathlib.Path(".github/release-notes-template.md").read_text()
+          if "${VERSION}" not in template:
+              raise SystemExit("::error::the release notes template no longer contains ${VERSION}; the version would be missing from the notes")
+          pathlib.Path("notes.md").write_text(template.replace("${VERSION}", os.environ["VERSION"]))
+          '
+          cat notes.md
+      # Draft, deliberately. Step 5 of the release process in
+      # docs/development/build-release.md is a human installing each artefact on
+      # a clean machine before anyone else can. A release that publishes itself
+      # removes the only gate an unsigned build has.
+      - uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          name: Remoter ${{ github.ref_name }}
+          body_path: notes.md
+          # Without this, a glob that matches nothing produces a release with no
+          # downloads and a green tick.
+          fail_on_unmatched_files: true
+          files: dist/*

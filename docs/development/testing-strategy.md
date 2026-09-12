@@ -1,5 +1,12 @@
 # Testing Strategy
 
+> **What ships.** Unit tests, property tests, fuzz targets and the "no secret in
+> a log" assertion are real and run. ⏳ **There are no end-to-end tests** — no
+> `tauri-driver`, no WebdriverIO, no `tests/e2e` directory. ⏳ Coverage is not
+> measured: `cargo-llvm-cov` is not installed or run anywhere, so the targets in
+> the table below are aspirations with nothing reporting against them. The
+> integration tests that exist run against `scripts/dev-sshd.sh`, not Docker.
+
 ## Layers
 
 ```
@@ -59,7 +66,8 @@ proptest! {
         prop_assert!(tree.path_to_root(node).any(|n| n.provides(&resolved)));
     }
 
-    /// Export then import reproduces the original exactly.
+    /// ⏳ Export then import reproduces the original exactly. Does not exist:
+    /// neither `export_json` nor `import_json` is a function in this workspace.
     #[test]
     fn export_import_roundtrip(tree in arb_tree()) {
         let exported = export_json(&tree)?;
@@ -69,9 +77,9 @@ proptest! {
 }
 ```
 
-Targets: inheritance resolution, tree operations (move, copy, delete),
-export/import round trips, gateway chain validation, and vault
-serialise/deserialise.
+Targets today: ✅ inheritance resolution, tree operations, and the importers.
+⏳ Export/import round trips (no export), gateway chain validation and vault
+serialise/deserialise have no property test.
 
 ## Fuzzing
 
@@ -79,16 +87,25 @@ serialise/deserialise.
 here — importers read files from colleagues and old backups, and protocol
 decoders read bytes from potentially compromised servers.
 
+What exists:
+
 ```
 fuzz/fuzz_targets/
+  import_csv.rs
   import_mremoteng.rs
-  import_royalts.rs
-  import_putty.rs
   import_sshconfig.rs
-  vault_parse.rs
-  rdp_pdu_decode.rs
-  vnc_rect_decode.rs
-  sftp_packet_decode.rs
+```
+
+⏳ What the plan still wants, and does not have — every one of these reads bytes
+from a file or a host the user does not control:
+
+```
+  import_royalts.rs        no importer to fuzz yet
+  import_putty.rs          no importer to fuzz yet
+  vault_parse.rs           the container header and body
+  rdp_pdu_decode.rs        PDUs from a remote host
+  vnc_rect_decode.rs       rectangles from a remote host
+  sftp_packet_decode.rs    packets from a remote host
 ```
 
 Corpora are seeded with real files and grown in CI. Fuzzing runs nightly and on
@@ -97,8 +114,10 @@ triage later.
 
 ## Integration tests
 
-Real servers, in Docker (see
-[getting-started.md](getting-started.md#integration-fixtures)):
+Real servers — a user-mode `sshd`, not Docker (see
+[getting-started.md](getting-started.md#live-protocol-tests)). ⏳ There is no
+`compose.yaml` and no `tests/fixtures`; the second SSH host a jump-chain test
+needs does not exist either, so the example below does not run today.
 
 ```rust
 #[tokio::test]
@@ -114,13 +133,21 @@ async fn ssh_connects_through_two_jump_hosts() {
 }
 ```
 
-Coverage: connect and authenticate for every protocol, jump chains, port
-forwarding, file transfer including resume, disconnect handling, and reconnect.
+What is covered today: ✅ SSH connect and authenticate, SFTP browsing, both
+transfer directions with progress, resume and its refusal, per-transfer
+cancellation, a concurrent queue, recursive removal and a listing of deliberately
+hostile file names. ◐ RDP against a server named in the environment. ⏳ VNC, jump
+chains, port forwarding, disconnect handling and reconnect have no live test.
 
-## End-to-end tests
+## End-to-end tests — ⏳ not built
 
-`tauri-driver` with WebdriverIO, against a built application. Few in number and
-reserved for flows where a break would be severe:
+None of these exist. There is no `tauri-driver` dependency, no WebdriverIO and no
+`tests/e2e`. Several of the flows are covered at a lower level — the import
+wizard, RTL layout and language switching all have component tests — but nothing
+drives a built application.
+
+The plan: `tauri-driver` with WebdriverIO, against a built application. Few in
+number and reserved for flows where a break would be severe:
 
 1. Create a vault, add a connection, connect, disconnect
 2. Lock and unlock with each slot type
@@ -131,26 +158,27 @@ reserved for flows where a break would be severe:
 
 ## Security testing
 
-| Check | When |
-|---|---|
-| `cargo audit` | Every pull request and nightly |
-| `cargo deny check` | Every pull request — licences, advisories, bans, duplicates |
-| `gitleaks` | Every pull request — no committed secrets |
-| Fuzzing | Nightly, and on parser changes |
-| Dependency review | On any `Cargo.lock` or `package-lock.json` change |
-| Memory-leak check | Long-running session soak test, weekly |
+| Check | When | |
+|---|---|---|
+| `cargo audit` | Every pull request | ✅ |
+| `cargo deny check` | Every pull request — licences, bans, sources, advisories | ✅ |
+| `gitleaks` | Every pull request — no committed secrets | ✅ |
+| Fuzzing | Nightly, and on parser changes | ⏳ targets exist; nothing runs them on a schedule |
+| Dependency review | On any `Cargo.lock` or `package-lock.json` change | ⏳ |
+| Memory-leak check | Long-running session soak test, weekly | ⏳ |
 
 A dedicated test asserts that **no secret ever appears in a log**: it runs a
 full session lifecycle with a tracing subscriber capturing everything at `trace`
 level, then greps the output for the known test credentials. It fails if any
 appears.
 
-## Coverage
+## Coverage — ⏳ not measured
 
-`cargo-llvm-cov`, reported but not gated on a global percentage — a number
-invites tests written to move it.
+`cargo-llvm-cov` is not run anywhere, in CI or locally, so nothing below is
+enforced or even reported. The intent stands: reported but not gated on a global
+percentage, because a number invites tests written to move it.
 
-Where coverage matters and is enforced:
+Where coverage would matter and be enforced:
 
 | Area | Target |
 |---|---|
@@ -163,7 +191,9 @@ Where coverage matters and is enforced:
 ## What we do not test
 
 - Third-party library internals — that is their job
-- Exact rendered pixels, except in the deliberate RTL and theme visual
-  regression runs
+- Exact rendered pixels. ⏳ There is no visual regression suite at all — no
+  screenshot comparison, no Playwright, no image snapshots. RTL and theming are
+  tested through the DOM and the computed direction instead, which catches a
+  physical CSS property but not a layout that merely looks wrong
 - Snapshot tests of component markup, which mostly test that markup has not
   changed and break on every refactor

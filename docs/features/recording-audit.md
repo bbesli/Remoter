@@ -3,32 +3,51 @@
 Two related but distinct capabilities: recording *what happened inside* a
 session, and logging *that a session happened at all*.
 
-## Audit log
+> **What ships: the audit log, and none of the recording.** The log, its viewer
+> and its JSON/CSV export are built and cover most of the event table below.
+> **Nothing in this document's *Terminal recording*, *Graphical recording*,
+> *Storage* and *Policy* sections exists** — there is no `remoter-record` crate,
+> no writer, no player, no encrypted recordings directory and no recording
+> indicator. The `RecordingPolicy` field is in the data model and inherits
+> correctly through the tree; nothing reads it. Three protocol adapters report
+> `recordable: true`, which is a statement that the session *could* be replayed
+> and is consumed by no one.
+
+## Audit log — ✅ shipped
 
 An append-only log inside the encrypted vault. Every entry records what
 occurred, when, against which node, and with what outcome. It never contains
-secrets — enforced at the type level, not by convention.
+secrets — `tests/audit_query.rs` runs a full lifecycle and searches the rendered
+rows for the credentials it used.
 
 **Logged events**
 
-| Category | Events |
-|---|---|
-| Vault | Created, unlocked (with which slot kind), locked, failed unlock, slot added/removed, master key rotated |
-| Connections | Created, modified, deleted, moved, credential changed |
-| Sessions | Started, ended (with reason), failed, duration, bytes transferred |
-| Security | Host key accepted, host key **changed**, certificate pinned, legacy algorithm enabled, agent forwarding enabled |
-| Credentials | Used (with purpose and target), revealed, copied to clipboard, exported |
-| Transfers | File uploaded, downloaded, deleted, renamed — with paths and sizes |
-| Plugins | Installed, loaded (id, version, hash), capability granted, terminated |
-| Data | Imported, exported (with a flag for plaintext exports) |
+| Category | Events | |
+|---|---|---|
+| Vault | Created, unlocked, failed unlock, locked, saved, migrated, slot added/removed, recovery key issued, password changed, master key rotated, KDF upgraded | ✅ |
+| Connections | Created, updated, deleted, moved | ✅ |
+| Sessions | Started, ended | ✅ |
+| Security | Host key or certificate pinned; host key or certificate refused | ✅ |
+| Credentials | Stored, removed, used, revealed, exported | ✅ |
+| Settings | Changed | ✅ |
+| Sessions, detail | Duration and close reason, in the `session_history` table beside the log | ◐ — `bytes_in` and `bytes_out` are written as zero, because nothing counts them |
+| Security, detail | Legacy algorithm enabled, agent forwarding enabled | ⏳ |
+| Transfers | File uploaded, downloaded, deleted, renamed — with paths and sizes | ⏳ |
+| Data | Imported, exported (with a flag for plaintext exports) | ⏳ — an import currently appears as the nodes it created |
+| Plugins | Installed, loaded, capability granted, terminated | ⏳ — there is no plugin host |
+
+`AuditEvent::ALL` is walked by a round-trip test, so an event added to the enum
+without being added to the audit screen's filters fails the suite rather than
+quietly dropping out of the interface.
 
 **Deliberately not logged**: passwords, key material, terminal content,
 framebuffer content, and file *contents*. The log records that a file moved, not
 what was in it.
 
-The log is queryable and filterable in the UI, exportable to JSON or CSV, and
-subject to a retention policy (default: keep everything; configurable to a time
-window, with the change itself logged).
+The log is queryable and filterable in the UI — filtering and counting happen in
+SQL rather than by loading the whole log — and exportable to JSON or CSV, with
+the export itself recorded. ⏳ There is no retention policy: the log keeps
+everything, and there is no setting to bound it by time or size.
 
 ### What the log's integrity actually guarantees
 
@@ -63,7 +82,9 @@ with the forward-secure scheme. It is off by default and warns clearly, because
 an external log is a copy of your connection inventory living outside the
 vault's protection. That trade is the user's to make knowingly.
 
-## Terminal recording
+## Terminal recording — ⏳ not built
+
+None of this section exists. It is the design, kept because it is the design.
 
 SSH and other terminal sessions are recorded in
 [asciicast v2](https://docs.asciinema.org/manual/asciicast/v2/), the format
@@ -99,7 +120,7 @@ because a user who believes redaction is complete will behave accordingly.
 search across the recording. Recordings export as `.cast` for asciinema, or
 render to SVG or GIF.
 
-## Graphical recording
+## Graphical recording — ⏳ not built
 
 RDP and VNC sessions record the dirty-rectangle stream with timestamps, in a
 container holding the same updates the renderer received.
@@ -111,7 +132,11 @@ or WebM on demand for sharing.
 Configurable: frame rate cap, JPEG quality, and a maximum session size after
 which recording stops with a warning rather than filling the disk.
 
-## Storage
+## Storage — ⏳ not built
+
+No recordings directory is created. The `session_history` table below *does*
+exist and is written on every session start and end — it is the index waiting
+for something to index, and its `recording` column has never been set.
 
 Recordings live **outside** the vault, in a configurable directory, because they
 grow large and a vault is designed to be small and rewritten atomically.
@@ -132,7 +157,11 @@ belongs to which session — lives in the vault's `session_history` table.
 Retention is configurable by age, by total size, or unlimited. Deletion is
 logged. There is no automatic upload anywhere.
 
-## Policy
+## Policy — ⏳ not built
+
+`RecordingPolicy` exists in `remoter-core` with these four values and inherits
+through the tree exactly as described. Nothing reads it, so all four behave
+identically: no recording, and no notice.
 
 Recording policy is inheritable through the folder tree, so an organisation sets
 it once:

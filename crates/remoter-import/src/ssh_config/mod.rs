@@ -108,7 +108,7 @@ const JUMP_FOLDER: &str = "Jump hosts";
 /// Any [`ImportError`]. Per-host problems are reported, not raised.
 pub fn parse(bytes: &[u8], limits: &Limits) -> Result<ImportPreview, ImportError> {
     let text = as_text(bytes, limits)?;
-    let directives = lexer::tokenise(text, limits)?;
+    let directives = lexer::tokenise(&text, limits)?;
     build(directives, limits)
 }
 
@@ -158,7 +158,7 @@ fn load(
 
     let bytes = files.read(path)?;
     let text = as_text(&bytes, limits)?;
-    for directive in lexer::tokenise(text, limits)? {
+    for directive in lexer::tokenise(&text, limits)? {
         if directive.keyword != "include" {
             if out.len() >= limits.max_items {
                 return Err(ImportError::TooManyItems {

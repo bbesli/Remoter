@@ -105,19 +105,25 @@ an explicit setting with an inline warning.
 Redirection is convenient and is also a data-exfiltration path in both
 directions.
 
-| Feature | Default | Rationale |
-|---|---|---|
-| Clipboard, text, local → remote | On | Expected behaviour; the user initiated the paste |
-| Clipboard, text, remote → local | On | Needed constantly for copying output |
-| Clipboard, **files** | **Off** | A compromised host should not be able to drop files into your clipboard |
-| Drive redirection | **Off** | Per-connection opt-in, per-folder, read-only offered first |
-| Printer redirection | Off | Opt-in |
-| Smart card redirection | Off | Opt-in |
-| Audio, remote → local | On | Low risk |
-| Microphone, local → remote | **Off** | Opt-in |
-| USB redirection | Off | Opt-in, v2 |
+**None of this is reachable today.** `ClipboardPolicy` exists and a VNC session
+honours it, but no adapter advertises a clipboard, no IPC command carries a
+clipboard operation, and no redirection channel is requested on any wire. The
+defaults below are the policy the implementation must adopt, not a description of
+running behaviour — the current behaviour is that every row is effectively off.
 
-Settings are inheritable through the folder tree, so an organisation can set
+| Feature | Default | Rationale | |
+|---|---|---|---|
+| Clipboard, text, local → remote | On | Expected behaviour; the user initiated the paste | ⏳ |
+| Clipboard, text, remote → local | On | Needed constantly for copying output | ⏳ |
+| Clipboard, **files** | **Off** | A compromised host should not be able to drop files into your clipboard | ✅ off, and nothing can turn it on |
+| Drive redirection | **Off** | Per-connection opt-in, per-folder, read-only offered first | ⏳ no channel |
+| Printer redirection | Off | Opt-in | ⏳ no channel |
+| Smart card redirection | Off | Opt-in | ⏳ no channel |
+| Audio, remote → local | On | Low risk | ⏳ — and RDP's Client Info PDU actively asks the server to send none |
+| Microphone, local → remote | **Off** | Opt-in | ⏳ no channel |
+| USB redirection | Off | Opt-in, v2 | ⏳ no channel |
+
+Settings are to be inheritable through the folder tree, so an organisation can set
 "no drive redirection" once at the root and have it apply everywhere beneath.
 
 ## Cryptographic library choices

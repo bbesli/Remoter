@@ -4,6 +4,14 @@ This document states what Remoter protects, from whom, and — just as
 importantly — what it does not protect against. A security tool that is vague
 about its limits is a liability.
 
+> **What ships.** The T1 controls — the container, Argon2id, envelope slots,
+> two-tier field encryption and header authentication — are implemented and
+> tested. The T2/T3 controls are implemented for SSH, RDP and VNC. What is *not*
+> implemented and changes the residual risk: the hardware-key slot (so "no key
+> file and no hardware key" has one fewer answer than it reads), session
+> recording, and the plugin sandbox — there is no plugin host, so the plugin
+> adversary has no surface to attack yet rather than a defended one.
+
 ## Assets
 
 Ranked by the damage their disclosure causes.
@@ -205,9 +213,13 @@ rather than guessing — fail closed, never open.
 
 | Area | Status |
 |---|---|
-| Design review, internal | Pending first implementation |
-| Independent cryptographic review | **Required before v1.0.** Tracked in the roadmap |
-| Penetration test | Planned post-1.0 |
+| Design review, internal | Done, and continuing — the vault, all four adapters and the IPC surface are implemented and reviewed in-tree |
+| Independent cryptographic review | **Not started. Required before v1.0** and tracked in the roadmap |
+| Penetration test | Not started. Planned post-1.0 |
+
+Until the independent review happens, the vault format has been designed
+carefully and read by nobody outside this project. That is the single most
+important caveat on this page.
 
 Independent review of the vault format is a **release gate for v1.0**, not an
 aspiration: the tag does not happen until a review has been done and its

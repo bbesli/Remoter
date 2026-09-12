@@ -1,8 +1,20 @@
 # Remoter Documentation
 
-This directory is the specification for Remoter. It is written before the code
-and kept in step with it: when behaviour changes, the document changes in the
-same commit.
+This directory is the specification for Remoter. It was written before the code
+and it describes the **finished** product — which is more than exists. Roughly
+half of what is specified here is implemented; the rest is the plan.
+
+**So these documents are not a feature list.** Do not read a capability here and
+conclude the software has it. Two places record what is actually built, and both
+are kept current:
+
+- [README.md's *What works today*](../README.md#what-works-today) — the table, by area
+- [roadmap.md](roadmap.md) — the same thing against the milestones, with ✅ / ◐ / ⏳
+
+Individual documents carry a note near the top saying which part of them ships.
+Where a document and the code disagree about *what exists*, the code is what you
+get. Where they disagree about *design* — what a nonce is bound to, which layer
+owns a decision — the document wins and the code is the bug.
 
 ## Start here
 
@@ -12,7 +24,7 @@ New to the project? Read in this order:
 2. [Data model](architecture/data-model.md) — how connections and credentials are shaped
 3. [Threat model](security/threat-model.md) — what we are actually protecting
 4. [Vault format](security/vault-format.md) — the cryptographic core
-5. [Roadmap](roadmap.md) — what is being built now
+5. [Roadmap](roadmap.md) — what shipped, and what is being built now
 
 ## Map
 
@@ -26,7 +38,7 @@ New to the project? Read in this order:
 | [sftp-command-surface.md](architecture/sftp-command-surface.md) | What the file manager needs from `remoter-ipc` |
 | [plugin-system.md](architecture/plugin-system.md) | WebAssembly ABI, capabilities, sandbox |
 | [storage.md](architecture/storage.md) | SQLite schema, migrations, sync-readiness |
-| [decisions/](architecture/decisions/) | Architecture Decision Records (0001–0012) |
+| [decisions/](architecture/decisions/) | Architecture Decision Records (0001–0014) |
 
 ### Security
 | Document | Contents |
@@ -72,7 +84,12 @@ New to the project? Read in this order:
 
 - **MUST / SHOULD / MAY** carry their [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119)
   meanings.
+- **✅ / ◐ / ⏳** mark implementation status where a document lists capabilities:
+  ✅ a user can do it in a running build, ◐ part of it, ⏳ specified and not
+  built. An unmarked sentence in a document whose header says it is partly built
+  is not a claim that the thing exists — check the code.
 - Code blocks marked `rust` in design documents are *illustrative sketches*, not
-  compiled source, unless stated otherwise.
+  compiled source, unless stated otherwise. The same goes for the ASCII mock-ups
+  of screens: several of them draw controls that do not exist.
 - Open questions are marked **`OPEN:`** and are tracked as issues. A document
   with no open questions is not necessarily finished — it is merely unblocked.

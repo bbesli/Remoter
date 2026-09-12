@@ -4,6 +4,11 @@ Tokens, theming and component conventions. The goal is a product that looks
 deliberate rather than assembled, and that a contributor can extend without
 guessing.
 
+> **What ships.** The tokens, the four themes, the CSS-modules approach, the
+> component conventions and the accessibility rules are what the frontend
+> actually does. Where a component row below describes something unbuilt — a
+> detachable tab, a session-history table — it is marked in place.
+
 ## Principles
 
 1. **Density with air.** Administrators work with hundreds of connections and
@@ -147,10 +152,10 @@ nothing.
 | Component | Notes |
 |---|---|
 | Tree | Virtualised; keyboard navigable; drag-and-drop with a clear drop indicator |
-| Tabs | Reorderable, detachable, colour-inherited from the connection |
+| Tabs | Reorderable, colour-inherited from the connection, with a live status dot that is never colour alone. ⏳ Not detachable |
 | Command palette | Fuzzy search over connections and actions |
 | Form fields | Every inheritable field shows provenance and an override control |
-| Data table | For the audit log and session history; sortable, virtualised |
+| Data table | For the audit log; sortable, paginated. ⏳ No session-history view |
 | Dialogs | Focus-trapped, escape-dismissible, with a clear primary action |
 | Toasts | Non-blocking; never used for anything the user must act on |
 | Progress | Determinate wherever a total is known; always cancellable |

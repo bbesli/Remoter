@@ -11,9 +11,25 @@
  * and they exist in the rail so that the wait has a place on the screen.
  */
 
-import type { ImportSource } from "@/lib/ipc";
+import type { ImportSource, IpcFailure } from "@/lib/ipc";
 
 export type StepNumber = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+
+/**
+ * The two refusals that mean "the document password is the thing to change".
+ *
+ * Detection reads the `<Connections>` header and usually knows, but it cannot
+ * always: a file whose format the sniffer could not place has no header read at
+ * all, and the format the user picked by hand carries none either. In those
+ * cases the parse is the first thing that finds out, and its refusal is the
+ * only signal the interface gets. Codes rather than sentences — the wording
+ * comes from `locales/<lang>/errors.json` and a match on it would break the
+ * moment anyone translated it.
+ */
+export function wantsDocumentPassword(failure: IpcFailure | null): boolean {
+  if (failure === null) return false;
+  return failure.code === "import.password-required" || failure.code === "import.wrong-password";
+}
 
 /**
  * A rail label's key in the `import` catalogue.
@@ -69,6 +85,11 @@ export interface WizardFacts {
   format: ImportSource | null;
   /** Whether the detection on screen is the detection of the current path. */
   detected: boolean;
+  /**
+   * Whether a document password has to be supplied — because the file's header
+   * says so, or because the parse came back asking for one. See
+   * {@link wantsDocumentPassword}.
+   */
   passwordRequired: boolean;
   hasPassword: boolean;
   hasPreview: boolean;

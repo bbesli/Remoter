@@ -214,11 +214,21 @@ pub fn parse_private_key(
         });
     };
 
-    if needs_passphrase(bytes) && passphrase.is_none_or(<[u8]>::is_empty) {
+    let wants_passphrase = needs_passphrase(bytes);
+    if wants_passphrase && passphrase.is_none_or(<[u8]>::is_empty) {
         return Err(ProtocolError::CredentialMissing {
             name: "key passphrase".to_owned(),
         });
     }
+
+    // A passphrase offered for a container that is not enciphered is dropped
+    // rather than passed on. `ssh-key` refuses such a pairing outright — a
+    // plaintext PKCS#8 handed a passphrase comes back as a parse failure — and
+    // the credential that produces it is not implausible: a key replaced with
+    // an unencrypted one while its passphrase field still held the old
+    // key's. The resulting failure would be a rejected authentication with a
+    // working key, which is a long way from its cause.
+    let passphrase = if wants_passphrase { passphrase } else { None };
 
     // Key files are text. `from_utf8` borrows rather than copies, so the key
     // material still exists only in the vault's buffer.
@@ -589,6 +599,23 @@ mod tests {
             write_ppk(&key, PpkVersion::V2).as_bytes()
         ));
         assert!(!needs_passphrase(write_pkcs8(&key).as_bytes()));
+    }
+
+    #[test]
+    fn a_passphrase_offered_to_a_key_that_needs_none_is_ignored() {
+        // `ssh-key` refuses the pairing: a plaintext PKCS#8 handed a passphrase
+        // comes back as a parse failure, which reaches the user as a rejected
+        // authentication with a key that is perfectly good. The passphrase is
+        // dropped here instead, so the same key opens either way.
+        let key = generate();
+        for pem in [openssh(&key), write_pkcs8(&key)] {
+            let parsed = parse_private_key(pem.as_bytes(), Some(b"a passphrase it has no use for"));
+            assert!(
+                parsed.is_ok_and(|parsed| parsed.public_key().to_bytes().ok()
+                    == key.public_key().to_bytes().ok()),
+                "an unencrypted key was refused because a passphrase came with it"
+            );
+        }
     }
 
     #[test]

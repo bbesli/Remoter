@@ -150,18 +150,34 @@ pub enum VaultError {
     #[error("this build cannot authenticate with a {0} private key")]
     UnsupportedKeyFormat(&'static str),
 
-    /// The file is a private key in a legacy PEM container whose body is
-    /// enciphered — the RFC 1421 §4.6.1.3 `DEK-Info` header.
+    /// The file is a private key in a legacy PEM container enciphered with a
+    /// cipher this build cannot read — the RFC 1421 §4.6.1.3 `DEK-Info` header
+    /// names one, and `crate::legacy_pem` reads AES-CBC and nothing else.
     ///
     /// Separate from [`VaultError::UnsupportedKeyFormat`] because the key
-    /// itself is perfectly usable: what is in the way is that re-enveloping it
-    /// as PKCS#8 means decrypting it first, and the step that identifies a key
-    /// file runs before the interface knows to ask for a passphrase.
-    #[error(
-        "that {0} private key is enciphered inside its PEM container; convert a copy to PKCS#8 \
-         or OpenSSH first"
-    )]
-    LegacyEncryptedKey(&'static str),
+    /// itself is perfectly usable and the remedy is different: re-enciphering a
+    /// copy under a cipher this build does read costs one `ssh-keygen -p`,
+    /// where an unsupported *key type* would still be refused afterwards.
+    #[error("this build cannot decipher a PEM container enciphered with {0}")]
+    UnsupportedKeyCipher(&'static str),
+
+    /// The key is enciphered and reached the vault without a passphrase.
+    ///
+    /// The interface asks for one as soon as [`crate::ImportedKey`] reports the
+    /// container as encrypted, so this is the arm that catches a caller which
+    /// did not — storing the ciphertext under a label that says PKCS#8 would
+    /// produce a credential that fails at connect time instead.
+    #[error("that private key is enciphered and no passphrase was supplied")]
+    KeyPassphraseRequired,
+
+    /// The passphrase did not decipher the key's PEM container.
+    ///
+    /// A legacy PEM body carries no authentication tag, so a wrong passphrase
+    /// and a corrupt body are the same observation: the padding beneath the
+    /// cipher does not check out. This names the likelier of the two, which is
+    /// also the one the user can do something about.
+    #[error("that passphrase does not decipher the key's PEM container")]
+    KeyPassphraseRejected,
 
     /// The node is not a credential holding a private key.
     #[error("node {0} is not a private-key credential")]

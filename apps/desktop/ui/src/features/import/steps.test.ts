@@ -8,7 +8,15 @@
 
 import { describe, expect, it } from "vitest";
 
-import { canGoTo, forwardBlock, GATE, jumpBlock, type WizardFacts } from "./steps";
+import {
+  canGoTo,
+  forwardBlock,
+  GATE,
+  jumpBlock,
+  wantsDocumentPassword,
+  type WizardFacts,
+} from "./steps";
+import type { IpcFailure } from "@/lib/ipc";
 
 const READY: WizardFacts = {
   hasFile: true,
@@ -33,6 +41,26 @@ const EMPTY: WizardFacts = {
   committed: false,
   busy: false,
 };
+
+function failure(code: string): IpcFailure {
+  return { code, message: "", detail: null, actions: [] };
+}
+
+describe("wantsDocumentPassword", () => {
+  it("recognises the two refusals a document password answers", () => {
+    expect(wantsDocumentPassword(failure("import.password-required"))).toBe(true);
+    expect(wantsDocumentPassword(failure("import.wrong-password"))).toBe(true);
+  });
+
+  it("does not turn every failure into a password prompt", () => {
+    expect(wantsDocumentPassword(null)).toBe(false);
+    // A file that is not the format, a file that will not open, a file whose
+    // XML is broken: none of these is fixed by typing a password.
+    expect(wantsDocumentPassword(failure("import.unknown-format"))).toBe(false);
+    expect(wantsDocumentPassword(failure("import.malformed-xml"))).toBe(false);
+    expect(wantsDocumentPassword(failure("io.failed"))).toBe(false);
+  });
+});
 
 describe("forwardBlock", () => {
   it("refuses to leave the source step without a file, and says why", () => {

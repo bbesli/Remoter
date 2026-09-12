@@ -4282,6 +4282,7 @@ name = "remoter-ipc"
 version = "0.1.0"
 dependencies = [
  "bytes",
+ "data-encoding",
  "directories",
  "getrandom 0.4.3",
  "parking_lot",
@@ -4409,14 +4410,17 @@ dependencies = [
 name = "remoter-vault"
 version = "0.1.0"
 dependencies = [
+ "aes 0.9.2",
  "argon2",
  "blake3",
+ "cbc 0.2.1",
  "chacha20poly1305",
  "ciborium",
  "data-encoding",
  "getrandom 0.4.3",
  "hkdf 0.13.0",
  "keyring",
+ "md-5 0.11.0",
  "proptest",
  "remoter-core",
  "remoter-vault",

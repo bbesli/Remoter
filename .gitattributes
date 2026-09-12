@@ -1,0 +1,21 @@
+# A Windows CI run only means something if it sees the same bytes as everybody
+# else. Git for Windows installs with core.autocrlf=true by default and the
+# GitHub windows-latest image does not override it, so without this line a
+# checkout there rewrites every LF to CRLF on the way to disk.
+#
+# That is not cosmetic in this repository. The importers build their fixtures
+# out of multi-line raw string literals — `crates/remoter-import/src/**/tests.rs`
+# — so the line endings are part of the data under test, and three protocol
+# crates scan their own source with `include_str!` to prove no diagnostic in the
+# file names a keystroke. Both read differently out of a CRLF checkout.
+#
+# No tracked file contains a carriage return today. This normalises nothing; it
+# keeps it that way.
+* text=auto eol=lf
+
+# Told explicitly rather than left to content detection, because these are read
+# byte-for-byte by the bundler and a heuristic that guessed wrong once would be
+# a corrupt installer icon nobody could explain.
+*.png binary
+*.ico binary
+*.icns binary

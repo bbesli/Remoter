@@ -314,6 +314,39 @@ let tag = mac.finalize().into_bytes();
 gives "no associated function named `new_from_slice`".
 
 
+## AES-CBC — `aes` 0.9 + `cbc` 0.2
+
+Used by `remoter-vault`'s `legacy_pem` to read an RFC 1421 enciphered PEM body,
+and by `remoter-import` for mRemoteNG's older container.
+
+```rust
+use aes::Aes128;
+use cbc::cipher::block_padding::Pkcs7;
+use cbc::cipher::{BlockModeDecrypt as _, KeyIvInit as _};
+
+let key: [u8; 16] = /* … */;
+let iv: [u8; 16] = /* … */;
+let mut buffer = ciphertext.to_vec();          // decryption is in place
+let plaintext = cbc::Decryptor::<Aes128>::new(&key.into(), &iv.into())
+    .decrypt_padded::<Pkcs7>(buffer.as_mut_slice())?;
+let len = plaintext.len();                      // borrow ends before truncate
+buffer.truncate(len);
+```
+
+Three things that do not match the 0.9/0.10-generation documentation:
+
+- the traits are `BlockModeDecrypt` / `BlockModeEncrypt`, not `BlockDecryptMut`,
+  and the method is `decrypt_padded` rather than `decrypt_padded_mut`;
+- `new` takes `&Array<u8, KeySize>`. `&[u8; N].into()` converts to it and is
+  checked at compile time; a slice does not, so derive the key straight into an
+  array of the right width rather than slicing a `Vec` into one;
+- a wrong key surfaces as a padding error from `decrypt_padded`, which is the
+  only signal CBC gives. There is no authentication tag.
+
+`Zeroize for Vec` covers the whole capacity, so the padding bytes truncated off
+the end are still wiped when a `Zeroizing<Vec<u8>>` drops.
+
+
 ## VNC / RFB — `vnc-rs` 0.5
 
 The library target is named **`vnc`**, not `vnc_rs`: `use vnc::{VncConnector,

@@ -2,17 +2,23 @@
 
 What happens between double-clicking a connection and seeing a shell prompt.
 
+> **What ships.** The pipeline is real and all four adapters run it — including
+> the gateway-chain stage, the host-key prompt and the credential borrow that
+> never crosses into the WebView. Stage 2's recording notice and stage 8's
+> clipboard are the two pieces that do not exist; both are marked below.
+
 ## Stages
 
 ```
  1  Resolve      ──▶  EffectiveConnection (inheritance flattened)
- 2  Authorise    ──▶  policy checks, confirmations, recording notice
+ 2  Authorise    ──▶  policy checks, confirmations  (⏳ no recording notice —
+                      nothing records)
  3  Acquire      ──▶  credentials borrowed from the vault, scoped
  4  Transport    ──▶  gateway chain built hop by hop → Box<dyn Transport>
  5  Handshake    ──▶  protocol adapter negotiates, verifies host identity
  6  Authenticate ──▶  credentials used, then dropped and zeroized
  7  Attach       ──▶  session registered, tab bound, event stream live
- 8  Run          ──▶  input/output, resize, clipboard, recording
+ 8  Run          ──▶  input/output, resize  (⏳ no clipboard, no recording)
  9  Terminate    ──▶  cancellation, cleanup, audit entry
 ```
 

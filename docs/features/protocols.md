@@ -3,26 +3,68 @@
 What each protocol adapter supports, which library implements it, and where the
 gaps are.
 
+> **What ships.** SSH, SFTP, RDP and VNC are implemented and have run against
+> real servers. FTP/FTPS has no adapter and no crate. The matrix below is the
+> ground truth for the four that exist; ✅ means a user can do it in a running
+> build, ⏳ means specified and not built, and — means it does not apply. Where
+> the adapter's own `capabilities()` disagrees with anything here, the adapter
+> wins and this file is the bug.
+
 ## Capability matrix
 
 | | SSH | SFTP | RDP | VNC | FTP/FTPS |
 |---|:---:|:---:|:---:|:---:|:---:|
 | Session kind | Terminal | File transfer | Framebuffer | Framebuffer | File transfer |
-| Library | `russh` | `russh-sftp` | `IronRDP` | `vnc-rs` | `suppaftp` |
-| Milestone | v0.2 | v0.2 | v0.3 | v0.4 | v0.5 |
-| Resize | ✅ | — | ✅ dynamic | ✅ where supported | — |
-| Clipboard, text | ✅ | — | ✅ | ✅ | — |
+| Library | `russh` | `russh-sftp` | `IronRDP` | `vnc-rs` | `suppaftp` — *not a dependency* |
+| Status | ✅ shipped | ✅ shipped | ✅ shipped | ✅ shipped | ⏳ not started |
+| Resize | ✅ | — | ✅ where the server opens MS-RDPEDISP | ⏳ needs `SetDesktopSize` | — |
+| Clipboard, text | — | — | ⏳ needs MS-RDPECLIP | ⏳ half on the wire, unreachable | — |
 | Clipboard, files | — | — | ⏳ v1.1 | — | — |
-| File transfer | via SFTP/SCP | ✅ | ⏳ drive redirect | — | ✅ |
+| File transfer | via SFTP on the same connection | ✅ | ⏳ drive redirect | — | ⏳ |
 | Audio | — | — | ⏳ v1.1 | — | — |
 | Printing | — | — | ⏳ v1.2 | — | — |
 | Multi-monitor | — | — | ⏳ v1.1 | — | — |
-| Recording | ✅ asciicast | ✅ operation log | ✅ frames | ✅ frames | ✅ operation log |
-| Tunnelling | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Agent auth | ✅ | ✅ | — | — | — |
+| Recording | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
+| Tunnelling | ✅ | ✅ | ✅ | ✅ | ⏳ |
+| Agent auth | ✅ off by default | ✅ off by default | — | — | — |
 
 Tunnelling is ✅ everywhere because transport is injected rather than dialled
 ([session-pipeline.md](../architecture/session-pipeline.md#4--transport)).
+
+### The rows that were wrong, and what is actually true
+
+**Clipboard.** Every adapter reports `ClipboardSupport::None`, so the interface
+draws no clipboard control on any tab, and there is no `session_clipboard`
+command for it to call if it did. The four protocols differ underneath:
+
+- **RDP** does not request the MS-RDPECLIP channel at all, and
+  `RdpSession::clipboard` returns `Unsupported` on every path.
+- **VNC** can write the remote clipboard — `ClipboardOp::Offer(Text)` becomes a
+  `ClientCutText` (RFC 6143 §7.5.6), lossily, because `vnc-rs` writes UTF-8 where
+  RFB wants Latin-1 and so the transcoder restricts to ASCII and reports what it
+  substituted. Reading is refused: `SessionEvent` has no variant that carries
+  clipboard *content*, so a `ServerCutText` is announced as an offer and its text
+  deliberately dropped rather than held in memory. `ClipboardSupport` has no way
+  to say "one direction", and of `None` and `Text` the true answer is `None`.
+  Nothing above the adapter can reach even the working direction today.
+- **SSH** has no clipboard of its own; copy and paste in a terminal tab is
+  xterm.js and the host operating system, which is what a terminal user expects.
+- **SFTP** has no text to offer, and putting a *file* on the local clipboard is
+  the `ClipboardPolicy::files` capability that
+  [transport-security.md](../security/transport-security.md) keeps off
+  everywhere.
+
+**Recording.** Nothing records anything, on any protocol. There is no
+`remoter-record` crate, no writer, no player and no control in the interface —
+see [recording-audit.md](recording-audit.md). Three adapters report
+`recordable: true` in their capabilities, which is a promise about the session
+being replayable in principle and is read by no consumer.
+
+**Agent auth** was not wrong, only unqualified. It works, and it is **off by
+default** on purpose: each identity an
+agent offers spends one of the server's `MaxAuthTries`, so an agent holding keys
+the server will not take can get the connection dropped before the vault's own
+password is tried.
 
 ---
 
@@ -31,25 +73,48 @@ Tunnelling is ✅ everywhere because transport is injected rather than dialled
 **Library**: [`russh`](https://github.com/Eugeny/russh) 0.63 — pure Rust, Tokio,
 no `libssh2`.
 
-**Authentication**: public key (vault or agent), password,
-keyboard-interactive including 2FA prompts, GSSAPI/Kerberos where the platform
-provides it, and SSH certificates.
+**Authentication**: public key (vault or agent), password, and
+keyboard-interactive including 2FA prompts. ⏳ GSSAPI/Kerberos and SSH
+certificates are specified and not implemented — neither appears in `auth.rs`,
+and a server that offers only those will report that no method succeeded.
 
-**Key formats**: OpenSSH (`ed25519`, `ecdsa`, `rsa`), PKCS#8, and PuTTY `.ppk`
-(v2 and v3) — the last is essential for migration from PuTTY and Royal TS.
+**Key formats**: OpenSSH (`ed25519`, `ecdsa`, `rsa`), PKCS#8 (encrypted and
+not), the legacy PEM containers — PKCS#1 RSA under `BEGIN RSA PRIVATE KEY`,
+which is what AWS EC2 hands out, and SEC 1 under `BEGIN EC PRIVATE KEY` — and
+PuTTY `.ppk` (v2 and v3), the last being essential for migration from PuTTY and
+Royal TS. A key is identified by its contents, not its extension, so a PuTTY key
+saved as `id_rsa` is read correctly.
+
+A legacy PEM is re-enveloped as PKCS#8 as it is stored, so the vault holds one
+representation; where the PEM is itself enciphered — `Proc-Type: 4,ENCRYPTED`
+with an RFC 1421 `DEK-Info` header — the passphrase is what opens that
+container, and the key is stored deciphered under the vault's own encryption
+with no passphrase beside it. AES-128, AES-192 and AES-256 in CBC are read.
+A PEM enciphered with DES-EDE3-CBC, which OpenSSL wrote before 1.1, is **not**:
+it is refused by name, with the `ssh-keygen -p` that converts a copy.
 
 **Channels**: interactive shell with PTY, `exec` for one-shot commands,
 `direct-tcpip` for forwarding and gateway chains, `subsystem` for SFTP, and
 optional agent forwarding (off by default, with a warning — a compromised remote
 host with a forwarded agent can impersonate the user everywhere that key opens).
+There is no SCP implementation and none is planned: SFTP does the same job over
+the same connection.
 
-**Terminal**: xterm.js with the WebGL renderer. True colour, 256 colours,
-mouse reporting, bracketed paste, OSC 8 hyperlinks, correct wide-character and
-combining-mark handling, working IME.
+**Terminal**: xterm.js with the WebGL renderer, plus the fit, search and
+web-links addons. True colour, 256 colours, mouse reporting, bracketed paste,
+OSC 8 hyperlinks, correct wide-character and combining-mark handling, working
+IME. The palette is user-editable in Settings, with a live contrast check.
 
-**Settings**: terminal type (`xterm-256color` default), environment variables,
-keep-alive interval, compression, per-connection algorithm preferences,
-X11 forwarding (v1.1), and an initial command to run on connect.
+**Settings** (each one validated against the adapter's own schema, which is what
+generates the editor's form): terminal type (`xterm-256color` default), initial
+columns and rows, environment variables as `NAME=value` lines, compression, an
+initial command, an `exec` command, agent authentication, which agent identity to
+use, and agent forwarding. Keep-alive is a field on the connection rather than a
+protocol setting.
+
+⏳ **Not in the schema**: per-connection algorithm preferences and X11
+forwarding. `x11_forwarding` is specifically tested as an *unknown* key, so
+setting it is reported rather than silently ignored.
 
 **Algorithm policy** is in
 [transport-security.md](../security/transport-security.md#ssh). Legacy
@@ -67,16 +132,32 @@ already has a shell open reuses that connection rather than authenticating
 again.
 
 **Interface**: dual-pane file manager, local on one side and remote on the
-other. Drag and drop within and between panes.
+other. Drag and drop between the panes and from the desktop, including on
+Windows, where the webview ate the drop until
+[ADR-0014](../architecture/decisions/0014-drag-and-drop-on-windows.md).
 
-**Operations**: browse, upload, download, rename, delete, `mkdir`, `chmod`,
-`chown`, symlink handling, and an edit-in-place flow that downloads to a
-temporary file, opens the user's editor, watches for changes and re-uploads.
+A pane attaches to a *session*, not to a node: `sftp_open` opens one more channel
+on the connection a tab already holds (RFC 4254 §6.5), so a file manager on a
+host with a shell costs a channel and not a second handshake, host key check and
+authentication.
 
-**Transfers**: a queue with per-file and aggregate progress, pause and resume,
-concurrency limits, resumption of interrupted transfers where the server
-supports it, and recursive directory operations. Conflicts prompt with
-size and timestamp comparison rather than silently overwriting.
+**Operations**: browse, upload, download, rename, delete (recursively, unlinking
+symbolic links rather than following them), `mkdir`, `chmod`, `stat`,
+`canonicalize`, `readlink` and `symlink`. ⏳ `chown` is not implemented — the
+owner and group are read and displayed, not set — and neither is edit-in-place.
+
+Every server-supplied name crosses the boundary twice: raw, which is what goes
+back on the wire, and escaped, which is what a human reads, with the control
+bytes, bidirectional overrides, zero-width characters and path separators found
+in it reported per row.
+
+**Transfers**: a queue with per-file progress pushed over the session's event
+channel every 512 KiB rather than polled, resume where the destination is
+strictly shorter than a source of known size — and a refusal that names the file
+in the way where it is not — per-transfer cancellation, cancel-all, and retry.
+The queue lives beside the session rather than in the interface, so it survives a
+tab switch. Conflicts prompt with size and timestamp rather than silently
+overwriting. ⏳ There is no pause, and no aggregate progress across the queue.
 
 **Not in v1.0**: server-to-server transfer, and synchronisation/mirroring modes.
 
@@ -89,18 +170,33 @@ Rust, maintained by Devolutions, used in production by Cloudflare Access and
 Teleport. Sans-I/O state machines, which is exactly what the injected-transport
 design needs.
 
-**Security**: Enhanced RDP Security with TLS 1.2/1.3, and NLA via CredSSP with
-both NTLM and Kerberos. Restricted Admin mode and Remote Credential Guard where
-the server permits — both avoid sending reusable credentials to the target and
-are recommended for administrative connections.
+**Security**: Enhanced RDP Security with TLS, and NLA via CredSSP with **NTLMv2
+only**, using extended session security. The `pubKeyAuth` exchange proves the
+server holds the certificate's private key *before* the password is sent, with
+known-answer tests against MS-NLMP §4.2.4. The server certificate gets the same
+treatment as an SSH host key: an unknown one prompts with its fingerprint,
+acceptance pins it, and a changed pinned certificate is a hard failure that only
+a typed confirmation of the offered fingerprint can override.
 
-**Graphics**: raw bitmaps, Interleaved RLE, RDP 6.0 bitmap compression, and
-RemoteFX. Colour depth is configurable, and a bandwidth profile (LAN / broadband
-/ constrained) sets sensible defaults for compression and effects.
+⏳ **Kerberos is not implemented** — it needs a KDC, a realm and an SPN resolved
+through DNS, and a domain that has disabled NTLM cannot be reached by this
+build. ⏳ Restricted Admin mode and Remote Credential Guard are likewise
+specified and absent.
 
-**Display**: dynamic resolution — the remote desktop resizes to the tab —
-plus fit-to-window, 1:1, and manual zoom. HiDPI requests a framebuffer at
-physical pixel size so text is sharp rather than upscaled.
+**Graphics**: whatever IronRDP decodes for the capabilities this client
+advertises, which includes RemoteFX and the uncompressed 32bpp surface-bits
+path. ⏳ Colour depth is **not** configurable — the Client Core Data asks for
+`WANT_32_BPP_SESSION` and offers no choice — and there is no bandwidth profile.
+
+**Display**: the tab scales the framebuffer it is given. Dynamic resolution
+needs the Display Control channel (MS-RDPEDISP), which the **server** opens; an
+older Windows host or an `xrdp` never does, so `capabilities()` reporting
+`resizable: true` is this adapter's offer and not a promise about a particular
+server. What a given session actually got is `RdpSession::granted_capabilities`,
+and a refusal reaches the user as a warning rather than a swallowed log line.
+⏳ What is still missing is the plumbing that would let `remoter-ipc` replace a
+tab's stored capabilities with the granted ones mid-session, and ⏳ HiDPI
+framebuffers at physical pixel size.
 
 **Input**: full scancode translation, which is where keyboard-layout bugs live.
 The mapping tables are tested against Turkish Q and F, German, French AZERTY,
@@ -120,14 +216,17 @@ offers the layouts worth listing by name — Turkish Q and Turkish F are two of
 them, and they are two different identifiers — and accepts any other
 identifier typed in, because Microsoft publishes several hundred.
 
-**Gateway**: RD Gateway support is planned for v1.1. Until then, RDP through an
-SSH bastion works today via the gateway chain, which covers most of the same
-need.
+**Gateway**: ⏳ RD Gateway support is planned for v1.1. RDP through an SSH
+bastion works via the gateway chain, which covers most of the same need — though
+today a chain can only reach a connection by import, because the connection
+editor has no gateway field yet.
 
 **Known gaps versus FreeRDP** — stated plainly because users will hit them:
 audio and microphone redirection, printer redirection, smart card redirection,
-USB redirection, and multi-monitor are post-1.0. Where a gap blocks a user, the
-per-connection "open in external client" escape hatch remains.
+USB redirection, drive redirection, the clipboard, and multi-monitor are all
+absent. ⏳ The per-connection "open in external client" escape hatch is
+specified and not built either, so where a gap blocks a user today the answer is
+`mstsc` or `xfreerdp` started by hand.
 
 ---
 
@@ -135,21 +234,47 @@ per-connection "open in external client" escape hatch remains.
 
 **Library**: [`vnc-rs`](https://crates.io/crates/vnc-rs) 0.5.
 
-**Encodings**: Raw, CopyRect, RRE, Hextile, Tight, ZRLE, and cursor
-pseudo-encodings.
+**Encodings**: **Raw and CopyRect, plus the three pseudo-encodings, and nothing
+else.** Tight, ZRLE, TRLE, Hextile and RRE were all withdrawn by
+[ADR-0013](../architecture/decisions/0013-rfb-handshake-and-bounded-input.md),
+which owns the RFB handshake and every length this build acts on rather than
+letting `vnc-rs` size an allocation from a wire field. Tight has no RFC and its
+rectangles are delimited by a compression stream rather than by a length; ZRLE
+and TRLE are framable but the run length that matters is written *inside* the
+compressed stream. The cost is real — a slow link now sends raw pixels, and
+CopyRect is the only saving left — and it is the price of not trusting a remote
+host to choose this process's allocation sizes. ⏳ Re-adding them means bounding
+them here first.
 
-**Compatibility**: TigerVNC, TightVNC, RealVNC, UltraVNC, x11vnc, and the
-built-in servers in macOS Screen Sharing and various hypervisors.
+**Compatibility**: any server that speaks RFB 3.3–3.8 with `None` or VNC
+Authentication. ⏳ The milestone's exit criterion — verified against TigerVNC,
+TightVNC, RealVNC and x11vnc — has not been run.
 
 **Security** is RFB's weak point and Remoter treats it as such. Classic VNC
-authentication uses DES with an 8-byte key and no transport encryption.
-VeNCrypt (TLS) is used where the server supports it; otherwise the connection
-editor offers a one-click "secure this with SSH" that builds the tunnel and
-rewrites the target to loopback. Plain VNC authentication to a non-loopback,
-non-private address raises a blocking warning.
+authentication uses DES with an 8-byte key and no transport encryption, and
+those two types are all this build can negotiate: ⏳ **VeNCrypt, RA2, Tight
+security and Apple's RD are refused**, because `vnc-rs` 0.5 cannot complete any
+of them and offering a connection that cannot succeed is worse than saying which
+type would have been needed.
 
-**Features**: view-only mode, clipboard synchronisation, `SetDesktopSize` where
-supported, and configurable JPEG quality for Tight encoding.
+So an unencrypted RFB session is the normal case, and it is classified rather
+than blanket-warned: loopback (the recommended configuration, and where an SSH
+forward arrives) is annotated, a private or carrier-grade-NAT address is
+annotated more loudly, and anything routable — including every DNS name, because
+nothing here resolves one — is **blocking**. The warning is suppressed entirely
+when the injected transport already protects the session, which the adapter
+establishes by asking the transport what carries it rather than by guessing: an
+SSH channel or a TLS session counts, a SOCKS5 or HTTP `CONNECT` proxy does not.
+⏳ The connection editor's one-click "secure this with SSH" is not built; the
+tunnel has to be created by hand.
+
+**Features**: view-only mode — which covers the clipboard as well as the
+keyboard, since `ClientCutText` replaces the server's selection and so modifies
+the remote machine as surely as a keystroke — a shared/exclusive switch, cursor
+handling, and an RFB version floor and ceiling. ⏳ `SetDesktopSize` needs client
+messages outside RFC 6143 that `vnc-rs` does not implement, so `resizable` is
+`false` and the tab scales instead. ⏳ JPEG quality is a Tight-encoding setting
+and Tight is not offered.
 
 **On `vnc-rs` maturity.** It is younger than the other protocol crates, and
 that is a real dependency risk. The response is contingency rather than
@@ -160,14 +285,17 @@ milestone exit criteria — working against TigerVNC, TightVNC, RealVNC and x11v
 
 ---
 
-## FTP and FTPS
+## FTP and FTPS — ⏳ not started
 
-**Library**: [`suppaftp`](https://crates.io/crates/suppaftp).
+**Planned library**: [`suppaftp`](https://crates.io/crates/suppaftp), which is
+not a dependency of this workspace. There is no `remoter-proto-ftp` crate, and
+`ftp` is not one of the protocols the connection editor offers, so a connection
+cannot be created for it.
 
-Included because network appliances and legacy systems still require it, not
-because it is a good idea. FTPS (explicit TLS) is supported with certificate
-validation; plain FTP carries a persistent warning badge in the UI and requires
-per-connection opt-in, because it sends credentials in clear text.
+Included in the plan because network appliances and legacy systems still require
+it, not because it is a good idea. FTPS (explicit TLS) would be supported with
+certificate validation; plain FTP would carry a persistent warning badge in the
+UI and require per-connection opt-in, because it sends credentials in clear text.
 
 Active and passive modes, resume, and directory listing parsing for both Unix
 and DOS-style server responses.
@@ -175,6 +303,10 @@ and DOS-style server responses.
 ---
 
 ## Planned
+
+None of these exists. Everything in this table needs an adapter that has not
+been written, and the four plugin rows additionally need the plugin host, which
+has not been written either.
 
 | Protocol | Approach | Milestone |
 |---|---|---|

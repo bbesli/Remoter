@@ -106,7 +106,7 @@ pub struct DocumentInfo {
 /// document is not a `<Connections>` one.
 pub fn inspect(bytes: &[u8], limits: &Limits) -> Result<DocumentInfo, ImportError> {
     let text = as_text(bytes, limits)?;
-    let mut reader = BoundedXmlReader::new(text, *limits);
+    let mut reader = BoundedXmlReader::new(&text, *limits);
     let root = read_root(&mut reader)?;
     let cipher = root.cipher()?;
     let default = Decryptor::with_default_password(cipher);
@@ -136,7 +136,7 @@ pub fn parse(
     limits: &Limits,
 ) -> Result<ImportPreview, ImportError> {
     let text = as_text(bytes, limits)?;
-    let mut reader = BoundedXmlReader::new(text, *limits);
+    let mut reader = BoundedXmlReader::new(&text, *limits);
     let root = read_root(&mut reader)?;
     let cipher = root.cipher()?;
 

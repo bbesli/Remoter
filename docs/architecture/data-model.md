@@ -4,6 +4,15 @@ How connections, folders and credentials are shaped, and how property
 inheritance works — the feature that makes a connection manager useful at scale
 rather than a bookmark list.
 
+> **What ships.** The node tree, inheritance resolution with provenance,
+> credentials and their purpose restriction, referential integrity and validation
+> are all implemented in `remoter-core` and `remoter-vault`, and are covered by
+> property tests. Two fields are stored, inherited and read by nothing:
+> `recording` (there is no recorder) and `gateway` on a *connection* — chains
+> work, but the editor has no field for one, so today a chain arrives only by
+> importing an `ssh_config`. `NodeKind::Group` likewise round-trips and opens
+> nothing.
+
 ## The node tree
 
 Everything the user organises is a **node**. Nodes form a tree.
@@ -218,6 +227,16 @@ pub enum SecretKind {
     Certificate { cert: EncryptedField, key: EncryptedField },
 }
 ```
+
+`KeyFormat` names three containers, and a key file that is in none of them is
+converted rather than refused. A PKCS#1 RSA `.pem` — what AWS EC2 hands out, and
+what `ssh-keygen -m PEM` writes — and a SEC 1 elliptic curve `.pem` are
+re-enveloped as PKCS#8 as they are read: a structural rewrite of ASN.1, with no
+key byte changed. When such a file is itself enciphered (`Proc-Type: 4,ENCRYPTED`
+with an RFC 1421 `DEK-Info` header) the passphrase the interface asks for is what
+opens the container, and what is stored afterwards is the PKCS#8 document and no
+passphrase — that passphrase belonged to an envelope the vault does not keep.
+`remoter-vault`'s `credential` and `legacy_pem` modules carry the reasoning.
 
 `EncryptedField` is never plaintext in memory unless actively borrowed:
 

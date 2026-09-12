@@ -67,14 +67,22 @@
 
 .dropInto {
   background: var(--accent-tint);
-  outline: 1px solid var(--accent);
-  outline-offset: -1px;
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 .dropInto:hover {
   background: var(--accent-tint);
 }
 
+/*
+ * Three pixels and a cap at the reading end, not the two-pixel hairline this
+ * started as. A rule that thin, between rows of this density, is something you
+ * notice once you already know it is there — and a drop indicator that only
+ * confirms a gesture you believe in is no use to someone who is trying to find
+ * out whether the gesture exists. The cap is what makes it read as an
+ * insertion point rather than as a border that happens to be lit.
+ */
 .dropBefore::before,
 .dropAfter::after {
   content: "";
@@ -82,17 +90,37 @@
   /* Matches the row's own text indent, so the line reads at the target depth. */
   inset-inline-start: calc(var(--space-2) + var(--tree-depth, 0) * var(--space-4));
   inset-inline-end: var(--space-2);
-  height: 2px;
+  height: 3px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  box-shadow: 0 0 0 1px var(--bg-surface);
+}
+
+.dropBefore::before {
+  top: -2px;
+}
+
+.dropAfter::after {
+  bottom: -2px;
+}
+
+.dropBefore::after,
+.dropAfter::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: calc(var(--space-2) + var(--tree-depth, 0) * var(--space-4) - 3px);
+  width: 9px;
+  height: 9px;
   border-radius: var(--radius-full);
   background: var(--accent);
 }
 
-.dropBefore::before {
-  top: -1px;
+.dropBefore::after {
+  top: -5px;
 }
 
-.dropAfter::after {
-  bottom: -1px;
+.dropAfter::before {
+  bottom: -5px;
 }
 
 /* A move the tree already knows the core would reject. */

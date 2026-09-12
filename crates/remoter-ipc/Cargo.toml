@@ -59,6 +59,9 @@ tauri = { version = "2", features = [] }
 # The integration tests connect a plain socket through a forward, which needs
 # the parts of `tokio` the library itself does not use.
 tokio = { workspace = true, features = ["full"] }
+# The key-inspection tests build PEM bodies by hand; base64 is how a PEM
+# carries its payload, so the fixtures need an encoder the tests can trust.
+data-encoding.workspace = true
 
 [lints]
 workspace = true

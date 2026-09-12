@@ -15,6 +15,14 @@ argon2.workspace = true
 chacha20poly1305.workspace = true
 hkdf.workspace = true
 sha2.workspace = true
+# Reading — never writing — the RFC 1421 enciphered PEM bodies that
+# `ssh-keygen -m PEM` and `openssl rsa -aes256` produce; see `src/legacy_pem.rs`.
+# All three are already in the workspace's dependency graph for `remoter-import`
+# and `remoter-proto-rdp`, so this adds no crate and no licence question: they
+# are RustCrypto, MIT OR Apache-2.0, both of which GPL-3.0 permits.
+aes.workspace = true
+cbc.workspace = true
+md-5.workspace = true
 blake3.workspace = true
 zeroize.workspace = true
 subtle.workspace = true

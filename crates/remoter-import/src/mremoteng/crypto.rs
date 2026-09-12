@@ -591,6 +591,95 @@ mod tests {
         );
     }
 
+    /// Known-answer vectors, produced by mRemoteNG itself.
+    ///
+    /// Every other test in this module encrypts with [`test_encrypt`] and
+    /// decrypts with the code beside it, which proves only that the two halves
+    /// agree. These base64 blobs came out of mRemoteNG's own build: they are
+    /// the `Protected` attributes and one connection password from the
+    /// `confCons` documents in `mRemoteNGTests/Resources`, whose file names
+    /// state the password each was written under. If a future refactor moves
+    /// the salt, changes the digest under PBKDF2, drops the salt as associated
+    /// data or reorders the tag, these stop decrypting while a round-trip test
+    /// carries on passing.
+    #[test]
+    fn ciphertext_written_by_mremoteng_itself_decrypts() {
+        // confCons_v2_6.xml — GCM, 1000 iterations, on the default password.
+        assert_eq!(
+            Decryptor::with_default_password(GCM)
+                .decrypt(
+                    "8LmIO3+MWBY0zTmfjfOEdCGxhTAwnlohb1veTGNZFt6lAYvY2UOzWyjVzkx6V93smpbP0ZOu\
+                     exN15u7rvwJEjawC"
+                )
+                .unwrap()
+                .expose(),
+            "ThisIsNotProtected"
+        );
+        // A connection password out of the same document.
+        assert_eq!(
+            Decryptor::with_default_password(GCM)
+                .decrypt(
+                    "fdZPNiJlK9u/uRr22ViSGc8w69qHSDjWw4oeqJWCqFS+kT03rMOOdCczpCtvs6sX59iIcxet\
+                     SA=="
+                )
+                .unwrap()
+                .expose(),
+            "folder1"
+        );
+
+        // confCons_v2_6_passwordis_Password.xml — the same scheme under a
+        // password the owner chose, which is the other marker.
+        assert_eq!(
+            Decryptor::new(GCM, "Password")
+                .decrypt(
+                    "e/T6ajrPtNNlHreSeD4QBqToTuiqtNACKiPJv7vU+l6TWCu9JNsmL+Y8lJ4aTl5YVcstXpQj\
+                     xsZ9i8+YV4Gs"
+                )
+                .unwrap()
+                .expose(),
+            "ThisIsProtected"
+        );
+
+        // confCons_v2_6_5k-iterations.xml — the iteration count in the document
+        // is the one the key is derived with, and not a constant.
+        let five_thousand = CipherMode::Gcm { iterations: 5000 };
+        assert_eq!(
+            Decryptor::with_default_password(five_thousand)
+                .decrypt(
+                    "Z1IOT8h7neJ5V7es5Iv63A2WsDG6QWl10F/Rb9ljKxvCseEITty1BfMNgiaVPfm7w61uabQK\
+                     qu2waDCXUpLo1OZW"
+                )
+                .unwrap()
+                .expose(),
+            "ThisIsNotProtected"
+        );
+        assert!(
+            Decryptor::with_default_password(GCM)
+                .decrypt(
+                    "Z1IOT8h7neJ5V7es5Iv63A2WsDG6QWl10F/Rb9ljKxvCseEITty1BfMNgiaVPfm7w61uabQK\
+                     qu2waDCXUpLo1OZW"
+                )
+                .is_err(),
+            "the declared iteration count is being ignored"
+        );
+
+        // confCons_v2_5.xml — the legacy scheme, from before 1.75.
+        assert_eq!(
+            Decryptor::with_default_password(CipherMode::Cbc)
+                .decrypt("95syzRuZ4mRxpNkZQzoyX8SDpQXLyMq3GncO8o4SyTBoYvn3TAWgn05ZEU2DrjkM")
+                .unwrap()
+                .expose(),
+            "ThisIsNotProtected"
+        );
+        assert_eq!(
+            Decryptor::with_default_password(CipherMode::Cbc)
+                .decrypt("u1cFYiN+39rnIjT9JOVgqzF0LwDD08ON/32tXV6aMw8=")
+                .unwrap()
+                .expose(),
+            "folder1"
+        );
+    }
+
     #[test]
     fn a_recovered_plaintext_does_not_print_itself() {
         let ciphertext = encrypt(GCM, "swordfish", "hunter2", 1);
