@@ -70,9 +70,9 @@ same code path as RDP on the LAN, and no protocol adapter contains gateway
 logic.
 
 Pure Rust is chosen specifically because of the threat model
-([threat-model.md](../../security/threat-model.md#t4)): the most dangerous input
-in the entire application is a malformed frame from a compromised host, arriving
-in a process holding every credential. Trading some feature completeness for the
+([threat-model.md](../../security/threat-model.md#t4--malicious-remote-host)):
+the most dangerous input in the entire application is a malformed frame from a
+compromised host, arriving in a process holding every credential. Trading some feature completeness for the
 elimination of that bug class is the right trade for this product.
 
 ## Consequences

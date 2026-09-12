@@ -466,3 +466,191 @@ describe("the preview", () => {
     expect(screen.getByText("This is what you will get")).toBeInTheDocument();
   });
 });
+
+/**
+ * Choosing a second file.
+ *
+ * Everything on this screen below the path is *about* the file at the path:
+ * what detection made of it, the password its owner put on it, the refusal the
+ * core came back with, and the parse the core is holding. A new file makes
+ * every one of those a statement about a file that is no longer the one being
+ * imported — and the wizard gates the next step on them, so a stale one is not
+ * only wrong on screen, it is a door that will not open.
+ */
+describe("a second file", () => {
+  const OTHER = "/home/you/servers.csv";
+
+  /** Back to step 1 through the rail, and a different path typed in. */
+  async function chooseInstead(user: ReturnType<typeof userEvent.setup>, next: string) {
+    await user.click(screen.getByRole("button", { name: "1 Source" }));
+    await user.clear(screen.getByLabelText("Path to the file"));
+    await user.type(screen.getByLabelText("Path to the file"), next);
+  }
+
+  /**
+   * The dead end: a password refusal about the first file was still on screen
+   * against the second, still rendering a password field for a file that has
+   * none, and still holding "Read the file" shut until something was typed
+   * into it.
+   */
+  it("drops the refusal, the field and the password when a different file is chosen", async () => {
+    const user = userEvent.setup();
+    mocked.parseImport.mockRejectedValue({
+      code: "import.wrong-password",
+      message: "That is not the password the file was encrypted with.",
+      detail: null,
+      actions: ["Try again"],
+    });
+    draw(<ImportWizard />);
+
+    await reachSecrets(user, detection({ passwordRequired: false, document: null }));
+    await user.click(screen.getByRole("button", { name: "Read the file" }));
+    await screen.findByText("That is not the password the file was encrypted with.");
+    await user.type(screen.getByLabelText("Document password"), "hunter2");
+
+    mocked.detectImport.mockResolvedValue(
+      detection({ path: OTHER, format: "csv", formatLabel: "CSV", passwordRequired: false }),
+    );
+    await chooseInstead(user, OTHER);
+    await user.click(screen.getByRole("button", { name: "Read this file" }));
+    await screen.findByRole("button", { name: "Continue" });
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    // The refusal was about the other file.
+    expect(
+      screen.queryByText("That is not the password the file was encrypted with."),
+    ).not.toBeInTheDocument();
+    // This one has no document password, so it is not asked for.
+    expect(screen.queryByLabelText("Document password")).not.toBeInTheDocument();
+    expect(screen.getByText("Nothing to supply")).toBeInTheDocument();
+    // And the control that reads it is open, rather than waiting on a field
+    // that is not on screen.
+    const parse = screen.getByRole("button", { name: "Read the file" });
+    expect(parse).toBeEnabled();
+
+    // The password typed for the first file does not travel to the second.
+    mocked.parseImport.mockReset();
+    mocked.parseImport.mockResolvedValue(preview());
+    await user.click(parse);
+    await waitFor(() => expect(mocked.parseImport).toHaveBeenCalledWith(OTHER, null, null));
+  });
+
+  /** A detection failure is about a file too. */
+  it("drops a detection failure when a different file is chosen", async () => {
+    const user = userEvent.setup();
+    mocked.detectImport.mockRejectedValueOnce({
+      code: "import.unreadable",
+      message: "That file could not be opened.",
+      detail: "Permission denied.",
+      actions: ["Check that you can read the file."],
+    });
+    draw(<ImportWizard />);
+
+    await user.type(screen.getByLabelText("Path to the file"), PATH);
+    await user.click(screen.getByRole("button", { name: "Read this file" }));
+    await screen.findByText("That file could not be opened.");
+
+    await chooseInstead(user, OTHER);
+    expect(screen.queryByText("That file could not be opened.")).not.toBeInTheDocument();
+  });
+
+  /**
+   * The worst of the family: the preview is a parse of the *first* file. Left
+   * standing against a second, the rail still offers the steps that act on it
+   * and the commit at the end of them would write the file the user just
+   * navigated away from.
+   */
+  it("does not offer the previous file's preview against a new file", async () => {
+    const user = userEvent.setup();
+    mocked.parseImport.mockResolvedValue(preview());
+    draw(<ImportWizard />);
+    await reachSecrets(user, detection());
+    await user.click(screen.getByRole("button", { name: "Read the file" }));
+    await screen.findByText("This is what you will get");
+
+    await chooseInstead(user, OTHER);
+
+    const toPreview = screen.getByRole("button", { name: "4 Preview" });
+    expect(toPreview).toBeDisabled();
+    expect(toPreview).toHaveAttribute("title", "Nothing has been read yet.");
+
+    // Reading the new file replaces it — and the parse of the old one does not
+    // stay resident in the core holding the passwords it recovered.
+    const second = { ...preview(), importId: "import-2" };
+    mocked.parseImport.mockResolvedValue(second);
+    mocked.detectImport.mockResolvedValue(detection({ path: OTHER, format: "csv" }));
+    await user.click(screen.getByRole("button", { name: "Read this file" }));
+    await screen.findByRole("button", { name: "Continue" });
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.click(screen.getByRole("button", { name: "Read the file" }));
+    await screen.findByText("This is what you will get");
+
+    await waitFor(() => expect(mocked.cancelImport).toHaveBeenCalledWith("import-1"));
+    await user.click(screen.getByRole("button", { name: "Close the import wizard" }));
+    await user.click(screen.getByRole("button", { name: "Discard and leave" }));
+    await waitFor(() => expect(mocked.cancelImport).toHaveBeenLastCalledWith("import-2"));
+  });
+
+  /**
+   * The same defect one step further on: a commit that failed did so writing
+   * the first file, and the second file's last step is where that notice was
+   * still sitting.
+   */
+  it("drops a failed commit's notice when a different file is chosen", async () => {
+    const user = userEvent.setup();
+    mocked.parseImport.mockResolvedValue(preview());
+    mocked.commitImport.mockRejectedValue({
+      code: "import.commit-failed",
+      message: "The import could not be written.",
+      detail: null,
+      actions: ["Try again"],
+    });
+    draw(<ImportWizard />);
+
+    async function toTheLastStep() {
+      await user.click(screen.getByRole("button", { name: "Read the file" }));
+      await screen.findByText("This is what you will get");
+      await user.click(screen.getByRole("button", { name: "Continue" }));
+      await user.click(screen.getByRole("button", { name: "Choose the destination" }));
+      await user.click(await screen.findByRole("button", { name: "Review and commit" }));
+    }
+
+    await reachSecrets(user, detection());
+    await toTheLastStep();
+    await user.click(screen.getByRole("button", { name: "Import 4 items" }));
+    await screen.findByText("The import could not be written.");
+
+    mocked.detectImport.mockResolvedValue(detection({ path: OTHER, format: "csv" }));
+    mocked.parseImport.mockResolvedValue({ ...preview(), importId: "import-2" });
+    await chooseInstead(user, OTHER);
+    await user.click(screen.getByRole("button", { name: "Read this file" }));
+    await screen.findByRole("button", { name: "Continue" });
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await toTheLastStep();
+
+    expect(screen.queryByText("The import could not be written.")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Import 4 items" })).toBeEnabled();
+  });
+
+  /**
+   * Editing a path is not a decision to throw a parse away: a typo corrected
+   * back to what it was finds the preview where it was left.
+   */
+  it("keeps the preview when the path is edited back to what it was", async () => {
+    const user = userEvent.setup();
+    mocked.parseImport.mockResolvedValue(preview());
+    draw(<ImportWizard />);
+    await reachSecrets(user, detection());
+    await user.click(screen.getByRole("button", { name: "Read the file" }));
+    await screen.findByText("This is what you will get");
+
+    await user.click(screen.getByRole("button", { name: "1 Source" }));
+    const field = screen.getByLabelText("Path to the file");
+    await user.type(field, "x");
+    expect(screen.getByRole("button", { name: "4 Preview" })).toBeDisabled();
+
+    await user.type(field, "{backspace}");
+    expect(mocked.cancelImport).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "4 Preview" })).toBeEnabled();
+  });
+});

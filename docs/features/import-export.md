@@ -1,5 +1,16 @@
 # Import and Export
 
+> **What ships: the import half, and none of the export half.** Three importers
+> are built — mRemoteNG `confCons.xml`, `~/.ssh/config` and CSV — each with
+> format detection, a bounded parse, a preview the user selects from, an
+> all-or-nothing commit and a findings report, and each with a `cargo-fuzz`
+> target. ⏳ **Nothing exports, in any format**, so *Export* and
+> *Round-tripping* below are specification entire; the only files that leave
+> the vault today are the audit log and the recovery sheet. ⏳ Also not built:
+> per-item conflict resolution against what the vault already holds (step 5 of
+> the flow), `known_hosts` into the trust store, and every source in the table
+> marked ⏳. Each is marked in place below.
+
 Migration is the highest-leverage feature for adoption: an administrator with
 four hundred connections in mRemoteNG will not retype them, and no amount of
 better design will overcome that.
@@ -57,9 +68,45 @@ attributes it reads are present in all three.
 file that opens with a byte-order mark is read as the mark says: UTF-8 marks are
 stripped, and UTF-16 — which is what a `>` redirect in Windows PowerShell 5 or a
 "save as Unicode" in Notepad makes of a document that passed through them — is
-converted rather than refused. Nothing is guessed: the declared `encoding` in
-the XML declaration is content, and a heuristic over byte frequencies would make
-a file's encoding depend on what its hostnames happen to be.
+converted rather than refused.
+
+A file with **no mark** whose first bytes carry a NUL at every second position
+is converted as UTF-16 as well. That is a fact about the bytes rather than a
+guess about the content: U+0000 is forbidden in XML 1.0 (§2.2) and has no place
+in a CSV or an `ssh_config` either, so those bytes cannot be the file in any
+encoding this reads. Without the check the interleaved NULs are valid UTF-8, the
+file reaches the XML reader whole, and the refusal the user is shown is about
+their markup — which is the one thing not wrong with it.
+
+Nothing beyond that is guessed. The declared `encoding` in the XML declaration
+is content, and a heuristic over byte frequencies would make a file's encoding
+depend on what its hostnames happen to be.
+
+**Detection** asks two questions in a fixed order, and the order is the rule.
+
+First: what is the document's **root element**? Its *first* element, skipping
+the XML declaration, comments and a doctype — looked for as far as 256 KiB in,
+because a `confCons.xml` that has been through an export script can carry a
+banner above its root, and the root is then still the document's first element,
+just further in than a head-sized window reaches. A root whose local name is
+`Connections` is an mRemoteNG file; any other root is an XML document this build
+does not read, and neither answer is revised by anything further into the file.
+A `<Connections>` that is *not* the root is a folder called Connections in
+somebody else's export, and is not evidence of anything.
+
+Second, and only for a file with no root element to read: the line-shaped tests
+— `Host`, `Match` or `Include` at the start of a line for an OpenSSH config, a
+first line carrying "host" and a separator for a CSV. Those read the first 8 KiB
+only, since a line a quarter of a megabyte into a file says nothing about what
+the file is. They come second because a root element is a fact about a document
+where a line shape is a coincidence any file can contain: an `ssh_config` pasted
+into a banner has three hundred `Host …` lines in it and the file around them is
+still XML. Asked first, they called such a `confCons.xml` an OpenSSH config.
+
+A prolog longer than 256 KiB, or a root element the window cuts in half, leaves
+the format unknown — and unknown is a usable answer, because detection is a
+preselection the user can overrule, never a gate: the wizard says so and offers
+the three formats, and any file can be imported as any format by choosing one.
 
 Encryption varies by version, and the file declares which it uses:
 
@@ -190,6 +237,9 @@ there is one cryptographic design to review rather than two.
 
 Export followed by import must reproduce the original exactly, including
 inheritance states, custom fields, tags and protocol settings that the running
-version does not itself understand. A round-trip property test enforces this,
-because it is the guarantee that makes "you are not locked in" more than a
-slogan.
+version does not itself understand. A round-trip property test is to enforce
+this, because it is the guarantee that makes "you are not locked in" more than a
+slogan. ⏳ It is not written, and cannot be: there is no export for it to round
+a tree through. The three property tests that exist cover inheritance
+resolution, moves and the importers — see
+[testing-strategy.md](../development/testing-strategy.md#property-tests).

@@ -317,6 +317,30 @@
         "输入该密钥的口令",
         "选择未受口令保护的密钥"
       ]
+    },
+    "_comment_passphrase-rejected": "Distinct from passphrase-required, which is what a key gets when no passphrase was supplied at all. This one means the passphrase was actually tried against the container and did not open it. None of these key containers authenticates the passphrase, so a corrupt file produces the same observation; the sentence names the likelier of the two because it is the one the reader can act on. Do not soften it into \"may not\" — the passphrase was tried.",
+    "passphrase-rejected": {
+      "message": "该口令打不开这把密钥。未写入任何内容。",
+      "actions": [
+        "核对口令后重试",
+        "改用系统的 SSH 代理"
+      ]
+    },
+    "_comment_passphrase-not-needed": "The reader typed a passphrase for a key whose container says the key material is not enciphered. This is a mismatch to point out, not a fault to report: the second action assumes they may have picked the wrong one of two key files. The refusal never quotes what was typed.",
+    "passphrase-not-needed": {
+      "message": "这把密钥没有口令保护，口令打不开任何东西。未写入任何内容。",
+      "actions": [
+        "不带口令保存这把密钥",
+        "选择你本来要用的那把受口令保护的密钥"
+      ]
+    },
+    "_comment_passphrase-uncheckable": "Not a wrong passphrase and not an unusable key: Remoter can store and connect with keys it cannot check the passphrase of, and refuses to store the passphrase for exactly that reason. The first action quotes two commands. Translate the sentence around them if there is one; never translate the commands themselves, and keep `<file>` and `<copy>` exactly as they are. The word 'copy' is load-bearing: `ssh-keygen -p` rewrites the file it is given, and the user's key file is very often shared with other tools. The diagnostic beside this sentence names which container could not be opened.",
+    "passphrase-uncheckable": {
+      "message": "Remoter 无法打开该密钥的容器来核对口令，因此不会保存一个它无法担保的口令。未写入任何内容。",
+      "actions": [
+        "转换一份副本：先 `cp <file> <copy>`，再 `ssh-keygen -p -m PKCS8 -f <copy>`",
+        "改用系统的 SSH 代理"
+      ]
     }
   },
   "credential": {

@@ -19,6 +19,13 @@
  * works until the moment something takes the pointer, which is the failure
  * that kept coming back.
  *
+ * A separator publishes `data-drop-id` too. It is a gap someone drew between
+ * two entries, which is a *position*, so it takes a drop the way the gap it
+ * stands for would — and it is dragged the same way, for the same reason. What
+ * kept it from being a drag source was that it has no name, so the move came
+ * out as "Moved “” above “x”"; the answer to that was four sentences in the
+ * catalogue, not a line the user is not allowed to move.
+ *
  * `data-container` says whether this row *presents itself* as something that
  * holds entries, which is not the same as whether it can. A group wears the
  * folder glyph and holds nothing (docs/architecture/data-model.md), and it
@@ -186,9 +193,51 @@ export const NodeRow = memo(function NodeRow({
   const t = useT("connections");
   const indent = { "--tree-depth": String(depth) } as CSSProperties;
 
+  const handlePointerDown = (e: PointerEvent<HTMLDivElement>) => {
+    if (!movable) return;
+    // Primary button only, and never touch: on a tablet the same gesture is
+    // how the sidebar is scrolled, and a tree that cannot be scrolled is a
+    // worse trade than one that cannot be reordered by finger. The keyboard
+    // path in the tree is the equivalent that is always available.
+    if (e.button !== 0 || e.pointerType === "touch") return;
+    onPressRow(node.id, e.clientX, e.clientY, e.pointerId, e.currentTarget);
+  };
+
+  /*
+   * A separator is a gap that was drawn on purpose, and a gap between two
+   * siblings is a position. It therefore carries `data-drop-id` like any other
+   * row and splits into two bands like any other row that holds nothing.
+   *
+   * Returning early *before* the attribute was the hole: `closest()` walked
+   * straight past a separator to the scroller, so a node dropped on the line
+   * between two folders was read as a drop on the background and went to the
+   * end of the top level — a different place from the one the pointer was over,
+   * with no refusal and no indicator to say so.
+   *
+   * **It is a drag source as well**, which it was not until now. A press on
+   * one produced no gesture at all — no indicator, no chip, no refusal, no
+   * announcement — because the only thing standing in the way was that the
+   * catalogue had no sentence for moving a thing with no name. A line whose
+   * entire meaning is where it sits, in a tree that can be rearranged by
+   * dragging, that alone cannot be dragged, is an asymmetry nobody can see the
+   * reason for. `describeMove` now has four sentences for it.
+   */
   if (node.kind === "separator") {
     return (
-      <div className={s.separatorRow} style={indent} role="separator" id={domId}>
+      <div
+        className={clsx(
+          s.separatorRow,
+          dragging && s.dragging,
+          dropBand !== null && dropRefused && s.dropRefused,
+          dropBand === "before" && !dropRefused && s.dropBefore,
+          dropBand === "after" && !dropRefused && s.dropAfter,
+        )}
+        style={indent}
+        role="separator"
+        id={domId}
+        {...(droppable ? { "data-drop-id": node.id } : {})}
+        onPointerDown={handlePointerDown}
+      >
         <span className={s.separatorLine} />
       </div>
     );
@@ -202,16 +251,6 @@ export const NodeRow = memo(function NodeRow({
     e.stopPropagation();
     onSelect(node.id);
     onContextMenu(node.id, e.clientX, e.clientY);
-  };
-
-  const handlePointerDown = (e: PointerEvent<HTMLDivElement>) => {
-    if (!movable) return;
-    // Primary button only, and never touch: on a tablet the same gesture is
-    // how the sidebar is scrolled, and a tree that cannot be scrolled is a
-    // worse trade than one that cannot be reordered by finger. The keyboard
-    // path in the tree is the equivalent that is always available.
-    if (e.button !== 0 || e.pointerType === "touch") return;
-    onPressRow(node.id, e.clientX, e.clientY, e.pointerId, e.currentTarget);
   };
 
   return (

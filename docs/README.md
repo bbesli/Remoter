@@ -11,7 +11,14 @@ are kept current:
 - [README.md's *What works today*](../README.md#what-works-today) — the table, by area
 - [roadmap.md](roadmap.md) — the same thing against the milestones, with ✅ / ◐ / ⏳
 
-Individual documents carry a note near the top saying which part of them ships.
+Every file in [architecture/](architecture/) and [features/](features/) opens
+with a note saying which part of it ships —
+[architecture/decisions/](architecture/decisions/) excepted, since an ADR
+records a decision and not a status — and six documents elsewhere here do the
+same. `scripts/check-docs.sh` proves that sentence, the map below and every
+relative link and `#fragment` in these documents; run it before you call a
+documentation change finished.
+
 Where a document and the code disagree about *what exists*, the code is what you
 get. Where they disagree about *design* — what a nonce is bound to, which layer
 owns a decision — the document wins and the code is the bug.
@@ -71,6 +78,7 @@ New to the project? Read in this order:
 | [project-structure.md](development/project-structure.md) | Where code goes and why |
 | [coding-standards.md](development/coding-standards.md) | Rust and TypeScript conventions |
 | [testing-strategy.md](development/testing-strategy.md) | Unit, property, fuzz, integration, E2E |
+| [verified-apis.md](development/verified-apis.md) | Dependency call signatures, compiled against the pinned versions |
 | [build-release.md](development/build-release.md) | CI matrix, packaging, signing, updates |
 
 ### Reference

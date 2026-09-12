@@ -20,5 +20,6 @@ history.
 | [0011](0011-panic-strategy.md) | `panic = "unwind"` in release builds | Accepted |
 | [0012](0012-audit-log-integrity.md) | No hash chain in v1.0; forward-secure sealing later | Accepted |
 | [0013](0013-rfb-handshake-and-bounded-input.md) | Own the RFB handshake; bound the RFB server stream | Accepted |
+| [0014](0014-drag-and-drop-on-windows.md) | Pointer-event dragging; Tauri's drag-drop handler off | Accepted |
 
 Copy [0000-template.md](0000-template.md) to start a new one.

@@ -1079,6 +1079,61 @@ fn a_real_mremoteng_export_comes_in_whole() {
     assert_eq!(Tree::from_nodes(nodes).unwrap().len(), expected);
 }
 
+/// A real export with a banner above its root element.
+///
+/// mRemoteNG never writes that shape, but a file that has been through an
+/// export script or a hand edit can carry one, and the root is still the
+/// document's first element. Detection used to read a fixed window and answer
+/// "I cannot tell what this is" for a file the parser then reads without a
+/// complaint.
+#[test]
+fn a_banner_above_the_root_stops_neither_detection_nor_the_parse() {
+    let export = real_export(GCM, DEFAULT_PASSWORD);
+    let text = core::str::from_utf8(&export).unwrap();
+    let (declaration, rest) = text.split_once('\n').unwrap();
+    let mut banner = String::from("<!--\n");
+    for run in 0..400 {
+        banner.push_str(&format!(
+            "  Written by the estate inventory script, run {run}.\n"
+        ));
+    }
+    banner.push_str("-->\n");
+    assert!(banner.len() > 8192, "the banner has to outrun the window");
+    let bannered = format!("{declaration}\n{banner}{rest}");
+
+    assert_eq!(
+        crate::detect(bannered.as_bytes()),
+        Some(crate::SourceFormat::MRemoteNg)
+    );
+    let preview = preview_bytes(bannered.as_bytes(), None);
+    assert_eq!(preview.report().counts().connections, 3);
+}
+
+/// The same export, transcoded to UTF-16 by something that did not write a
+/// byte-order mark on the way out.
+///
+/// The interleaved NULs are valid UTF-8, so the file sailed past the encoding
+/// check and died in the XML reader as "not well formed … inside `<xml>`" — a
+/// sentence about markup, for a document whose markup is perfect and whose
+/// encoding is the only thing that was not what the reader assumed.
+#[test]
+fn a_real_export_in_utf16_with_no_mark_is_read_rather_than_called_broken() {
+    let utf8 = real_export(GCM, DEFAULT_PASSWORD);
+    let text = core::str::from_utf8(&utf8)
+        .unwrap()
+        // The mark the fixture carries would become a UTF-16 mark, which is the
+        // case that already worked.
+        .trim_start_matches('\u{feff}');
+    let mut le = Vec::new();
+    for unit in text.encode_utf16() {
+        le.extend_from_slice(&unit.to_le_bytes());
+    }
+
+    assert_eq!(crate::detect(&le), Some(crate::SourceFormat::MRemoteNg));
+    let preview = preview_bytes(&le, None);
+    assert_eq!(preview.report().counts().connections, 3);
+}
+
 #[test]
 fn a_real_export_the_owner_put_a_password_on_asks_for_it_once() {
     let bytes = real_export(GCM, "correct horse battery staple");

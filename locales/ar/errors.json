@@ -317,6 +317,30 @@
         "إدخال عبارة مرور المفتاح",
         "اختيار مفتاح غير محمي بعبارة مرور"
       ]
+    },
+    "_comment_passphrase-rejected": "Distinct from passphrase-required, which is what a key gets when no passphrase was supplied at all. This one means the passphrase was actually tried against the container and did not open it. None of these key containers authenticates the passphrase, so a corrupt file produces the same observation; the sentence names the likelier of the two because it is the one the reader can act on. Do not soften it into \"may not\" — the passphrase was tried.",
+    "passphrase-rejected": {
+      "message": "عبارة المرور هذه لا تفتح المفتاح. لم يُكتب أي شيء.",
+      "actions": [
+        "تحقّق من عبارة المرور وأعد المحاولة",
+        "استخدم وكيل SSH الخاص بالنظام بدلاً من ذلك"
+      ]
+    },
+    "_comment_passphrase-not-needed": "The reader typed a passphrase for a key whose container says the key material is not enciphered. This is a mismatch to point out, not a fault to report: the second action assumes they may have picked the wrong one of two key files. The refusal never quotes what was typed.",
+    "passphrase-not-needed": {
+      "message": "هذا المفتاح غير محميّ بعبارة مرور، لذا لن تفتح العبارة شيئًا. لم يُكتب أي شيء.",
+      "actions": [
+        "احفظ هذا المفتاح دون عبارة مرور",
+        "اختر المفتاح المحميّ الذي قصدته"
+      ]
+    },
+    "_comment_passphrase-uncheckable": "Not a wrong passphrase and not an unusable key: Remoter can store and connect with keys it cannot check the passphrase of, and refuses to store the passphrase for exactly that reason. The first action quotes two commands. Translate the sentence around them if there is one; never translate the commands themselves, and keep `<file>` and `<copy>` exactly as they are. The word 'copy' is load-bearing: `ssh-keygen -p` rewrites the file it is given, and the user's key file is very often shared with other tools. The diagnostic beside this sentence names which container could not be opened.",
+    "passphrase-uncheckable": {
+      "message": "لا يستطيع Remoter فتح حاوية هذا المفتاح للتحقّق من عبارة المرور، ولذلك لا يحفظ عبارة لا يستطيع ضمانها. لم يُكتب أي شيء.",
+      "actions": [
+        "حوّل نسخة: `cp <file> <copy>` ثم `ssh-keygen -p -m PKCS8 -f <copy>`",
+        "استخدم وكيل SSH الخاص بالنظام بدلاً من ذلك"
+      ]
     }
   },
   "credential": {

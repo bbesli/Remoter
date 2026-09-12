@@ -1,5 +1,12 @@
 # SFTP Command Surface
 
+> **What ships: all of it.** This was written as a specification and then
+> built: the `sftp_*` commands are registered in `remoter-ipc/src/lib.rs`, both
+> routes to a pane in *Where this sits* work, and the transfer queue, the
+> preflight question, the pushed progress, cancellation and resume behave as
+> described. Nothing below is marked ⏳, and *What this does not cover* is a
+> list of deliberate exclusions rather than a list of gaps.
+
 What `remoter-ipc` must expose so that a dual-pane file manager can be built on
 the SFTP engine that already exists.
 
@@ -207,8 +214,10 @@ field in the struct that an attacker chooses.
 This is the requirement most easily got wrong, and `run_queue` already
 implements it: the session's token is *raced* against the transfer, not checked
 between files. A 40 GB download that keeps writing after the user closed the tab
-is a leaked task holding a socket and a file handle, which CLAUDE.md §5 calls a
-correctness bug rather than an untidiness.
+is a leaked task holding a socket and a file handle. CLAUDE.md §5 requires a
+closed tab to terminate its task and free its sockets deterministically, and
+[overview.md](overview.md) calls a leaked session a correctness bug rather than
+a cosmetic one.
 
 The command layer must not weaken that. `sftp_close` cancels the pane's token
 and waits for the drain task to finish before returning, so that "the pane is

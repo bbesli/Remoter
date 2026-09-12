@@ -18,7 +18,7 @@ use std::path::{Path, PathBuf};
 use remoter_core::{CredentialProps, KeyFormat, Node, NodeKind, SecretKind};
 use remoter_vault::{
     CreateOptions, ExposeSecret, ImportedKey, KdfParams, Purpose, RecoveryKey, Secret,
-    UnlockMethod, Vault, VaultError, agent_credential, private_key_credential,
+    UnlockMethod, Vault, VaultError, agent_credential, private_key_credential, testing,
 };
 
 const PASSWORD: &str = "a master password";
@@ -79,12 +79,19 @@ fn pem(label: &str, body: &[u8]) -> Vec<u8> {
     out.into_bytes()
 }
 
-fn openssh(cipher: &str) -> Vec<u8> {
-    let mut body = Vec::from(&b"openssh-key-v1\0"[..]);
-    body.extend_from_slice(&u32::try_from(cipher.len()).unwrap().to_be_bytes());
-    body.extend_from_slice(cipher.as_bytes());
-    body.extend_from_slice(b"\0\0\0\x04none\0\0\0\0\0\0\0\x01");
-    pem("OPENSSH PRIVATE KEY", &body)
+/// An unencrypted OpenSSH container.
+fn openssh() -> Vec<u8> {
+    testing::plain_openssh_key()
+}
+
+/// An OpenSSH container that [`PASSPHRASE`] opens.
+///
+/// A real one, enciphered with a real key derived from that passphrase: the
+/// vault now tries the passphrase against the container before it seals
+/// anything, so a stub naming a cipher over arbitrary bytes is refused — which
+/// is the point of the change these tests were rewritten for.
+fn encrypted_openssh() -> Vec<u8> {
+    testing::encrypted_openssh_key(PASSPHRASE.as_bytes())
 }
 
 fn pkcs8(encrypted: bool) -> Vec<u8> {
@@ -115,7 +122,7 @@ fn ppk(encryption: &str) -> Vec<u8> {
 #[test]
 fn every_format_survives_a_round_trip_through_the_file() {
     for (name, bytes, expected) in [
-        ("id_ed25519", openssh("none"), KeyFormat::OpenSsh),
+        ("id_ed25519", openssh(), KeyFormat::OpenSsh),
         ("id_rsa.pk8", pkcs8(false), KeyFormat::Pkcs8),
         ("id_ed25519.ppk", ppk("none"), KeyFormat::PuttyPpk),
     ] {
@@ -167,7 +174,7 @@ fn a_format_is_detected_from_content_not_from_the_extension() {
     let (mut vault, _key, _path) = create(dir.path());
 
     for (name, bytes, expected) in [
-        ("misleading.pem", openssh("none"), KeyFormat::OpenSsh),
+        ("misleading.pem", openssh(), KeyFormat::OpenSsh),
         ("misleading.ppk", pkcs8(false), KeyFormat::Pkcs8),
         ("misleading.txt", ppk("none"), KeyFormat::PuttyPpk),
     ] {
@@ -188,7 +195,7 @@ fn a_passphrase_protected_key_stores_its_passphrase_as_a_separate_field() {
     let (mut vault, _key, path) = create(dir.path());
     let node = key_credential(&mut vault, true);
 
-    let bytes = openssh("aes256-ctr");
+    let bytes = encrypted_openssh();
     let key_path = dir.path().join("id_ed25519");
     fs::write(&key_path, &bytes).unwrap();
 
@@ -220,6 +227,74 @@ fn a_passphrase_protected_key_stores_its_passphrase_as_a_separate_field() {
     );
 }
 
+/// A passphrase offered for a key that is not enciphered is refused, and the
+/// refusal says which of the four things is wrong.
+///
+/// It used to be sealed, and the vault ended up holding an encrypted secret
+/// that unlocks nothing: the key parser drops a passphrase a plaintext
+/// container has no use for, so the value was carried, backed up and moved
+/// between machines for no purpose anything could name. `CLAUDE.md` §7 asks of
+/// every value whether it could end up somewhere it should not; a secret with
+/// no job is that question answered badly.
+///
+/// It was then dropped on the floor instead, which is not better: a caller told
+/// nothing goes on believing a passphrase was stored. So it is refused, with
+/// its own error — the reader typed a passphrase for a key that needs none, and
+/// that is a thing to tell them, not a bug to report.
+#[test]
+fn a_passphrase_for_a_key_that_needs_none_is_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut vault, _key, path) = create(dir.path());
+    let node = key_credential(&mut vault, true);
+
+    let key_path = dir.path().join("id_ed25519");
+    fs::write(&key_path, openssh()).unwrap();
+    let key = ImportedKey::read(&key_path).unwrap();
+    assert!(!key.is_encrypted(), "the container says so");
+
+    assert!(
+        matches!(
+            vault.set_private_key(node, &key, Some(&Secret::new(String::from(PASSPHRASE)))),
+            Err(VaultError::KeyPassphraseNotNeeded)
+        ),
+        "a passphrase that opens nothing is refused rather than dropped"
+    );
+
+    assert!(
+        !vault.has_secret(node, "passphrase").unwrap(),
+        "a passphrase that opens nothing must not be in the vault"
+    );
+    // And nothing else was written either: a refused import leaves the
+    // credential exactly as it was.
+    assert!(!vault.has_secret(node, "private_key").unwrap());
+
+    // The same key with no passphrase is stored, and the node says it has none,
+    // so the interface cannot draw a passphrase the vault does not hold.
+    vault.set_private_key(node, &key, None).unwrap();
+    match vault.node(node).unwrap().unwrap().kind {
+        NodeKind::Credential(props) => match props.secret {
+            SecretKind::PrivateKey {
+                sealed_passphrase, ..
+            } => assert!(sealed_passphrase.is_none()),
+            other => panic!("expected a private-key credential, got {other:?}"),
+        },
+        other => panic!("expected a credential node, got {other:?}"),
+    }
+
+    // Not merely absent from this session: nothing was written to the file.
+    vault.save().unwrap();
+    vault.lock();
+    let mut reopened = reopen(&path);
+    assert_eq!(
+        reopened.secret_fields(node).unwrap(),
+        vec![String::from("private_key")]
+    );
+    let material = reopened
+        .borrow_private_key(node, Purpose::SshPrivateKey)
+        .unwrap();
+    assert!(material.passphrase().is_none());
+}
+
 #[test]
 fn replacing_an_encrypted_key_with_a_plain_one_removes_the_passphrase() {
     let dir = tempfile::tempdir().unwrap();
@@ -227,7 +302,7 @@ fn replacing_an_encrypted_key_with_a_plain_one_removes_the_passphrase() {
     let node = key_credential(&mut vault, true);
 
     let encrypted = dir.path().join("encrypted");
-    fs::write(&encrypted, openssh("aes256-ctr")).unwrap();
+    fs::write(&encrypted, encrypted_openssh()).unwrap();
     vault
         .import_private_key(
             node,
@@ -238,7 +313,7 @@ fn replacing_an_encrypted_key_with_a_plain_one_removes_the_passphrase() {
     assert!(vault.has_secret(node, "passphrase").unwrap());
 
     let plain = dir.path().join("plain");
-    fs::write(&plain, openssh("none")).unwrap();
+    fs::write(&plain, openssh()).unwrap();
     vault.import_private_key(node, &plain, None).unwrap();
 
     assert!(
@@ -302,7 +377,7 @@ fn a_missing_file_and_a_missing_node_are_both_refused() {
     ));
 
     let key_path = dir.path().join("id_ed25519");
-    fs::write(&key_path, openssh("none")).unwrap();
+    fs::write(&key_path, openssh()).unwrap();
     assert!(matches!(
         vault.import_private_key(uuid::Uuid::now_v7(), &key_path, None),
         Err(VaultError::NoSuchNode(_))
@@ -321,7 +396,7 @@ fn a_node_that_is_not_a_credential_cannot_hold_a_key() {
     vault.apply(&tree, &patch).unwrap();
 
     let key_path = dir.path().join("id_ed25519");
-    fs::write(&key_path, openssh("none")).unwrap();
+    fs::write(&key_path, openssh()).unwrap();
     assert!(matches!(
         vault.import_private_key(id, &key_path, None),
         Err(VaultError::NotAPrivateKeyCredential(_))
@@ -369,7 +444,7 @@ fn no_debug_output_anywhere_on_the_path_shows_the_key() {
     let (mut vault, _key, _path) = create(dir.path());
     let node = key_credential(&mut vault, true);
 
-    let bytes = openssh("aes256-ctr");
+    let bytes = encrypted_openssh();
     let key_path = dir.path().join("id_ed25519");
     fs::write(&key_path, &bytes).unwrap();
 

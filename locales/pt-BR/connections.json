@@ -1,11 +1,9 @@
 {
   "_comment_file": "The connection tree, the command palette and the connection editor — everything under apps/desktop/ui/src/features/connections. The editor is the largest surface in the product, and most of its copy is about ONE idea: a value can be set here or inherited from a folder above, and the screen always says which. Keep that vocabulary consistent. 'inherit', 'override' and 'revert' are the three verbs; if your language needs different words for them, pick three and use them everywhere in this file.",
-
   "punctuation": {
     "_comment_detail": "Separates a statement from the value it is about: 'overrides the value from Datacentre EU-West · 2222'. Also joins the suggested actions on a failure notice. A locale whose readers expect a different glyph may change it; it is punctuation, not copy. The glyph only — the space on either side of it is layout and is added by the code.",
     "detail": "·"
   },
-
   "tree": {
     "_comment_": "The sidebar. It is 268px wide, so a label that wraps to three lines is a design problem — prefer the shorter phrasing where your language offers one.",
     "_comment_label": "The accessible name of the tree itself, read out when a screen reader enters the sidebar. Plural: it names the collection, not one connection.",
@@ -27,7 +25,6 @@
     "newConnection": "Nova conexão",
     "newFolder": "Nova pasta"
   },
-
   "row": {
     "_comment_": "One row of the tree, at 14px in a narrow column. Every string here also has to survive being read out in sequence, one row after another.",
     "_comment_expand": "Verb, on the chevron of a closed folder. It opens the folder; it does not resize anything.",
@@ -41,7 +38,6 @@
     "usedByCount": "{count, plural, one {usada por #} many {usada por #} other {usada por #}}",
     "usedByHint": "Conexões que tiram a credencial desta entrada"
   },
-
   "menu": {
     "_comment_": "The right-click menu on a row. Each item is a verb the user is about to perform.",
     "_comment_connect": "Verb: open a session to this connection now.",
@@ -51,7 +47,6 @@
     "_comment_delete": "Verb, on the menu item that opens the confirmation. The confirmation has its own button, delete.confirm — the two may need different forms in your language.",
     "delete": "Excluir"
   },
-
   "delete": {
     "_comment_": "SECURITY-CRITICAL SECTION. Deleting writes the vault at once and nothing can bring the entry back. Do not soften any of it, do not make it more polite, and do not turn a statement of fact into a suggestion.",
     "title": "Excluir esta entrada?",
@@ -64,10 +59,15 @@
     "inProgress": "Excluindo…",
     "failed": "A entrada não foi excluída"
   },
-
   "move": {
     "_comment_": "Drag-and-drop, and the Ctrl+arrow keyboard equivalent. Everything here is announced to a screen reader through a live region: a sighted user watches the row move, and these sentences are the only thing a blind user gets. Say plainly what happened, in the past tense, and name both ends of the move.",
     "inProgress": "Movendo…",
+    "_comment_inProgressCount": "Shown beside the spinner while one reorder is written to the vault, which it does one entry at a time. {done} counts from 0 up to {total}; both are plain counts, not names. Only used when a move takes more than one write — 'inProgress' above covers the single one.",
+    "inProgressCount": "Movendo… {done} de {total}",
+    "_comment_undoing": "A move is several vault writes. When one of them fails, the ones that already landed are undone one at a time, and this is the status line while that happens. Nothing is being moved anywhere new.",
+    "undoing": "Devolvendo os itens…",
+    "_comment_notUndone": "Rare and serious: the move failed, and so did the attempt to undo the part of it that had already been written, so two entries were left in the same position and the tree the user is looking at is not the one in the vault. Keep the second sentence — it is the way out, not reassurance.",
+    "notUndone": "Alguns itens ficaram ocupando o mesmo lugar na lista, porque devolvê-los também falhou. Mover um deles novamente ajeita a ordem.",
     "failed": "A entrada não foi movida",
     "_comment_failedAnnounce": "The same failure, read out. {reason} is the core's own sentence, already written for a person; it arrives complete and punctuated.",
     "failedAnnounce": "A entrada não foi movida. {reason}",
@@ -92,9 +92,13 @@
     "atLast": "“{name}” já é o último entre os itens do mesmo nível.",
     "atTopLevel": "“{name}” já está no nível superior.",
     "_comment_cannotIndent": "Ctrl+Right moves an entry into the folder directly above it. There is no such folder here.",
-    "cannotIndent": "“{name}” não tem nenhuma pasta logo acima para onde ser movido."
+    "cannotIndent": "“{name}” não tem nenhuma pasta logo acima para onde ser movido.",
+    "_comment_movedSeparatorAbove": "A separator is the horizontal line a user can draw between two entries to group them. It has no name, so 'the separator' takes the place of the quoted name in these four sentences; {anchor} and {parent} are user data, isolated before they arrive. Everything else in this object applies: past tense, name both ends, say plainly what happened.",
+    "movedSeparatorAbove": "Separador posicionado acima de “{anchor}”.",
+    "movedSeparatorBelow": "Separador posicionado abaixo de “{anchor}”.",
+    "movedSeparatorInto": "Separador movido para dentro de “{parent}”.",
+    "movedSeparatorToTop": "Separador movido para o nível superior."
   },
-
   "palette": {
     "_comment_": "Ctrl/Cmd+K from anywhere: a search box over the connections, plus a short list of actions. It is a keyboard surface — the labels are what the user types at, so a word that nobody would type is a word that breaks the search.",
     "label": "Paleta de comandos",
@@ -140,10 +144,8 @@
     "actionImport": "Importar conexões",
     "lockFailed": "O cofre não foi bloqueado"
   },
-
   "editor": {
     "_comment_": "The connection editor. Nothing here autosaves and nothing here is read back: the password and the key passphrase can be written and cleared but never shown, which is why so much of this copy is about what a field will do rather than what it holds.",
-
     "_comment_titleEdit": "The dialog heading when the entry being edited has no name to show — normally the entry's own name is the heading.",
     "titleEdit": "Editar",
     "titleNewConnection": "Nova conexão",
@@ -156,21 +158,18 @@
     "loadFailed": "Não foi possível carregar esta entrada",
     "missing": "Essa entrada não está mais no cofre.",
     "saveFailed": "A alteração não foi salva",
-
     "_comment_sectionIdentity": "Section headings. 'Identity' here means what the entry IS — its name, protocol and address. The login lives under Credentials.",
     "sectionIdentity": "Identidade",
     "sectionCredentials": "Credenciais",
     "_comment_sectionProtocolSettings": "The heading over the settings that belong to the connection's protocol rather than to every connection — an RDP domain, a VNC encoding. 'Protocol' here is the word from the Protocol field above it; keep the two the same word.",
     "sectionProtocolSettings": "Configurações do protocolo",
     "sectionNotes": "Anotações",
-
     "_comment_protocolSettingsLoading": "The form for this section is drawn from the protocol adapter's own schema, which is fetched once. Shown while that is in flight — normally too briefly to read.",
     "protocolSettingsLoading": "Lendo as configurações do protocolo…",
     "_comment_protocolSettingsSchemaFailed": "The title over the failure notice when the schema could not be read. Without it there is nothing to draw: the shape of every control on this section comes from it. Say what could not be read, not what the user should do — the notice carries its own actions.",
     "protocolSettingsSchemaFailed": "Não foi possível ler as configurações deste protocolo.",
     "_comment_protocolSettingsUnknown": "Introduces the settings below it, which are stored on this connection but are not in the list this build's adapter declares — an import wrote them, or a newer version of Remoter did. They are kept rather than deleted, and they are shown rather than hidden, but this build does not know what they hold and will not offer a control for them. Do not translate this as 'unsupported': they may well be supported, by a build that is not this one.",
     "protocolSettingsUnknown": "Armazenadas nesta conexão, mas fora das configurações que esta versão conhece para este protocolo. Elas são mantidas como estão e repassadas intactas.",
-
     "_comment_protocolLimits": "SECURITY-ADJACENT. One sentence per protocol, naming what this build's adapter does NOT do — so that a missing control reads as an answer rather than as an oversight. Every item is a real gap in the adapter, not a policy: there is no setting for any of them because there is nothing behind them. Do not add to these lists and do not remove from them; they are kept in step with the adapters. 'Remote Desktop Gateway', 'RDP', 'VNC', 'RFB' and 'Tight' are product and protocol names and are never translated.",
     "protocolLimits": {
       "_comment_rdp": "The desktop, the keyboard and the pointer are what RDP carries here. 'Console session' is the /admin session on a Windows server. 'True colour' is 32-bit colour; the frame format has no other depth, so colour depth is not a choice rather than a choice nobody made.",
@@ -178,7 +177,6 @@
       "_comment_vnc": "'Ask the server to resize' is the client-initiated desktop resize, which RFB has no standard message for — so the tab scales the picture instead, which is a different thing and worth naming. Reading the remote clipboard is the direction that is missing; pasting into the session is not.",
       "vnc": "O VNC desta versão oferece a codificação Raw e, no mais, deixa o servidor escolher, então os níveis de compressão e de qualidade do Tight não têm o que ajustar. Ele não consegue pedir ao servidor que redimensione — a aba redimensiona a imagem no lugar disso — e não consegue ler a área de transferência remota. O VNC não leva nome de conta no protocolo, então o nome de usuário acima fica para o seu registro e não é enviado."
     },
-
     "_comment_settingNote": "A line under one particular setting, shown only when that setting's value has a consequence. Each names the cost of the value that is actually set, so none of them is boilerplate.",
     "settingNote": {
       "_comment_rdpDomain": "The mistake this line exists for: an administrator types the domain into the username box, or leaves it out entirely, and the password is then checked against the wrong account. NTLM hashes the account and the domain separately, so DOMAIN\\user in the username field is handled — but the two are not interchangeable. Keep the backslash form literal; it is what Windows shows.",
@@ -196,7 +194,6 @@
       "_comment_vncViewOnly": "Input is suppressed on this connection. Say where it is suppressed — locally — because a user who believes the server is refusing their keystrokes will go and change the server.",
       "vncViewOnly": "Somente visualização: as teclas e os movimentos do ponteiro são descartados aqui e nunca chegam ao servidor."
     },
-
     "name": "Nome",
     "protocol": "Protocolo",
     "_comment_protocolNone": "Stands where SSH, RDP, VNC or SFTP would, for an entry with no protocol recorded. A placeholder glyph, not a word; change it only if an em dash reads as something else in your script.",
@@ -215,7 +212,6 @@
     "locationRoot": "Nível superior",
     "_comment_breadcrumbSeparator": "Joins folder names into a path: Production / Europe / Web. The glyph only; the space on either side of it is layout and is added by the code. Each name is isolated, so the chain reads in the document direction and this glyph is not flipped.",
     "breadcrumbSeparator": "/",
-
     "_comment_setHere": "Provenance, under a field: this value belongs to this entry and is inherited from nothing. Lower case — it is a fragment under a value, not a sentence.",
     "setHere": "definido nesta conexão",
     "_comment_inheritedFrom": "Provenance: the value comes from a folder further up. {source} is a folder or credential name the user created, isolated before it arrives.",
@@ -234,7 +230,6 @@
     "revertPlain": "Reverter para o herdado",
     "_comment_nothingInherited": "Shown in place of a value when nothing above this entry supplies one.",
     "nothingInherited": "nada herdado",
-
     "_comment_settingRevertToDefault": "The 'revert' button on a protocol setting whose fallback is the protocol's own default rather than a folder's value — so 'inherited' would be the wrong word. Same verb as revertPlain; different noun.",
     "settingRevertToDefault": "Usar o padrão",
     "_comment_settingDefaultDetected": "Provenance under a protocol setting nobody has set: the value applying was read off THIS machine rather than chosen by Remoter. Today the only one is the RDP keyboard layout, and {value} is that layout's name. Quiet, not a warning — the value is right; the line is there so the user knows where it came from and that they may change it.",
@@ -256,7 +251,6 @@
     "passwordNotSet": "não definida",
     "_comment_passwordHelp": "SECURITY-CRITICAL. Two facts: the password is encrypted in this vault under the user's master key, and it will never be displayed again. Do not turn 'never shown again' into 'hidden'.",
     "passwordHelp": "Armazenada neste cofre sob a sua chave mestra. Ela nunca mais é mostrada.",
-
     "_comment_loginInheritedFrom": "The username, secret and method are one credential, and this one belongs to a folder above. {source} is that folder's name.",
     "loginInheritedFrom": "O login vem de {source}.",
     "_comment_loginShared": "The same, for a credential that is not inherited but shared: several connections point at it, so editing it would change all of them. {name} is the credential's name.",
@@ -270,12 +264,10 @@
     "consequenceInherited": "Salvar dá a esta conexão um login próprio. {source} continua com a credencial que tem, e tudo o que está abaixo dela também.",
     "_comment_consequenceShared": "The same sentence for a shared credential rather than an inherited one. {name} is the credential.",
     "consequenceShared": "Salvar dá a esta conexão um login próprio. {name} fica como está, e tudo o mais que a usa também.",
-
     "authLabel": "Autenticação",
     "authHelp": "Como este login comprova quem ele é. Fica armazenado junto com o nome de usuário.",
     "_comment_authPasswordOnly": "{protocol} is a protocol name in capitals — RDP or VNC. Those protocols have no key or agent authentication, so only the password field is offered. SSH and SFTP are protocol names and stay as they are.",
     "authPasswordOnly": "{protocol} autentica com senha. Chaves e o agente existem só em SSH e SFTP.",
-
     "_comment_agentTitle": "The first of the three authentication methods, in order of increasing exposure. 'SSH agent' is the name of the program that holds keys on the user's behalf; it is a product-category name and is not translated.",
     "agentTitle": "Agente SSH",
     "_comment_agentRecommended": "A badge beside it. The recommendation is real: with an agent the private key never enters this application.",
@@ -285,7 +277,6 @@
     "_comment_agentFilterLabel": "An agent can hold many keys, each with a free-text comment such as ada@laptop. This field narrows the agent to one of them.",
     "agentFilterLabel": "Comentário da identidade",
     "agentFilterHelp": "Opcional. Quando o agente guarda várias chaves, isto o restringe àquela cujo comentário contém este texto.",
-
     "_comment_keyTitle": "The second authentication method: a private key file, read once and stored in the vault. Noun phrase.",
     "keyTitle": "Chave privada",
     "_comment_keyBody": "Why the bytes are copied into the vault instead of the path being remembered: the connection keeps working when the file moves.",
@@ -316,7 +307,6 @@
     "keyPassphraseHelp": "Necessária uma vez, para ler a chave. Ela fica armazenada no cofre junto da chave e nunca mais é mostrada.",
     "_comment_keySize": "The size of the chosen key file. Bytes, not kilobytes — a private key is small and the exact figure is a useful sanity check.",
     "keySize": "{count, plural, one {# byte} many {# bytes} other {# bytes}}",
-
     "_comment_errorKeyRequired": "Validation, shown after the first attempt to save. Every one of these says what to do next rather than what is wrong.",
     "errorKeyRequired": "Escolha o arquivo de chave privada que será armazenado neste cofre.",
     "errorKeyPending": "Espere o Remoter terminar de ler o arquivo de chave.",
@@ -329,7 +319,6 @@
     "_comment_errorPortInvalid": "The range is the TCP port range and is not negotiable. The numbers are literal.",
     "errorPortInvalid": "Uma porta é um número inteiro entre 1 e 65535.",
     "errorHostRequired": "É obrigatório informar um nome de host.",
-
     "_comment_errorSettingRequired": "A protocol setting is set on this connection but holds nothing, and its type has no empty value — a number or a choice. Says what to do rather than only what is wrong: the way to have no value here is to hand the setting back, which is the button beside the field.",
     "errorSettingRequired": "Digite um valor, ou use o botão ao lado do campo para voltar ao valor herdado.",
     "_comment_errorSettingNumber": "The setting takes a whole number and what was typed is not one. 'Whole' matters: 1920.5 is not a desktop width.",
@@ -340,7 +329,6 @@
     "errorSettingTooLong": "Use no máximo {count, plural, one {# caractere} many {# caracteres} other {# caracteres}}.",
     "_comment_errorSettingChoice": "The value is not one of the ones this setting accepts. Unlike the keyboard layout, some settings are a closed list and there is no typing your own.",
     "errorSettingChoice": "Escolha um dos valores oferecidos.",
-
     "_comment_save": "The primary button when editing an entry that already exists.",
     "save": "Salvar",
     "saving": "Salvando…",
@@ -380,7 +368,6 @@
       "_comment_agent_forwarding": "SECURITY-CRITICAL as a label: forwarding the agent lets the REMOTE host use the keys it holds. 'Forward' is the established term; keep it.",
       "agent_forwarding": "Encaminhar o agente SSH"
     },
-
     "_comment_rdp": "The names of the RDP adapter's own settings, labelling the fields declared in crates/remoter-proto-rdp/src/protocol.rs. Noun phrases naming the thing. 'Windows', 'RDP' and 'Network Level Authentication' are product and protocol names and are never translated — though a Windows edition in your language will have its own established wording for Network Level Authentication, and that wording is the right one to use.",
     "rdp": {
       "_comment_domain": "The Windows domain the account belongs to. Empty for a local account.",
@@ -399,7 +386,6 @@
       "_comment_work_dir": "That program's working directory. Meaningless without the setting above it.",
       "work_dir": "Pasta de trabalho desse programa"
     },
-
     "_comment_vnc": "The names of the VNC adapter's own settings, labelling the fields declared in crates/remoter-proto-vnc/src/protocol.rs. 'VNC', 'RFB' and 'Raw' are protocol names and are never translated. The values these offer — '3.8', 'auto', 'raw', 'local', 'remote' — are wire tokens shown exactly as they stand and are not in this file at all.",
     "vnc": {
       "_comment_shared": "Whether the server may keep other viewers connected. Off means opening this session disconnects them, which is why the line under it says so.",
@@ -415,7 +401,6 @@
       "_comment_rfb_version_min": "The oldest it will accept. The floor — and the one with a consequence, explained in the line beneath it.",
       "rfb_version_min": "Versão mínima do RFB"
     },
-
     "_comment_keyboardLayout": "The names Microsoft gives its keyboard layouts, taken from its published table of keyboard identifiers and input method editors for Windows. They label the identifiers in crates/remoter-proto-rdp/src/layout.rs, and they are read by a user picking the keyboard they are actually typing on — so translate each one to whatever your own Windows edition calls that layout, rather than translating the English words. Turkish Q and Turkish F are two different keyboards, not two spellings of one, and the same goes for every pair that differs only by a bracketed suffix: leave those qualifiers in place, because they are what tells two layouts of one language apart.",
     "keyboardLayout": {
       "albanian": "Albanês",

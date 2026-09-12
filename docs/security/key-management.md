@@ -232,7 +232,8 @@ impersonate the user to every host that key opens.
   permits arbitrary same-user attach
 
 None of this defeats malware running as the user (see
-[threat-model.md](threat-model.md#t9)); all of it shrinks the window.
+[threat-model.md](threat-model.md#t9--malware-running-as-the-user-out-of-scope));
+all of it shrinks the window.
 
 ## What we cannot do for you
 

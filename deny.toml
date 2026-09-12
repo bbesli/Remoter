@@ -86,6 +86,28 @@ confidence-threshold = 0.9
 # nothing on a GPL-3.0 work; the crate is already in the graph, so the
 # dependency tree does not grow.
 
+# Trying a key passphrase at import rather than at connect time (CLAUDE.md §8.1).
+# Four crates, all direct dependencies of `remoter-vault` now, none new to the
+# dependency graph:
+#
+#   pbkdf2 0.13        MIT OR Apache-2.0    already present via remoter-import
+#   scrypt 0.12        MIT OR Apache-2.0    already present via ssh-key
+#   bcrypt-pbkdf 0.11  MIT OR Apache-2.0    already present via ssh-key
+#   ctr 0.10           MIT OR Apache-2.0    already present via russh
+#
+# `crates/remoter-vault/src/openssh.rs` and `check_passphrase` in
+# `src/pkcs8.rs` open an encrypted container with the passphrase the user
+# offered, so a wrong one is refused where it was typed instead of surfacing at
+# connect time as a rejection by a server that never saw the key. That needs the
+# two key derivations these containers use — bcrypt-pbkdf for OpenSSH, PBKDF2 or
+# scrypt for PBES2 — and CTR mode beside the CBC the crate already had.
+#
+# Every one is RustCrypto and offers both a permissive arm GPL-3.0 permits
+# incorporating; none carries an additional restriction, a non-commercial clause
+# or a source-availability obligation. Three of the four arrive through
+# `ssh-key`, which is the reader whose verdict this code has to agree with, so
+# the graph does not grow and the versions cannot diverge from the parser's.
+
 # Two crates were deliberately *not* added, and the reasons are recorded in
 # `crates/remoter-proto-rdp/src/lib.rs` rather than only here:
 #

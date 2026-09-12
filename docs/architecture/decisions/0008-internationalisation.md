@@ -2,6 +2,11 @@
 
 - **Status**: Accepted
 - **Date**: 2026-09-10
+- **Implementation**: ◐ The ten catalogues, ICU MessageFormat and RTL are built.
+  Two pieces of tooling this decision assumed are not: there is no Weblate
+  project — translations arrive as pull requests — and no pseudo-localisation
+  anywhere, in CI or locally.
+  [i18n.md](../../features/i18n.md#locale-specific-hazards) tracks both.
 
 ## Context
 
@@ -57,7 +62,10 @@ Rules enforced in review:
   comparison. Rust's `to_lowercase` and JavaScript's `toLocaleLowerCase('tr')`
   differ, and this is a classic source of subtle bugs
 - The layout must survive German compound nouns (~35 % longer than English) and
-  Arabic's greater line height. Pseudo-localisation runs in CI to catch overflow
+  Arabic's greater line height. Pseudo-localisation to catch overflow was part
+  of this decision and was never built: nothing expands strings by 40 % or wraps
+  them in markers, in CI or on a developer's machine, so overflow is still found
+  by a translator or a user
 
 ## Consequences
 

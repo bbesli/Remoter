@@ -191,9 +191,11 @@ decided by the platform, not by the config — see
 
 ## Live protocol tests
 
-Protocol work needs real servers. There is no `tests/fixtures/compose.yaml` and
-no `tests/` directory — the Docker fixture set described in earlier drafts was
-never built. What exists is a user-mode `sshd`:
+Protocol work needs real servers. There is no `tests/fixtures/compose.yaml`, and
+no `tests/` directory at the workspace root at all — the Docker fixture set
+described in earlier drafts was never built. (The `tests/` directories that do
+exist are per-crate integration tests, under `crates/*/tests/`.) What exists is
+a user-mode `sshd`:
 
 ```bash
 scripts/dev-sshd.sh start      # 127.0.0.1:2222, throwaway keys in a temp dir

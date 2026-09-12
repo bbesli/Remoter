@@ -42,6 +42,7 @@ import { ConnectionTree } from "./ConnectionTree";
 import { useConnectionEditor } from "./ConnectionEditor";
 import type { DropBand } from "./NodeRow";
 import rowStyles from "./NodeRow.module.css";
+import treeStyles from "./ConnectionTree.module.css";
 
 const { ipcMock } = vi.hoisted(() => ({
   ipcMock: { listNodes: vi.fn(), deleteNode: vi.fn(), moveNode: vi.fn() },
@@ -93,10 +94,49 @@ function message(): TFunction<"connections"> {
   return i18n().getFixedT(null, "connections");
 }
 
+/**
+ * A sentence the catalogue does not carry yet — the ones `pending` in
+ * `ConnectionTree.tsx` stands in for, four of which are a separator's move.
+ *
+ * Read through the same i18next instance the component reads, so this asserts
+ * "whatever this key resolves to" rather than pasting either the humanised
+ * fallback it resolves to today or the sentence that will replace it. The cast
+ * is the one `pending` makes, for the same reason: the key is not in
+ * `ParseKeys` until the catalogue has it.
+ */
+function pendingMessage(key: string, values: Record<string, string> = {}): string {
+  return i18n().getFixedT(null, "connections")(key as never, values);
+}
+
 /* ------------------------------------------------------------ the gesture -- */
 
-/** Row height in the pretend layout below. Any value works; this one is real. */
+/**
+ * Row height in the pretend layout below, and **not** a height this
+ * application draws.
+ *
+ * It used to claim to be real and was not: a `treeitem` is 28 pixels tall
+ * (`--space-6` plus `--space-1` in `NodeRow.module.css`, measured at 28 in a
+ * real browser by `harness/drive.mjs`) and a separator is 16 (`--space-4`).
+ * Nothing here turns on the number or on the two being equal — the band maths
+ * reads each row's own rectangle, and `layOutRows` gives each one its own —
+ * but a comment that says a number is real when it is not is how the next
+ * person ends up computing against it. The real heights, and what a
+ * sixteen-pixel target is like to hit, belong to the browser harness.
+ */
 const ROW_H = 24;
+
+/**
+ * Every row the tree draws, in the order it draws them.
+ *
+ * Separators are rows: they take up height, they can be dropped on, and a
+ * pretend layout that left them out put the tree's own geometry and this
+ * file's geometry out of step — which is how "the drop landed at the top of
+ * the list" read as a passing test.
+ */
+function drawnRows(): HTMLElement[] {
+  const scroller = screen.getByRole("tree");
+  return [...scroller.querySelectorAll<HTMLElement>('[role="treeitem"], [role="separator"]')];
+}
 
 /**
  * Give every rendered row the geometry jsdom does not compute.
@@ -105,7 +145,7 @@ const ROW_H = 24;
  * again after anything that adds or removes a row — an auto-expand, a refetch.
  */
 function layOutRows(): void {
-  screen.getAllByRole("treeitem").forEach((row, i) => {
+  drawnRows().forEach((row, i) => {
     const top = i * ROW_H;
     row.getBoundingClientRect = () =>
       ({
@@ -141,7 +181,7 @@ function installHitTest(): void {
     elementFromPoint?: (x: number, y: number) => Element | null;
   };
   target.elementFromPoint = (x: number, y: number): Element | null => {
-    for (const row of screen.queryAllByRole("treeitem")) {
+    for (const row of drawnRows()) {
       const r = row.getBoundingClientRect();
       if (x >= r.left && x < r.right && y >= r.top && y < r.bottom) return row;
     }
@@ -227,7 +267,7 @@ function travel(fromY: number, toY: number, captured: boolean): void {
 
 /** The row the geometry puts under `y`, or the scroller when there is none. */
 function rowAt(y: number): HTMLElement {
-  for (const row of screen.queryAllByRole("treeitem")) {
+  for (const row of drawnRows()) {
     const r = row.getBoundingClientRect();
     if (y >= r.top && y < r.bottom) return row;
   }
@@ -329,9 +369,11 @@ describe("dropping a connection onto a folder", () => {
 
     drag(row(/web-01/), row(/Berlin/), "into");
 
-    // Berlin's last child sorts at 2, so the newcomer takes 3 — the order the
-    // vault stores, not the order the rows happen to be drawn in.
-    await waitFor(() => expect(ipcMock.moveNode).toHaveBeenCalledWith("c1", "f1", 3));
+    // Berlin's last child sorts at 2, so the newcomer takes 18: a stride past
+    // the end rather than the next integer, so that the next entry dropped
+    // between those two has room and costs one call instead of a respace. The
+    // order the vault stores, not the order the rows happen to be drawn in.
+    await waitFor(() => expect(ipcMock.moveNode).toHaveBeenCalledWith("c1", "f1", 18));
     expect(ipcMock.moveNode).toHaveBeenCalledTimes(1);
   });
 
@@ -365,7 +407,7 @@ describe("reordering by dropping on the body of a row", () => {
 
     dragTo(row(/db-02/), inRow(row(/db-01/), 0.35));
 
-    await waitFor(() => expect(ipcMock.moveNode).toHaveBeenCalledWith("c3", "f1", -1));
+    await waitFor(() => expect(ipcMock.moveNode).toHaveBeenCalledWith("c3", "f1", -16));
     expect(screen.queryByText(message()("move.refuseNotFolder"))).not.toBeInTheDocument();
   });
 
@@ -391,7 +433,7 @@ describe("reordering by dropping on the body of a row", () => {
 
     dragTo(row(/web-01/), inRow(row(/Berlin/), 0.5));
 
-    await waitFor(() => expect(ipcMock.moveNode).toHaveBeenCalledWith("c1", "f1", 3));
+    await waitFor(() => expect(ipcMock.moveNode).toHaveBeenCalledWith("c1", "f1", 18));
   });
 });
 
@@ -415,7 +457,7 @@ describe("a drag whose moves are all delivered to one element", () => {
 
     dragTo(row(/web-01/), inRow(row(/Berlin/), 0.5), true);
 
-    await waitFor(() => expect(ipcMock.moveNode).toHaveBeenCalledWith("c1", "f1", 3));
+    await waitFor(() => expect(ipcMock.moveNode).toHaveBeenCalledWith("c1", "f1", 18));
   });
 
   it("still reorders against the row the pointer is over", async () => {
@@ -424,7 +466,7 @@ describe("a drag whose moves are all delivered to one element", () => {
 
     dragTo(row(/db-02/), inRow(row(/db-01/), 0.35), true);
 
-    await waitFor(() => expect(ipcMock.moveNode).toHaveBeenCalledWith("c3", "f1", -1));
+    await waitFor(() => expect(ipcMock.moveNode).toHaveBeenCalledWith("c3", "f1", -16));
   });
 });
 
@@ -436,7 +478,7 @@ describe("dropping a connection between two rows", () => {
     // The top quarter of db-01 is the gap above it.
     drag(row(/db-02/), row(/db-01/), "before");
 
-    await waitFor(() => expect(ipcMock.moveNode).toHaveBeenCalledWith("c3", "f1", -1));
+    await waitFor(() => expect(ipcMock.moveNode).toHaveBeenCalledWith("c3", "f1", -16));
   });
 
   it("is stored rather than only drawn: the new order survives a reload", async () => {
@@ -444,12 +486,12 @@ describe("dropping a connection between two rows", () => {
     ipcMock.moveNode.mockResolvedValue(undefined);
     // What the vault holds once the move has been written. The tree refetches
     // after a move, so this is the list the rows are rebuilt from.
-    const reordered = TREE.map((n) => (n.id === "c3" ? { ...n, sortOrder: -1 } : n));
+    const reordered = TREE.map((n) => (n.id === "c3" ? { ...n, sortOrder: -16 } : n));
     ipcMock.listNodes.mockResolvedValue(reordered);
 
     drag(row(/db-02/), row(/db-01/), "before");
 
-    await waitFor(() => expect(ipcMock.moveNode).toHaveBeenCalledWith("c3", "f1", -1));
+    await waitFor(() => expect(ipcMock.moveNode).toHaveBeenCalledWith("c3", "f1", -16));
     // Refetched, not patched locally: the rows on screen are what the core
     // returned.
     await waitFor(() => expect(ipcMock.listNodes.mock.calls.length).toBeGreaterThan(1));
@@ -482,7 +524,7 @@ describe("dropping a folder", () => {
     // Munich is closed and holds cache-01.
     drag(row(/Munich/), row(/Berlin/), "into");
 
-    await waitFor(() => expect(ipcMock.moveNode).toHaveBeenCalledWith("f2", "f1", 3));
+    await waitFor(() => expect(ipcMock.moveNode).toHaveBeenCalledWith("f2", "f1", 18));
     // Re-parenting is one row update in the core (data-model.md: parent_id plus
     // sort_order, not a materialised path). A child that was also moved would
     // mean the interface is re-implementing the tree.
@@ -551,8 +593,9 @@ describe("dropping on the empty space below the tree", () => {
     fireEvent.pointerMove(scroller, { ...POINTER, clientX: 10, clientY: 400 });
     fireEvent.pointerUp(scroller, { ...POINTER, clientX: 10, clientY: 400 });
 
-    // Three roots already (0, 1, 2), so the newcomer lands after the last.
-    await waitFor(() => expect(ipcMock.moveNode).toHaveBeenCalledWith("c2", null, 4));
+    // Four roots already (0 to 3), so the newcomer lands a stride past the
+    // last of them.
+    await waitFor(() => expect(ipcMock.moveNode).toHaveBeenCalledWith("c2", null, 19));
   });
 
   it("treats a favourite row as background rather than as a dead band", async () => {
@@ -573,7 +616,7 @@ describe("dropping on the empty space below the tree", () => {
     moveOver(favourite);
     release(favourite);
 
-    await waitFor(() => expect(ipcMock.moveNode).toHaveBeenCalledWith("c2", null, 4));
+    await waitFor(() => expect(ipcMock.moveNode).toHaveBeenCalledWith("c2", null, 19));
   });
 });
 
@@ -599,8 +642,187 @@ describe("hovering a closed folder", () => {
     moveOver(nested, bandY(nested, "after"));
     release(nested);
 
-    await waitFor(() => expect(ipcMock.moveNode).toHaveBeenCalledWith("c1", "f2", 1));
+    await waitFor(() => expect(ipcMock.moveNode).toHaveBeenCalledWith("c1", "f2", 16));
     vi.useRealTimers();
+  });
+});
+
+/**
+ * A separator is a gap that was drawn on purpose, so it is a position.
+ *
+ * `NodeRow` used to return early for one *before* the `data-drop-id` spread,
+ * so the hit test walked straight past it to the scroller and read a drop on
+ * the line between two entries as a drop on the background: the entry went to
+ * the end of the top level, silently, and the announcement named a place the
+ * pointer had never been.
+ *
+ * It is also a thing somebody put somewhere, so it can be picked up and put
+ * somewhere else. That half was inert until now — a press on the line produced
+ * no gesture, no indicator, no refusal and no announcement — because the
+ * catalogue had no sentence for moving a thing with no name. It has four.
+ *
+ * These assert where the entry ends up rather than which calls were made, so
+ * that the vault the tree reads back is what is checked. `vault` below applies
+ * every `node_move` and serves the result to the next `tree_list`.
+ */
+describe("a separator, as a place and as a thing to move", () => {
+  /** A tree whose top level has a separator between Munich and web-01. */
+  const SEPARATED: TreeNode[] = [
+    node({ id: "f1", kind: "folder", name: "Berlin", sortOrder: 0 }),
+    node({ id: "c2", name: "db-01", protocol: "ssh", parentId: "f1", sortOrder: 0 }),
+    node({ id: "f2", kind: "folder", name: "Munich", sortOrder: 1 }),
+    node({ id: "sp", kind: "separator", name: "", sortOrder: 2 }),
+    node({ id: "c1", name: "web-01", protocol: "ssh", sortOrder: 3 }),
+    node({ id: "g1", kind: "group", name: "Ops", sortOrder: 4 }),
+  ];
+
+  /** A core that actually applies the moves, so the effect can be asserted. */
+  function vault(nodes: TreeNode[]): TreeNode[] {
+    const live = nodes.map((n) => ({ ...n }));
+    ipcMock.listNodes.mockImplementation(() => Promise.resolve(live.map((n) => ({ ...n }))));
+    ipcMock.moveNode.mockImplementation((id: string, parentId: string | null, sortOrder: number) => {
+      const found = live.find((n) => n.id === id);
+      if (found !== undefined) {
+        found.parentId = parentId;
+        found.sortOrder = sortOrder;
+      }
+      return Promise.resolve(undefined);
+    });
+    return live;
+  }
+
+  /** Top-level ids in the order the core would return them. */
+  function roots(live: TreeNode[]): string[] {
+    return live
+      .filter((n) => n.parentId === null)
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
+      .map((n) => n.id);
+  }
+
+  it("lands beside the line, not at the end of the top level", async () => {
+    const live = vault(SEPARATED);
+    await mountTree(SEPARATED);
+
+    // The top half of the separator: the gap above it.
+    dragTo(row(/web-01/), inRow(screen.getByRole("separator"), 0.25));
+
+    await waitFor(() => expect(ipcMock.moveNode).toHaveBeenCalled());
+    await waitFor(() => expect(roots(live)).toEqual(["f1", "f2", "c1", "sp", "g1"]));
+  });
+
+  it("is a target the hit test can find at all", async () => {
+    vault(SEPARATED);
+    await mountTree(SEPARATED);
+
+    expect(screen.getByRole("separator")).toHaveAttribute("data-drop-id", "sp");
+    // No inside: a gap is a position and nothing else, so it keeps two bands.
+    expect(screen.getByRole("separator")).not.toHaveAttribute("data-container");
+  });
+
+  it("names a neighbour, because a separator has no name to announce", async () => {
+    vault(SEPARATED);
+    await mountTree(SEPARATED);
+
+    dragTo(row(/web-01/), inRow(screen.getByRole("separator"), 0.25));
+
+    // Not `Moved "web-01" above ""`, which is what naming the target gives.
+    // Munich, not Ops: both describe the same gap and Munich is next to it.
+    const expected = message()("move.movedBelow", {
+      name: isolate("web-01"),
+      anchor: isolate("Munich"),
+    });
+    await waitFor(() => expect(screen.getByRole("status").textContent).toContain(expected));
+  });
+
+  it("can itself be picked up and carried somewhere else", async () => {
+    const live = vault(SEPARATED);
+    await mountTree(SEPARATED);
+
+    // The line, dragged to the gap above the first folder.
+    dragTo(screen.getByRole("separator"), inRow(row(/Berlin/), 0.2));
+
+    await waitFor(() => expect(roots(live)).toEqual(["sp", "f1", "f2", "c1", "g1"]));
+  });
+
+  it("is announced as the line it is, with no empty name in the sentence", async () => {
+    vault(SEPARATED);
+    await mountTree(SEPARATED);
+
+    dragTo(screen.getByRole("separator"), inRow(row(/Berlin/), 0.2));
+
+    // `Moved “” above “Berlin”` is what the ordinary sentence produces for a
+    // thing with no name, and it is the reason this was not a drag source at
+    // all until the catalogue had a sentence of its own for it.
+    const hole = message()("move.movedAbove", { name: isolate(""), anchor: isolate("Berlin") });
+    await waitFor(() =>
+      expect(screen.getByRole("status").textContent).toContain(
+        pendingMessage("move.movedSeparatorAbove", { anchor: isolate("Berlin") }),
+      ),
+    );
+    expect(screen.getByRole("status").textContent).not.toContain(hole);
+  });
+
+  it("shows a line under the pointer while it is in the air", async () => {
+    // The chip names what was picked up, and this one has no name to show. A
+    // chip with an empty label is how a gesture reads as "nothing happened".
+    vault(SEPARATED);
+    await mountTree(SEPARATED);
+
+    const line = screen.getByRole("separator");
+    press(line);
+    travel(inRow(line, 0.5), inRow(row(/Berlin/), 0.5), false);
+
+    const drawn = treeStyles["chipLine"];
+    expect(drawn).toBeTruthy();
+    expect(document.querySelector(`.${drawn ?? ""}`)).not.toBeNull();
+  });
+});
+
+/**
+ * A click with a wobble in it is a click.
+ *
+ * The threshold was four pixels, and the sideways travel of an ordinary click
+ * on a trackpad is more than that — so clicking a row raised the whole refused
+ * drop callout, "the entry was not moved / an entry cannot be dropped onto
+ * itself", about an operation nobody had attempted. Reproduced in a real
+ * browser at four pixels.
+ */
+describe("a press that wobbles", () => {
+  it("stays a click at six pixels, and selects the row", async () => {
+    await mountTree();
+    const target = row(/web-01/);
+    const y = inRow(target, 0.5);
+
+    fireEvent.pointerDown(target, { ...POINTER, clientX: 10, clientY: y });
+    fireEvent.pointerMove(target, { ...POINTER, clientX: 16, clientY: y + 1 });
+    fireEvent.pointerUp(target, { ...POINTER, clientX: 16, clientY: y + 1 });
+    fireEvent.click(target);
+
+    expect(ipcMock.moveNode).not.toHaveBeenCalled();
+    expect(screen.queryByText(message()("move.refuseSelf"))).not.toBeInTheDocument();
+    expect(useApp.getState().selectedNodeId).toBe("c1");
+  });
+
+  it("says nothing at all when a drag ends where it started", async () => {
+    await mountTree();
+    const target = row(/web-01/);
+    const y = inRow(target, 0.5);
+
+    // Past the threshold and back: a drag by the letter of it, and a click by
+    // any other measure.
+    fireEvent.pointerDown(target, { ...POINTER, clientX: 10, clientY: y });
+    fireEvent.pointerMove(target, { ...POINTER, clientX: 30, clientY: y });
+    fireEvent.pointerMove(target, { ...POINTER, clientX: 10, clientY: y });
+    fireEvent.pointerUp(target, { ...POINTER, clientX: 10, clientY: y });
+
+    expect(ipcMock.moveNode).not.toHaveBeenCalled();
+    // The refusal callout is the thing being refused here: nothing was
+    // attempted, so there is nothing to warn about.
+    expect(screen.queryByText(message()("move.failed"))).not.toBeInTheDocument();
+    expect(screen.queryByText(message()("move.refuseSelf"))).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByRole("status").textContent).toContain(message()("move.cancelled")),
+    );
   });
 });
 

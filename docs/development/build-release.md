@@ -9,6 +9,7 @@
 | `check` | ubuntu-latest | Each crate on its own without test targets, every feature-gated target, `fmt --check`, `clippy -D warnings` |
 | `test` | ubuntu-latest, windows-latest, macos-latest | `cargo test --locked --workspace` |
 | `frontend` | ubuntu-latest, windows-latest, macos-latest | `npm ci`, `npm run build`, `vitest`; `typecheck` and `lint` on Linux only |
+| `release-packaging` | ubuntu-latest | `.github/scripts/release-packaging-selftest.sh`: the release workflow's packaging path, against a fake bundle tree |
 | `security` | ubuntu-latest | `cargo deny`, `cargo audit`, advisory-exception expiry, wildcard scan, `gitleaks` |
 | `plugin-licence` | ubuntu-latest | No copyleft under `remoter-plugin-abi` or `-sdk` (ADR-0009) |
 
@@ -60,6 +61,31 @@ compilations fused into one file, so the job installs both Rust targets first
 and its output lands under `target/universal-apple-darwin/release/bundle` rather
 than `target/release/bundle`.
 
+That path is not a property of macOS; it is a consequence of the `--target`
+flag, and the two have to be edited together. The matrix row carries
+`target: universal-apple-darwin`, the build step expands that into
+`--target universal-apple-darwin`, and the bundle then lands under the triple.
+Drop the flag and the bundle is back at `target/release/bundle` while the
+matrix still points at the triple, so the check finds nothing and the tag ships
+no `.dmg`. `release-packaging` asserts the pair agrees on every push: a row with
+a `target` must name `target/<triple>/release/bundle`, a row without one must
+name `target/release/bundle`, and the build step must take the flag from
+`matrix.target` rather than from a hard-coded triple.
+
+The evidence for the triple being pushed verbatim, including for
+`universal-apple-darwin`, is `@tauri-apps/cli`'s own binary: its strings place
+the universal build in `crates/tauri-cli/src/interface/rust/desktop.rs`, next to
+`aarch64-apple-darwin`, `x86_64-apple-darwin` and the `lipo` invocation that
+fuses them, with no separate directory name of its own — the universal build is
+two ordinary builds plus a `lipo -create -output` into that one directory, and
+the bundler writes `bundle/<type>` beneath it.
+
+**This path has never been run.** There is no macOS machine on this project and
+the release workflow only fires on a tag, so the first tag is where the macOS
+row is tested for real. If the path is wrong, `collect-installers.sh` fails
+naming it and pointing at the `--target` flag, rather than the upload silently
+attaching nothing.
+
 A `.app` is produced on macOS and left in `bundle/macos` for local builds, but
 only the `.dmg` is attached to a release: the `.dmg` already contains the `.app`,
 and a bundle is a directory, which is not something a release asset can be
@@ -82,8 +108,15 @@ list is a no-op on Linux and `deb` is a no-op on Windows. One list therefore
 serves three platforms, and the Linux artefacts keep working unchanged.
 
 The cost of "silently" is that a platform can produce nothing without failing,
-which is why the release workflow names what each platform owes and checks the
-directories before uploading.
+which is why the release workflow names what each platform owes — the
+`expected` column of its matrix — and asserts the artefact *files* by glob
+before uploading. Counting entries in the bundle directory was the earlier
+version of that check and was not the same question: `bundle/deb/` holds
+tauri's staging tree beside the `.deb`, so a directory with the staging tree
+and no package in it scored one entry and passed. The check lives in
+`.github/scripts/collect-installers.sh`, which also gathers what it found into
+one flat staging directory, and the `release-packaging` job in the CI table
+above runs it on every push against a fake bundle tree.
 
 Three platform-specific settings are worth explaining, because each is a
 decision rather than a default that happened:

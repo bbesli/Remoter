@@ -21,6 +21,51 @@
 //! great many administrators' keys live, and refusing it means refusing the
 //! migration that brought them here.
 //!
+//! # Which encrypted PKCS#8 documents this build can open
+//!
+//! Recognising `-----BEGIN ENCRYPTED PRIVATE KEY-----` is not the same as being
+//! able to read what is inside it. An `EncryptedPrivateKeyInfo` names the
+//! scheme it was enciphered under (RFC 5958 §3, RFC 8018 §A.4), and the parser
+//! underneath [`parse_private_key`] reads only some of them:
+//!
+//! | Scheme | Read here |
+//! |---|---|
+//! | PBES2, PBKDF2 with HMAC-SHA-224/256/384/512, AES-128/192/256-CBC | yes |
+//! | PBES2, scrypt, AES-CBC | yes |
+//! | PBES2, PBKDF2 with HMAC-SHA-1 — which RFC 8018 §A.2 makes the DEFAULT, so OpenSSL writes it by omitting the field | **no** |
+//! | PBES2 over `des-ede3-cbc` — what `openssl genrsa -des3` writes on OpenSSL 3.x | **no** |
+//! | PBES1 and the PKCS#12 schemes — `openssl pkcs8 -v1` | **no** |
+//!
+//! That table is a fact about the parser, not a choice made here, and
+//! `an_encrypted_pkcs8_is_readable_only_under_the_schemes_above` is what
+//! establishes it: it writes one document per scheme with the system's own
+//! OpenSSL and reads each one back. `remoter-vault`'s own copy of the list
+//! decides whether a file is accepted at all, at the moment it is chosen —
+//! because a key that cannot be opened here is a key that cannot authenticate,
+//! and finding that out at connect time puts the failure a long way from the
+//! file that caused it.
+//!
+//! # The passphrase is no longer this module's to discover
+//!
+//! [`parse_private_key`] cannot tell a wrong passphrase from a corrupt file —
+//! neither can anything else, these containers carrying no authentication tag
+//! over the passphrase — so both come back as
+//! [`ProtocolError::AuthRejected`], which the interface renders as "the server
+//! rejected these credentials". That sentence is true of a server that refused
+//! a good key and false of a passphrase that never opened one, and for a long
+//! time it was the only thing a user with a mistyped passphrase ever saw:
+//! `remoter-vault` accepted the passphrase at import without trying it.
+//!
+//! It tries it now, at the moment it is offered, and refuses there. What
+//! reaches this module is therefore a passphrase that opened the container once
+//! already, and an `AuthRejected` here means what it says. The two verdicts have
+//! to stay the same verdict, and
+//! `the_vault_and_the_ssh_parser_agree_on_whether_a_passphrase_opens_a_key` in
+//! `remoter-ipc` — the one crate that can see both — is what holds them
+//! together: it writes a container per format with `ssh-keygen` and `openssl`
+//! and requires the vault's answer and this parser's to agree, for the right
+//! passphrase and for a wrong one.
+//!
 //! Nothing in this module copies key material. The bytes are borrowed from the
 //! vault's closure, viewed as `&str`, and handed to the parser; the parsed
 //! `PrivateKey` zeroizes itself on drop.
@@ -616,6 +661,109 @@ mod tests {
                 "an unencrypted key was refused because a passphrase came with it"
             );
         }
+    }
+
+    /// Writes an encrypted PKCS#8 document with the system's own OpenSSL.
+    ///
+    /// `None` when OpenSSL is absent or will not write that scheme — a build of
+    /// it without the legacy provider refuses several — so the caller skips
+    /// rather than failing on a machine that cannot produce the input.
+    ///
+    /// Real OpenSSL output rather than a committed fixture: `CLAUDE.md` §9
+    /// forbids a key file in this repository, and what is under test is whether
+    /// this build reads the files administrators actually have.
+    fn openssl_pkcs8(dir: &std::path::Path, name: &str, args: &[&str]) -> Option<Vec<u8>> {
+        use std::process::Command;
+        let plain = dir.join("plain.pem");
+        if !plain.exists() {
+            let made = Command::new("openssl")
+                .args(["genpkey", "-algorithm", "ED25519", "-out"])
+                .arg(plain.to_str()?)
+                .output()
+                .ok()?;
+            if !made.status.success() {
+                return None;
+            }
+        }
+        let path = dir.join(name);
+        let written = Command::new("openssl")
+            .args(["pkcs8", "-topk8", "-in"])
+            .arg(plain.to_str()?)
+            .arg("-out")
+            .arg(path.to_str()?)
+            .args(args)
+            .args(["-passout", "pass:correct horse battery staple"])
+            .output()
+            .ok()?;
+        written
+            .status
+            .success()
+            .then(|| std::fs::read(&path).ok())?
+    }
+
+    /// The table in this module's documentation, established rather than
+    /// asserted from memory.
+    ///
+    /// It is load-bearing: `remoter-vault` refuses an encrypted PKCS#8 file at
+    /// the moment it is chosen when the scheme is not one of these, so that the
+    /// user is never asked for a passphrase this build would be unable to use.
+    /// If the parser underneath ever gains one of the schemes below, this test
+    /// fails — and that is the signal to widen the vault's list, not to delete
+    /// the row.
+    #[test]
+    fn an_encrypted_pkcs8_is_readable_only_under_the_schemes_above() {
+        let dir = std::env::temp_dir().join(format!(
+            "remoter-keyfmt-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or_default()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let passphrase = b"correct horse battery staple";
+
+        let cases: [(&str, Vec<&str>, bool); 6] = [
+            ("aes256", vec!["-v2", "aes-256-cbc"], true),
+            ("aes128", vec!["-v2", "aes-128-cbc"], true),
+            ("scrypt", vec!["-scrypt"], true),
+            ("des3", vec!["-v2", "des-ede3-cbc"], false),
+            (
+                "sha1prf",
+                vec!["-v2", "aes-256-cbc", "-v2prf", "hmacWithSHA1"],
+                false,
+            ),
+            ("pbes1", vec!["-v1", "PBE-SHA1-3DES"], false),
+        ];
+
+        let mut checked = 0usize;
+        for (name, args, readable) in cases {
+            let Some(bytes) = openssl_pkcs8(&dir, &format!("{name}.pem"), &args) else {
+                continue;
+            };
+            checked += 1;
+            // Every one of them is recognised as an encrypted PKCS#8 file and
+            // reported as needing a passphrase. That is precisely why the
+            // unreadable ones are dangerous: nothing about the outside of the
+            // file says this build cannot open it.
+            assert_eq!(
+                detect_key_format(&bytes),
+                Some(KeyFormat::Pkcs8Encrypted),
+                "{name}"
+            );
+            assert!(needs_passphrase(&bytes), "{name}");
+
+            assert_eq!(
+                parse_private_key(&bytes, Some(passphrase)).is_ok(),
+                readable,
+                "{name}: the readable set in this module's documentation is out of date"
+            );
+        }
+
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(
+            checked >= 4,
+            "only {checked} schemes could be written; openssl must be on PATH for this test"
+        );
     }
 
     #[test]

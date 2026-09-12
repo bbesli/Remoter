@@ -36,18 +36,17 @@
 //! a value nothing reads is not shipped from here again.
 
 use std::sync::Arc;
-use std::time::Duration;
 #[cfg(target_os = "linux")]
 use std::{
     sync::Weak,
-    time::{Instant, SystemTime},
+    time::{Duration, Instant, SystemTime},
 };
 
 use parking_lot::Mutex;
 
+use crate::state::Inner;
 #[cfg(target_os = "linux")]
-use crate::state::LockTrigger;
-use crate::state::{Inner, RESUME_GAP};
+use crate::state::{LockTrigger, RESUME_GAP};
 
 /// How often the watcher samples the two clocks.
 ///
@@ -65,6 +64,13 @@ const TICK: Duration = Duration::from_secs(5);
 ///
 /// Split out as a function with no clocks in it because that is the decision
 /// worth testing: the loop around it is a sleep.
+///
+/// Gated to the one platform that calls it. The only caller is
+/// [`resume_loop`], which is Linux-only, so anywhere else this is an item
+/// nothing can reach — and `dead_code` is a warning, which CI turns into an
+/// error, so an ungated helper under a gated caller is a compile failure on
+/// Windows and macOS rather than a tidiness question.
+#[cfg(target_os = "linux")]
 pub(crate) fn slept_through(monotonic: Duration, wall: Duration) -> bool {
     // Saturating rather than signed: a wall clock that went *backwards* — an
     // NTP step, a user changing the time — is not a suspend, and must not be
@@ -135,7 +141,9 @@ fn resume_loop(inner: &Weak<Mutex<Inner>>) {
     }
 }
 
-#[cfg(test)]
+// Gated with the function they cover. `slept_through` does not exist off Linux,
+// so neither can a test that calls it.
+#[cfg(all(test, target_os = "linux"))]
 mod tests {
     use super::*;
 

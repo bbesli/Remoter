@@ -223,7 +223,8 @@ the ended-session notice. None is present while a session is simply running.
 `features/sessions/layout.test.tsx` asserts the rule against the computed
 layout — no element inside the session area is `absolute`, `fixed` or `sticky`
 except the session host itself — so a control floated back over the picture
-fails the build rather than reaching a user.
+fails `npm run test` rather than reaching a user. That is a Vitest run, which
+CI does on all three platforms; it is not part of `npm run build`.
 
 ### The file manager
 

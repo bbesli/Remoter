@@ -238,6 +238,21 @@ opens the container, and what is stored afterwards is the PKCS#8 document and no
 passphrase — that passphrase belonged to an envelope the vault does not keep.
 `remoter-vault`'s `credential` and `legacy_pem` modules carry the reasoning.
 
+The same rule holds wherever a passphrase would open nothing: a passphrase sent
+for a container that is not enciphered is refused, and the vault will not seal
+one even if a caller insists. A secret stored beside a key it does not open is
+one more value carried, backed up and moved between machines for a purpose
+nothing can name.
+
+And a passphrase that *is* wanted is tried against the container before it is
+sealed, rather than taken on trust and left for the protocol adapter to discover.
+`Vault::set_private_key` opens the container first — see
+`ImportedKey::check_passphrase` — and refuses four ways: none given, one that
+does not open it, one offered for a container that is not enciphered, and a
+container this build cannot open to find out. Accepting an unchecked passphrase
+put the failure at connect time, where it read as a server rejecting credentials
+no server had seen; `docs/features/protocols.md` carries the whole table.
+
 `EncryptedField` is never plaintext in memory unless actively borrowed:
 
 ```rust

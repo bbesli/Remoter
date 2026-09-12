@@ -47,7 +47,14 @@ today* table in [README.md](../README.md#what-works-today).
 - ✅ Recovery unlock works after the password slot is deliberately destroyed
 - ◐ Truncation fuzzing produces no panic at any byte offset — the fuzz targets
   that exist cover the three importers, not the vault container
-- ✅ No secret appears in a `trace`-level log capture
+- ⏳ No secret appears in a `trace`-level log capture — **nothing runs this
+  check.** `tracing-subscriber` is a dependency of `apps/desktop/src-tauri`
+  alone, no test in any crate installs a subscriber, and so no test has ever
+  captured a log line to search. What is tested instead is narrower and does
+  run: `Debug` is redacted on every secret-bearing type — `Secret`,
+  `ImportedSecret`, `RecoveryKey`, `InputEvent`, `ClipboardData` and the
+  credential DTO in `remoter-ipc` — which is the form a secret would take in a
+  log line, but is not the same as looking at one
 - ⏳ A vault survives 1000 save/load cycles with no corruption
 - ⏳ The frame path harness produces latency and throughput numbers on all three
   platforms, with hardware acceleration confirmed in use

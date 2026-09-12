@@ -114,6 +114,29 @@
   font-size: var(--text-sm);
 }
 
+/*
+ * How far a run of vault writes has got.
+ *
+ * Only drawn when the run is more than one call, which is when the wait stops
+ * being instant: a reorder on a list with no gaps costs a write per sibling
+ * between the insertion point and the nearest slack. Logical sizes, because
+ * the bar fills from the reading edge in both directions.
+ */
+.progressTrack {
+  flex: 1;
+  block-size: 4px;
+  overflow: hidden;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-full);
+}
+
+.progressFill {
+  display: block;
+  block-size: 100%;
+  background: var(--accent);
+  transition: inline-size var(--motion-base) var(--ease);
+}
+
 .notice {
   padding: var(--space-2) var(--space-3) 0;
 }
@@ -208,6 +231,19 @@
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+/*
+ * A separator has no name, so the chip carries a drawing of it instead: what
+ * is in the air is a line, and a line is what it looks like. Naming it in
+ * words here would be a second string to translate for a box that is
+ * `aria-hidden` — the spoken half of this channel is the live region, which
+ * has its own sentence for a separator.
+ */
+.chipLine {
+  width: 4rem;
+  height: 1px;
+  background: var(--border-strong);
 }
 
 .chipReason {

@@ -62,6 +62,12 @@ tokio = { workspace = true, features = ["full"] }
 # The key-inspection tests build PEM bodies by hand; base64 is how a PEM
 # carries its payload, so the fixtures need an encoder the tests can trust.
 data-encoding.workspace = true
+# The key containers those tests read have to be real ones: the vault now tries
+# a passphrase against a container before it seals anything, and walks an
+# unenciphered one to its own integrity check, so a header over arbitrary bytes
+# is refused. `test-fixtures` builds them; it is a dev-dependency feature and
+# cannot reach a shipped binary.
+remoter-vault = { workspace = true, features = ["test-fixtures"] }
 
 [lints]
 workspace = true

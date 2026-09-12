@@ -133,7 +133,16 @@ The states that get skipped in most applications and then feel broken:
 
 ## Accessibility
 
-Targets, not aspirations — they are checked in CI:
+⏳ **These are targets, and no CI job checks any of them.** The frontend job
+runs typecheck, lint, build and the unit tests; there is no axe run, no
+contrast audit over the themes and no screen-reader pass, and `roadmap.md`
+carries both the WCAG 2.2 AA audit and the screen-reader verification as
+unstarted. What holds them up today is ordinary review plus what the unit tests
+happen to assert — close to forty test files query by ARIA role, the
+terminal palette editor shows a live WCAG contrast ratio per colour
+(`lib/terminalPalette.ts`, `features/settings/TerminalSection.tsx`), and
+`prefers-reduced-motion` is honoured in `tokens.css`. Read the list as the
+bar to be audited against:
 
 - **WCAG 2.2 AA** contrast across all themes, including the high-contrast theme
 - Full keyboard operation with a visible focus indicator on every interactive

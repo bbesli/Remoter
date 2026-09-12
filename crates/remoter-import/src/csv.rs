@@ -34,6 +34,7 @@ use remoter_core::{
     ConnectionProps, FolderProps, GatewayChain, GatewayHop, Inherited, NodeId, ProtocolId, Tag,
     validate_host,
 };
+use zeroize::Zeroizing;
 
 use crate::error::ImportError;
 use crate::limits::Limits;
@@ -328,11 +329,21 @@ impl Folders {
 ///
 /// Total by construction: every state either consumes a character or ends the
 /// parse, and the only growth is the field being built, which is bounded.
-fn read(text: &str, limits: &Limits) -> Result<Vec<Vec<String>>, ImportError> {
+///
+/// The records wipe themselves, and that is not incidental: a CSV's `password`
+/// column is cleartext, so this is a copy of every password in the file and it
+/// outlives the mapping that reads it. `Zeroize` for `Vec` reaches each
+/// `String` inside, so the final buffers go. What it cannot reach is what a
+/// growing `String` left behind as it doubled — a field longer than its first
+/// allocation leaves a prefix of itself in freed heap, and nothing short of a
+/// bespoke buffer type fixes that. It is recorded here rather than papered
+/// over, because reserving `max_value_bytes` per field to avoid it would turn
+/// a wide header into 64 KiB of allocation per column per row.
+fn read(text: &str, limits: &Limits) -> Result<Zeroizing<Vec<Vec<String>>>, ImportError> {
     let delimiter = delimiter(text);
-    let mut records: Vec<Vec<String>> = Vec::new();
-    let mut record: Vec<String> = Vec::new();
-    let mut field = String::new();
+    let mut records: Zeroizing<Vec<Vec<String>>> = Zeroizing::new(Vec::new());
+    let mut record: Zeroizing<Vec<String>> = Zeroizing::new(Vec::new());
+    let mut field = Zeroizing::new(String::new());
     let mut quoted = false;
     let mut started = false;
     let mut chars = text.chars().peekable();
@@ -364,12 +375,12 @@ fn read(text: &str, limits: &Limits) -> Result<Vec<Vec<String>>, ImportError> {
                 started = true;
             }
             c if c == delimiter => {
-                record.push(core::mem::take(&mut field));
+                record.push(core::mem::take(&mut *field));
                 started = false;
             }
             '\r' => {}
             '\n' => {
-                record.push(core::mem::take(&mut field));
+                record.push(core::mem::take(&mut *field));
                 started = false;
                 if records.len() >= limits.max_items {
                     return Err(ImportError::TooManyItems {
@@ -377,7 +388,7 @@ fn read(text: &str, limits: &Limits) -> Result<Vec<Vec<String>>, ImportError> {
                         unit: "rows",
                     });
                 }
-                records.push(core::mem::take(&mut record));
+                records.push(core::mem::take(&mut *record));
             }
             c => {
                 field.push(c);
@@ -398,8 +409,8 @@ fn read(text: &str, limits: &Limits) -> Result<Vec<Vec<String>>, ImportError> {
         });
     }
     if started || !record.is_empty() {
-        record.push(field);
-        records.push(record);
+        record.push(core::mem::take(&mut *field));
+        records.push(core::mem::take(&mut *record));
     }
     Ok(records)
 }

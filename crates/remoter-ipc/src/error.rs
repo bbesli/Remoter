@@ -372,25 +372,28 @@ impl IpcError {
             // file is very often shared with other tools, and `ssh-keygen -p`
             // rewrites the file it is given in place.
             //
-            // The cipher's name goes in the detail rather than the sentence:
-            // the catalogue owns the sentence, and a reader who has to act on
-            // this needs to know it was DES-EDE3-CBC and not AES.
+            // The reason goes in the detail rather than the sentence: the
+            // catalogue owns the sentence, and a reader who has to act on this
+            // needs to know it was DES-EDE3-CBC and not AES. The payload is a
+            // whole clause, so it is placed rather than prefixed — a noun
+            // prefix here once rendered "PEM container cipher: it is a PKCS#8
+            // container whose PBKDF2 ...".
             VaultError::UnsupportedKeyCipher(cipher) => Self::new(
                 "key.legacy-encrypted",
                 "That key is encrypted inside its own PEM container with a cipher this \
                  build cannot read. Nothing was written.",
             )
-            .with_detail(format!("PEM container cipher: {cipher}"))
+            .with_detail((*cipher).to_string())
             .with_actions([
                 "Convert a copy: `cp <file> <copy>` then `ssh-keygen -p -m PKCS8 -f <copy>`",
                 "Use the platform SSH agent instead",
             ]),
-            // Both of these are about the passphrase and not about the file,
-            // and the remedy for both is the same field. They share the code
-            // `take_credential` raises when the interface sent no passphrase at
-            // all; the detail is what separates "none given" from "that one
-            // does not open it", because the catalogue owns the sentence and
-            // `locales/*/errors.json` is shared across the whole interface.
+            // Four things can be wrong with a passphrase and they are four
+            // codes, because they have four remedies. They used to be two —
+            // "none given" and "that one is wrong" shared a code and were told
+            // apart only by the detail, which the interface does not branch on,
+            // so a user who typed the wrong passphrase was shown the sentence
+            // written for a user who typed none.
             VaultError::KeyPassphraseRequired => Self::new(
                 "key.passphrase-required",
                 "That key is passphrase-protected, and without the passphrase Remoter \
@@ -402,16 +405,41 @@ impl IpcError {
                 "Choose a key that is not passphrase-protected",
             ]),
             VaultError::KeyPassphraseRejected => Self::new(
-                "key.passphrase-required",
+                "key.passphrase-rejected",
                 "That passphrase does not open the key. Nothing was written.",
             )
             .with_detail(
-                "the passphrase did not decipher the PEM container; a corrupt file looks \
-                 the same, this container carrying no authentication tag",
+                "the passphrase was tried against the container and did not open it; a \
+                 corrupt file looks the same, none of these containers carrying an \
+                 authentication tag over the passphrase",
             )
             .with_actions([
-                "Enter the key's passphrase",
-                "Choose a key that is not passphrase-protected",
+                "Check the passphrase and try again",
+                "Use the platform SSH agent instead",
+            ]),
+            VaultError::KeyPassphraseNotNeeded => Self::new(
+                "key.passphrase-not-needed",
+                "That key is not passphrase-protected, so the passphrase would open \
+                 nothing. Nothing was written.",
+            )
+            .with_detail("a passphrase was supplied for a container that is not enciphered")
+            .with_actions([
+                "Store this key without a passphrase",
+                "Choose the passphrase-protected key you meant",
+            ]),
+            // Not a wrong passphrase and not a bad file: a container this build
+            // cannot open, so the question has no answer here. Refused rather
+            // than sealed on trust, because a passphrase nothing can check is
+            // one whose failure arrives at connect time.
+            VaultError::KeyPassphraseUncheckable(what) => Self::new(
+                "key.passphrase-uncheckable",
+                "Remoter cannot open that key's container to check the passphrase, so it \
+                 will not store one it cannot vouch for. Nothing was written.",
+            )
+            .with_detail((*what).to_string())
+            .with_actions([
+                "Convert a copy: `cp <file> <copy>` then `ssh-keygen -p -m PKCS8 -f <copy>`",
+                "Use the platform SSH agent instead",
             ]),
             VaultError::NotAPrivateKeyCredential(id) => Self::new(
                 "credential.not-a-private-key",

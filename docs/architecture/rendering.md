@@ -1,5 +1,18 @@
 # Rendering
 
+> **What ships.** Both paths carry real pixels today: the terminal through
+> xterm.js with the WebGL renderer, the frame-interval coalescing and the live
+> palette, and the framebuffer through the `WebViewPresenter` described in
+> *The WebView presenter, as built*, with the input, scaling and remote-text
+> rules as written. ⏳ **`remoter-bench-framepath` does not exist**, so the
+> acceptance bar was never measured and the presenter decision gate never ran;
+> ⏳ the `NativePresenter` does not exist either, which is why every platform
+> gets the WebView one — by absence, not by measurement. ⏳ **Recording does not
+> exist anywhere**: the asciicast recorder in the first diagram and the
+> *Recording* section at the end describe a crate that was never written. The
+> one gap inside what does ship is marked in place — `SessionWarning::Banner`
+> still crosses IPC without an escaped twin.
+
 How remote pixels and remote text reach the screen. This is the hardest
 engineering problem in the project and the one most likely to force a design
 change, so it is documented with its risks in the open.
@@ -448,8 +461,10 @@ another:
 
 1. **It renders as text.** React escapes text children, ICU MessageFormat
    substitutes arguments as data rather than re-parsing them, and
-   `dangerouslySetInnerHTML` is an ESLint error with no override. This is
-   settled and needs no per-surface thought.
+   `dangerouslySetInnerHTML` is an ESLint error in every file that can hold JSX
+   — a guard a disable comment can still silence, which
+   [coding-standards.md](../development/coding-standards.md#untrusted-content)
+   spells out. This is settled and needs no per-surface thought.
 2. **It is escaped in Rust, and the escaped twin is what is drawn.** Control
    characters, bidirectional overrides and zero-width characters become a
    visible `\u{XXXX}`. The raw string still crosses IPC — it is what goes back
@@ -472,10 +487,12 @@ in its place. The escaping is deliberately not duplicated in TypeScript — a
 second table drifts from the first, and would double-escape the moment the twin
 lands.
 
-## Recording
+## Recording — ⏳ not built
 
-Recording taps the pipeline before rendering, so what is recorded is what
-arrived, independent of how it was displayed:
+Recording would tap the pipeline before rendering, so that what is recorded is
+what arrived, independent of how it was displayed. Nothing does this today —
+there is no recorder and no `remoter-record` crate, and the branch in the
+terminal diagram above is part of the same plan:
 
 - **Terminal**: the raw byte stream with timestamps → asciicast v2
 - **Framebuffer**: dirty rectangles with timestamps → a container that can be

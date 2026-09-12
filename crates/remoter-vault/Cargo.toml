@@ -23,6 +23,17 @@ sha2.workspace = true
 aes.workspace = true
 cbc.workspace = true
 md-5.workspace = true
+# Trying a passphrase against a container the vault stores verbatim, so that a
+# wrong one is refused at import rather than at connect time; see
+# `src/openssh.rs` and `check_passphrase` in `src/pkcs8.rs`. Every one is
+# RustCrypto, MIT OR Apache-2.0, and every one was already in the workspace's
+# dependency graph — `pbkdf2`, `scrypt` and `ctr` through `remoter-import` and
+# `russh`, `bcrypt-pbkdf` through `ssh-key`, which is the very reader whose
+# verdict this has to agree with. No crate and no licence question is added.
+ctr.workspace = true
+pbkdf2.workspace = true
+scrypt.workspace = true
+bcrypt-pbkdf.workspace = true
 blake3.workspace = true
 zeroize.workspace = true
 subtle.workspace = true
@@ -49,13 +60,21 @@ tracing.workspace = true
 # never appear in a dependency of a shipped binary.
 insecure-test-kdf = []
 
+# Compiles the container builders in `src/testing.rs`, which this crate's
+# integration tests read: an encrypted OpenSSH key has to be a real one now that
+# the vault tries the passphrase against it, and an integration test lives
+# outside the crate and cannot see a `#[cfg(test)]` fixture. Turned on the same
+# way, and for the same reason — through the dev-dependency below and nowhere
+# else, so no shipped build carries it.
+test-fixtures = []
+
 [dev-dependencies]
 proptest.workspace = true
 tempfile = "3"
 # Self-dependency: the only way to enable a feature for this crate's own tests
 # without also enabling it for its ordinary builds. Feature resolution keeps
 # dev-dependency features out of a plain `cargo build`.
-remoter-vault = { path = ".", features = ["insecure-test-kdf"] }
+remoter-vault = { path = ".", features = ["insecure-test-kdf", "test-fixtures"] }
 
 [lints]
 workspace = true

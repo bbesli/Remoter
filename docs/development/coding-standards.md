@@ -1,10 +1,19 @@
 # Coding Standards
 
-> **What ships.** These are enforced, not aspirational: the lints in the table
-> are `deny` in the workspace `Cargo.toml`, `unsafe_code` is `forbid`, and the
-> two ESLint rules that fail a build on a hardcoded string or a stray `invoke()`
-> are in the frontend config. CI runs clippy with `-D warnings` on three
-> platforms.
+> **What ships.** These are enforced, not aspirational. The block under *Lints*
+> below is the workspace `Cargo.toml`'s own, copied verbatim: `unsafe_code` is
+> `forbid` there rather than per file, and the clippy lints that matter are
+> `deny`. The ESLint rules that error on a hardcoded string, or on an `invoke()`
+> outside `src/lib/ipc.ts`, are in the frontend config — they fail
+> `npm run lint`, and not `npm run build`, which is `tsc --noEmit && vite build`
+> and runs no linter at all. CI runs clippy with `-D warnings` **on Linux
+> only** — it is a step of the `check` job, which is `runs-on: ubuntu-latest`;
+> the frontend's `lint` and `typecheck` steps carry an
+> `if: runner.os == 'Linux'` for the same reason, and it is `cargo test`,
+> `npm run build` and `npm run test` that run on all three platforms. A lint
+> that fires only on Windows or macOS is therefore not caught before merge —
+> [build-release.md](build-release.md#ci-matrix) has the matrix and the
+> reasoning behind the split.
 
 ## Rust
 
@@ -114,24 +123,32 @@ upholds.
 
 ### Lints
 
-Workspace-level, in the root `Cargo.toml`:
+Workspace-level, in the root `Cargo.toml`, and copied here verbatim:
 
 ```toml
 [workspace.lints.rust]
 unsafe_code = "forbid"
-missing_docs = "warn"
 unreachable_pub = "warn"
 
 [workspace.lints.clippy]
-all = "deny"
-pedantic = "warn"
+all = { level = "deny", priority = -1 }
 unwrap_used = "deny"
 expect_used = "deny"
 panic = "deny"
 todo = "deny"
 dbg_macro = "deny"
 print_stdout = "deny"
+print_stderr = "deny"
 ```
+
+`all` carries `priority = -1` so that the named lints below it are not reset by
+the group; `clippy::pedantic` is **not** enabled, and neither is `missing_docs`
+— the documentation rule below is a review expectation, not a compiler one.
+`remoter-desktop` repeats the block in its own `[lints.*]` with
+`unsafe_code = "deny"` — the comment above it in that file says why — and
+without `clippy::panic`. Nothing in that crate panics today and no comment
+records whether the omission was deliberate, so treat the rule as applying
+there too until one does.
 
 `print_stdout` is denied because a stray `println!` is how secrets escape.
 
@@ -210,8 +227,18 @@ Every user-visible string goes through `t()`. No literal English in JSX. Only
 ### Untrusted content
 
 Content from remote hosts — hostnames, banners, MOTD, directory listings, window
-titles — is rendered as text. `dangerouslySetInnerHTML` is banned by ESLint with
-no override.
+titles — is rendered as text. `dangerouslySetInnerHTML` is an ESLint error in
+every file that can hold JSX, through a `no-restricted-syntax` selector in
+`apps/desktop/ui/eslint.config.js`. The one file that turns
+`no-restricted-syntax` off, `src/lib/ipc.ts`, is a `.ts` file and cannot parse
+JSX at all.
+
+The rule's own message says there is no override for it. Read that as the review
+rule it is rather than as a property of the linter: an ordinary
+`// eslint-disable-next-line no-restricted-syntax` above the attribute silences
+it exactly as it would any other rule — that was measured, not assumed — and
+nothing in the config forbids or reports such a directive. Writing one is a
+change to argue for, not a change to make.
 
 ## Comments
 

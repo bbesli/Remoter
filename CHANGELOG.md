@@ -337,12 +337,39 @@ this project adheres to [Semantic Versioning](https://semver.org/).
   legacy PEM. Its passphrase is not kept afterwards: it opened a container the
   vault does not store. A PEM enciphered with DES-EDE3-CBC is still refused, and
   now says so by name rather than as a generic failure
-- A wrong key passphrase and a missing one were the same message. They are now
-  separated by the diagnostic the failure carries, which also distinguishes both
-  from a cipher this build cannot read
+- **A wrong key passphrase was accepted, sealed, and reported later as a
+  rejection by a server that never saw the key.** An encrypted OpenSSH or PKCS#8
+  container is stored ciphertext and all, so nothing downstream of the import
+  ever tried the passphrase against it; the failure surfaced at connect time as
+  "the server rejected these credentials (private-key)", which is a sentence
+  about a machine that was not involved, on a screen with nothing on it
+  connecting the failure to the file. The container is now opened at the moment
+  the passphrase is offered — `crates/remoter-vault/src/openssh.rs` derives with
+  bcrypt-pbkdf and compares the two check integers `PROTOCOL.key` puts at the
+  head of the private section, and `check_passphrase` in
+  `crates/remoter-vault/src/pkcs8.rs` runs the document's own PBES2 derivation
+  and requires the plaintext to be a `PrivateKeyInfo` — and a passphrase that
+  does not open the key is refused there, with nothing written
+- The four things that can be wrong with a key passphrase are four failures with
+  four codes, where two of them used to share one and be told apart only by a
+  diagnostic the interface does not branch on: `key.passphrase-required` for
+  none given, `key.passphrase-rejected` for one that does not open the
+  container, `key.passphrase-not-needed` for one offered for a container that is
+  not enciphered, and `key.passphrase-uncheckable` for a container this build
+  cannot open to find out — a PuTTY `.ppk`, or an OpenSSH container under an
+  AEAD cipher. The last is a refusal rather than a shrug: a passphrase nothing
+  can check is one whose failure arrives at connect time
 - A passphrase stored beside a key that needs none made authentication fail with
-  a key that was perfectly good: `ssh-key` refuses that pairing outright. The
-  passphrase is dropped when the container says the key is not enciphered
+  a key that was perfectly good: `ssh-key` refuses that pairing outright. It is
+  now refused rather than dropped — under its own code, because a person who
+  typed a passphrase for a key that needs none is not looking at a bug and
+  should not be asked to report one — and the vault refuses to seal it even if a
+  caller insists
+- An unenciphered container is checked too, at the moment the file is chosen,
+  because its plaintext is readable without any passphrase: an OpenSSH one must
+  carry matching check integers and a PKCS#8 one must be a whole
+  `PrivateKeyInfo`. A file that merely began with a DER `SEQUENCE` tag used to be
+  sealed and to fail when a session was opened
 - **The Smart resize control was drawn on every RDP session, and chosen as the
   default, whether or not the server could honour it.** `capabilities.resizable`
   as it reaches the interface is the adapter's static offer — fixed before the

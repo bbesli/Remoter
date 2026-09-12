@@ -75,3 +75,45 @@ A memory-safety or logic vulnerability is found in any protocol crate, if we
 ever need to link a C protocol library (in which case isolation becomes
 mandatory, not optional), or once v1.0 has shipped and the rendering path is
 settled.
+
+## Amendment, 2026-09-12: option A was built without `catch_unwind`
+
+The decision above stands — one process, sessions isolated as tasks — but the
+sketch of option A names a mechanism that was never written. There is no
+`catch_unwind` anywhere in the workspace, and there is not meant to be.
+
+Each session is its own `tokio::spawn`ed task, so a panic inside one unwinds
+that task and stops there rather than propagating into the runtime: the
+supervisor sees it as `JoinError::is_panic()` on the join handle
+(`crates/remoter-proto/src/supervisor.rs`) and fails that one tab. Nothing is
+*caught*, because there is nothing left to catch by the time the supervisor
+hears about it. `catch_unwind` around arbitrary async code also brings
+`UnwindSafe` problems the task boundary does not have, and it would hand back a
+panic payload — which is formatted values, which is where secrets are — to code
+that then has to be trusted not to log it. [ADR-0011](0011-panic-strategy.md)
+is the full argument and is the document to read on panics; this note exists so
+that the accepted option here is not read as a specification of code that does
+not exist. Cancellation tokens, the other half of the sentence, are real.
+
+The compensating controls listed above are in place unevenly, and this is where
+that is recorded rather than in a status document that a reader of this ADR
+will not open:
+
+- **`unsafe` is forbidden**, and more widely than the line above claims: it is
+  `unsafe_code = "forbid"` in `[workspace.lints.rust]`, inherited by all ten
+  crates, so it covers `remoter-core` and `remoter-vault` too. Three protocol
+  crates also carry `#![forbid(unsafe_code)]` in the file, which is belt and
+  braces, not the mechanism.
+- **Per-session limits** exist for the ones that bound memory on the frame
+  path: a session cap (`SupervisorConfig::max_sessions`), a coalesced frame
+  ceiling (`max_frame_bytes`), a framebuffer dimension gate
+  (`remoter_proto_vnc::gate::MAX_FRAMEBUFFER_PIXELS`) and RDP reassembly
+  accounting that is sound only because bulk compression is never negotiated
+  (`remoter-proto-rdp/src/framed.rs`).
+- **Continuous fuzzing is importers only.** `fuzz/` holds three targets, all of
+  them parsers in `remoter-import`. No protocol decoder is fuzzed, and nothing
+  runs any target on a schedule — see `docs/development/testing-strategy.md`.
+  This is the weakest of the five and the honest reason the deferral is still
+  a deferral rather than a settled position.
+- A panic failing one tab, and WASM sandboxing for third-party protocol code,
+  are as described — the second vacuously, since no plugin host exists.

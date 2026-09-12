@@ -207,6 +207,25 @@ jobs:
       # passing by running nothing.
       - run: npm run test
 
+  # The release workflow only runs on a tag, which meant the only way to find
+  # out whether a tag produced a release was to push one — and the first one
+  # produced nothing at all: the Checksums step was handed a directory, exited
+  # 1 under `set -e`, and the job died before it uploaded anything. Nothing in
+  # this file could have caught that.
+  #
+  # So the two pieces of shell that decide whether a tag ships installers live
+  # in .github/scripts/ rather than in `run:` blocks, and this runs them here,
+  # on every push, against a fake bundle tree shaped like the one
+  # tauri-bundler leaves behind — staging directories included, because those
+  # are what made the old "did this platform produce a bundle?" check pass over
+  # an empty deb/.
+  release-packaging:
+    name: Release packaging
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash .github/scripts/release-packaging-selftest.sh
+
   security:
     name: Security
     runs-on: ubuntu-latest

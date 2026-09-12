@@ -1,11 +1,16 @@
 # Testing Strategy
 
-> **What ships.** Unit tests, property tests, fuzz targets and the "no secret in
-> a log" assertion are real and run. ⏳ **There are no end-to-end tests** — no
-> `tauri-driver`, no WebdriverIO, no `tests/e2e` directory. ⏳ Coverage is not
-> measured: `cargo-llvm-cov` is not installed or run anywhere, so the targets in
-> the table below are aspirations with nothing reporting against them. The
-> integration tests that exist run against `scripts/dev-sshd.sh`, not Docker.
+> **What ships.** Unit tests and property tests are real, and CI runs them on
+> every pull request and every push to `main`. The three fuzz targets are real
+> and build, but ⏳ **nothing runs them**: there is no fuzzing job in
+> `.github/workflows/`, no schedule, and no corpus in the repository.
+> ⏳ **The "no secret in a log" test does not exist** — see *Security testing*
+> below; what runs in its place is a redacted-`Debug` assertion per secret type.
+> ⏳ **There are no end-to-end tests** — no `tauri-driver`, no WebdriverIO, no
+> `tests/e2e` directory. ⏳ Coverage is not measured: `cargo-llvm-cov` is not
+> installed or run anywhere, so the targets in the table below are aspirations
+> with nothing reporting against them. The integration tests that exist run
+> against `scripts/dev-sshd.sh`, not Docker.
 
 ## Layers
 
@@ -108,9 +113,16 @@ from a file or a host the user does not control:
   sftp_packet_decode.rs    packets from a remote host
 ```
 
-Corpora are seeded with real files and grown in CI. Fuzzing runs nightly and on
-any pull request touching a parser. A crash is a release blocker, not a bug to
-triage later.
+⏳ **Nothing runs any of this automatically.** There is no fuzzing workflow in
+`.github/workflows/` — the two files there are `ci.yml` and `release.yml` — no
+schedule, and no corpus in the repository: `fuzz/.gitignore` excludes `corpus`,
+so a target starts from whatever the developer who types `cargo fuzz run` has
+locally.
+
+The intent stands, and is what the *Security testing* table below marks ⏳:
+corpora seeded with real files and grown in CI, a nightly run plus one on any
+pull request touching a parser, and a crash treated as a release blocker rather
+than a bug to triage later.
 
 ## Integration tests
 
@@ -167,10 +179,21 @@ number and reserved for flows where a break would be severe:
 | Dependency review | On any `Cargo.lock` or `package-lock.json` change | ⏳ |
 | Memory-leak check | Long-running session soak test, weekly | ⏳ |
 
-A dedicated test asserts that **no secret ever appears in a log**: it runs a
-full session lifecycle with a tracing subscriber capturing everything at `trace`
-level, then greps the output for the known test credentials. It fails if any
-appears.
+⏳ **No test captures a log.** The intended one would run a full session
+lifecycle with a tracing subscriber capturing everything at `trace` level and
+then grep the output for the known test credentials. It has never been written.
+`tracing-subscriber` is a dependency of `apps/desktop/src-tauri` alone, so no
+library crate can install one without taking the dependency first, and this is
+the exit criterion `roadmap.md` marks ⏳ for v0.1.
+
+What runs instead is one layer below it: every secret-bearing type has a
+redacting `Debug` and a test asserting it — `Secret` and `RecoveryKey` in
+`remoter-vault`, `ImportedSecret` in `remoter-import`, `SecretKind` and the
+TOTP field in `remoter-core`, `InputEvent` and `ClipboardData` in
+`remoter-proto`, and the credential DTO in `remoter-ipc`. That is the form a
+secret would take in a log line, which makes it a good proxy and not a
+substitute: it proves the value would be redacted *if* it were formatted, not
+that nothing formats it by another route.
 
 ## Coverage — ⏳ not measured
 

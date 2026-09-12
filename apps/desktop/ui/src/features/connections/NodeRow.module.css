@@ -216,8 +216,16 @@
   color: var(--fg-subtle);
 }
 
-/* A separator is a rule, not a target: it carries no name and no actions. */
+/*
+ * A separator carries no name and no actions — but it does take a drop, being
+ * a position rather than an entry, so it is styled as a target as well as a
+ * rule. `position: relative` is what that costs: the indicator above and below
+ * it is an absolutely positioned pseudo-element, and without a containing
+ * block here it is laid out against the scroller and drawn somewhere else
+ * entirely.
+ */
 .separatorRow {
+  position: relative;
   display: flex;
   align-items: center;
   height: var(--space-4);

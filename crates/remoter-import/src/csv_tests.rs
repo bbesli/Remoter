@@ -23,6 +23,20 @@ fn preview_of(text: &str) -> ImportPreview {
     parse(text.as_bytes(), &Limits::new()).unwrap()
 }
 
+/// The records the file is split into are a copy of every field in it, the
+/// cleartext `password` column included, and they outlive the mapping that
+/// reads them. Asserted as a type rather than as a value because the guarantee
+/// *is* the type: nothing else makes the buffer wipe when it goes, and a
+/// refactor that returned a plain `Vec` would stop compiling here rather than
+/// quietly start handing the file back to the allocator.
+#[test]
+fn the_records_a_file_is_split_into_wipe_themselves() {
+    const fn wiped_on_drop<T: zeroize::ZeroizeOnDrop>(_: &T) {}
+    let records = read(INVENTORY, &Limits::new()).unwrap();
+    wiped_on_drop(&records);
+    assert_eq!(records.len(), 5);
+}
+
 fn refusal(text: &str) -> ImportError {
     let Err(err) = parse(text.as_bytes(), &Limits::new()) else {
         panic!("expected a refusal");

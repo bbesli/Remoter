@@ -150,15 +150,23 @@ pub enum VaultError {
     #[error("this build cannot authenticate with a {0} private key")]
     UnsupportedKeyFormat(&'static str),
 
-    /// The file is a private key in a legacy PEM container enciphered with a
-    /// cipher this build cannot read — the RFC 1421 §4.6.1.3 `DEK-Info` header
-    /// names one, and `crate::legacy_pem` reads AES-CBC and nothing else.
+    /// The file is a private key this build cannot decipher, and the payload
+    /// says why in a whole clause rather than naming a cipher.
+    ///
+    /// Three things reach it: a legacy PEM whose RFC 1421 §4.6.1.3 `DEK-Info`
+    /// header names a cipher `crate::legacy_pem` does not read, a PKCS#8
+    /// `EncryptedPrivateKeyInfo` whose scheme or derivation `crate::pkcs8`
+    /// refuses, and a `DEK-Info` header damaged enough that no cipher can be
+    /// read out of it. They have nothing in common to name, so each writes its
+    /// own sentence and this one only introduces it. Interpolating a bare noun
+    /// here instead produced "enciphered with its DEK-Info header names
+    /// DES-EDE3-CBC", which is how the drift was found.
     ///
     /// Separate from [`VaultError::UnsupportedKeyFormat`] because the key
     /// itself is perfectly usable and the remedy is different: re-enciphering a
     /// copy under a cipher this build does read costs one `ssh-keygen -p`,
     /// where an unsupported *key type* would still be refused afterwards.
-    #[error("this build cannot decipher a PEM container enciphered with {0}")]
+    #[error("this key cannot be deciphered: {0}")]
     UnsupportedKeyCipher(&'static str),
 
     /// The key is enciphered and reached the vault without a passphrase.
@@ -170,14 +178,49 @@ pub enum VaultError {
     #[error("that private key is enciphered and no passphrase was supplied")]
     KeyPassphraseRequired,
 
-    /// The passphrase did not decipher the key's PEM container.
+    /// The passphrase was tried against the container and did not open it.
     ///
-    /// A legacy PEM body carries no authentication tag, so a wrong passphrase
-    /// and a corrupt body are the same observation: the padding beneath the
-    /// cipher does not check out. This names the likelier of the two, which is
-    /// also the one the user can do something about.
-    #[error("that passphrase does not decipher the key's PEM container")]
+    /// Raised only after an actual decipher, never inferred: see
+    /// [`crate::ImportedKey::check_passphrase`]. The three containers say so
+    /// three ways — a legacy PEM body fails its PKCS#7 padding, a PKCS#8
+    /// `EncryptedPrivateKeyInfo` fails that and then fails to be a
+    /// `PrivateKeyInfo`, an OpenSSH container's two check integers come out
+    /// different — and all three mean the same thing to the person at the
+    /// keyboard.
+    ///
+    /// None of these containers carries an authentication tag over the
+    /// passphrase, so a corrupt body is the same observation. This names the
+    /// likelier of the two, which is also the one the user can act on.
+    #[error("that passphrase does not open the key's container")]
     KeyPassphraseRejected,
+
+    /// A passphrase was offered for a container that is not enciphered.
+    ///
+    /// Refused rather than dropped. Sealing it would put a secret in the vault
+    /// that unlocks nothing — carried, backed up and moved between machines for
+    /// no purpose anything can name — and dropping it silently would leave a
+    /// caller believing a passphrase had been stored. The container answers the
+    /// question before anyone types anything, through
+    /// [`crate::ImportedKey::is_encrypted`], so this is reachable only by
+    /// ignoring that answer.
+    #[error("that private key's container is not enciphered, so a passphrase opens nothing")]
+    KeyPassphraseNotNeeded,
+
+    /// The container is enciphered in a way this build cannot open, so whether
+    /// the passphrase is right is not a question that can be answered here.
+    ///
+    /// The payload is a whole clause naming what cannot be opened, in the same
+    /// shape [`VaultError::UnsupportedKeyCipher`] carries, because the things
+    /// that land here have nothing in common to name: a PuTTY `.ppk`, whose
+    /// derivation this build does not implement; an OpenSSH container under an
+    /// AEAD cipher; a PKCS#8 document whose ASN.1 does not walk.
+    ///
+    /// It is a refusal and not a shrug. Storing a passphrase nothing here can
+    /// check is exactly the ordering this variant exists to end: the vault
+    /// would accept it, seal it, and let the failure surface at connect time as
+    /// a rejection by a server that never saw the key.
+    #[error("this build cannot open that key's container to check the passphrase: {0}")]
+    KeyPassphraseUncheckable(&'static str),
 
     /// The node is not a credential holding a private key.
     #[error("node {0} is not a private-key credential")]

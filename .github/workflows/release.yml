@@ -64,21 +64,33 @@ jobs:
           # the floor is pinned rather than inherited.
           - os: ubuntu-22.04
             bundles: target/release/bundle
-            expected: deb rpm appimage
+            expected: deb/*.deb rpm/*.rpm appimage/*.AppImage
           - os: windows-latest
             bundles: target/release/bundle
-            expected: msi nsis
+            expected: msi/*.msi nsis/*.exe
           # macos-latest is Apple silicon, so an ordinary build there serves
           # Apple silicon and nobody else. `universal-apple-darwin` fuses an
           # x86_64 and an arm64 build into one binary, which is the difference
           # between an Intel Mac getting an application and getting nothing.
-          # Passing `--target` also moves the output under target/<triple>/,
-          # which is why the bundle directory is carried in the matrix rather
-          # than written out three times.
+          #
+          # The bundle path below is the consequence of the `--target` flag two
+          # steps down, and the two have to agree or the job finds nothing.
+          # tauri-cli's `get_target_dir` (crates/tauri-cli/src/interface/rust.rs)
+          # is `cargo target dir / <triple> / <profile>` with the triple pushed
+          # verbatim and no special case for `universal-apple-darwin` — the
+          # universal build is two ordinary builds plus `lipo -create -output`
+          # into that same directory — and the bundler writes under
+          # `<that>/bundle/<type>`. So: `--target universal-apple-darwin` means
+          # `target/universal-apple-darwin/release/bundle`, and dropping the
+          # flag would mean `target/release/bundle`. Neither half of that pair
+          # can be edited alone. It has not been run: there is no macOS here,
+          # and the first tag is where it gets tested. If it is wrong, the
+          # bundle check fails naming this path rather than the upload silently
+          # attaching nothing.
           - os: macos-latest
             target: universal-apple-darwin
             bundles: target/universal-apple-darwin/release/bundle
-            expected: dmg macos
+            expected: dmg/*.dmg macos/*.app
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -136,57 +148,36 @@ jobs:
       # fails when *no* pattern matches, so a Windows run that built the .msi
       # and quietly skipped the NSIS .exe would still be green. Name what each
       # platform owes and check for it.
-      - name: Every bundle this platform owes was produced
+      #
+      # This used to count entries in each bundle directory, which is not the
+      # same question: bundle/deb/ holds tauri's staging tree beside the .deb,
+      # so a directory with the staging tree and no package scored "1 entries"
+      # and passed. `matrix.expected` therefore names the artefact by glob, and
+      # the script asserts the files.
+      #
+      # The script is a file rather than a `run:` block because it is the piece
+      # that decides whether a tag ships anything, and a `run:` block can only
+      # be tested by cutting a tag. `.github/scripts/release-packaging-selftest.sh`
+      # runs this exact file against a fake bundle tree on every CI run.
+      - name: Every installer this platform owes was produced
         shell: bash
         env:
           BUNDLES: ${{ matrix.bundles }}
           EXPECTED: ${{ matrix.expected }}
-        run: |
-          set -euo pipefail
-          missing=""
-          for dir in $EXPECTED; do
-            # The `-d` test is not decoration. Written as
-            # `count=$(find "$BUNDLES/$dir" ... 2>/dev/null | wc -l)`, a missing
-            # directory makes `find` exit non-zero, `pipefail` propagates that
-            # through the substitution and `set -e` kills the step *there* —
-            # before the echo, before the `::error::` line. Measured: the step
-            # still exited 1, and said nothing at all about which bundle was
-            # missing, which is the failure it exists to explain.
-            #
-            # `find` rather than a glob, because an unmatched glob in bash
-            # expands to itself and would then "exist" as a literal path.
-            if [ -d "$BUNDLES/$dir" ]; then
-              count="$(find "$BUNDLES/$dir" -mindepth 1 -maxdepth 1 | wc -l)"
-            else
-              count=0
-            fi
-            echo "$BUNDLES/$dir: $count entries"
-            if [ "$count" -eq 0 ]; then
-              missing="$missing $dir"
-            fi
-          done
-          if [ -n "$missing" ]; then
-            echo "::error::$RUNNER_OS produced no bundle for:$missing"
-            exit 1
-          fi
-          # No `-printf` here: that is a GNU extension and this step runs under
-          # BSD find on the macOS runner.
-          find "$BUNDLES" -maxdepth 2 | sort
-      # The .app under bundle/macos is a directory and the .dmg already carries
-      # a copy of it, so only the installers travel. Everything listed here is
-      # a single file a person can download and open.
+          STAGE: target/release-installers
+        run: bash .github/scripts/collect-installers.sh
+      # One path, not six globs. upload-artifact roots an artifact at the least
+      # common ancestor of its search paths, so six globs under bundle/ arrive
+      # on the other side as deb/x.deb, rpm/x.rpm, … — which is what killed the
+      # release job, and what would put directory prefixes into SHA256SUMS.txt
+      # if it had survived. A single directory is rooted at itself, so the
+      # entries are the bare filenames a person downloads.
       - uses: actions/upload-artifact@v4
         with:
           name: bundles-${{ matrix.os }}
           if-no-files-found: error
           retention-days: 7
-          path: |
-            ${{ matrix.bundles }}/deb/*.deb
-            ${{ matrix.bundles }}/rpm/*.rpm
-            ${{ matrix.bundles }}/appimage/*.AppImage
-            ${{ matrix.bundles }}/msi/*.msi
-            ${{ matrix.bundles }}/nsis/*.exe
-            ${{ matrix.bundles }}/dmg/*.dmg
+          path: target/release-installers
 
   release:
     name: Draft release
@@ -207,12 +198,17 @@ jobs:
       # are generated where the artefacts are gathered and attached beside them.
       # They prove the download survived the network; they prove nothing about
       # who built it, which is what signing would add and why the notes say so.
+      #
+      # This step was `sha256sum -- *` in dist/, and dist/ held directories, so
+      # it exited 1 under `set -e` and the job died before it ever reached the
+      # release below. The script flattens whatever arrived, refuses to hash
+      # anything that is not a plain file, asserts the names it wrote are bare,
+      # and verifies its own output — the same command the release notes hand
+      # to the user, run here first.
       - name: Checksums
-        working-directory: dist
-        run: |
-          set -euo pipefail
-          sha256sum -- * > SHA256SUMS.txt
-          cat SHA256SUMS.txt
+        env:
+          DIST: dist
+        run: bash .github/scripts/prepare-release-files.sh
       # The notes are a file in the repository rather than a string in this
       # workflow, so that the sentences a user reads when SmartScreen stops them
       # can be edited by somebody who is not editing YAML. `${VERSION}` is the

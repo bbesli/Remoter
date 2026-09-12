@@ -27,7 +27,7 @@ use remoter_core::{
 use remoter_proto::{DefaultOrigin, OptionLabel, SettingField, SettingKind, SettingsSchema};
 use remoter_vault::{
     AuditEvent, AuditOutcome, CreateOptions, ExposeSecret as _, ImportedKey, RecoveryKey, Secret,
-    SlotInfo, UnlockError, UnlockMethod, Vault, VaultInfo, agent_credential,
+    SlotInfo, UnlockError, UnlockMethod, Vault, VaultError, VaultInfo, agent_credential,
     private_key_credential,
 };
 use tauri::State;
@@ -1248,13 +1248,104 @@ pub(crate) fn key_inspect(path: String) -> Result<PrivateKeyInfoDto, IpcError> {
     key_inspect_impl(path)
 }
 
+/// A refusal from reading a private key file, said with the file in it.
+///
+/// [`IpcError::from_vault`] already knows these variants, but it knows them
+/// without the file and it renders an unreadable container as a bare cipher
+/// name. A container the vault cannot read now carries a whole clause saying
+/// *what* is wrong — a cipher it does not implement, a PKCS#8 scheme the key
+/// parser refuses, a damaged `DEK-Info` or `Proc-Type` line — and this is what
+/// reads that clause into one sentence naming the file.
+///
+/// The code and the two actions are the catalogue's own for
+/// `key.legacy-encrypted`. They have to be: `locales/<lang>/errors.json` labels
+/// a failure's actions by position, so an arm that offered different sentences
+/// in those slots would put one entry's button labels on another entry's
+/// buttons for every reader who is not reading English.
+fn private_key_failure(err: &VaultError, path: &Path) -> IpcError {
+    match err {
+        VaultError::UnsupportedKeyCipher(what) => IpcError::new(
+            "key.legacy-encrypted",
+            format!(
+                "Remoter cannot read the encrypted container in {}: {what}. Nothing was \
+                 written.",
+                path.display()
+            ),
+        )
+        .with_detail((*what).to_string())
+        .with_actions([
+            "Convert a copy: `cp <file> <copy>` then `ssh-keygen -p -m PKCS8 -f <copy>`",
+            "Use the platform SSH agent instead",
+        ]),
+        // The four passphrase refusals name the file, because the reader is
+        // standing in front of a file picker and may well have chosen the wrong
+        // one of two. The codes and the actions are the catalogue's; only the
+        // sentence gains the path.
+        VaultError::KeyPassphraseRequired => IpcError::new(
+            "key.passphrase-required",
+            format!(
+                "{} is passphrase-protected, and without the passphrase Remoter cannot \
+                 use it to authenticate.",
+                path.display()
+            ),
+        )
+        .with_actions([
+            "Enter the key's passphrase",
+            "Choose a key that is not passphrase-protected",
+        ]),
+        VaultError::KeyPassphraseRejected => IpcError::new(
+            "key.passphrase-rejected",
+            format!(
+                "That passphrase does not open {}. Nothing was written.",
+                path.display()
+            ),
+        )
+        .with_detail(
+            "the passphrase was tried against the container and did not open it; a corrupt \
+             file looks the same, none of these containers carrying an authentication tag \
+             over the passphrase",
+        )
+        .with_actions([
+            "Check the passphrase and try again",
+            "Use the platform SSH agent instead",
+        ]),
+        VaultError::KeyPassphraseNotNeeded => IpcError::new(
+            "key.passphrase-not-needed",
+            format!(
+                "{} is not passphrase-protected — its container says the key material is \
+                 not enciphered — so a passphrase kept beside it would open nothing. \
+                 Nothing was written.",
+                path.display()
+            ),
+        )
+        .with_actions([
+            "Store this key without a passphrase",
+            "Choose the passphrase-protected key you meant",
+        ]),
+        VaultError::KeyPassphraseUncheckable(what) => IpcError::new(
+            "key.passphrase-uncheckable",
+            format!(
+                "Remoter cannot open the container in {} to check the passphrase, so it \
+                 will not store one it cannot vouch for: {what}. Nothing was written.",
+                path.display()
+            ),
+        )
+        .with_detail((*what).to_string())
+        .with_actions([
+            "Convert a copy: `cp <file> <copy>` then `ssh-keygen -p -m PKCS8 -f <copy>`",
+            "Use the platform SSH agent instead",
+        ]),
+        other => IpcError::from_vault(other, &path.display().to_string()),
+    }
+}
+
 fn key_inspect_impl(path: String) -> Result<PrivateKeyInfoDto, IpcError> {
     let path = PathBuf::from(path);
     let subject = path.display().to_string();
     let size_bytes = fs::metadata(&path).map_or(0, |meta| meta.len());
 
     // Dropped at the end of this function, which is what zeroizes the key.
-    let key = ImportedKey::read(&path).map_err(|err| IpcError::from_vault(&err, &subject))?;
+    let key = ImportedKey::read(&path).map_err(|err| private_key_failure(&err, &path))?;
 
     Ok(PrivateKeyInfoDto {
         path: subject,
@@ -1881,6 +1972,16 @@ fn verify_owner_only(_path: &Path) -> Result<(), IpcError> {
 }
 
 /// The key file could not be restricted to this account.
+///
+/// Only the `cfg(unix)` half of [`verify_owner_only`] can reach this: on
+/// Windows the permissions are the parent directory's ACL, there is nothing to
+/// read back, and that half returns `Ok`. So on windows-latest this is an item
+/// nothing calls, `dead_code` fires, and CI's `RUSTFLAGS: -D warnings` turns
+/// the warning into a failed `cargo test`. Gated to the platform that has a
+/// caller rather than allowed, because unlike the lock-trigger chain in
+/// `state.rs` nothing on Windows matches, formats or otherwise reads it — the
+/// message is about a Unix mode bit and would be untrue there.
+#[cfg(unix)]
 fn keyfile_unprotected(path: &Path) -> IpcError {
     IpcError::new(
         "keyfile.unprotected",
@@ -2023,22 +2124,24 @@ fn take_credential(
             // reading the file is the next thing that can fail.
             let passphrase = passphrase.map(Secret::new);
             let path = PathBuf::from(path);
-            let key = ImportedKey::read(&path)
-                .map_err(|err| IpcError::from_vault(&err, &path.display().to_string()))?;
-            if passphrase.is_none() && key.is_encrypted() {
-                return Err(IpcError::new(
-                    "key.passphrase-required",
-                    format!(
-                        "{} is passphrase-protected, and without the passphrase Remoter \
-                         cannot use it to authenticate.",
-                        path.display()
-                    ),
-                )
-                .with_actions([
-                    "Enter the key's passphrase",
-                    "Choose a key that is not passphrase-protected",
-                ]));
-            }
+            let key = ImportedKey::read(&path).map_err(|err| private_key_failure(&err, &path))?;
+            // **The passphrase is tried against the key here**, before the
+            // command creates a node — so a refusal leaves nothing behind at
+            // all, not even an empty credential.
+            //
+            // The vault enforces the same rule at the moment it seals, which is
+            // where the invariant belongs; this is the same question asked one
+            // step earlier so that the answer arrives before anything is
+            // written. Four things can be wrong and the four refusals say which:
+            // none given, one that does not open the container, one offered for
+            // a container that is not enciphered, and a container this build
+            // cannot open to find out.
+            key.check_passphrase(
+                passphrase
+                    .as_ref()
+                    .map(|passphrase| passphrase.expose_secret().as_bytes()),
+            )
+            .map_err(|err| private_key_failure(&err, &path))?;
             Ok(CredentialMaterial::PrivateKey { key, passphrase })
         }
     }
@@ -5591,7 +5694,7 @@ mod passphrase_gate_tests {
 mod credential_tests {
     use super::*;
     use crate::test_support::{
-        PKCS8_ENCRYPTED_KEY, PKCS8_KEY, Scratch, open_vault, ssh_keygen, why,
+        KEY_PASSPHRASE, Scratch, open_vault, pkcs8_encrypted_key, pkcs8_key, ssh_keygen, why,
     };
 
     fn credential(name: &str, credential: CredentialInputDto) -> CreateNodeDto {
@@ -5612,8 +5715,8 @@ mod credential_tests {
     #[test]
     fn a_key_file_is_identified_by_its_content_and_never_read_back_out() {
         let scratch = Scratch::new();
-        let plain = scratch.write("id_ed25519", PKCS8_KEY);
-        let locked = scratch.write("id_locked", PKCS8_ENCRYPTED_KEY);
+        let plain = scratch.write("id_ed25519", &pkcs8_key());
+        let locked = scratch.write("id_locked", &pkcs8_encrypted_key());
 
         let inspected = key_inspect_impl(plain.display().to_string());
         assert!(inspected.is_ok(), "inspecting failed: {}", why(&inspected));
@@ -5742,6 +5845,294 @@ mod credential_tests {
         }
     }
 
+    /// Writes an encrypted PKCS#8 document with the system's own OpenSSL, and
+    /// returns its path — or `None` when OpenSSL is absent or will not write
+    /// that scheme, so the caller can skip rather than fail on a machine whose
+    /// OpenSSL has no legacy provider.
+    ///
+    /// Real OpenSSL output rather than a fixture, because what is under test is
+    /// whether Remoter reads the files administrators actually have. No key is
+    /// committed — `CLAUDE.md` §9 forbids it — and everything written here goes
+    /// into the scratch directory, which is removed when its guard drops.
+    fn openssl_pkcs8(
+        scratch: &Scratch,
+        name: &str,
+        passphrase: &str,
+        args: &[&str],
+    ) -> Option<PathBuf> {
+        let plain = scratch.join("openssl-plain.pem");
+        if !plain.exists() {
+            let made = std::process::Command::new("openssl")
+                .args([
+                    "genpkey",
+                    "-algorithm",
+                    "RSA",
+                    "-pkeyopt",
+                    "rsa_keygen_bits:2048",
+                    "-out",
+                ])
+                .arg(plain.to_str()?)
+                .output()
+                .ok()?;
+            if !made.status.success() {
+                return None;
+            }
+        }
+        let path = scratch.join(name);
+        let output = std::process::Command::new("openssl")
+            .args(["pkcs8", "-topk8", "-in"])
+            .arg(plain.to_str()?)
+            .arg("-out")
+            .arg(path.to_str()?)
+            .args(args)
+            .args(["-passout", &format!("pass:{passphrase}")])
+            .output()
+            .ok()?;
+        output.status.success().then_some(path)
+    }
+
+    /// What `key_inspect` promises about an encrypted PKCS#8 file and what the
+    /// SSH adapter then does with it have to be the same answer.
+    ///
+    /// They were not. `openssl genrsa -des3` on OpenSSL 3.x — and `openssl
+    /// pkcs8 -topk8` by default on OpenSSL 1.x — writes an `ENCRYPTED PRIVATE
+    /// KEY` under PBES2 with `des-ede3-cbc`. Inspection said the file was a
+    /// fine PKCS#8 key that needed a passphrase; the passphrase was asked for,
+    /// typed, and sealed into the vault; and the key then failed at connect
+    /// time as "the server rejected these credentials". That is the worst
+    /// shape a failure can have — it arrives after the user has every reason to
+    /// believe the import worked, with nothing on screen connecting it to the
+    /// file they chose.
+    ///
+    /// This is the assertion that keeps the two answers together. It writes one
+    /// document per scheme with the system's own OpenSSL and requires, for each
+    /// one, that inspection accepts it **exactly when** `parse_private_key`
+    /// can read it with the right passphrase. A refusal additionally has to
+    /// name the scheme, because "convert a copy" is only actionable if the
+    /// reader knows what to convert away from.
+    #[test]
+    #[expect(
+        clippy::panic,
+        reason = "a matrix test that cannot write its inputs has nothing left to assert"
+    )]
+    fn inspection_accepts_exactly_the_pkcs8_schemes_the_ssh_adapter_can_read() {
+        let scratch = Scratch::new();
+        let passphrase = "correct horse battery staple";
+
+        // `-v2prf` is only meaningful with `-v2`; the last entry leaves it out,
+        // which is how OpenSSL writes the HMAC-SHA-1 default.
+        let schemes: [(&str, Vec<&str>); 6] = [
+            ("aes-256-cbc", vec!["-v2", "aes-256-cbc"]),
+            ("aes-128-cbc", vec!["-v2", "aes-128-cbc"]),
+            ("scrypt", vec!["-scrypt"]),
+            ("des-ede3-cbc", vec!["-v2", "des-ede3-cbc"]),
+            (
+                "pbkdf2-sha1",
+                vec!["-v2", "aes-256-cbc", "-v2prf", "hmacWithSHA1"],
+            ),
+            ("pbes1-sha1-3des", vec!["-v1", "PBE-SHA1-3DES"]),
+        ];
+
+        let mut checked = 0usize;
+        let mut refusals = 0usize;
+        for (name, args) in schemes {
+            let Some(path) = openssl_pkcs8(&scratch, &format!("{name}.pem"), passphrase, &args)
+            else {
+                // OpenSSL is absent, or this build of it will not write that
+                // scheme. Nothing to compare; say so by counting nothing.
+                continue;
+            };
+            let Ok(bytes) = fs::read(&path) else {
+                panic!("the file openssl just wrote could not be read");
+            };
+            checked = checked.saturating_add(1);
+
+            // The far end of the journey: the call `auth.rs` makes, with the
+            // right passphrase, on the bytes the vault would have sealed.
+            let readable =
+                remoter_proto_ssh::parse_private_key(&bytes, Some(passphrase.as_bytes())).is_ok();
+            let inspected = key_inspect_impl(path.display().to_string());
+
+            assert_eq!(
+                inspected.is_ok(),
+                readable,
+                "{name}: inspection said {}, the SSH adapter said {readable} — one of them \
+                 is lying to the user",
+                inspected.is_ok()
+            );
+
+            match inspected {
+                Ok(info) => assert!(
+                    info.encrypted,
+                    "{name}: the editor must ask for the passphrase"
+                ),
+                Err(err) => {
+                    refusals = refusals.saturating_add(1);
+                    assert_eq!(err.code, "key.legacy-encrypted", "{name}");
+                    let said = format!("{} {}", err.message, err.detail.unwrap_or_default());
+                    assert!(
+                        said.contains("des-ede3-cbc")
+                            || said.contains("HMAC-SHA-1")
+                            || said.contains("PKCS#12"),
+                        "{name}: the refusal must name the scheme: {said}"
+                    );
+                }
+            }
+        }
+
+        // A run that wrote nothing would pass every assertion above without
+        // comparing anything, which is exactly the shape of guard this
+        // repository keeps producing.
+        assert!(
+            checked >= 4,
+            "only {checked} schemes could be written; openssl must be on PATH for this test"
+        );
+        assert!(
+            refusals >= 1,
+            "no scheme was refused, so the refusal path was never exercised"
+        );
+    }
+
+    /// The vault's verdict on a passphrase and the SSH parser's have to be the
+    /// same verdict.
+    ///
+    /// The vault now tries the passphrase at import; the parser tries it again
+    /// when a session is opened. Two implementations answering one question is
+    /// exactly the arrangement that drifts, and drift here is the failure this
+    /// whole path exists to end — an import that looked fine and a connection
+    /// that fails, or a file refused at the picker that would have worked.
+    ///
+    /// So both are asked, about the same file, with the same passphrase, and
+    /// they have to agree. The files come from the system's own `ssh-keygen`
+    /// and `openssl`, in every container this build stores verbatim.
+    #[test]
+    #[expect(
+        clippy::panic,
+        reason = "a matrix test that cannot write its inputs has nothing left to assert"
+    )]
+    fn the_vault_and_the_ssh_parser_agree_on_whether_a_passphrase_opens_a_key() {
+        let scratch = Scratch::new();
+        let right = "correct horse battery staple";
+        let wrong = "hunter2";
+
+        let mut files: Vec<(String, PathBuf)> = Vec::new();
+        for (name, args) in [
+            ("ed25519", vec!["-t", "ed25519"]),
+            ("rsa", vec!["-t", "rsa", "-b", "2048"]),
+            ("ecdsa", vec!["-t", "ecdsa"]),
+            ("cbc", vec!["-t", "ed25519", "-Z", "aes256-cbc"]),
+            ("pem", vec!["-t", "rsa", "-b", "2048", "-m", "PEM"]),
+            ("pkcs8", vec!["-t", "ed25519", "-m", "PKCS8"]),
+        ] {
+            if let Some(path) = ssh_keygen(&scratch, name, right, &args) {
+                files.push((name.to_owned(), path));
+            }
+        }
+        if let Some(path) = openssl_pkcs8(&scratch, "openssl.pk8", right, &["-v2", "aes-256-cbc"]) {
+            files.push((String::from("openssl"), path));
+        }
+
+        let mut checked = 0usize;
+        for (name, path) in &files {
+            let Ok(bytes) = fs::read(path) else {
+                panic!("the file that was just written could not be read");
+            };
+            checked = checked.saturating_add(1);
+
+            for (label, passphrase) in [("right", right), ("wrong", wrong)] {
+                // The vault, at the moment the file is chosen.
+                let Ok(key) = ImportedKey::read(path) else {
+                    panic!("{name}: the key file did not read");
+                };
+                let vault_says = key.check_passphrase(Some(passphrase.as_bytes())).is_ok();
+
+                // The SSH adapter, at the moment a session is opened. A legacy
+                // PEM is the one container the vault rewrites rather than
+                // stores, so the parser is asked about what the vault would
+                // have sealed rather than about the file.
+                let parser_says =
+                    remoter_proto_ssh::parse_private_key(&bytes, Some(passphrase.as_bytes()))
+                        .is_ok();
+
+                assert_eq!(
+                    vault_says, parser_says,
+                    "{name} with the {label} passphrase: the vault said {vault_says} and the \
+                     SSH parser said {parser_says} — one of them is lying to the user"
+                );
+            }
+        }
+
+        assert!(
+            checked >= 6,
+            "only {checked} containers could be written; ssh-keygen must be on PATH"
+        );
+    }
+
+    /// A real key with a damaged RFC 1421 header is no longer called a file
+    /// that is not a private key.
+    ///
+    /// "That file is not a private key. A public key, a certificate or an
+    /// unrelated file cannot authenticate a connection." — said about a `.pem`
+    /// that is a private key, whose banner, `Proc-Type` line and body are all
+    /// where they should be, and whose only fault is one mangled header line.
+    /// It sends the reader hunting for a different file. The sentence now names
+    /// the line.
+    #[test]
+    fn a_damaged_pem_header_is_named_rather_than_called_not_a_key() {
+        let scratch = Scratch::new();
+        let body = data_encoding::BASE64.encode(&[0u8; 16]);
+        let document = |header: &str| {
+            format!(
+                "-----BEGIN RSA PRIVATE KEY-----\n{header}\n{body}\n-----END RSA PRIVATE KEY-----\n"
+            )
+        };
+
+        for (name, header, expected) in [
+            (
+                "no-dek-info",
+                String::from("Proc-Type: 4,ENCRYPTED"),
+                "DEK-Info",
+            ),
+            (
+                "iv-not-hex",
+                String::from("Proc-Type: 4,ENCRYPTED\nDEK-Info: AES-128-CBC,ZZZZ"),
+                "initialisation vector",
+            ),
+            (
+                "iv-too-short",
+                String::from("Proc-Type: 4,ENCRYPTED\nDEK-Info: AES-128-CBC,0123456789ABCDEF"),
+                "initialisation vector",
+            ),
+            (
+                "no-comma",
+                String::from("Proc-Type: 4,ENCRYPTED\nDEK-Info: AES-128-CBC"),
+                "comma",
+            ),
+        ] {
+            let path = scratch.write(&format!("{name}.pem"), &document(&header));
+            let refused = key_inspect_impl(path.display().to_string());
+            assert!(
+                refused.is_err(),
+                "{name}: a block whose header is damaged cannot be stored"
+            );
+            let Err(err) = refused else {
+                unreachable!("the assertion above already settled this");
+            };
+            assert_ne!(
+                err.code, "key.not-a-private-key",
+                "{name}: a real key was called a file that is not one"
+            );
+            assert!(
+                err.message.contains(expected),
+                "{name}: the sentence must say what is wrong with the header: {}",
+                err.message
+            );
+            // And the file itself is named, so the reader knows which of the
+            // keys on their disk this is about.
+            assert!(err.message.contains(name), "{name}: {}", err.message);
+        }
+    }
+
     #[test]
     fn a_request_carrying_both_a_password_and_a_credential_is_refused() {
         let refused = take_credential(
@@ -5756,7 +6147,7 @@ mod credential_tests {
     #[test]
     fn a_passphrase_protected_key_without_its_passphrase_is_refused() {
         let scratch = Scratch::new();
-        let locked = scratch.write("id_locked", PKCS8_ENCRYPTED_KEY);
+        let locked = scratch.write("id_locked", &pkcs8_encrypted_key());
 
         let refused = take_credential(
             None,
@@ -5789,7 +6180,7 @@ mod credential_tests {
         let Some(state) = open_vault(&scratch) else {
             panic!("the vault could not be created");
         };
-        let key_file = scratch.write("id_ed25519", PKCS8_KEY);
+        let key_file = scratch.write("id_locked", &pkcs8_encrypted_key());
 
         let created = node_create_impl(
             &state,
@@ -5797,7 +6188,7 @@ mod credential_tests {
                 "svc-deploy",
                 CredentialInputDto::PrivateKey {
                     path: key_file.display().to_string(),
-                    passphrase: Some(String::from("opensesame")),
+                    passphrase: Some(String::from(KEY_PASSPHRASE)),
                 },
             ),
         );
@@ -5810,7 +6201,7 @@ mod credential_tests {
         assert!(created.has_passphrase);
 
         let rendered = serde_json::to_string(&created).unwrap_or_default();
-        assert!(!rendered.contains("opensesame"), "rendered: {rendered}");
+        assert!(!rendered.contains(KEY_PASSPHRASE), "rendered: {rendered}");
         assert!(!rendered.contains("MIIBAA"), "rendered: {rendered}");
 
         // The key is in the vault rather than left as a reference to the file,
@@ -5826,6 +6217,125 @@ mod credential_tests {
         assert_eq!(vault.has_secret(id, "private_key").ok(), Some(true));
         assert_eq!(vault.has_secret(id, "passphrase").ok(), Some(true));
         assert_eq!(vault.has_secret(id, "password").ok(), Some(false));
+    }
+
+    /// A passphrase typed for a key that is not passphrase-protected is
+    /// refused, and nothing is written.
+    ///
+    /// It used to be accepted and sealed. The key parser drops a passphrase a
+    /// plaintext container has no use for, so the vault ended up holding an
+    /// encrypted secret that unlocks nothing — one more value to carry, back up
+    /// and move between machines, for a purpose nothing could name. The answer
+    /// is not to drop it quietly either: the interface asks `key_inspect` what
+    /// the file is before it draws the field, so a passphrase arriving for a
+    /// plaintext container means that answer was ignored, and a caller told
+    /// nothing would go on believing the passphrase had been stored.
+    #[test]
+    #[expect(
+        clippy::panic,
+        reason = "a credential test without a vault has nothing left to assert"
+    )]
+    fn a_passphrase_for_a_key_that_needs_none_is_refused_and_nothing_is_written() {
+        let scratch = Scratch::new();
+        let Some(state) = open_vault(&scratch) else {
+            panic!("the vault could not be created");
+        };
+        let key_file = scratch.write("id_ed25519", &pkcs8_key());
+
+        // The answer the interface is given before it decides whether to ask.
+        let inspected = key_inspect_impl(key_file.display().to_string());
+        assert!(
+            inspected.is_ok_and(|info| !info.encrypted),
+            "this container is not enciphered, which is the premise"
+        );
+
+        let refused = node_create_impl(
+            &state,
+            &mut credential(
+                "svc-deploy",
+                CredentialInputDto::PrivateKey {
+                    path: key_file.display().to_string(),
+                    passphrase: Some(String::from("opensesame")),
+                },
+            ),
+        );
+        let Err(err) = refused else {
+            panic!("a passphrase for a key that needs none was accepted");
+        };
+        // Its own code, and not `request.invalid`. That code's sentence is
+        // "A value in that request is not usable" and its only action tells the
+        // reader to report a bug — said to someone who typed a passphrase for a
+        // key that needs none, which is not a bug and not theirs to report.
+        assert_eq!(err.code, "key.passphrase-not-needed");
+        assert!(
+            err.message.contains("not passphrase-protected"),
+            "the reader has to learn the key needs none: {}",
+            err.message
+        );
+        assert!(
+            !err.actions.iter().any(|action| action.contains("Report")),
+            "actions: {:?}",
+            err.actions
+        );
+        assert!(
+            !err.message.contains("opensesame") && err.detail.as_deref() != Some("opensesame"),
+            "the refusal must not quote what was typed"
+        );
+
+        // Nothing at all was written: no node, and so no secret either. The
+        // guard is scoped, because everything below takes the same lock.
+        {
+            let mut guard = state.lock();
+            let Ok(vault) = guard.vault_mut() else {
+                panic!("the vault should be open");
+            };
+            let Ok(tree) = vault.tree() else {
+                panic!("the tree should be readable");
+            };
+            assert!(
+                tree.roots().is_empty(),
+                "a refused credential must leave no node behind"
+            );
+        }
+
+        // And the vault itself refuses to seal one even when a caller insists,
+        // which is the invariant rather than the guard in front of it.
+        let created = node_create_impl(
+            &state,
+            &mut credential(
+                "svc-deploy",
+                CredentialInputDto::PrivateKey {
+                    path: key_file.display().to_string(),
+                    passphrase: None,
+                },
+            ),
+        );
+        let Ok(created) = created else {
+            panic!("creating without a passphrase failed");
+        };
+        assert!(!created.has_passphrase);
+        let Ok(node) = Uuid::parse_str(&created.id) else {
+            panic!("the node id should be a uuid");
+        };
+        let Ok(key) = ImportedKey::read(&key_file) else {
+            panic!("the key file should still read");
+        };
+
+        let mut guard = state.lock();
+        let Ok(vault) = guard.vault_mut() else {
+            panic!("the vault should be open");
+        };
+        let insisted =
+            vault.set_private_key(node, &key, Some(&Secret::new(String::from("opensesame"))));
+        assert!(
+            matches!(insisted, Err(VaultError::KeyPassphraseNotNeeded)),
+            "the vault itself must refuse, not only the command in front of it"
+        );
+        assert_eq!(
+            vault.has_secret(node, "passphrase").ok(),
+            Some(false),
+            "the vault must not seal a secret that opens nothing"
+        );
     }
 
     #[test]
@@ -5955,7 +6465,9 @@ mod credential_tests {
             why(&refused)
         );
 
-        // 3. A wrong passphrase is its own answer, and is not a corrupt file.
+        // 3. A wrong passphrase is its own answer: its own code, distinct from
+        // the one a missing passphrase raises, because "type one" and "type a
+        // different one" are different things to be told.
         let refused = node_create_impl(
             &state,
             &mut credential(
@@ -5969,15 +6481,15 @@ mod credential_tests {
         assert!(
             refused
                 .as_ref()
-                .is_err_and(|err| err.code == "key.passphrase-required"),
-            "expected key.passphrase-required for a wrong passphrase, got {}",
+                .is_err_and(|err| err.code == "key.passphrase-rejected"),
+            "expected key.passphrase-rejected for a wrong passphrase, got {}",
             why(&refused)
         );
         if let Err(err) = refused {
             assert!(
                 err.detail
                     .as_deref()
-                    .is_some_and(|detail| detail.contains("did not decipher")),
+                    .is_some_and(|detail| detail.contains("did not open it")),
                 "a wrong passphrase and a missing one must not read alike: {:?}",
                 err.detail
             );
@@ -6138,7 +6650,7 @@ mod credential_tests {
 
         // Agent back to a key: the key and its passphrase are stored, and the
         // node says which container it is.
-        let key_file = scratch.write("id_locked", PKCS8_ENCRYPTED_KEY);
+        let key_file = scratch.write("id_locked", &pkcs8_encrypted_key());
         let updated = node_update_impl(
             &state,
             created.id,
@@ -6153,7 +6665,7 @@ mod credential_tests {
                 password: None,
                 credential: Some(CredentialInputDto::PrivateKey {
                     path: key_file.display().to_string(),
-                    passphrase: Some(String::from("opensesame")),
+                    passphrase: Some(String::from(KEY_PASSPHRASE)),
                 }),
                 credential_id: None,
                 clear_overrides: None,
@@ -6174,7 +6686,7 @@ mod credential_tests {
     #[test]
     fn a_key_cannot_be_hung_on_a_folder() {
         let scratch = Scratch::new();
-        let key_file = scratch.write("id_ed25519", PKCS8_KEY);
+        let key_file = scratch.write("id_ed25519", &pkcs8_key());
         let material = take_credential(
             None,
             Some(CredentialInputDto::PrivateKey {
@@ -6213,7 +6725,7 @@ mod credential_tests {
         let Some(state) = open_vault(&scratch) else {
             panic!("the vault could not be created");
         };
-        let key_file = scratch.write("id_ed25519", PKCS8_KEY);
+        let key_file = scratch.write("id_ed25519", &pkcs8_key());
 
         let Ok(key_credential) = node_create_impl(
             &state,

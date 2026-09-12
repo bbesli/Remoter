@@ -64,9 +64,10 @@ them on any of that is a bug in the code, unless the document has been amended
 first.
 
 They are **not** a statement of what exists. Every document in `docs/` describes
-the finished product, and much of the finished product is not written; the
-feature and architecture documents open with a note saying which part of them
-ships, and individual claims carry ✅ / ◐ / ⏳ markers. So a document describing a
+the finished product, and much of the finished product is not written; every
+file in `docs/features/` and `docs/architecture/` opens with a note saying which
+part of it ships — thirteen files, the ADRs under `decisions/` excluded — and
+individual claims carry ✅ / ◐ / ⏳ markers. So a document describing a
 feature is never evidence that the feature is there — grep for it before you
 build on it, and if you find it missing, say so rather than assuming you have
 looked in the wrong place. `README.md`'s *What works today* table and
@@ -95,10 +96,11 @@ copying `0000-template.md`).
 
 ## 3. Repository layout
 
-This is the tree as it exists, which is the ten crates in `Cargo.toml`'s
-`members` and nothing else. Four crates the older drafts of this file listed —
-`remoter-proto-sftp`, `remoter-tunnel`, `remoter-record`, `remoter-plugin` —
-have never been created. Where their work lives instead is noted below.
+This is the tree as it exists. `Cargo.toml`'s `members` has eleven entries: the
+ten crates below and `apps/desktop/src-tauri`, and nothing else. Four crates the
+older drafts of this file listed — `remoter-proto-sftp`, `remoter-tunnel`,
+`remoter-record`, `remoter-plugin` — have never been created. Where their work
+lives instead is noted below.
 
 ```
 crates/
@@ -182,6 +184,13 @@ npm test
 cd apps/desktop && ./ui/node_modules/.bin/tauri dev
 cd apps/desktop && ./ui/node_modules/.bin/tauri build --no-bundle
 
+# Documentation. Every relative link and #fragment resolves, every file under
+# docs/features and docs/architecture opens with a note saying which part of it
+# ships, the counts README.md and docs/README.md quote for that are the counts
+# on disk, and the two index tables list every document that exists. Cheap,
+# offline, no arguments.
+scripts/check-docs.sh
+
 # Live protocol tests. There is no `tests/fixtures/compose.yaml` — the only
 # fixture that exists is a throwaway sshd, which covers the SSH and SFTP live
 # tests. RDP and VNC have no fixture, so their `integration-tests` targets need
@@ -191,9 +200,10 @@ cargo test --workspace --features integration-tests
 ```
 
 **Before you claim work is done**, run `cargo clippy -- -D warnings`,
-`cargo fmt --all --check`, `cargo test --workspace` and `npm run typecheck`.
-Report failures honestly; do not describe a partially working change as
-complete.
+`cargo fmt --all --check`, `cargo test --workspace` and `npm run typecheck` —
+and `scripts/check-docs.sh` if you touched a Markdown file, which a change that
+follows §2 usually has. Report failures honestly; do not describe a partially
+working change as complete.
 
 ---
 
@@ -237,10 +247,21 @@ reintroduces the state-corruption risk. A panic outside a session task is fatal
 by design. The panic hook logs the location, never the payload — payloads
 contain formatted values, and formatted values contain secrets.
 
-**Unsafe.** `#![forbid(unsafe_code)]` at the top of every crate except where a
-platform FFI genuinely requires it. Those exceptions are listed in
-`docs/development/coding-standards.md` and each `unsafe` block carries a
-`// SAFETY:` comment stating the upheld invariant.
+**Unsafe.** Forbidden, and the mechanism is a workspace lint, not an attribute
+per file: `unsafe_code = "forbid"` in `[workspace.lints.rust]`, which all ten
+crates inherit through `[lints] workspace = true`. Three of them —
+`remoter-proto-ssh`, `remoter-proto-rdp`, `remoter-proto-vnc` — also write
+`#![forbid(unsafe_code)]` at the top of `lib.rs`. That is belt and braces, and
+says nothing about the other seven, which are covered exactly as strictly. So
+grepping for the attribute finds three files and is not how you check whether a
+crate is covered; the lint block in the root `Cargo.toml` is.
+
+`remoter-desktop` is the one exception. It sets `unsafe_code = "deny"` in its
+own `[lints.rust]` and allows a single block: the `std::env::set_var` call in
+`main.rs` that applies the Wayland DMA-BUF workaround, which edition 2024 made
+unsafe and which runs before any thread exists. It is written up in
+`docs/development/coding-standards.md`; a further exception needs an ADR. Every
+`unsafe` block carries a `// SAFETY:` comment stating the upheld invariant.
 
 **Tests.** Cryptographic primitives get known-answer tests against published
 vectors. Inheritance resolution and importers get `proptest` property tests.

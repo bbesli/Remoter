@@ -167,14 +167,19 @@ searching `sunucu` should find `Sunucu`, and searching `munchen` should find
 
 ## Migrations
 
-Forward-only, numbered, embedded in the binary, run inside a transaction:
+Forward-only, numbered, embedded in the binary, run inside a transaction. The
+directory holds two files, and `SCHEMA_VERSION` in `storage.rs` is therefore 2:
 
 ```
 crates/remoter-vault/migrations/
-  001_initial.sql
-  002_add_session_history.sql
-  ...
+  001_initial.sql                 every table above, session_history included
+  002_trust_store_null_node.sql   an expression index, so a global host-key pin
+                                  is replaced rather than duplicated
 ```
+
+The numbering is not a history of the tables: `session_history` is created by
+`001_initial.sql` along with everything else, and 002 changes an index rather
+than adding a table.
 
 Rules:
 

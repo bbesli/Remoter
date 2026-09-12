@@ -1074,14 +1074,35 @@ impl Vault {
     /// one the protocol adapter would hand to a parser that has no use for it —
     /// which fails the connection rather than the import, a long way from the
     /// cause. See `crate::credential` for why the envelope is not preserved.
+    ///
+    /// **No passphrase is sealed until it has been tried against the
+    /// container.** [`ImportedKey::check_passphrase`] runs first, before the
+    /// row is touched and before anything is written, and its four refusals are
+    /// the four things that can be wrong: none given, one that does not open
+    /// the container, one offered for a container that is not enciphered, and a
+    /// container this build cannot open to find out. The last of those is a
+    /// refusal rather than a shrug for the same reason as the rest — a
+    /// passphrase nothing here can check is a passphrase whose failure arrives
+    /// at connect time, as a rejection by a server that never saw the key.
+    ///
+    /// **A passphrase offered for a key whose container is not enciphered is
+    /// never stored**, and is now refused rather than dropped. Sealing it would
+    /// put a secret in the vault that unlocks nothing — a value kept, backed up
+    /// and carried between machines for no purpose anything can name, which is
+    /// exactly the question `CLAUDE.md` §7 asks of every value — and dropping it
+    /// silently would leave the caller believing one had been stored.
     pub fn set_private_key(
         &mut self,
         node: Uuid,
         key: &ImportedKey,
         passphrase: Option<&Secret<String>>,
     ) -> Result<(), VaultError> {
-        // Before the row is touched: a locked key that cannot be opened must
-        // leave the credential exactly as it was.
+        // First, and before the row is touched: a passphrase that does not open
+        // the key must leave the credential exactly as it was, and must be
+        // refused here rather than discovered by a server later.
+        let offered = passphrase.map(|passphrase| passphrase.expose_secret().as_bytes());
+        key.check_passphrase(offered)?;
+
         let unlocked = match (key.material(), passphrase) {
             (Some(_), _) => None,
             (None, Some(passphrase)) => Some(key.unlock(passphrase.expose_secret().as_bytes())?),
@@ -1089,8 +1110,14 @@ impl Vault {
         };
         let stored = unlocked.as_ref().unwrap_or(key);
         let material = stored.material().ok_or(VaultError::KeyPassphraseRequired)?;
-        // The passphrase opened the PEM container and has no second job.
-        let passphrase = if unlocked.is_some() { None } else { passphrase };
+        // Either the passphrase opened the PEM container and has no second job,
+        // or the container it was offered for is not enciphered and it never
+        // had a first one. Both end the same way: nothing to seal.
+        let passphrase = if unlocked.is_some() || !stored.is_encrypted() {
+            None
+        } else {
+            passphrase
+        };
 
         let row = self.store.node(node)?.ok_or(VaultError::NoSuchNode(node))?;
         let mut domain = node_from_row(&row)?;

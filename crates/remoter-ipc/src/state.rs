@@ -273,6 +273,26 @@ const UNLOCK_BACKOFF_MAX_DOUBLINGS: u32 = 16;
 /// Declared here beside the other lock policy rather than in the watcher, so
 /// that the number a reviewer has to argue with is next to the timeout it
 /// belongs with.
+///
+/// # Why the lint is allowed off Linux
+///
+/// This constant, [`LockTrigger::enabled_in`], [`LockReason::Trigger`] and
+/// [`Inner::lock_for_trigger`] are one chain: the link that enters it is the
+/// resume watcher in [`crate::lock_watch`], and that watcher exists on Linux
+/// only. Off Linux nothing calls any of the four, `dead_code` fires on all of
+/// them, and CI runs with `RUSTFLAGS: -D warnings` — so the `test` job fails
+/// to compile on windows-latest and macos-latest, which is how this was found.
+///
+/// The lint is allowed rather than the items being `cfg`-gated away. Gating
+/// would not stop at these four: `LockReason::Trigger` is matched in
+/// [`Inner::locked_error`], which is where `LockTrigger::describe` and
+/// `IpcError::locked_by_trigger` are reached from, so removing the variant
+/// would carry a live error message and its catalogue entry out with it on two
+/// platforms. The settings these read, and the `observation()` the interface
+/// renders from them, are present on all three platforms; what is missing off
+/// Linux is a watcher to call them, not the feature. When one is written,
+/// these four attributes come off with it.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 pub(crate) const RESUME_GAP: Duration = Duration::from_secs(60);
 
 /// The moment anything last counted as activity, shared lock-free.
@@ -367,6 +387,11 @@ impl LockTrigger {
     pub(crate) const ALL: &'static [Self] = &[Self::ScreenLock, Self::Suspend, Self::Minimise];
 
     /// The switch in the vault's settings that governs this trigger.
+    ///
+    /// Only [`Inner::lock_for_trigger`] asks, and only the Linux resume
+    /// watcher calls that — see the note on [`RESUME_GAP`] for why the lint is
+    /// allowed off Linux rather than the item gated away.
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
     const fn enabled_in(self, settings: &VaultSettings) -> bool {
         match self {
             Self::ScreenLock => settings.lock_on_screen_lock,
@@ -430,6 +455,12 @@ pub(crate) enum LockReason {
     /// may have come from the vault rather than from this machine.
     Idle(u32),
     /// An operating-system event the vault is configured to lock on.
+    ///
+    /// Constructed only by [`Inner::lock_for_trigger`], so off Linux it is
+    /// never constructed at all — see the note on [`RESUME_GAP`]. It is still
+    /// *matched* there, in [`Inner::locked_error`], which is what would break
+    /// if this were gated out instead.
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
     Trigger(LockTrigger),
 }
 
@@ -848,6 +879,10 @@ impl Inner {
     /// The switch is read from the vault rather than from this machine for the
     /// same reason `sessionOnLock` is: the policy travels with the file, so a
     /// vault carried to another computer locks on the same events there.
+    ///
+    /// The only caller outside the tests is the Linux resume watcher, so the
+    /// lint is allowed elsewhere; see the note on [`RESUME_GAP`].
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
     pub(crate) fn lock_for_trigger(&mut self, trigger: LockTrigger) -> bool {
         let Some(vault) = self.vault.as_ref() else {
             return false;

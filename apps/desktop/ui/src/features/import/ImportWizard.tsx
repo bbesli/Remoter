@@ -28,6 +28,15 @@
  * compare an import against what is already in the vault, and it cannot undo a
  * commit. The preview says so and says what to do instead — untick it now.
  *
+ * Everything below the path on step 1 is *about* the file at that path — what
+ * detection made of it, the password its owner put on it, the refusal the core
+ * came back with, the parse the core is holding. Choosing a different file
+ * therefore invalidates all of it: what is cheap to redo is dropped, and the
+ * parse is disowned by `parsedFor` rather than thrown away. A refusal left
+ * standing against a second file is not merely stale — the password ones put a
+ * field on screen and hold the forward control shut against a file that may
+ * have no password at all.
+ *
  * Secrets: the document password lives in this component's state only until
  * `import_parse` has taken it, and is cleared on success. The preview handle
  * that comes back names a parse held in the core with recovered passwords in
@@ -132,6 +141,14 @@ export function ImportWizard() {
   const [reveal, setReveal] = useState(false);
 
   const [preview, setPreview] = useState<ImportPreview | null>(null);
+  /**
+   * The path the parse was of, so a different file does not inherit its result.
+   *
+   * The same idea as `detectedFor` and for the same reason, but it guards more:
+   * a preview, the refusal that came back instead of one, and every step that
+   * acts on either. See `livePreview`.
+   */
+  const [parsedFor, setParsedFor] = useState<string | null>(null);
   const [excluded, setExcluded] = useState<ReadonlySet<string>>(new Set());
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   const [filter, setFilter] = useState("");
@@ -152,11 +169,39 @@ export function ImportWizard() {
    */
   const liveImportId = useRef<string | null>(null);
 
+  /**
+   * The path as it is right now, for a callback that was captured earlier.
+   *
+   * A mutation's callbacks are the ones that existed when it was fired, so a
+   * detection that lands after the user has typed a different path would
+   * otherwise draw the old file's size and format under the new file's name.
+   *
+   * Written beside every `setPath`, and only there — both are event handlers,
+   * which is the one place a ref may be written.
+   */
+  const pathRef = useRef("");
+
+  /**
+   * The preview, but only while the path is still the one it is a preview of.
+   *
+   * Everything downstream reads this rather than `preview`, so choosing another
+   * file closes the steps that would act on the last one instead of leaving a
+   * commit button that would write the wrong file. The parse itself is left
+   * alive in the core until something replaces it or the screen goes away —
+   * editing a path is not a decision to throw work away, and a path edited back
+   * to what it was brings its preview back with it.
+   */
+  const livePreview = parsedFor === path ? preview : null;
+
   const nodes = useQuery({ queryKey: qk.nodes(), queryFn: ipc.listNodes });
 
   const detect = useMutation({
     mutationFn: (target: string) => ipc.detectImport(target),
     onSuccess: (data, target) => {
+      // The answer is about a file the user has since moved off. Dropping it
+      // is right: the new path has not been looked at, and the forward control
+      // already says so.
+      if (target !== pathRef.current) return;
       setDetection(data);
       setDetectedFor(target);
       // Detection is the authority until the user overrules it; a new file
@@ -183,6 +228,16 @@ export function ImportWizard() {
     },
     onSuccess: (data) => {
       stagedParse.clear();
+      // Reading a second file leaves the first parse resident in the core with
+      // the passwords it recovered in it. The handle is about to be
+      // overwritten, so this is the last moment anything can drop it.
+      const spent = liveImportId.current;
+      if (spent !== null && spent !== data.importId) {
+        void ipc.cancelImport(spent).catch(() => {
+          // A preview the core has already dropped is not a failure, and this
+          // is not the user's action to report a failure of.
+        });
+      }
       liveImportId.current = data.importId;
       setPreview(data);
       setExcluded(new Set());
@@ -210,7 +265,7 @@ export function ImportWizard() {
     onSuccess: async (data) => {
       // The handle is spent: the core dropped the preview when it committed it.
       liveImportId.current = null;
-      setCommittedReport(preview?.report ?? null);
+      setCommittedReport(livePreview?.report ?? null);
       setResult(data);
       setStep(8);
       await invalidateAfterTreeChange(queryClient);
@@ -240,8 +295,8 @@ export function ImportWizard() {
 
   const index: ImportTreeIndex = useMemo(
     // The locale orders siblings, so a language change re-sorts the preview.
-    () => indexNodes(preview?.nodes ?? [], locale),
-    [preview, locale],
+    () => indexNodes(livePreview?.nodes ?? [], locale),
+    [livePreview, locale],
   );
   const counts = useMemo(() => includedCounts(index, excluded), [index, excluded]);
   // The filter folds under the reader's casing rules, so the language has to
@@ -259,7 +314,12 @@ export function ImportWizard() {
   const needsDetect = path !== "" && detectedFor !== path && sourceOverride === null;
   const busy = detect.isPending || parse.isPending || commit.isPending || cancel.isPending;
 
-  const parseFailure = parse.isError ? asFailure(parse.error) : null;
+  // A refusal is a statement about the file it was a refusal of. Held against
+  // a file the user has since changed to, it is worse than stale: the password
+  // refusals below put a "Document password" field on screen and hold the
+  // forward control shut until something is typed into it, for a file that may
+  // have no password at all.
+  const parseFailure = parse.isError && parsedFor === path ? asFailure(parse.error) : null;
 
   const facts: WizardFacts = {
     hasFile: path !== "",
@@ -271,7 +331,7 @@ export function ImportWizard() {
     passwordRequired:
       (detection?.passwordRequired ?? false) || wantsDocumentPassword(parseFailure),
     hasPassword: password !== "",
-    hasPreview: preview !== null,
+    hasPreview: livePreview !== null,
     includedCount: counts.total,
     committed: result !== null,
     busy,
@@ -281,12 +341,33 @@ export function ImportWizard() {
   const destinationLabel =
     destinationId === null ? null : (folders?.find((f) => f.id === destinationId)?.path ?? null);
 
-  const onPath = useCallback((next: string) => {
-    setPath(next);
-    setDetection(null);
-    setDetectedFor(null);
-    setSourceOverride(null);
-  }, []);
+  /**
+   * A different file, and with it everything the last one produced.
+   *
+   * Detection and its failure are dropped outright — they cost one press to
+   * redo and say nothing the user cannot see. The document password goes with
+   * them, because it was that file's owner's password and this screen holds a
+   * secret for exactly as long as it takes to use it. What the parse produced
+   * is not dropped but disowned, by `parsedFor`: it is expensive, it lives in
+   * the core, and a path edited back to what it was should find it still there.
+   */
+  const onPath = useCallback(
+    (next: string) => {
+      setPath(next);
+      pathRef.current = next;
+      setDetection(null);
+      setDetectedFor(null);
+      setSourceOverride(null);
+      setPassword("");
+      setReveal(false);
+      detect.reset();
+      // A commit that failed did so writing the other file. It is only read on
+      // the last step, which a second file reaches by its own route — and the
+      // notice would be sitting there when it arrived.
+      commit.reset();
+    },
+    [commit, detect],
+  );
 
   const runDetect = useCallback(() => {
     if (path === "") return;
@@ -296,6 +377,9 @@ export function ImportWizard() {
   const runParse = useCallback(() => {
     if (path === "") return;
     setStep(3);
+    // Recorded before the call rather than after it, so a refusal is owned by
+    // the file it refused as surely as a preview is.
+    setParsedFor(path);
     stagedParse.stage({
       path,
       password: password === "" ? null : password,
@@ -308,23 +392,25 @@ export function ImportWizard() {
   }, [parse, stagedParse, password, path, sourceOverride]);
 
   const runCommit = useCallback(() => {
-    if (preview === null) return;
+    if (livePreview === null) return;
     commit.mutate({
-      importId: preview.importId,
+      importId: livePreview.importId,
       destinationId,
       excludedIds: excludedRoots(index, excluded),
     });
-  }, [commit, destinationId, excluded, index, preview]);
+  }, [commit, destinationId, excluded, index, livePreview]);
 
   const reset = useCallback(() => {
     setStep(1);
     setPath("");
+    pathRef.current = "";
     setDetection(null);
     setDetectedFor(null);
     setSourceOverride(null);
     setPassword("");
     setReveal(false);
     setPreview(null);
+    setParsedFor(null);
     setExcluded(new Set());
     setCollapsed(new Set());
     setFilter("");
@@ -384,8 +470,8 @@ export function ImportWizard() {
   }, []);
   const includeAll = useCallback(() => setExcluded(new Set()), []);
   const excludeAll = useCallback(
-    () => setExcluded(new Set(preview?.nodes.map((node) => node.id) ?? [])),
-    [preview],
+    () => setExcluded(new Set(livePreview?.nodes.map((node) => node.id) ?? [])),
+    [livePreview],
   );
 
   const block = forwardBlock(step, facts);
@@ -500,9 +586,9 @@ export function ImportWizard() {
           </div>
         )}
 
-        {step === 4 && preview !== null && (
+        {step === 4 && livePreview !== null && (
           <PreviewStep
-            preview={preview}
+            preview={livePreview}
             index={index}
             excluded={excluded}
             onToggle={onToggleNode}
@@ -516,7 +602,7 @@ export function ImportWizard() {
           />
         )}
 
-        {step === 5 && preview !== null && <ReportStep report={preview.report} />}
+        {step === 5 && livePreview !== null && <ReportStep report={livePreview.report} />}
 
         {step === 6 && (
           <DestinationStep
@@ -532,7 +618,7 @@ export function ImportWizard() {
         {step === 7 && (
           <CommitStep
             counts={counts}
-            excludedCount={(preview?.nodes.length ?? 0) - counts.total}
+            excludedCount={(livePreview?.nodes.length ?? 0) - counts.total}
             destinationLabel={destinationLabel}
             committing={commit.isPending}
             failure={commit.isError ? asFailure(commit.error) : null}

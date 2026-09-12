@@ -38,6 +38,7 @@ use remoter_core::{
     ConnectionProps, FolderProps, GatewayChain, GatewayHop, Inherited, NodeId, ProtocolId,
     validate_host,
 };
+use zeroize::Zeroizing;
 
 pub use crypto::{CipherMode, DEFAULT_PASSWORD};
 
@@ -180,7 +181,23 @@ pub fn parse(
             .push(limits, Finding::FullFileEncryption);
         let body = collect_text(&mut reader, limits)?;
         decrypted = decryptor.decrypt(&body)?;
-        let document = format!("<Connections>{}</Connections>", decrypted.expose());
+        // The root element the inner document needs, wrapped round the
+        // plaintext in a buffer that wipes itself. `format!` would put a second
+        // copy of the whole decrypted document into a plain `String` — the one
+        // thing the `ImportedSecret` above is careful not to do — and then free
+        // it unwiped when the parse returned. Sized up front so the two pushes
+        // cannot reallocate and leave a prefix of it behind either.
+        let opening = "<Connections>";
+        let closing = "</Connections>";
+        let mut document = Zeroizing::new(String::with_capacity(
+            decrypted
+                .expose()
+                .len()
+                .saturating_add(opening.len() + closing.len()),
+        ));
+        document.push_str(opening);
+        document.push_str(decrypted.expose());
+        document.push_str(closing);
         if document.len() > limits.max_input_bytes {
             return Err(ImportError::TooLarge {
                 size: document.len(),

@@ -495,31 +495,111 @@ impl ByteOrderMark {
     }
 }
 
+/// How much of an unmarked file is examined for the UTF-16 pattern.
+///
+/// Sixteen code units, and the width is the evidence: one pair proves nothing —
+/// a stray NUL in the second byte of a file would be enough — where sixteen
+/// consecutive pairs all carrying their NUL on the same side is a file written
+/// that way. Short enough to still be inside the file's first line.
+const UTF16_SNIFF_UNITS: usize = 16;
+
+/// Recognises UTF-16 in a file that carries no byte-order mark.
+///
+/// This is not the byte-frequency heuristic [`ByteOrderMark::read`] refuses to
+/// be, and the difference is the whole justification. A NUL byte cannot appear
+/// in any file this crate reads: XML 1.0 forbids U+0000 outright (§2.2), and
+/// neither a CSV nor an `ssh_config` has any use for one. So a NUL at every
+/// second byte is not a guess about which of several plausible encodings a file
+/// might be — it is the one encoding those bytes can be and still be text.
+///
+/// Notepad and Windows PowerShell 5 both write the mark, so the file this
+/// catches is rarer than the marked one. It is worth catching because without
+/// it the interleaved NULs are valid UTF-8, the file reaches the XML reader
+/// intact, and the refusal a person is shown is about their markup — which is
+/// not what is wrong with it.
+///
+/// The pattern is required to hold over the whole examined window, and at least
+/// one character has to be there, so an all-NUL file matches nothing — and
+/// neither does a file too short to hold one whole code unit, which has no
+/// character in it either.
+fn sniff_utf16_without_mark(bytes: &[u8]) -> Option<ByteOrderMark> {
+    // Whole pairs only, so a trailing odd byte is never read as half a unit.
+    let window = &bytes[..bytes.len().min(UTF16_SNIFF_UNITS * 2)];
+    // ASCII in UTF-16LE is `x 00`; in UTF-16BE it is `00 x`. Anything else —
+    // a file that opens with a non-ASCII character included — is left alone.
+    let all = |at: usize| window.chunks_exact(2).all(|unit| unit[at] == 0);
+    let any = |at: usize| window.chunks_exact(2).any(|unit| unit[at] != 0);
+    if all(1) && any(0) {
+        return Some(ByteOrderMark::Utf16Le);
+    }
+    if all(0) && any(1) {
+        return Some(ByteOrderMark::Utf16Be);
+    }
+    None
+}
+
+/// What `bytes` are encoded in, and how many bytes of that is the mark itself.
+///
+/// One function so the sniffer and the parsers cannot disagree: a file
+/// [`crate::detect`] can name has to be a file the importer then reads.
+fn encoding_of(bytes: &[u8]) -> (ByteOrderMark, usize) {
+    if let Some(found) = ByteOrderMark::read(bytes) {
+        return found;
+    }
+    match sniff_utf16_without_mark(bytes) {
+        Some(mark) => (mark, 0),
+        // No mark and no NULs: UTF-8, which is what every exporter this crate
+        // reads actually writes.
+        None => (ByteOrderMark::Utf8, 0),
+    }
+}
+
 /// Decodes UTF-16 code units into a buffer that wipes itself.
 ///
 /// `lossy` is for the fixed-size window [`crate::detect`] sniffs, which can cut
 /// a surrogate pair in half at its edge; a whole document is decoded strictly,
-/// so a file that is not the encoding its mark claims is refused rather than
-/// filled with replacement characters.
+/// so a file that is not the encoding it was taken for — by its mark or by its
+/// NULs — is refused rather than filled with replacement characters.
+///
+/// Both buffers on the way are wiped, not only the one that comes back. The
+/// code units are the document — for a CSV, its cleartext passwords; for a
+/// `confCons.xml`, the base64 its passwords are inside — so a plain `Vec<u16>`
+/// here would hand the whole file back to the allocator unwiped, which is the
+/// thing `SourceText::Transcoded` exists to prevent one line further on.
+/// Neither buffer grows: `chunks_exact` is exact-size so the units allocate
+/// once, and the string is sized up front from the widest a code unit can
+/// become — three bytes, a surrogate pair being four across two units — so
+/// pushing into it never reallocates and never leaves a prefix of the document
+/// on the heap behind it.
 fn decode_utf16(bytes: &[u8], big_endian: bool, lossy: bool) -> Option<Zeroizing<String>> {
     if !lossy && bytes.len() % 2 != 0 {
         return None;
     }
-    let units: Vec<u16> = bytes
-        .chunks_exact(2)
-        .map(|pair| {
-            let pair = [pair[0], pair[1]];
-            if big_endian {
-                u16::from_be_bytes(pair)
-            } else {
-                u16::from_le_bytes(pair)
-            }
-        })
-        .collect();
-    if lossy {
-        return Some(Zeroizing::new(String::from_utf16_lossy(&units)));
+    let units: Zeroizing<Vec<u16>> = Zeroizing::new(
+        bytes
+            .chunks_exact(2)
+            .map(|pair| {
+                let pair = [pair[0], pair[1]];
+                if big_endian {
+                    u16::from_be_bytes(pair)
+                } else {
+                    u16::from_le_bytes(pair)
+                }
+            })
+            .collect(),
+    );
+    let mut text = Zeroizing::new(String::with_capacity(units.len().saturating_mul(3)));
+    for decoded in char::decode_utf16(units.iter().copied()) {
+        match decoded {
+            Ok(character) => text.push(character),
+            // A lone surrogate. At the edge of the sniffing window it is half a
+            // character the window cut; in a whole document it is a file that
+            // is not the encoding its byte-order mark claims.
+            Err(_) if lossy => text.push(char::REPLACEMENT_CHARACTER),
+            Err(_) => return None,
+        }
     }
-    String::from_utf16(&units).ok().map(Zeroizing::new)
+    Some(text)
 }
 
 /// Reads the head of a file as text, for format detection.
@@ -529,13 +609,12 @@ fn decode_utf16(bytes: &[u8], big_endian: bool, lossy: bool) -> Option<Zeroizing
 /// before it. Nothing here decides whether a file is readable — [`as_text`]
 /// does that, strictly, once a format has been chosen.
 pub(crate) fn sniff_head(bytes: &[u8]) -> SourceText<'_> {
-    match ByteOrderMark::read(bytes) {
-        Some((ByteOrderMark::Utf16Le, skip)) => decode_utf16(&bytes[skip..], false, true),
-        Some((ByteOrderMark::Utf16Be, skip)) => decode_utf16(&bytes[skip..], true, true),
-        Some((ByteOrderMark::Utf8, skip)) => return utf8_head(&bytes[skip..]),
-        // No mark means UTF-8, which is what every exporter this crate reads
-        // writes.
-        None => return utf8_head(bytes),
+    let (mark, skip) = encoding_of(bytes);
+    let body = &bytes[skip..];
+    match mark {
+        ByteOrderMark::Utf16Le => decode_utf16(body, false, true),
+        ByteOrderMark::Utf16Be => decode_utf16(body, true, true),
+        ByteOrderMark::Utf8 => return utf8_head(body),
     }
     .map_or(SourceText::Borrowed(""), SourceText::Transcoded)
 }
@@ -551,12 +630,14 @@ fn utf8_head(bytes: &[u8]) -> SourceText<'_> {
 
 /// Checks the size and encoding of an input before any parser sees it.
 ///
-/// UTF-8 is the encoding every format this crate reads is written in, and is
-/// the only one a file gets without saying so. A file that opens with a UTF-16
-/// byte-order mark is converted rather than refused: mRemoteNG writes UTF-8,
-/// but a `confCons.xml` that has been through a `>` redirect in Windows
-/// PowerShell 5 or re-saved from Notepad as "Unicode" arrives as UTF-16, and
-/// the file is otherwise perfectly readable.
+/// UTF-8 is the encoding every format this crate reads is written in. A file
+/// that opens with a UTF-16 byte-order mark is converted rather than refused:
+/// mRemoteNG writes UTF-8, but a `confCons.xml` that has been through a `>`
+/// redirect in Windows PowerShell 5 or re-saved from Notepad as "Unicode"
+/// arrives as UTF-16, and the file is otherwise perfectly readable. A file with
+/// no mark whose bytes can only be UTF-16 is converted too — see
+/// [`sniff_utf16_without_mark`] for why that is a fact about the bytes and not
+/// a guess about the content.
 ///
 /// # Errors
 ///
@@ -569,12 +650,7 @@ pub(crate) fn as_text<'a>(bytes: &'a [u8], limits: &Limits) -> Result<SourceText
         });
     }
 
-    let (mark, skip) = match ByteOrderMark::read(bytes) {
-        // A file with no mark is UTF-8, which is what every exporter this crate
-        // reads actually writes.
-        None => (ByteOrderMark::Utf8, 0),
-        Some(found) => found,
-    };
+    let (mark, skip) = encoding_of(bytes);
     let body = &bytes[skip..];
 
     let text = match mark {
@@ -590,9 +666,9 @@ pub(crate) fn as_text<'a>(bytes: &'a [u8], limits: &Limits) -> Result<SourceText
         ByteOrderMark::Utf16Le => decode_utf16(body, false, false),
         ByteOrderMark::Utf16Be => decode_utf16(body, true, false),
     };
-    // The mark promised UTF-16 and the bytes are not: an odd length, or a
-    // surrogate with no partner. Reported at the mark, which is the claim that
-    // turned out to be false.
+    // The file was taken for UTF-16 and the bytes are not: an odd length, or a
+    // surrogate with no partner. Reported at offset 0, which is where the claim
+    // that turned out to be false was made — by the mark, or by the NULs.
     let text = text.ok_or(ImportError::NotUtf8 { offset: 0 })?;
 
     // UTF-16 grows by half when it converts — a three-byte UTF-8 character is
@@ -908,6 +984,86 @@ mod tests {
         };
         assert_eq!(root.name, "Connections");
         assert_eq!(root.attribute("Name"), Some("Acme"));
+    }
+
+    /// The same file with no mark at all.
+    ///
+    /// Interleaved NULs are perfectly valid UTF-8, so such a file used to sail
+    /// past the encoding check and die in the XML reader as "not well formed
+    /// (line 1, column 6, inside <xml>)" — a sentence about markup, for a file
+    /// whose markup is fine and whose encoding is not what was assumed.
+    #[test]
+    fn a_utf16_document_with_no_mark_is_read_rather_than_called_bad_markup() {
+        let document = r#"<Connections Name="Acme"><Node Name="web-01"/></Connections>"#;
+        let mut le = Vec::new();
+        let mut be = Vec::new();
+        for unit in document.encode_utf16() {
+            le.extend_from_slice(&unit.to_le_bytes());
+            be.extend_from_slice(&unit.to_be_bytes());
+        }
+        assert_eq!(
+            text_of(as_text(&le, &Limits::new())),
+            Ok(document.to_owned())
+        );
+        assert_eq!(
+            text_of(as_text(&be, &Limits::new())),
+            Ok(document.to_owned())
+        );
+    }
+
+    /// The rule is narrow on purpose: a NUL where a text file cannot have one,
+    /// at every second byte. Nothing else is guessed at.
+    #[test]
+    fn nothing_but_the_nul_pattern_is_guessed_at() {
+        // UTF-8 throughout, including the non-ASCII a frequency heuristic
+        // would trip over.
+        assert_eq!(
+            text_of(as_text(
+                "<Connections Name=\"Grüße\"/>".as_bytes(),
+                &Limits::new()
+            )),
+            Ok("<Connections Name=\"Grüße\"/>".to_owned())
+        );
+        // Not a text file at all, and not claimed as one: an embedded NUL that
+        // is not part of a UTF-16 pattern leaves the bytes as they were.
+        assert_eq!(
+            text_of(as_text(b"ab\0cd\0ef", &Limits::new())),
+            Ok("ab\0cd\0ef".to_owned())
+        );
+    }
+
+    /// One NUL is not the pattern. The pattern is a NUL on the same side of
+    /// every pair for the width of the window, which is what tells a file
+    /// written in UTF-16 from a text file with something stray in it — a broken
+    /// exporter's CSV, a file recovered off a bad disk. One pair's worth of
+    /// evidence would make this the byte-frequency guess it is written not to
+    /// be.
+    #[test]
+    fn one_stray_nul_is_not_the_pattern() {
+        let mut bytes = vec![b'a', 0];
+        bytes.extend_from_slice(b"name,host,protocol\nweb-01,web-01.example.com,ssh\n");
+        let unchanged = String::from_utf8(bytes.clone()).unwrap();
+        assert_eq!(text_of(as_text(&bytes, &Limits::new())), Ok(unchanged));
+    }
+
+    /// A run of NULs is not a UTF-16 file with no mark. It is a file with no
+    /// characters in it, and it matches the pattern only because there is
+    /// nothing there to contradict it — every second byte is a NUL in a window
+    /// where every byte is.
+    ///
+    /// The cost of getting this wrong is not the NULs, which are unreadable
+    /// either way; it is everything after them. Taking the run for an encoding
+    /// re-pairs the rest of the file off by one byte and turns readable markup
+    /// into CJK, so the document the user is shown a complaint about is not the
+    /// document they handed over. So the rule takes a character actually being
+    /// present as part of the evidence, and a file of NULs is left as the bytes
+    /// it is.
+    #[test]
+    fn a_run_of_nuls_is_not_evidence_of_an_encoding() {
+        let mut bytes = vec![0u8; UTF16_SNIFF_UNITS * 2];
+        bytes.extend_from_slice(br#"<Connections Name="Acme"/>"#);
+        let unchanged = String::from_utf8(bytes.clone()).unwrap();
+        assert_eq!(text_of(as_text(&bytes, &Limits::new())), Ok(unchanged));
     }
 
     #[test]

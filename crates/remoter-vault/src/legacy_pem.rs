@@ -9,9 +9,12 @@
 //! ```
 //!
 //! holds ciphertext where the DER would be. This is what `ssh-keygen -m PEM`
-//! writes when it is given a passphrase, and what `openssl rsa -aes256` writes
-//! — which between them is most of the passphrase-protected `.pem` files that
-//! exist. Until this module existed the vault refused every one of them, and
+//! writes when it is given a passphrase, and what `openssl rsa -aes256` wrote
+//! until OpenSSL 3 — which between them is most of the passphrase-protected
+//! `.pem` files that exist. (OpenSSL 3 writes a PKCS#8
+//! `EncryptedPrivateKeyInfo` for that command instead, headers and all; those
+//! arrive in [`crate::pkcs8`], not here.) Until this module existed the vault
+//! refused every one of them, and
 //! the refusal is what a user reads as ".pem is not supported": the message
 //! arrives at the moment the file is chosen, before anything has asked for a
 //! passphrase, so nothing on screen suggests the key is a passphrase away from
@@ -38,6 +41,16 @@
 //! at, because supporting it means adding a DES implementation to a crate that
 //! otherwise has none, and the remedy (`ssh-keygen -p` over a copy) is one the
 //! user can carry out. See [`VaultError::UnsupportedKeyCipher`].
+//!
+//! Everything that variant carries from this module is a whole clause, not a
+//! cipher name, because a `DEK-Info` line has more than one way of being
+//! unreadable: it can name a cipher nothing here implements, or it can be
+//! damaged — no comma, an initialisation vector that is not sixteen bytes of
+//! hexadecimal, a `Proc-Type` with no `DEK-Info` under it at all. Those used to
+//! come back as [`VaultError::NotAPrivateKey`], which the interface renders as
+//! "that file is not a private key" — said about a file that *is* one, with one
+//! mangled line in it. The interface reads the clause into a single sentence
+//! naming the file, so each defect says what it is.
 //!
 //! Every buffer here holds key material or something derived from it and is
 //! `Zeroizing`, including the intermediate MD5 blocks: a derivation block is
@@ -75,19 +88,35 @@ enum Cipher {
 /// Reads the cipher out of a `DEK-Info` name.
 ///
 /// A name this build cannot read is reported as itself where the name is one of
-/// the handful that actually occur, and as "an unrecognised cipher" otherwise.
-/// The distinction is deliberate: the string comes out of a file someone else
-/// may have written, and echoing arbitrary bytes from it into an error message
-/// is how a file gets to choose what the interface says.
+/// the handful that actually occur, and as "a cipher this build does not
+/// recognise" otherwise. The distinction is deliberate: the string comes out of
+/// a file someone else may have written, and echoing arbitrary bytes from it
+/// into an error message is how a file gets to choose what the interface says.
+///
+/// Every refusal is a whole clause rather than a bare name, because the
+/// interface reads it into one sentence — "Remoter cannot read the encrypted
+/// container in <file>: <clause>" — and the things that can be wrong with an
+/// RFC 1421 header are not all ciphers. See [`check_readable`].
 fn cipher_for(name: &str) -> Result<Cipher, VaultError> {
     match name.to_ascii_uppercase().as_str() {
         "AES-128-CBC" => Ok(Cipher::Aes128),
         "AES-192-CBC" => Ok(Cipher::Aes192),
         "AES-256-CBC" => Ok(Cipher::Aes256),
-        "DES-EDE3-CBC" => Err(VaultError::UnsupportedKeyCipher("DES-EDE3-CBC")),
-        "DES-CBC" => Err(VaultError::UnsupportedKeyCipher("DES-CBC")),
-        "RC2-CBC" | "RC2-40-CBC" | "RC2-64-CBC" => Err(VaultError::UnsupportedKeyCipher("RC2-CBC")),
-        _ => Err(VaultError::UnsupportedKeyCipher("an unrecognised cipher")),
+        "DES-EDE3-CBC" => Err(VaultError::UnsupportedKeyCipher(
+            "its DEK-Info header names DES-EDE3-CBC, and this build deciphers only AES-128, \
+             AES-192 and AES-256 in CBC mode",
+        )),
+        "DES-CBC" => Err(VaultError::UnsupportedKeyCipher(
+            "its DEK-Info header names DES-CBC, and this build deciphers only AES-128, \
+             AES-192 and AES-256 in CBC mode",
+        )),
+        "RC2-CBC" | "RC2-40-CBC" | "RC2-64-CBC" => Err(VaultError::UnsupportedKeyCipher(
+            "its DEK-Info header names RC2-CBC, and this build deciphers only AES-128, \
+             AES-192 and AES-256 in CBC mode",
+        )),
+        _ => Err(VaultError::UnsupportedKeyCipher(
+            "its DEK-Info header names a cipher this build does not recognise",
+        )),
     }
 }
 
@@ -127,29 +156,77 @@ fn derive_key<const N: usize>(passphrase: &[u8], salt: &[u8]) -> Zeroizing<[u8; 
     key
 }
 
+/// The clause for a `DEK-Info` whose initialisation vector is not sixteen
+/// bytes of hexadecimal.
+///
+/// A damaged header is not a file that fails to be a private key: the banner,
+/// the `Proc-Type` line and the body are all still there, and calling it "not a
+/// private key" sends someone looking for a different file when what they have
+/// is the right one with a mangled line in it. Very often the mangling happened
+/// in transit — a mail client rewrapping the lines, a paste that lost a
+/// character — and knowing *which* line is damaged is what makes fetching a
+/// clean copy the obvious next step.
+const IV_MALFORMED: &str = "its DEK-Info header's initialisation vector is not sixteen bytes of \
+                            hexadecimal, so the header has been damaged";
+
+/// The clause for a `DEK-Info` that is not a name, a comma and an IV at all.
+const DEK_INFO_MALFORMED: &str = "its DEK-Info header is not a cipher name, a comma and a \
+                                  hexadecimal initialisation vector, so the header has been \
+                                  damaged";
+
+/// The clause for a body that cannot be a whole number of cipher blocks.
+const BODY_NOT_BLOCKS: &str = "its enciphered body is not a whole number of cipher blocks, so \
+                               the file has been truncated or damaged";
+
+/// The clause for a block whose `Proc-Type` says enciphered with no `DEK-Info`
+/// beneath it. Not produced here — the header never reaches this module — but
+/// written here with its siblings, because the interface renders all of them
+/// through the same sentence.
+pub(crate) const NO_DEK_INFO: &str = "its Proc-Type header says the body is enciphered, but no \
+                                      DEK-Info line follows it to say what it was enciphered \
+                                      with, so the header has been damaged";
+
 /// Parses the hexadecimal IV a `DEK-Info` line carries.
 fn parse_iv(hex: &str) -> Result<[u8; IV_LEN], VaultError> {
     let decoded = data_encoding::HEXUPPER
         .decode(hex.to_ascii_uppercase().as_bytes())
-        .map_err(|_| VaultError::NotAPrivateKey)?;
-    decoded.try_into().map_err(|_| VaultError::NotAPrivateKey)
+        .map_err(|_| VaultError::UnsupportedKeyCipher(IV_MALFORMED))?;
+    decoded
+        .try_into()
+        .map_err(|_| VaultError::UnsupportedKeyCipher(IV_MALFORMED))
 }
 
 /// Reads a `DEK-Info` value into the cipher and IV it names.
 fn parse_dek_info(dek_info: &str) -> Result<(Cipher, [u8; IV_LEN]), VaultError> {
-    let (name, iv) = dek_info.split_once(',').ok_or(VaultError::NotAPrivateKey)?;
+    let (name, iv) = dek_info
+        .split_once(',')
+        .ok_or(VaultError::UnsupportedKeyCipher(DEK_INFO_MALFORMED))?;
     Ok((cipher_for(name.trim())?, parse_iv(iv.trim())?))
 }
 
 /// Whether this build could decipher such a body, given the passphrase.
 ///
 /// Called while the file is being identified, which is before any passphrase
-/// exists. A cipher this build cannot read is a fact about the file and is
-/// knowable then, and saying so at that moment is the difference between "this
-/// cipher cannot be read here, convert a copy" and asking for a passphrase only
-/// to refuse the key once it has been typed.
-pub(crate) fn check_readable(dek_info: &str) -> Result<(), VaultError> {
-    parse_dek_info(dek_info).map(|_| ())
+/// exists. Everything it checks — the cipher's name, the shape of the header,
+/// the length of the body — is written in the clear beside the ciphertext and
+/// is knowable then, and saying so at that moment is the difference between
+/// naming what is wrong with the file and asking for a passphrase only to
+/// refuse the key once it has been typed.
+///
+/// The body's length is checked here and not only in [`decipher`] for exactly
+/// that reason: a truncated file is a fact about the file, and discovering it
+/// after the passphrase is typed puts the blame on the passphrase.
+pub(crate) fn check_readable(dek_info: &str, body: &[u8]) -> Result<(), VaultError> {
+    parse_dek_info(dek_info)?;
+    check_block_aligned(body)
+}
+
+/// Refuses a body that cannot be the output of a CBC cipher.
+fn check_block_aligned(body: &[u8]) -> Result<(), VaultError> {
+    if body.is_empty() || body.len() % IV_LEN != 0 {
+        return Err(VaultError::UnsupportedKeyCipher(BODY_NOT_BLOCKS));
+    }
+    Ok(())
 }
 
 /// Deciphers a legacy PEM body.
@@ -160,8 +237,8 @@ pub(crate) fn check_readable(dek_info: &str) -> Result<(), VaultError> {
 /// # Errors
 ///
 /// [`VaultError::UnsupportedKeyCipher`] when the header names a cipher this
-/// build cannot read; [`VaultError::NotAPrivateKey`] when the header itself is
-/// malformed or the body is not a whole number of blocks;
+/// build cannot read, when the header itself is damaged, or when the body is
+/// not a whole number of blocks — each carrying the clause that says which;
 /// [`VaultError::KeyPassphraseRejected`] when the deciphered body does not
 /// carry valid padding, which is what a wrong passphrase looks like — this
 /// container has no authentication tag, so a wrong passphrase and a corrupt
@@ -173,10 +250,7 @@ pub(crate) fn decipher(
 ) -> Result<Zeroizing<Vec<u8>>, VaultError> {
     let (cipher, iv) = parse_dek_info(dek_info)?;
     let salt = iv.get(..SALT_LEN).ok_or(VaultError::NotAPrivateKey)?;
-
-    if body.is_empty() || body.len() % IV_LEN != 0 {
-        return Err(VaultError::NotAPrivateKey);
-    }
+    check_block_aligned(body)?;
 
     let mut buffer = Zeroizing::new(body.to_vec());
 
@@ -243,39 +317,80 @@ mod tests {
         assert_eq!(&middle[..], &long[..24]);
     }
 
-    #[test]
-    fn an_unreadable_cipher_is_named_rather_than_guessed_at() {
-        assert!(matches!(
-            cipher_for("DES-EDE3-CBC"),
-            Err(VaultError::UnsupportedKeyCipher("DES-EDE3-CBC"))
-        ));
-        // Whatever the file said, the error carries a fixed string: a message
-        // built from the file's own bytes is a message the file wrote.
-        assert!(matches!(
-            cipher_for("PANTHER-9000-CBC"),
-            Err(VaultError::UnsupportedKeyCipher("an unrecognised cipher"))
-        ));
-        assert!(matches!(cipher_for("aes-256-cbc"), Ok(Cipher::Aes256)));
+    /// The clause a refusal carries, or a marker the assertion can print.
+    fn clause(result: Result<impl Sized, VaultError>) -> String {
+        match result {
+            Err(VaultError::UnsupportedKeyCipher(clause)) => clause.to_owned(),
+            Err(other) => format!("<{other}>"),
+            Ok(_) => String::from("<accepted>"),
+        }
     }
 
     #[test]
-    fn a_malformed_header_is_not_a_wrong_passphrase() {
-        assert!(matches!(
-            decipher("AES-128-CBC", b"x", &[0; 16]),
-            Err(VaultError::NotAPrivateKey)
-        ));
-        assert!(matches!(
-            decipher("AES-128-CBC,zzzz", b"x", &[0; 16]),
-            Err(VaultError::NotAPrivateKey)
-        ));
+    fn an_unreadable_cipher_is_named_rather_than_guessed_at() {
+        assert!(
+            clause(cipher_for("DES-EDE3-CBC")).contains("DES-EDE3-CBC"),
+            "{}",
+            clause(cipher_for("DES-EDE3-CBC"))
+        );
+        // Whatever the file said, the error carries a fixed string: a message
+        // built from the file's own bytes is a message the file wrote.
+        let unknown = clause(cipher_for("PANTHER-9000-CBC"));
+        assert!(!unknown.contains("PANTHER"), "{unknown}");
+        assert!(unknown.contains("does not recognise"), "{unknown}");
+        assert!(matches!(cipher_for("aes-256-cbc"), Ok(Cipher::Aes256)));
+    }
+
+    /// A damaged RFC 1421 header used to come back as `NotAPrivateKey`, which
+    /// the interface renders as "that file is not a private key" — said about a
+    /// file that is a private key, with one mangled line in it. Each defect now
+    /// names itself, and none of them is a wrong passphrase either.
+    #[test]
+    fn a_damaged_header_says_what_is_damaged() {
+        let missing_iv = clause(decipher("AES-128-CBC", b"x", &[0; 16]));
+        assert!(missing_iv.contains("DEK-Info"), "{missing_iv}");
+        assert!(missing_iv.contains("comma"), "{missing_iv}");
+
+        let bad_iv = clause(decipher("AES-128-CBC,zzzz", b"x", &[0; 16]));
+        assert!(bad_iv.contains("initialisation vector"), "{bad_iv}");
+        assert!(bad_iv.contains("hexadecimal"), "{bad_iv}");
+
+        // An IV of the right alphabet but the wrong length is the same defect.
+        let short_iv = clause(decipher("AES-128-CBC,0123", b"x", &[0; 16]));
+        assert!(short_iv.contains("sixteen bytes"), "{short_iv}");
+
         // A body that is not a whole number of blocks never reached a cipher.
-        assert!(matches!(
-            decipher(
-                "AES-128-CBC,715F1D4A84633FF2726A9642A2672277",
-                b"x",
-                &[0; 17]
-            ),
-            Err(VaultError::NotAPrivateKey)
+        let truncated = clause(decipher(
+            "AES-128-CBC,715F1D4A84633FF2726A9642A2672277",
+            b"x",
+            &[0; 17],
         ));
+        assert!(truncated.contains("truncated"), "{truncated}");
+    }
+
+    /// And all of it is knowable before a passphrase exists, which is the whole
+    /// point of checking it at the moment the file is chosen.
+    #[test]
+    fn every_header_defect_is_refused_without_a_passphrase() {
+        let good_iv = "715F1D4A84633FF2726A9642A2672277";
+        assert!(check_readable(&format!("AES-128-CBC,{good_iv}"), &[0; 16]).is_ok());
+
+        for (dek_info, body, expected) in [
+            ("AES-128-CBC", &[0u8; 16][..], "comma"),
+            ("AES-128-CBC,zzzz", &[0; 16][..], "hexadecimal"),
+            (
+                "DES-EDE3-CBC,0123456789ABCDEF0123456789ABCDEF",
+                &[0; 16][..],
+                "DES-EDE3-CBC",
+            ),
+            (
+                "AES-128-CBC,715F1D4A84633FF2726A9642A2672277",
+                &[0; 17][..],
+                "truncated",
+            ),
+        ] {
+            let said = clause(check_readable(dek_info, body));
+            assert!(said.contains(expected), "for {dek_info}: {said}");
+        }
     }
 }

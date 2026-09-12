@@ -139,10 +139,16 @@ bundled browser. The reasoning, including what we gave up, is recorded in
 ## Documentation
 
 The documents in [`docs/`](docs/) are **specifications**: they describe the
-product being built, and most of them describe more than is built. Each feature
-and architecture document opens with a note saying which part of it ships, and
-individual claims are marked ✅ / ◐ / ⏳ in place. Where a document and the code
-disagree about what exists, the code is what you get.
+product being built, and most of them describe more than is built. Every file in
+[`docs/features/`](docs/features/) and [`docs/architecture/`](docs/architecture/)
+opens with a note saying which part of it ships — thirteen files; `decisions/`
+is excluded, because an ADR records a decision rather than a status — and
+individual claims are marked ✅ / ◐ / ⏳ in place. Six documents elsewhere under
+`docs/` open with a note too. Both of those counts, every relative link and
+every `#fragment` in this repository's Markdown are checked by
+[`scripts/check-docs.sh`](scripts/check-docs.sh), so neither number is something
+a reader has to take on trust. Where a document and the code disagree about what
+exists, the code is what you get.
 
 | Document | What it covers |
 |---|---|
@@ -220,6 +226,7 @@ cargo test --workspace
 npm run typecheck --prefix apps/desktop/ui
 npm run lint --prefix apps/desktop/ui
 npm test --prefix apps/desktop/ui
+scripts/check-docs.sh
 ```
 
 Live protocol tests are behind the `integration-tests` feature and need a real

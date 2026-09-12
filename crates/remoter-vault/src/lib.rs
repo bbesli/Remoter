@@ -28,12 +28,15 @@ mod crypto;
 mod error;
 mod header;
 mod legacy_pem;
+mod openssh;
 mod pkcs8;
 mod recovery;
 mod secret;
 mod settings;
 mod slots;
 mod storage;
+#[cfg(feature = "test-fixtures")]
+pub mod testing;
 mod vault;
 
 pub use audit::{AuditCategory, AuditQuery, AuditRecord};

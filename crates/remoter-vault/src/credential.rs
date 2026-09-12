@@ -92,9 +92,6 @@ use crate::secret::{ExposeSecret, Secret};
 /// not a key.
 const MAX_KEY_BYTES: u64 = 1024 * 1024;
 
-/// OpenSSH's container magic, including its terminating NUL.
-const OPENSSH_MAGIC: &[u8] = b"openssh-key-v1\0";
-
 /// A private key read from a file, with its container identified from its
 /// content.
 ///
@@ -253,6 +250,52 @@ impl ImportedKey {
         match &self.material {
             Material::Ready(material) => Some(material),
             Material::Locked { .. } => None,
+        }
+    }
+
+    /// Whether `passphrase` actually opens this container.
+    ///
+    /// **This is the check that has to happen before anything is sealed.** The
+    /// vault stores an encrypted OpenSSH or PKCS#8 container exactly as it
+    /// stands, with the passphrase beside it, and nothing in that arrangement
+    /// tries one against the other. Until this existed nothing did: a wrong
+    /// passphrase was accepted, written to the vault, and surfaced at connect
+    /// time as "the server rejected these credentials (private-key)" — about a
+    /// key no server had seen, long after the import the user believed had
+    /// worked.
+    ///
+    /// `None` and an empty passphrase mean the same thing, because a field
+    /// nobody typed into arrives as both.
+    ///
+    /// # Errors
+    ///
+    /// Four outcomes, and they are four errors because they have four remedies:
+    ///
+    /// - [`VaultError::KeyPassphraseRequired`] — the container is enciphered
+    ///   and no passphrase was given. Type one.
+    /// - [`VaultError::KeyPassphraseRejected`] — it was tried and did not open
+    ///   the container. Type a different one.
+    /// - [`VaultError::KeyPassphraseNotNeeded`] — the container is not
+    ///   enciphered, so the passphrase opens nothing. Send the key without one.
+    /// - [`VaultError::KeyPassphraseUncheckable`] — this build cannot open the
+    ///   container at all, so the question has no answer here. Convert a copy
+    ///   into one it can.
+    pub fn check_passphrase(&self, passphrase: Option<&[u8]>) -> Result<(), VaultError> {
+        let passphrase = passphrase.filter(|bytes| !bytes.is_empty());
+        match (self.encrypted, passphrase) {
+            (false, None) => Ok(()),
+            (false, Some(_)) => Err(VaultError::KeyPassphraseNotNeeded),
+            (true, None) => Err(VaultError::KeyPassphraseRequired),
+            (true, Some(passphrase)) => match &self.material {
+                // A locked legacy PEM is checked by deciphering it, which is
+                // the work `unlock` already does; the result is dropped here
+                // and recomputed where it is stored, because a second copy of
+                // the key material living until then buys nothing.
+                Material::Locked { .. } => self.unlock(passphrase).map(|_| ()),
+                Material::Ready(material) => {
+                    opens(self.format, material.expose_secret(), passphrase)
+                }
+            },
         }
     }
 
@@ -428,13 +471,27 @@ fn detect(bytes: &[u8]) -> Result<Identified, VaultError> {
     }
 
     let block = pem_block(text).ok_or(VaultError::NotAPrivateKey)?;
+
+    // RFC 1421 §4.6.1.1 and §4.6.1.3 travel together: a block that says its
+    // body is `ENCRYPTED` has to say with what. One without the other is a
+    // damaged header rather than a file that is not a key, and the difference
+    // is what the reader needs — the banner, the body and the rest of the
+    // header are all still there, so "that file is not a private key" sends
+    // someone hunting for a different file when they already have the right
+    // one.
+    if block.proc_type_encrypted && block.dek_info.is_none() {
+        return Err(VaultError::UnsupportedKeyCipher(
+            crate::legacy_pem::NO_DEK_INFO,
+        ));
+    }
+
     match block.label {
         "OPENSSH PRIVATE KEY" => {
             let (format, encrypted) = detect_openssh(&block.body)?;
             Ok(Identified::AsIs { format, encrypted })
         }
         "PRIVATE KEY" => {
-            require_der_sequence(&block.body)?;
+            require_private_key_info(&block.body)?;
             Ok(Identified::AsIs {
                 format: KeyFormat::Pkcs8,
                 encrypted: false,
@@ -442,6 +499,15 @@ fn detect(bytes: &[u8]) -> Result<Identified, VaultError> {
         }
         "ENCRYPTED PRIVATE KEY" => {
             require_der_sequence(&block.body)?;
+            // And then the scheme, not just the outer shape. An
+            // `EncryptedPrivateKeyInfo` names what it was enciphered under, in
+            // the clear, and a scheme the key parser downstream cannot read
+            // makes this key unusable however good the passphrase is.
+            // Answering that here — before the interface draws a passphrase
+            // field — is what stops the failure from arriving at connect time,
+            // long after the import that looked like it worked. The check
+            // refuses only what it can prove; see `crate::pkcs8`.
+            crate::pkcs8::check_encrypted_readable(&block.body)?;
             Ok(Identified::AsIs {
                 format: KeyFormat::Pkcs8,
                 encrypted: true,
@@ -467,10 +533,12 @@ fn detect(bytes: &[u8]) -> Result<Identified, VaultError> {
             let Some(dek_info) = block.dek_info else {
                 return Err(VaultError::NotAPrivateKey);
             };
-            // Whether the cipher can be read at all is knowable now, without a
-            // passphrase. Answering it here is what stops the interface from
-            // asking for one it is going to refuse anyway.
-            crate::legacy_pem::check_readable(dek_info)?;
+            // Whether the container can be read at all is knowable now,
+            // without a passphrase: the cipher's name, the shape of the header
+            // and the length of the body are all written in the clear beside
+            // the ciphertext. Answering it here is what stops the interface
+            // from asking for a passphrase it is going to refuse anyway.
+            crate::legacy_pem::check_readable(dek_info, &block.body)?;
             Ok(Identified::Locked {
                 kind,
                 dek_info: dek_info.to_owned(),
@@ -503,6 +571,12 @@ struct PemBlock<'a> {
     /// not a secret: both halves are written in the clear beside the
     /// ciphertext they describe.
     dek_info: Option<&'a str>,
+    /// Whether the block carries an RFC 1421 §4.6.1.1 `Proc-Type:` header whose
+    /// type is `ENCRYPTED`. Read separately from `dek_info` so that a block
+    /// declaring one and not the other can be told apart from a block
+    /// declaring neither: the first is a damaged header and the second is an
+    /// ordinary plaintext key.
+    proc_type_encrypted: bool,
 }
 
 /// The label and decoded body of the first PEM block in a document.
@@ -514,6 +588,7 @@ fn pem_block(text: &str) -> Option<PemBlock<'_>> {
     let mut label: Option<&str> = None;
     let mut base64 = Zeroizing::new(String::new());
     let mut dek_info: Option<&str> = None;
+    let mut proc_type_encrypted = false;
 
     for line in text.lines() {
         let line = line.trim();
@@ -534,6 +609,14 @@ fn pem_block(text: &str) -> Option<PemBlock<'_>> {
                 if let Some(value) = line.strip_prefix("DEK-Info:") {
                     dek_info = Some(value.trim());
                 }
+                if let Some(value) = line.strip_prefix("Proc-Type:") {
+                    // RFC 1421 §4.6.1.1: a version number, a comma, and the
+                    // processing type. Only `ENCRYPTED` means the body below
+                    // is ciphertext.
+                    proc_type_encrypted = value
+                        .split(',')
+                        .any(|field| field.trim().eq_ignore_ascii_case("ENCRYPTED"));
+                }
                 continue;
             }
             base64.push_str(line);
@@ -546,7 +629,45 @@ fn pem_block(text: &str) -> Option<PemBlock<'_>> {
         label,
         body: Zeroizing::new(decoded),
         dek_info,
+        proc_type_encrypted,
     })
+}
+
+/// The clause for a PuTTY `.ppk`, whose passphrase this build cannot try.
+///
+/// PuTTY's derivation — Argon2 in a version 3 file, an SHA-1 construction in a
+/// version 2 one — is specified only by `sshpubk.c`, and neither is implemented
+/// here. The key parser downstream reads both, so this is a gap in the *check*
+/// and not in what the application can connect with; the remedy is one command
+/// and it converts the file into a container the check does cover.
+const PPK_UNCHECKABLE: &str = "it is a PuTTY .ppk, and this build does not implement PuTTY's key \
+                               derivation, so a passphrase for one cannot be tried before it is \
+                               stored";
+
+/// Whether a passphrase opens a container the vault stores verbatim.
+///
+/// The armour is decoded again rather than carried alongside the file: the
+/// bytes the vault seals are the file's own, and a second copy of the body
+/// living in the [`ImportedKey`] would be a second copy of the key material.
+fn opens(format: KeyFormat, bytes: &[u8], passphrase: &[u8]) -> Result<(), VaultError> {
+    if format == KeyFormat::PuttyPpk {
+        return Err(VaultError::KeyPassphraseUncheckable(PPK_UNCHECKABLE));
+    }
+
+    let text = std::str::from_utf8(bytes).map_err(|_| VaultError::NotAPrivateKey)?;
+    let block = pem_block(text).ok_or(VaultError::NotAPrivateKey)?;
+    match (format, block.label) {
+        (KeyFormat::OpenSsh, "OPENSSH PRIVATE KEY") => {
+            crate::openssh::check_passphrase(&block.body, passphrase)
+        }
+        (KeyFormat::Pkcs8, "ENCRYPTED PRIVATE KEY") => {
+            crate::pkcs8::check_passphrase(&block.body, passphrase)
+        }
+        // The format and the armour disagreeing means the key was identified
+        // one way and is being read another, which is a defect here rather than
+        // anything the passphrase could fix.
+        _ => Err(VaultError::NotAPrivateKey),
+    }
 }
 
 /// Rejects a body that is not a DER `SEQUENCE`.
@@ -554,6 +675,11 @@ fn pem_block(text: &str) -> Option<PemBlock<'_>> {
 /// RFC 5958 §2: both `PrivateKeyInfo` and `EncryptedPrivateKeyInfo` are a
 /// `SEQUENCE`, whose DER identifier octet is `0x30`. Cheap, and it catches a
 /// file carrying a PKCS#8 header over something else entirely.
+///
+/// This is all that can be said about an `EncryptedPrivateKeyInfo` before a
+/// passphrase exists; what is inside it is ciphertext. An unenciphered document
+/// is held to [`require_private_key_info`] instead, which is the whole of
+/// RFC 5958 §2 rather than its first octet.
 fn require_der_sequence(body: &[u8]) -> Result<(), VaultError> {
     match body.first() {
         Some(0x30) => Ok(()),
@@ -561,23 +687,29 @@ fn require_der_sequence(body: &[u8]) -> Result<(), VaultError> {
     }
 }
 
+/// Rejects an unenciphered PKCS#8 body that is not a `PrivateKeyInfo`.
+///
+/// Nothing is enciphered here, so the whole structure is readable at the moment
+/// the file is chosen, and a document that is not one is a document no key
+/// parser downstream will read. Checking the first octet alone let a file
+/// beginning `0x30` through to be sealed and to fail when a session was opened,
+/// which is the same failure the passphrase check exists to stop — a credential
+/// that looks stored and is not usable, discovered a long way from its cause.
+fn require_private_key_info(body: &[u8]) -> Result<(), VaultError> {
+    if crate::pkcs8::is_private_key_info(body) {
+        Ok(())
+    } else {
+        Err(VaultError::NotAPrivateKey)
+    }
+}
+
 /// Reads the `ciphername` out of an OpenSSH container.
 ///
-/// `PROTOCOL.key`: `AUTH_MAGIC` then `string ciphername`, where a string is a
-/// big-endian `u32` length followed by that many bytes. `"none"` means the
-/// private half is not encrypted.
+/// The container's own reader answers this — one module owns `PROTOCOL.key`,
+/// and it is the one that also has to walk past the cipher name to check a
+/// passphrase.
 fn detect_openssh(body: &[u8]) -> Result<(KeyFormat, bool), VaultError> {
-    let rest = body
-        .strip_prefix(OPENSSH_MAGIC)
-        .ok_or(VaultError::NotAPrivateKey)?;
-
-    let (length, rest) = rest.split_at_checked(4).ok_or(VaultError::NotAPrivateKey)?;
-    let length: [u8; 4] = length.try_into().map_err(|_| VaultError::NotAPrivateKey)?;
-    let length =
-        usize::try_from(u32::from_be_bytes(length)).map_err(|_| VaultError::NotAPrivateKey)?;
-
-    let cipher = rest.get(..length).ok_or(VaultError::NotAPrivateKey)?;
-    Ok((KeyFormat::OpenSsh, cipher != b"none"))
+    Ok((KeyFormat::OpenSsh, crate::openssh::detect(body)?))
 }
 
 /// Reads the `Encryption:` header out of a PPK.
@@ -597,7 +729,6 @@ fn detect_ppk(text: &str) -> Result<(KeyFormat, bool), VaultError> {
 /// test and the wrong thing for anything else.
 #[cfg(test)]
 pub(crate) mod samples {
-    use super::OPENSSH_MAGIC;
 
     /// A PEM document with `body` base64-encoded inside `label`.
     pub(crate) fn pem(label: &str, body: &[u8]) -> Vec<u8> {
@@ -611,26 +742,107 @@ pub(crate) mod samples {
         out.into_bytes()
     }
 
-    /// An OpenSSH container declaring `cipher`. Everything after the cipher
-    /// name is arbitrary: the format detector reads no further.
+    /// An OpenSSH container declaring `cipher`, enciphered under
+    /// [`PASSPHRASE`] when that cipher is one this build runs.
+    ///
+    /// A real container rather than a header over arbitrary bytes: the detector
+    /// now walks an unenciphered container to its check integers, and the
+    /// passphrase check walks an enciphered one, so a stub is refused — which is
+    /// the point of both.
     pub(crate) fn openssh(cipher: &str) -> Vec<u8> {
-        let mut body = Vec::from(OPENSSH_MAGIC);
-        let length = u32::try_from(cipher.len()).unwrap_or(0);
-        body.extend_from_slice(&length.to_be_bytes());
-        body.extend_from_slice(cipher.as_bytes());
-        body.extend_from_slice(b"\0\0\0\x04none\0\0\0\0\0\0\0\x01");
-        pem("OPENSSH PRIVATE KEY", &body)
+        let kdf = if cipher == "none" { "none" } else { "bcrypt" };
+        pem(
+            "OPENSSH PRIVATE KEY",
+            &crate::openssh::fixtures::container(
+                cipher,
+                kdf,
+                PASSPHRASE.as_bytes(),
+                4,
+                (0x5EED_1234, 0x5EED_1234),
+            ),
+        )
     }
 
-    /// A PKCS#8 document. The body is a minimal DER `SEQUENCE`.
+    /// The passphrase [`openssh`] enciphers with.
+    pub(crate) const PASSPHRASE: &str = "the passphrase on the key";
+
+    /// A PKCS#8 document. Unencrypted, the body is a minimal DER `SEQUENCE`;
+    /// encrypted, it is a whole `EncryptedPrivateKeyInfo` under the scheme
+    /// `ssh-keygen -m PKCS8` writes, because the detector now reads the scheme
+    /// and a stub would be refused.
     pub(crate) fn pkcs8(encrypted: bool) -> Vec<u8> {
-        let body = [0x30, 0x03, 0x02, 0x01, 0x00];
-        let label = if encrypted {
-            "ENCRYPTED PRIVATE KEY"
-        } else {
-            "PRIVATE KEY"
-        };
-        pem(label, &body)
+        if encrypted {
+            return pkcs8_pbes2(Some(&HMAC_SHA256), &AES256_CBC);
+        }
+        pem("PRIVATE KEY", &[0x30, 0x03, 0x02, 0x01, 0x00])
+    }
+
+    /// A DER type-length-value. Every body built here is well under 128 bytes,
+    /// so the short length form (X.690 §8.1.3.4) is the only one needed.
+    fn tlv(tag: u8, value: &[u8]) -> Vec<u8> {
+        let mut out = Vec::with_capacity(value.len().saturating_add(2));
+        out.push(tag);
+        out.push(u8::try_from(value.len()).unwrap_or(0));
+        out.extend_from_slice(value);
+        out
+    }
+
+    fn seq(parts: &[&[u8]]) -> Vec<u8> {
+        tlv(0x30, &parts.concat())
+    }
+
+    fn oid(arcs: &[u8]) -> Vec<u8> {
+        tlv(0x06, arcs)
+    }
+
+    /// `hmacWithSHA256`, 1.2.840.113549.2.9.
+    pub(crate) const HMAC_SHA256: [u8; 8] = [0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x02, 0x09];
+    /// `hmacWithSHA1`, 1.2.840.113549.2.7 — the DEFAULT, and the one the key
+    /// parser downstream refuses.
+    pub(crate) const HMAC_SHA1: [u8; 8] = [0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x02, 0x07];
+    /// `aes256-CBC-PAD`, 2.16.840.1.101.3.4.1.42.
+    pub(crate) const AES256_CBC: [u8; 9] = [0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x01, 0x2A];
+    /// `des-EDE3-CBC`, 1.2.840.113549.3.7.
+    pub(crate) const DES_EDE3_CBC: [u8; 8] = [0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x03, 0x07];
+    /// `pbeWithMD5AndDES-CBC`, 1.2.840.113549.1.5.3 — a PBES1 scheme.
+    pub(crate) const PBE_MD5_DES: [u8; 9] = [0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x05, 0x03];
+    /// `pbeWithSHA1And3-KeyTripleDES-CBC`, 1.2.840.113549.1.12.1.3 — PKCS#12.
+    pub(crate) const PBE_SHA1_3DES: [u8; 10] =
+        [0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x0C, 0x01, 0x03];
+
+    /// An `EncryptedPrivateKeyInfo` (RFC 5958 §3) under PBES2, with the
+    /// pseudorandom function and cipher named. `prf` is `None` for a document
+    /// that leaves the field out, which RFC 8018 §A.2 defines as
+    /// `hmacWithSHA1` and which is how OpenSSL writes that choice.
+    pub(crate) fn pkcs8_pbes2(prf: Option<&[u8]>, cipher: &[u8]) -> Vec<u8> {
+        // PBKDF2: an eight-byte salt, an iteration count, and the optional prf.
+        let prf = prf.map_or_else(Vec::new, |arcs| seq(&[&oid(arcs), &[0x05, 0x00]]));
+        let pbkdf2 = seq(&[
+            &oid(&[0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x05, 0x0C]),
+            &seq(&[&tlv(0x04, &[0u8; 8]), &tlv(0x02, &[0x08, 0x00]), &prf]),
+        ]);
+        let encryption = seq(&[&oid(cipher), &tlv(0x04, &[0u8; 16])]);
+        let algorithm = seq(&[
+            &oid(&[0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x05, 0x0D]),
+            &seq(&[&pbkdf2, &encryption]),
+        ]);
+        pem(
+            "ENCRYPTED PRIVATE KEY",
+            &seq(&[&algorithm, &tlv(0x04, &[0u8; 16])]),
+        )
+    }
+
+    /// The same, under an `encryptionAlgorithm` that is not PBES2 at all —
+    /// which is what PBES1 and the PKCS#12 schemes are.
+    pub(crate) fn pkcs8_scheme(scheme: &[u8]) -> Vec<u8> {
+        let algorithm = seq(&[
+            &oid(scheme),
+            &seq(&[&tlv(0x04, &[0u8; 8]), &tlv(0x02, &[0x08])]),
+        ]);
+        pem(
+            "ENCRYPTED PRIVATE KEY",
+            &seq(&[&algorithm, &tlv(0x04, &[0u8; 16])]),
+        )
     }
 
     /// A PPK document declaring `encryption`.
@@ -767,21 +979,183 @@ mod tests {
             .into_bytes()
         };
 
-        match ImportedKey::from_bytes(document("DES-EDE3-CBC,0123456789ABCDEF")) {
-            Err(VaultError::UnsupportedKeyCipher(named)) => {
-                assert_eq!(named, "DES-EDE3-CBC");
-            }
-            other => panic!("expected UnsupportedKeyCipher, got {other:?}"),
-        }
+        let said = refusal(ImportedKey::from_bytes(document(
+            "DES-EDE3-CBC,0123456789ABCDEF0123456789ABCDEF",
+        )));
+        assert!(said.contains("DES-EDE3-CBC"), "{said}");
 
         // Whatever the file said. A message assembled from the file's own bytes
         // is a message the file wrote.
-        match ImportedKey::from_bytes(document("PANTHER-9000-CBC,0123456789ABCDEF")) {
-            Err(VaultError::UnsupportedKeyCipher(named)) => {
-                assert_eq!(named, "an unrecognised cipher");
-            }
-            other => panic!("expected UnsupportedKeyCipher, got {other:?}"),
+        let said = refusal(ImportedKey::from_bytes(document(
+            "PANTHER-9000-CBC,0123456789ABCDEF0123456789ABCDEF",
+        )));
+        assert!(!said.contains("PANTHER"), "{said}");
+        assert!(said.contains("does not recognise"), "{said}");
+    }
+
+    /// The clause an `UnsupportedKeyCipher` carries, or a marker naming what
+    /// came back instead.
+    fn refusal(result: Result<ImportedKey, VaultError>) -> String {
+        match result {
+            Err(VaultError::UnsupportedKeyCipher(clause)) => clause.to_owned(),
+            Err(other) => format!("<{other}>"),
+            Ok(key) => format!("<accepted as {:?}>", key.format()),
         }
+    }
+
+    /// A PKCS#8 container names the scheme it was enciphered under, in the
+    /// clear, and a scheme the key parser downstream cannot read makes the key
+    /// unusable however good the passphrase is.
+    ///
+    /// This was the shape that got past every check: `openssl genrsa -des3` on
+    /// OpenSSL 3.x writes `ENCRYPTED PRIVATE KEY` under PBES2 with
+    /// `des-ede3-cbc`, and the file inspected cleanly, took a passphrase, was
+    /// sealed into the vault — and then failed at connect time. Refusing it
+    /// while the file is being identified is the whole fix; the sentence has to
+    /// name the scheme, because the remedy depends on which one it is.
+    #[test]
+    fn a_pkcs8_scheme_this_build_cannot_read_is_refused_before_the_passphrase() {
+        // What `ssh-keygen -m PKCS8` and `openssl pkcs8 -topk8` write.
+        let accepted = ImportedKey::from_bytes(samples::pkcs8_pbes2(
+            Some(&samples::HMAC_SHA256),
+            &samples::AES256_CBC,
+        ));
+        assert!(
+            accepted.is_ok_and(|key| key.is_encrypted() && key.format() == KeyFormat::Pkcs8),
+            "the scheme every current writer produces must still be accepted"
+        );
+
+        let said = refusal(ImportedKey::from_bytes(samples::pkcs8_pbes2(
+            Some(&samples::HMAC_SHA256),
+            &samples::DES_EDE3_CBC,
+        )));
+        assert!(said.contains("des-ede3-cbc"), "{said}");
+
+        // OpenSSL 1.x left the pseudorandom function out, which RFC 8018 §A.2
+        // defines as HMAC-SHA-1 — and the parser downstream refuses it, so the
+        // key is as unusable as one under a cipher nobody implements.
+        let said = refusal(ImportedKey::from_bytes(samples::pkcs8_pbes2(
+            None,
+            &samples::AES256_CBC,
+        )));
+        assert!(said.contains("HMAC-SHA-1"), "{said}");
+        let spelled_out = refusal(ImportedKey::from_bytes(samples::pkcs8_pbes2(
+            Some(&samples::HMAC_SHA1),
+            &samples::AES256_CBC,
+        )));
+        assert_eq!(said, spelled_out, "absent and explicit mean the same thing");
+
+        let said = refusal(ImportedKey::from_bytes(samples::pkcs8_scheme(
+            &samples::PBE_MD5_DES,
+        )));
+        assert!(said.contains("PKCS#5 v1.5"), "{said}");
+
+        let said = refusal(ImportedKey::from_bytes(samples::pkcs8_scheme(
+            &samples::PBE_SHA1_3DES,
+        )));
+        assert!(said.contains("PKCS#12"), "{said}");
+    }
+
+    /// The scheme check refuses what it can prove and nothing else.
+    ///
+    /// A second, partial parser sitting in front of the real one is a way to
+    /// refuse files that work: every shape it cannot follow would become a
+    /// refusal of a key the SSH parser reads without complaint. So a document
+    /// whose algorithm identifier cannot be walked is accepted exactly as it
+    /// was before this check existed — the outer `SEQUENCE` is still required,
+    /// and the rest is left to the parser that reads the whole thing.
+    #[test]
+    fn a_pkcs8_container_it_cannot_follow_is_left_alone_rather_than_refused() {
+        // The shortest thing the old check accepted: a declared length with no
+        // body under it. This is the fixture the IPC tests use, and it must go
+        // on being read as an encrypted PKCS#8 container.
+        let stub = samples::pem("ENCRYPTED PRIVATE KEY", &[0x30, 0x82, 0x01, 0x00]);
+        let key = ImportedKey::from_bytes(stub);
+        assert!(
+            key.is_ok_and(|key| key.is_encrypted() && key.format() == KeyFormat::Pkcs8),
+            "a container the scheme check cannot follow must not become a refusal"
+        );
+
+        // The outer shape is still required, so a banner over something that is
+        // not DER at all is refused as before — and as not-a-key, which is what
+        // it is.
+        assert!(matches!(
+            ImportedKey::from_bytes(samples::pem("ENCRYPTED PRIVATE KEY", b"not der at all")),
+            Err(VaultError::NotAPrivateKey)
+        ));
+    }
+
+    /// RFC 1421 §4.6.1.1 and §4.6.1.3 travel together, and a block carrying one
+    /// without the other used to be reported as a file that is not a private
+    /// key — said about a file that is one, with a damaged header.
+    #[test]
+    fn a_damaged_rfc_1421_header_is_not_called_a_file_that_is_not_a_key() {
+        let document = |header: &str| {
+            format!(
+                "-----BEGIN RSA PRIVATE KEY-----\n\
+                 {header}\n\
+                 {}\n\
+                 -----END RSA PRIVATE KEY-----\n",
+                data_encoding::BASE64.encode(&[0u8; 16])
+            )
+            .into_bytes()
+        };
+
+        // `Proc-Type` with no `DEK-Info` beneath it.
+        let said = refusal(ImportedKey::from_bytes(document(
+            "Proc-Type: 4,ENCRYPTED\n",
+        )));
+        assert!(said.contains("Proc-Type"), "{said}");
+        assert!(said.contains("DEK-Info"), "{said}");
+
+        // A `DEK-Info` whose initialisation vector is not hexadecimal, and one
+        // that is hexadecimal but the wrong length.
+        for iv in ["ZZZZ", "0123456789ABCDEF"] {
+            let said = refusal(ImportedKey::from_bytes(document(&format!(
+                "Proc-Type: 4,ENCRYPTED\nDEK-Info: AES-128-CBC,{iv}\n"
+            ))));
+            assert!(said.contains("initialisation vector"), "for {iv}: {said}");
+        }
+
+        // A `DEK-Info` that is not a name, a comma and an IV at all.
+        let said = refusal(ImportedKey::from_bytes(document(
+            "Proc-Type: 4,ENCRYPTED\nDEK-Info: AES-128-CBC\n",
+        )));
+        assert!(said.contains("DEK-Info"), "{said}");
+        assert!(said.contains("comma"), "{said}");
+    }
+
+    /// An unenciphered PKCS#8 document is read all the way through, because it
+    /// can be: nothing in it is ciphertext.
+    ///
+    /// Checking the first octet alone let a file that merely began with a DER
+    /// `SEQUENCE` tag through to be sealed, and the credential then failed when
+    /// a session was opened — the same failure the passphrase check exists to
+    /// stop, discovered a long way from the file that caused it.
+    #[test]
+    fn an_unenciphered_pkcs8_that_is_not_a_private_key_info_is_refused_when_it_is_read() {
+        for (why, body) in [
+            // A length that runs past the end of the buffer.
+            ("a length past the end", &[0x30u8, 0x82, 0x01, 0x00][..]),
+            // A SEQUENCE that does not fill the body.
+            (
+                "a short sequence",
+                &[0x30, 0x03, 0x02, 0x01, 0x00, 0x00][..],
+            ),
+            // A SEQUENCE whose first field is not the `version` INTEGER
+            // RFC 5958 §2 puts there.
+            ("no version field", &[0x30, 0x03, 0x04, 0x01, 0x00][..]),
+        ] {
+            let refused = ImportedKey::from_bytes(samples::pem("PRIVATE KEY", body));
+            assert!(
+                matches!(refused, Err(VaultError::NotAPrivateKey)),
+                "{why}: {refused:?}"
+            );
+        }
+
+        // And a whole `PrivateKeyInfo` is still read.
+        let accepted = ImportedKey::from_bytes(samples::pkcs8(false));
+        assert!(accepted.is_ok_and(|key| !key.is_encrypted()));
     }
 
     #[test]

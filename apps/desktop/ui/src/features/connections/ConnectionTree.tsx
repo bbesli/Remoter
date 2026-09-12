@@ -23,11 +23,12 @@
  * version either, so nothing in the suite noticed.
  *
  * The gesture is owned here, at the scroller, and not by the rows. The pointer
- * is captured for the length of the drag and the target is found by hit-testing
- * the document at the pointer's coordinates — `pointerTarget` below. Rows
- * answering `pointermove` themselves made the drop target a function of which
- * element the webview decided to deliver the move to, and a captured pointer
- * delivers every move to one element: the drag then kept its source row and
+ * is captured — on the row the press landed on, see `capture` — for the length
+ * of the drag, and the target is found by hit-testing the document at the
+ * pointer's coordinates, `pointerTarget` below. Rows answering `pointermove`
+ * themselves made the drop target a function of which element the webview
+ * decided to deliver the move to, and a captured pointer delivers every move
+ * to one element: the drag then kept its source row and
  * silently refused everything, which is "dragging does nothing" for a second
  * time and for a second reason. Capture is also what keeps the moves coming
  * when the pointer leaves the window, which no per-row handler can do.
@@ -36,6 +37,14 @@
  * refused and a drag the application never received look identical when the
  * only channel is a visually hidden live region — which is the ambiguity that
  * let the Windows defect survive as long as it did.
+ *
+ * **One gesture is several `node_move` calls and each is its own vault write.**
+ * They are not independent — see `movesFor` — so a run that stops halfway is
+ * not half a move but a tree in a state nobody asked for, and `runSteps` walks
+ * a failed run back along the way it came. The count of calls is on screen
+ * while it happens, because two hundred of them is not instant and a spinner
+ * that says the same thing throughout is a control that will not say what it
+ * is doing.
  *
  * Still missing, and tracked: the move does not yet show the inheritance diff
  * that docs/features/connections.md asks for. That needs a core command to
@@ -111,13 +120,22 @@ function menuAnchor(x: number, y: number): { x: number; y: number } {
 const AUTO_EXPAND_MS = 600;
 
 /**
- * How far the pointer travels before a press becomes a drag.
+ * How far the pointer travels, on either axis, before a press becomes a drag.
  *
  * Below it the gesture is still a click — selecting a row, or hitting its
  * chevron — and a tree that started re-parenting on a two-pixel wobble would
  * be unusable with a trackpad.
+ *
+ * Four pixels was the number a Windows drag uses (`SM_CXDRAG`), and it was too
+ * small here: driving this tree in a real browser, a four-pixel wobble during
+ * an ordinary click raised the whole refused-drop callout. A row is twenty-
+ * eight pixels tall, and the nearest thing anyone can deliberately aim at is
+ * the band half a row away, so nothing a person means to do is lost between
+ * four pixels and eight. The second half of the fix is in `commitDrop`: a drag
+ * that ends on the row it started from moves nothing and says nothing, however
+ * far the pointer went in between.
  */
-const DRAG_THRESHOLD_PX = 4;
+const DRAG_THRESHOLD_PX = 8;
 
 /**
  * Dragging toward the edge of the sidebar scrolls it.
@@ -217,6 +235,17 @@ interface MoveStep {
   id: string;
   parentId: string | null;
   sortOrder: number;
+  /**
+   * Where this node sat before the step, so a run that fails partway can be
+   * walked back to where it started. See `runSteps`: every call is its own
+   * vault write, and the calls are not independent of each other.
+   */
+  from: { parentId: string | null; sortOrder: number };
+}
+
+/** Where a node is now, in the two fields `node_move` writes. */
+function placeOf(node: TreeNode): { parentId: string | null; sortOrder: number } {
+  return { parentId: node.parentId, sortOrder: node.sortOrder };
 }
 
 /**
@@ -257,63 +286,229 @@ function sameDrop(a: DropState | null, b: DropState | null): boolean {
 }
 
 /**
- * The `node_move` calls that land `draggedId` at `plan.index`.
+ * Room for one more entry between two neighbours, and who had to move to make
+ * it.
+ *
+ * `shifted` is in the order the calls must be made: see `movesFor`.
+ */
+interface Insertion {
+  /** The value the dragged node takes. */
+  sortOrder: number;
+  shifted: { node: TreeNode; sortOrder: number }[];
+}
+
+/**
+ * Push the siblings from `at` upwards until an integer falls free above
+ * `floor`, moving as few of them as possible.
+ *
+ * The search widens one sibling at a time and stops at the first width that
+ * fits, so the cost is the distance to the nearest slack rather than the length
+ * of the list. Nothing lives above the last sibling and `sortOrder` is an
+ * `i64`, so the widest search always fits — which is why this returns an
+ * insertion rather than the possibility of one.
+ */
+function roomAbove(siblings: readonly TreeNode[], at: number, floor: number): Insertion {
+  let last = at;
+  while (last < siblings.length - 1) {
+    const outside = siblings[last + 1];
+    if (outside === undefined) break;
+    // The dragged node plus every sibling from `at` to `last`.
+    const count = last - at + 2;
+    if (outside.sortOrder - floor - 1 >= count) break;
+    last += 1;
+  }
+
+  const count = last - at + 2;
+  const ceiling = siblings[last + 1]?.sortOrder ?? floor + (count + 1) * RESPACE_STRIDE;
+  const step = Math.floor((ceiling - floor) / (count + 1));
+  const shifted: { node: TreeNode; sortOrder: number }[] = [];
+  // Written from the top of the block downwards, so every write raises a
+  // sibling into space the write before it vacated and the siblings keep their
+  // relative order after each one.
+  for (let i = last; i >= at; i -= 1) {
+    const node = siblings[i];
+    if (node !== undefined) shifted.push({ node, sortOrder: floor + (i - at + 2) * step });
+  }
+  return { sortOrder: floor + step, shifted };
+}
+
+/** `roomAbove` mirrored: pull the siblings up to `at` down, below `ceiling`. */
+function roomBelow(siblings: readonly TreeNode[], at: number, ceiling: number): Insertion {
+  let first = at - 1;
+  while (first > 0) {
+    const outside = siblings[first - 1];
+    if (outside === undefined) break;
+    const count = at - first + 1;
+    if (ceiling - outside.sortOrder - 1 >= count) break;
+    first -= 1;
+  }
+
+  const count = at - first + 1;
+  const floor = siblings[first - 1]?.sortOrder ?? ceiling - (count + 1) * RESPACE_STRIDE;
+  const step = Math.floor((ceiling - floor) / (count + 1));
+  const shifted: { node: TreeNode; sortOrder: number }[] = [];
+  // Written from the bottom of the block upwards, for the reason above with
+  // the sign reversed: every write lowers a sibling into vacated space.
+  for (let i = first; i < at; i += 1) {
+    const node = siblings[i];
+    if (node !== undefined) shifted.push({ node, sortOrder: floor + (i - first + 1) * step });
+  }
+  return { sortOrder: floor + count * step, shifted };
+}
+
+/**
+ * The `node_move` calls that land `dragged` at `plan.index`.
  *
  * `siblings` is the destination's children with the dragged node already taken
  * out, in display order.
  *
  * `sortOrder` is an `i64` in the core, so the usual trick of picking the
  * midpoint between two neighbours only works when there is an integer between
- * them — and `node_create` hands out consecutive integers, so usually there is
- * not. When the neighbours are adjacent the whole sibling list is respaced
- * instead, which costs one call per row that actually changes.
+ * them — and both `node_create` and every importer hand out consecutive
+ * integers, so on a tree nobody has reordered yet there never is.
+ *
+ * **This used to respace the whole sibling list**, which is one `node_move` per
+ * sibling, and each of those is a full vault write — read, re-encrypt, fsync,
+ * rename. Measured in a real browser against a thirty-three-entry top level,
+ * one drag cost 32 calls and one Ctrl+Up cost 32. On the four-hundred-entry
+ * tree that makes importing worth having, that is four hundred round trips for
+ * one nudge.
+ *
+ * Only the siblings *between the insertion point and the nearest slack* have to
+ * move, and the ends of the list are themselves slack — nothing lives above the
+ * last entry or below the first. So the two searches widen outwards from the
+ * insertion point and the cheaper one wins, which for the two gestures anyone
+ * actually makes is two or three calls: the node being dragged has just left a
+ * gap of its own, and that gap is usually the nearest slack there is.
+ *
+ * **The slack it finds is usually the slot the dragged node has not vacated
+ * yet**, and that is why the run is not safe to abandon halfway. Ctrl+Up on
+ * `srv-010` of a freshly imported list is two calls — `srv-009` to 12, then
+ * `srv-010` to 11 — and 12 is the order `srv-010` still holds until the second
+ * call lands. Driven in a real browser with that second call refused, the two
+ * of them are left sharing 12: the sidebar then orders the pair by name *in
+ * the reader's language* and `storage.rs` orders it by `sort_order, id`, so
+ * the same vault draws in two different orders, it survives a restart, and
+ * nothing on screen says so.
+ *
+ * Widening the search until it can avoid that slot does not work: on a list
+ * with no gaps, each sibling the search takes in adds exactly one integer to
+ * the range, so excluding one integer never catches up — the search runs to
+ * the end of the list, which is the cost this function exists to avoid. Two
+ * adjacent entries with no integer between them cannot be exchanged by two
+ * single-node writes at all, whatever the order of them; there is no third
+ * value to hold one of them in the meantime.
+ *
+ * So every step carries where its node came from, and `runSteps` walks a
+ * failed run back along the way it came. The real answer is a `node_move` that
+ * takes a batch and writes the vault once — see the note on `runSteps`.
  */
-function movesFor(plan: DropPlan, draggedId: string, siblings: readonly TreeNode[]): MoveStep[] {
+function movesFor(plan: DropPlan, dragged: TreeNode, siblings: readonly TreeNode[]): MoveStep[] {
+  const place = (sortOrder: number): MoveStep => ({
+    id: dragged.id,
+    parentId: plan.parentId,
+    sortOrder,
+    from: placeOf(dragged),
+  });
   const before = plan.index > 0 ? siblings[plan.index - 1] : undefined;
   const after = siblings[plan.index];
 
-  if (before === undefined || after === undefined) {
-    const anchor = before ?? after;
-    if (anchor === undefined) {
-      return [{ id: draggedId, parentId: plan.parentId, sortOrder: 0 }];
-    }
-    const sortOrder = before === undefined ? anchor.sortOrder - 1 : anchor.sortOrder + 1;
-    return [{ id: draggedId, parentId: plan.parentId, sortOrder }];
+  // An end of the list: there is always room outside it, and leaving a stride
+  // rather than a single integer is what keeps the next insertion here free.
+  if (after === undefined) {
+    return [place(before === undefined ? 0 : before.sortOrder + RESPACE_STRIDE)];
   }
+  if (before === undefined) return [place(after.sortOrder - RESPACE_STRIDE)];
 
   const gap = after.sortOrder - before.sortOrder;
-  if (gap >= 2) {
-    const sortOrder = before.sortOrder + Math.floor(gap / 2);
-    return [{ id: draggedId, parentId: plan.parentId, sortOrder }];
-  }
+  if (gap >= 2) return [place(before.sortOrder + Math.floor(gap / 2))];
 
-  const order: (TreeNode | null)[] = [
-    ...siblings.slice(0, plan.index),
-    null,
-    ...siblings.slice(plan.index),
+  const up = roomAbove(siblings, plan.index, before.sortOrder);
+  const down = roomBelow(siblings, plan.index, after.sortOrder);
+  const chosen = down.shifted.length < up.shifted.length ? down : up;
+
+  return [
+    ...chosen.shifted.map(({ node, sortOrder }) => ({
+      id: node.id,
+      parentId: plan.parentId,
+      sortOrder,
+      from: placeOf(node),
+    })),
+    place(chosen.sortOrder),
   ];
+}
 
-  // Start the respacing high enough that no existing sibling's order ever goes
-  // down. Each step is its own vault write, so a run that fails halfway has to
-  // leave the siblings in the order they were already in; that holds when every
-  // row only moves up and the rows are written from the bottom of the list
-  // upwards, which is what the descending loop below does.
-  let base = 0;
-  order.forEach((entry, i) => {
-    if (entry !== null) base = Math.max(base, entry.sortOrder - i * RESPACE_STRIDE);
-  });
+/** How far a run has got, for the status line above the tree. */
+interface MoveProgress {
+  /** `undoing` is a failed run being walked back — see `runSteps`. */
+  phase: "moving" | "undoing";
+  done: number;
+  total: number;
+}
 
-  const steps: MoveStep[] = [];
-  for (let i = order.length - 1; i >= 0; i -= 1) {
-    const entry = order[i];
-    if (entry === undefined) continue;
-    const sortOrder = base + i * RESPACE_STRIDE;
-    if (entry === null) steps.push({ id: draggedId, parentId: plan.parentId, sortOrder });
-    else if (entry.sortOrder !== sortOrder) {
-      steps.push({ id: entry.id, parentId: plan.parentId, sortOrder });
+/** What a failed run left behind. `undone` false means the vault kept some of it. */
+interface RunFailure {
+  failure: unknown;
+  undone: boolean;
+}
+
+/**
+ * Apply a run of `node_move` calls, and walk it back when one of them fails.
+ *
+ * **The steps are not independent of each other.** A respace hands a sibling
+ * the sort order the dragged node is still sitting on — see `movesFor` for why
+ * it cannot do otherwise — so a run that stops halfway leaves two siblings
+ * sharing an order. That is not a cosmetic tie: the sidebar breaks it by name
+ * in the reader's language and the core's `ORDER BY sort_order, id` breaks it
+ * by id, so the tree draws in one order here and another there, it survives a
+ * restart, and there is nothing on screen to say it happened or to undo it.
+ *
+ * Walking back in reverse is exact rather than best-effort at the arithmetic:
+ * each undo restores the state the vault was in before the step it undoes, so
+ * the run retreats along states the vault has already held rather than through
+ * new ones. The first undo that fails stops the walk — pressing on past it
+ * would mix two of those states — and the caller is told, because a vault that
+ * kept half a run is the one thing here a person has to be warned about.
+ *
+ * None of this is atomicity, and it is not meant to look like it. The fix is a
+ * `node_move` that takes the whole run and writes the vault once; that command
+ * is not in `remoter-ipc` (`commands.rs`, `node_move`), and until it is, a
+ * two-hundred-call reorder is two hundred vault writes that can stop in the
+ * middle. This makes the stop recoverable and visible; it does not make it
+ * impossible.
+ *
+ * Returns null when every step landed.
+ */
+async function runSteps(
+  steps: readonly MoveStep[],
+  move: (step: MoveStep) => Promise<void>,
+  report: (progress: MoveProgress) => void,
+): Promise<RunFailure | null> {
+  const total = steps.length;
+  const applied: MoveStep[] = [];
+  report({ phase: "moving", done: 0, total });
+  for (const step of steps) {
+    try {
+      await move(step);
+    } catch (failure) {
+      let undone = true;
+      for (let i = applied.length - 1; i >= 0; i -= 1) {
+        const back = applied[i];
+        if (back === undefined) continue;
+        report({ phase: "undoing", done: applied.length - i - 1, total: applied.length });
+        try {
+          await move({ ...back, ...back.from });
+        } catch {
+          undone = false;
+          break;
+        }
+      }
+      return { failure, undone };
     }
+    applied.push(step);
+    report({ phase: "moving", done: applied.length, total });
   }
-  return steps;
+  return null;
 }
 
 /**
@@ -323,6 +518,12 @@ function movesFor(plan: DropPlan, draggedId: string, siblings: readonly TreeNode
  * the names in it are user data from the vault, so every one is isolated
  * before it reaches the message. Without that a folder named in Arabic
  * reverses the English sentence it lands in.
+ *
+ * A separator gets its own four sentences rather than an empty `{name}`. It is
+ * the one kind of entry with nothing to call it — it is a line somebody drew —
+ * and it is now draggable, so "Moved “” above “db-01”" is a sentence this
+ * would otherwise produce several times a day. The entry it lands against is
+ * chosen by `anchorFor`, which has the mirror image of the same problem.
  */
 function describeMove(
   t: TFunction<"connections">,
@@ -331,15 +532,111 @@ function describeMove(
   band: DropBand,
 ): string {
   const name = isolate(dragged.name);
-  if (target === null) return t("move.movedToTop", { name });
+  const line = dragged.kind === "separator";
+  if (target === null) {
+    return line ? t("move.movedSeparatorToTop") : t("move.movedToTop", { name });
+  }
+  const anchor = isolate(target.name);
   switch (band) {
     case "into":
-      return t("move.movedInto", { name, parent: isolate(target.name) });
+      return line
+        ? t("move.movedSeparatorInto", { parent: anchor })
+        : t("move.movedInto", { name, parent: anchor });
     case "before":
-      return t("move.movedAbove", { name, anchor: isolate(target.name) });
+      return line
+        ? t("move.movedSeparatorAbove", { anchor })
+        : t("move.movedAbove", { name, anchor });
     case "after":
-      return t("move.movedBelow", { name, anchor: isolate(target.name) });
+      return line
+        ? t("move.movedSeparatorBelow", { anchor })
+        : t("move.movedBelow", { name, anchor });
   }
+}
+
+/**
+ * What the status line above the tree says while a run is in flight.
+ *
+ * "Moving…" alone is right for the one-call case and a lie of omission for the
+ * two-hundred-call one, which is what a reorder on a freshly imported list
+ * costs. The count is the only thing on screen that distinguishes a move that
+ * is nearly done from one that has barely started.
+ */
+function moveStatus(t: TFunction<"connections">, progress: MoveProgress | null): string {
+  if (progress === null) return t("move.inProgress");
+  if (progress.phase === "undoing") return t("move.undoing");
+  if (progress.total <= 1) return t("move.inProgress");
+  return t("move.inProgressCount", { done: progress.done, total: progress.total });
+}
+
+/**
+ * The entry a completed move is announced *against*.
+ *
+ * Usually the row the pointer was over. A separator is the exception: it is a
+ * position rather than an entry and carries no name, so naming it would
+ * produce `Moved “db-01” above “”` — a sentence with a hole in it, and the
+ * only description a screen reader would get of where the entry went. The
+ * nearest named neighbour on the side the entry came to rest is the same place
+ * said in words someone can use, and the folder it landed in is the answer
+ * when a separator is all there is.
+ */
+function anchorFor(
+  target: TreeNode | null,
+  band: DropBand,
+  plan: DropPlan,
+  siblings: readonly TreeNode[],
+  parent: TreeNode | null,
+): { anchor: TreeNode | null; band: DropBand } {
+  const named = (node: TreeNode | undefined): TreeNode | undefined =>
+    node !== undefined && node.name.trim() !== "" ? node : undefined;
+  if (target === null || named(target) !== undefined) return { anchor: target, band };
+
+  // The nearer of the two neighbours, because "below Munich" describes the
+  // same landing place as "above Ops" and one of them is next to it.
+  let below: { node: TreeNode; away: number } | undefined;
+  for (let i = plan.index; i < siblings.length; i += 1) {
+    const node = named(siblings[i]);
+    if (node !== undefined) {
+      below = { node, away: i - plan.index };
+      break;
+    }
+  }
+  let above: { node: TreeNode; away: number } | undefined;
+  for (let i = plan.index - 1; i >= 0; i -= 1) {
+    const node = named(siblings[i]);
+    if (node !== undefined) {
+      above = { node, away: plan.index - 1 - i };
+      break;
+    }
+  }
+  if (above !== undefined && (below === undefined || above.away < below.away)) {
+    return { anchor: above.node, band: "after" };
+  }
+  if (below !== undefined) return { anchor: below.node, band: "before" };
+  return parent === null ? { anchor: null, band } : { anchor: parent, band: "into" };
+}
+
+/**
+ * What a move is announced as: the sentence, against the entry that best
+ * describes where the thing went.
+ *
+ * The only place `anchorFor` and `describeMove` are called from, because using
+ * either without the other is how the announcement keeps ending up with a hole
+ * in it. The drag path went through `anchorFor` and the keyboard path named
+ * `without[at - 1]` directly, so Ctrl+Up onto a separator said `Moved “db-01”
+ * above “”` — the same defect the drag path had been fixed for, in the half of
+ * the feature the fix did not touch.
+ */
+function announceMove(
+  t: TFunction<"connections">,
+  dragged: TreeNode,
+  target: TreeNode | null,
+  band: DropBand,
+  plan: DropPlan,
+  siblings: readonly TreeNode[],
+  parent: TreeNode | null,
+): string {
+  const spoken = anchorFor(target, band, plan, siblings, parent);
+  return describeMove(t, dragged, spoken.anchor, spoken.band);
 }
 
 export function ConnectionTree() {
@@ -377,6 +674,23 @@ export function ConnectionTree() {
    * two channels announcing the same sentence is worse than one.
    */
   const [refusal, setRefusal] = useState<string | null>(null);
+  /**
+   * How far the run of `node_move` calls has got.
+   *
+   * A reorder on a list with no gaps is one call per sibling between the
+   * insertion point and the nearest slack, and each is a whole vault write —
+   * two hundred of them on the four-hundred-entry tree this project keeps
+   * citing. Through all of that the tree said "Moving…" and nothing else, for
+   * as long as it took, which is a control that does not say what it is doing.
+   */
+  const [progress, setProgress] = useState<MoveProgress | null>(null);
+  /**
+   * True when a failed run could not be walked back, so the vault kept part of
+   * it. Rare — it needs a second write to fail during the recovery from the
+   * first — and the one outcome here a person has to be told about, because
+   * the order they are looking at is not the order the vault holds.
+   */
+  const [unsettled, setUnsettled] = useState(false);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const confirmRef = useRef<HTMLDivElement | null>(null);
   const chipRef = useRef<HTMLDivElement | null>(null);
@@ -574,15 +888,25 @@ export function ConnectionTree() {
 
   const moveMutation = useMutation({
     mutationFn: async (steps: MoveStep[]) => {
-      for (const step of steps) {
-        await ipc.moveNode(step.id, step.parentId, step.sortOrder);
-      }
+      const stopped = await runSteps(
+        steps,
+        (step) => ipc.moveNode(step.id, step.parentId, step.sortOrder),
+        setProgress,
+      );
+      if (stopped === null) return;
+      // The walk-back is reported separately from the failure. What went wrong
+      // is the core's sentence either way; whether the vault kept half a run
+      // is this component's to say, and it is the more urgent of the two.
+      setUnsettled(!stopped.undone);
+      throw stopped.failure;
     },
     onSuccess: async () => {
+      setProgress(null);
       await refreshTree();
       setAnnouncement(pendingAnnouncement.current);
     },
     onError: async () => {
+      setProgress(null);
       await refreshTree();
       // The failure announcement is rendered from `moveMutation.error` rather
       // than assembled here, because turning a failure into a sentence is
@@ -603,6 +927,7 @@ export function ConnectionTree() {
       // A move that is actually happening answers whatever the last refusal
       // said, so the note explaining the last one goes with it.
       setRefusal(null);
+      setUnsettled(false);
       resetMove();
       startMove(steps);
     },
@@ -953,10 +1278,20 @@ export function ConnectionTree() {
    * stops selecting it. A click is a press that never travelled, so deferring
    * the capture past the threshold leaves clicks alone entirely.
    *
-   * It is taken on the **row**, not on the scroller, for the same reason: the
-   * click after a drag then still belongs to the row it came from. A row can
-   * be replaced mid-gesture, and losing the capture that way is survivable —
-   * moves bubble to the scroller, which is where they are handled anyway.
+   * It is taken on the **row**, not on the scroller, and that choice is worth
+   * one paragraph because it is measurable and was measured. A press that
+   * crosses the threshold and comes back down on the row it started on is a
+   * click as far as the user is concerned — the wobble case — and the click
+   * that ends it is delivered to the capturing element. With the capture on
+   * the row, that row is selected, which is what the press was for; with the
+   * capture moved to the scroller, the same gesture selects nothing. Where the
+   * capture sits changes nothing else: driven in a real Chromium, the drop
+   * lands in the same place with the capture on the row, on the scroller, or
+   * refused altogether, because the target comes from the hit test and not
+   * from the event. A row can be replaced mid-gesture, and losing the capture
+   * that way is survivable for the same reason — the moves fall back to
+   * whatever is under the pointer and bubble to the scroller, which is where
+   * they are handled anyway.
    *
    * Guarded because jsdom has no pointer capture at all, and because a
    * `pointerId` the webview has already released throws `NotFoundError`.
@@ -1093,15 +1428,30 @@ export function ConnectionTree() {
     const dragged = index.byId.get(draggedId);
     if (dragged === undefined) return;
     if (state.plan === null) {
+      /*
+       * Let go over the row it was picked up from, which is where a gesture
+       * that was never a drag ends: the entry is back where it started, so
+       * nothing was refused and there is nothing to explain. The warning
+       * callout here — "The entry was not moved / An entry cannot be dropped
+       * onto itself" — is what an ordinary click with a wobble in it used to
+       * produce, an error about an operation nobody attempted. Announced as a
+       * cancellation, which is what it is, and which is what Escape says.
+       */
+      if (state.targetId === draggedId) {
+        setAnnouncement(t("move.cancelled"));
+        return;
+      }
       refuse(state.reason ?? t("move.refuseGone"));
       return;
     }
 
     const sibs = siblingsWithout(state.plan.parentId, draggedId);
     const target = state.targetId === null ? null : (index.byId.get(state.targetId) ?? null);
+    const parentId = state.plan.parentId;
+    const parent = parentId === null ? null : (index.byId.get(parentId) ?? null);
     runMove(
-      movesFor(state.plan, draggedId, sibs),
-      describeMove(t, dragged, target, state.band),
+      movesFor(state.plan, dragged, sibs),
+      announceMove(t, dragged, target, state.band, state.plan, sibs, parent),
     );
   }, [index, siblingsWithout, runMove, endGesture, refuse, t]);
 
@@ -1158,6 +1508,7 @@ export function ConnectionTree() {
       const at = sibs.findIndex((n) => n.id === node.id);
       if (at < 0) return;
       const without = siblingsWithout(node.parentId, node.id);
+      const home = node.parentId === null ? null : (index.byId.get(node.parentId) ?? null);
 
       switch (action) {
         case "up": {
@@ -1165,16 +1516,13 @@ export function ConnectionTree() {
             refuse(t("move.atFirst", { name: isolate(node.name) }));
             return;
           }
-          const anchor = without[at - 1];
           const plan: DropPlan = { parentId: node.parentId, index: at - 1 };
           runMove(
-            movesFor(plan, node.id, without),
-            anchor === undefined
-              ? t("move.movedToTop", { name: isolate(node.name) })
-              : t("move.movedAbove", {
-                  name: isolate(node.name),
-                  anchor: isolate(anchor.name),
-                }),
+            movesFor(plan, node, without),
+            // Through the same helper the drag uses, so that landing above a
+            // separator names the nearest entry that has a name rather than
+            // reading out an empty pair of quotation marks.
+            announceMove(t, node, without[at - 1] ?? null, "before", plan, without, home),
           );
           return;
         }
@@ -1183,16 +1531,10 @@ export function ConnectionTree() {
             refuse(t("move.atLast", { name: isolate(node.name) }));
             return;
           }
-          const anchor = without[at];
           const plan: DropPlan = { parentId: node.parentId, index: at + 1 };
           runMove(
-            movesFor(plan, node.id, without),
-            anchor === undefined
-              ? t("move.movedToTop", { name: isolate(node.name) })
-              : t("move.movedBelow", {
-                  name: isolate(node.name),
-                  anchor: isolate(anchor.name),
-                }),
+            movesFor(plan, node, without),
+            announceMove(t, node, without[at] ?? null, "after", plan, without, home),
           );
           return;
         }
@@ -1208,9 +1550,18 @@ export function ConnectionTree() {
           const parentAt = uncles.findIndex((n) => n.id === parent.id);
           if (parentAt < 0) return;
           const plan: DropPlan = { parentId: parent.parentId, index: parentAt + 1 };
+          const grandparent =
+            parent.parentId === null ? null : (index.byId.get(parent.parentId) ?? null);
           runMove(
-            movesFor(plan, node.id, uncles),
-            t("move.movedOutOf", { name: isolate(node.name), parent: isolate(parent.name) }),
+            movesFor(plan, node, uncles),
+            // "Out of Berlin" says the one thing that matters — the nesting
+            // changed — and is kept for anything with a name to put in front
+            // of it. A separator has none, so it is announced the way the drag
+            // announces it: below the folder it has just left, which is where
+            // it now is.
+            node.kind === "separator"
+              ? announceMove(t, node, parent, "after", plan, uncles, grandparent)
+              : t("move.movedOutOf", { name: isolate(node.name), parent: isolate(parent.name) }),
           );
           return;
         }
@@ -1225,8 +1576,8 @@ export function ConnectionTree() {
           // Open the folder, or the node the user just moved leaves the screen.
           if (!expanded.has(previous.id)) toggleExpanded(previous.id);
           runMove(
-            movesFor(plan, node.id, kids),
-            t("move.movedInto", { name: isolate(node.name), parent: isolate(previous.name) }),
+            movesFor(plan, node, kids),
+            announceMove(t, node, previous, "into", plan, kids, previous),
           );
           return;
         }
@@ -1399,11 +1750,45 @@ export function ConnectionTree() {
         </div>
       )}
 
-      {/* A move writes the vault, so the rows do not settle instantly. The
-          live region below is silent to anyone who can see the screen. */}
+      {/*
+        A move writes the vault, so the rows do not settle instantly. The live
+        region below is silent to anyone who can see the screen.
+
+        It counts, because the count is sometimes two hundred. A reorder on a
+        list with no gaps costs one vault write per sibling between the
+        insertion point and the nearest slack, and a spinner saying "Moving…"
+        for that long is a control that will not say what it is doing — it
+        looks the same at call three of two hundred as it does at the last one.
+      */}
       {moveMutation.isPending && (
         <div className={s.status}>
-          <BusyStatus label={t("move.inProgress")} size={14} />
+          <BusyStatus label={moveStatus(t, progress)} size={14} />
+          {/*
+            The same count again, as a shape and as `progressbar` semantics.
+            A screen reader cannot be given the running total over the live
+            region — it is polite, so two hundred changes are two hundred
+            interruptions — but it can be given a value it may ask for, which
+            is what this role is for. `aria-valuetext` carries the sentence so
+            the answer is "seventeen of two hundred" and not "8%".
+          */}
+          {progress !== null && progress.total > 1 && (
+            <span
+              className={s.progressTrack}
+              role="progressbar"
+              aria-label={t("move.inProgress")}
+              aria-valuemin={0}
+              aria-valuemax={progress.total}
+              aria-valuenow={progress.done}
+              aria-valuetext={moveStatus(t, progress)}
+            >
+              <span
+                className={s.progressFill}
+                style={{
+                  inlineSize: `${String(Math.round((progress.done / progress.total) * 100))}%`,
+                }}
+              />
+            </span>
+          )}
         </div>
       )}
 
@@ -1419,6 +1804,14 @@ export function ConnectionTree() {
       {moveFailure !== null && (
         <div className={s.notice}>
           <FailureNotice failure={moveFailure} title={t("move.failed")}>
+            {/*
+              A run of `node_move` calls that stops in the middle is walked
+              back one call at a time, and this is the sentence for the case
+              where the walk back failed too. It is worth its own line because
+              it is the only outcome here in which the tree on screen and the
+              tree in the vault are two different trees.
+            */}
+            {unsettled && <p className={s.noticeDetail}>{t("move.notUndone")}</p>}
             <Button variant="ghost" size="sm" onClick={() => resetMove()}>
               {tCommon("action.dismiss")}
             </Button>
@@ -1446,11 +1839,13 @@ export function ConnectionTree() {
           onPointerAt(e.clientX, e.clientY, e.target);
         }}
         onPointerLeave={(e) => {
-          // Only reached when the capture was refused: a captured pointer is
-          // treated as though it were still over this element, so it fires no
-          // boundary events until it is released. Without the capture the
-          // drag is still in flight — the release is handled on the window —
-          // but it is over nothing, so it plans nothing.
+          // Reached whether or not the capture was granted — a captured
+          // pointer still fires this on the capture element's ancestors, which
+          // the scroller is — and it says only that the pointer is no longer
+          // over the tree. The drag is still in flight either way; the release
+          // is handled on the window. `onPointerAt` decides the same thing
+          // from the coordinates, so this is a second route to one answer
+          // rather than the only one.
           const next = e.relatedTarget;
           if (next instanceof Node && e.currentTarget.contains(next)) return;
           clearDrop();
@@ -1571,15 +1966,23 @@ export function ConnectionTree() {
         <div ref={chipRef} className={s.chipAnchor} aria-hidden="true">
           <div className={clsx(s.chip, hoverRefusal !== null && s.chipRefused)}>
             <span className={s.chipRow}>
-              <span
-                className={clsx(
-                  s.chipGlyph,
-                  draggedNode.kind === "connection" && protocolClass(draggedNode.protocol),
-                )}
-              >
-                <Icon name={nodeGlyph(draggedNode)} size={13} />
-              </span>
-              <span className={s.chipName}>{draggedNode.name}</span>
+              {/* A separator is a line with no name and no glyph of its own,
+                  so the chip carries a drawing of the line. */}
+              {draggedNode.kind === "separator" ? (
+                <span className={s.chipLine} />
+              ) : (
+                <>
+                  <span
+                    className={clsx(
+                      s.chipGlyph,
+                      draggedNode.kind === "connection" && protocolClass(draggedNode.protocol),
+                    )}
+                  >
+                    <Icon name={nodeGlyph(draggedNode)} size={13} />
+                  </span>
+                  <span className={s.chipName}>{draggedNode.name}</span>
+                </>
+              )}
             </span>
             {hoverRefusal !== null && <span className={s.chipReason}>{hoverRefusal}</span>}
           </div>
@@ -1589,9 +1992,16 @@ export function ConnectionTree() {
       {/* Drag-and-drop is invisible to a screen reader; this is where it speaks. */}
       <div className={s.live} role="status" aria-live="polite">
         {moveMutation.isPending ? (
+          // Not the running count: a polite live region reads every change,
+          // and two hundred of them is two hundred interruptions. The sighted
+          // half of this channel carries the progress; this one says that
+          // something is happening and then says how it ended.
           t("move.inProgress")
         ) : moveFailure !== null ? (
-          <MoveFailureAnnouncement failure={moveFailure} t={t} />
+          <>
+            <MoveFailureAnnouncement failure={moveFailure} t={t} />
+            {unsettled ? ` ${t("move.notUndone")}` : ""}
+          </>
         ) : (
           announcement
         )}

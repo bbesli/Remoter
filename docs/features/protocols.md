@@ -91,7 +91,55 @@ with an RFC 1421 `DEK-Info` header — the passphrase is what opens that
 container, and the key is stored deciphered under the vault's own encryption
 with no passphrase beside it. AES-128, AES-192 and AES-256 in CBC are read.
 A PEM enciphered with DES-EDE3-CBC, which OpenSSL wrote before 1.1, is **not**:
-it is refused by name, with the `ssh-keygen -p` that converts a copy.
+it is refused by name, with the `ssh-keygen -p` that converts a copy. A block
+whose RFC 1421 header is damaged — a `Proc-Type` with no `DEK-Info` under it, a
+`DEK-Info` whose initialisation vector is not sixteen bytes of hexadecimal — is
+refused with a sentence naming the damaged line, not as a file that is not a
+key.
+
+An **encrypted PKCS#8** file is stored ciphertext and all, with its passphrase
+beside it, so the scheme inside it has to be one this build can open. Those are
+PBES2 (RFC 8018) with PBKDF2 under an HMAC-SHA-2 function, or scrypt, over
+AES-128, AES-192 or AES-256 in CBC mode — what `ssh-keygen -m PKCS8` and
+`openssl pkcs8 -topk8` write today. Anything else is refused **when the file is
+chosen**, naming the scheme, rather than accepted and left to fail at connect
+time: `openssl genrsa -des3` on OpenSSL 3 writes PBES2 over `des-ede3-cbc`, and
+OpenSSL 1 wrote PBKDF2 with HMAC-SHA-1 by default; neither can be opened here.
+`remoter-proto-ssh`'s `keyfmt` module carries the readable set and the test that
+establishes it; `remoter-vault`'s `pkcs8` module mirrors it for the refusal.
+
+**A passphrase is tried against the key before it is stored.** An encrypted
+OpenSSH or PKCS#8 container is sealed verbatim, so nothing downstream of the
+import checks the passphrase against it — and until this check existed nothing
+did: a wrong one was accepted, written to the vault, and surfaced days later as
+"the server rejected these credentials", said about a machine that had never seen
+the key. The container is now opened at the moment the passphrase is offered: an
+OpenSSH one by deriving with bcrypt-pbkdf and comparing the two check integers
+`PROTOCOL.key` puts at the head of the private section, a PKCS#8 one by running
+its PBES2 derivation and requiring the plaintext to be a `PrivateKeyInfo`.
+
+Four things can be wrong and they are four failures, because they have four
+remedies:
+
+| What is wrong | Code | What the reader does |
+|---|---|---|
+| No passphrase, and the container is enciphered | `key.passphrase-required` | Type one |
+| The passphrase does not open the container | `key.passphrase-rejected` | Type a different one |
+| A passphrase for a container that is not enciphered | `key.passphrase-not-needed` | Store the key without one |
+| A container this build cannot open to find out | `key.passphrase-uncheckable` | Convert a copy |
+
+The last of those is a refusal and not a shrug. It covers a PuTTY `.ppk`, whose
+derivation this build does not implement, and an OpenSSH container under an AEAD
+cipher — `ssh-keygen -Z aes256-gcm@openssh.com` and its ChaCha20-Poly1305
+sibling. The key parser reads all of them, so this is a gap in the *check* and
+not in what the application can connect with; storing a passphrase nothing can
+check would put the failure back where it was, at connect time and a long way
+from its cause, so the import says so instead.
+
+An unenciphered container is held to the same standard, because its plaintext is
+readable without any passphrase at all: an OpenSSH one must carry matching check
+integers, and a PKCS#8 one must be a whole `PrivateKeyInfo` rather than a file
+that merely begins with a DER `SEQUENCE` tag.
 
 **Channels**: interactive shell with PTY, `exec` for one-shot commands,
 `direct-tcpip` for forwarding and gateway chains, `subsystem` for SFTP, and

@@ -73,18 +73,31 @@ pub(crate) fn why<T>(result: &Result<T, crate::error::IpcError>) -> String {
         .map_or_else(String::new, |err| err.message.clone())
 }
 
+/// The passphrase [`pkcs8_encrypted_key`] is enciphered under.
+pub(crate) const KEY_PASSPHRASE: &str = "opensesame";
+
 /// An unencrypted PKCS#8 container.
 ///
-/// The body is the shortest thing that satisfies the detector: valid base64
-/// whose first byte is the DER `SEQUENCE` tag. No real key material is
-/// committed to this repository, and none is needed — what is under test is the
-/// container handling, not the cryptography.
-pub(crate) const PKCS8_KEY: &str =
-    "-----BEGIN PRIVATE KEY-----\nMIIBAA==\n-----END PRIVATE KEY-----\n";
+/// A whole `PrivateKeyInfo` rather than the header over arbitrary bytes this
+/// used to be: the vault walks an unenciphered container all the way through
+/// now, because a document it cannot read is a credential that would fail when
+/// a session was opened. Still no key material — the structure is real and the
+/// seed inside it is zeros, and `CLAUDE.md` §9 forbids committing the other
+/// kind.
+pub(crate) fn pkcs8_key() -> String {
+    String::from_utf8_lossy(&remoter_vault::testing::plain_pkcs8_key()).into_owned()
+}
 
-/// The same, in the container that says its material is encrypted.
-pub(crate) const PKCS8_ENCRYPTED_KEY: &str =
-    "-----BEGIN ENCRYPTED PRIVATE KEY-----\nMIIBAA==\n-----END ENCRYPTED PRIVATE KEY-----\n";
+/// The same document, enciphered so that [`KEY_PASSPHRASE`] opens it.
+///
+/// Really enciphered, because the vault now tries the passphrase against the
+/// container before it seals one.
+pub(crate) fn pkcs8_encrypted_key() -> String {
+    String::from_utf8_lossy(&remoter_vault::testing::encrypted_pkcs8_key(
+        KEY_PASSPHRASE.as_bytes(),
+    ))
+    .into_owned()
+}
 
 /// Generates a private key file with the system's own `ssh-keygen`.
 ///
