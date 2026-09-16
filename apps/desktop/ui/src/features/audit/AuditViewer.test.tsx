@@ -23,6 +23,7 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { isolate, isolateLtr } from "@/i18n";
 import type { AuditEntry, AuditPage, AuditQuery } from "@/lib/ipc";
 
 vi.mock("@tauri-apps/plugin-dialog", () => ({ save: vi.fn() }));
@@ -34,6 +35,7 @@ vi.mock("@/lib/ipc", async (importOriginal) => {
     ipc: {
       queryAudit: vi.fn(),
       auditFilters: vi.fn(),
+      auditActors: vi.fn(),
       exportAudit: vi.fn(),
       listNodes: vi.fn(),
     },
@@ -46,6 +48,7 @@ import { AuditViewer } from "./AuditViewer";
 
 const queryAudit = vi.mocked(ipc.queryAudit);
 const auditFilters = vi.mocked(ipc.auditFilters);
+const auditActors = vi.mocked(ipc.auditActors);
 const exportAudit = vi.mocked(ipc.exportAudit);
 const listNodes = vi.mocked(ipc.listNodes);
 
@@ -59,6 +62,7 @@ function entry(over: Partial<AuditEntry> & Pick<AuditEntry, "id" | "event">): Au
     nodeName: null,
     sessionId: null,
     detail: null,
+    actor: null,
     ...over,
   };
 }
@@ -66,6 +70,16 @@ function entry(over: Partial<AuditEntry> & Pick<AuditEntry, "id" | "event">): Au
 function page(entries: AuditEntry[]): AuditPage {
   return { entries, total: entries.length, page: 0, pageSize: 200 };
 }
+
+/** A colleague on a domain-joined Windows laptop. */
+const AYSE = {
+  id: 2,
+  machine: "LAPTOP-9",
+  user: "ayse",
+  domain: "DEVOPLUS",
+  account: "DEVOPLUS\\ayse",
+  os: "windows",
+};
 
 const UNLOCKED = entry({ id: 1, event: "vault_unlocked", detail: "Slot 2 · security key" });
 
@@ -78,6 +92,7 @@ const HOST_KEY = entry({
   nodeId: "node-db",
   nodeName: "db-01",
   detail: "Refused to connect. Offered key did not match the pin.",
+  actor: AYSE,
 });
 
 /** An event written by a build newer than this one. */
@@ -97,8 +112,11 @@ beforeEach(() => {
     events: ["vault_unlocked", "trust_rejected"],
   });
   listNodes.mockResolvedValue([]);
+  auditActors.mockResolvedValue([{ actor: AYSE, entries: 1, lastAt: 1_757_500_000_000 }]);
   queryAudit.mockImplementation(async (query: AuditQuery) =>
-    query.categories?.includes("warning") === true ? page([HOST_KEY]) : page([UNLOCKED, HOST_KEY]),
+    query.categories?.includes("warning") === true || query.actorId === AYSE.id
+      ? page([HOST_KEY])
+      : page([UNLOCKED, HOST_KEY]),
   );
   exportAudit.mockResolvedValue({
     path: "/home/you/audit.json",
@@ -151,6 +169,40 @@ describe("AuditViewer", () => {
 
     const asked = queryAudit.mock.calls.map(([q]) => q);
     expect(asked.some((q) => q.categories?.includes("warning") === true)).toBe(true);
+  });
+
+  it("names who wrote each entry, and says so when that was not recorded", async () => {
+    render(<AuditViewer />, { wrapper });
+
+    const table = within(await screen.findByRole("table"));
+    await table.findByText("Host key refused");
+
+    // The colleague's account and laptop are on the row they wrote. Matched on
+    // text content because both names arrive wrapped in direction isolates.
+    const account = table.getByText((_content, node) => node?.textContent === isolateLtr(AYSE.account));
+    expect(account).toBeInTheDocument();
+    expect(table.getByText((_content, node) => node?.textContent === isolate(AYSE.machine))).toBeInTheDocument();
+
+    // The unlock was written before identities were recorded: "not recorded",
+    // never a blank that reads as "nobody".
+    expect(table.getByText("Not recorded")).toBeInTheDocument();
+  });
+
+  it("narrows the query and the table to one person when they are chosen", async () => {
+    const user = userEvent.setup();
+    render(<AuditViewer />, { wrapper });
+
+    expect(await screen.findByText("Vault unlocked")).toBeInTheDocument();
+
+    const who = screen.getByRole("combobox", { name: "Who" });
+    await waitFor(() => expect(who).not.toBeDisabled());
+    await user.selectOptions(who, String(AYSE.id));
+
+    await waitFor(() => {
+      expect(screen.queryByText("Vault unlocked")).not.toBeInTheDocument();
+    });
+    const asked = queryAudit.mock.calls.map(([q]) => q);
+    expect(asked.some((q) => q.actorId === AYSE.id)).toBe(true);
   });
 
   it("keeps the row for an event it has no word for", async () => {

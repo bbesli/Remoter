@@ -22,6 +22,7 @@
 
 #![doc(html_no_source)]
 
+mod actor;
 mod audit;
 mod credential;
 mod crypto;
@@ -39,6 +40,7 @@ mod storage;
 pub mod testing;
 mod vault;
 
+pub use actor::{AuditActor, AuditActorRecord, AuditActorSummary, audit_actor, set_audit_actor};
 pub use audit::{AuditCategory, AuditQuery, AuditRecord};
 pub use credential::{ImportedKey, PrivateKeyMaterial, agent_credential, private_key_credential};
 pub use error::{UnlockError, VaultError};

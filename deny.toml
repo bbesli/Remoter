@@ -122,6 +122,35 @@ confidence-threshold = 0.9
 # cargo command in the repository. MS-CSSP, MS-NLMP and the MS-RDPBCGR
 # connection sequence are implemented in-crate as a result.
 
+# The terminal's copy and paste (CLAUDE.md §8.1). One direct dependency of
+# `remoter-ipc`, and five crates new to the graph:
+#
+#   arboard 3.6          MIT OR Apache-2.0    NEW, direct
+#   x11rb 0.13           MIT OR Apache-2.0    NEW, Linux; pure Rust
+#   x11rb-protocol 0.13  MIT OR Apache-2.0    NEW, Linux
+#   gethostname 1        Apache-2.0 OR MIT    NEW, Linux, via x11rb
+#   clipboard-win 5      BSL-1.0              NEW, Windows — excepted below
+#   error-code 3         BSL-1.0              NEW, Windows — excepted below
+#
+# `crates/remoter-ipc/src/clipboard.rs` explains why the WebView's own clipboard
+# API is not enough: it cannot reach the X11 PRIMARY selection, and on macOS it
+# asks for confirmation on every paste. No C is added — objc2's exception helper,
+# the one compiled piece on macOS, was already in the graph through Tauri.
+#
+# BSL-1.0 is the Boost Software License 1.0. The FSF lists it as a lax,
+# permissive, non-copyleft free software licence compatible with the GNU GPL; it
+# asks only that the copyright notice be kept in source redistributions and
+# imposes nothing on binaries. It is excepted for these two crates rather than
+# added to the global allow list, so a third BSL-1.0 crate is still a question
+# somebody has to answer.
+[[licenses.exceptions]]
+crate = "clipboard-win"
+allow = ["BSL-1.0"]
+
+[[licenses.exceptions]]
+crate = "error-code"
+allow = ["BSL-1.0"]
+
 [[licenses.clarify]]
 crate = "ring"
 expression = "MIT AND ISC AND OpenSSL"

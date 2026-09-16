@@ -20,6 +20,8 @@ export const auditKeys = {
   all: () => ["audit"] as const,
   /** The filter vocabulary the core reports. */
   filters: () => ["audit", "filters"] as const,
+  /** The accounts and machines that have written to this vault's log. */
+  actors: () => ["audit", "actors"] as const,
   /**
    * One page of entries. The whole query object is part of the key — including
    * its paging — because two pages of the same filter are two different

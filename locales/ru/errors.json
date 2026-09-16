@@ -1049,6 +1049,23 @@
       "_comment_": "Deliberately has no `message`, for the same reason as session.failed: the sentence is the transfer's own diagnostic, composed when it failed, and there is no detail beside it to fall back on."
     }
   },
+  "clipboard": {
+    "_comment_unavailable": "The system clipboard, used by the terminal's copy and paste. The core never logs what the clipboard held.",
+    "unavailable": {
+      "message": "Системный буфер обмена недоступен, поэтому ничего не скопировано и не вставлено.",
+      "actions": [
+        "Повторить"
+      ]
+    },
+    "_comment_too-large": "The limit protects a remote shell from receiving megabytes of text as keystrokes by accident. The second action points at the file manager, which is the right tool for moving a file.",
+    "too-large": {
+      "message": "В буфере обмена больше текста, чем отправит вставка в терминал. Ничего не вставлено.",
+      "actions": [
+        "Скопируйте часть поменьше",
+        "Передайте файл по SFTP"
+      ]
+    }
+  },
   "tunnel": {
     "no-such-tunnel": {
       "message": "Этот туннель больше не открыт.",

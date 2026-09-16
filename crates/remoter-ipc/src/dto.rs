@@ -809,6 +809,8 @@ pub struct AuditQueryDto {
     pub outcomes: Option<Vec<String>>,
     pub node_id: Option<String>,
     pub session_id: Option<String>,
+    /// Only entries written under this identity — an `AuditActorDto::id`.
+    pub actor_id: Option<i64>,
     /// Zero-based. Defaults to the first page.
     pub page: Option<usize>,
     /// Defaults to 100, capped at 1000.
@@ -836,6 +838,39 @@ pub struct AuditEntryDto {
     pub node_name: Option<String>,
     pub session_id: Option<String>,
     pub detail: Option<String>,
+    /// The operating-system account and machine the entry was written from.
+    /// `None` for an entry written before this was recorded, or by a process
+    /// that could not say who it was running as.
+    pub actor: Option<AuditActorDto>,
+}
+
+/// Who wrote an audit entry: what the operating system reported to the process
+/// that wrote it. Attribution between the people who can open a vault, not a
+/// proof of identity.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuditActorDto {
+    pub id: i64,
+    pub machine: String,
+    /// The account without its domain.
+    pub user: String,
+    /// Present only when it says something the machine name does not.
+    pub domain: Option<String>,
+    /// `DOMAIN\user`, or the bare account — ready to show.
+    pub account: String,
+    /// `"linux" | "windows" | "macos"` …
+    pub os: String,
+}
+
+/// One identity that has written to this vault's audit log.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuditActorSummaryDto {
+    pub actor: AuditActorDto,
+    /// How many entries carry it.
+    pub entries: usize,
+    /// Milliseconds since the epoch of its newest entry.
+    pub last_at: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

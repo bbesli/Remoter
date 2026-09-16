@@ -39,7 +39,7 @@ import { Field } from "@/components/Field";
 import { Icon } from "@/components/Icon";
 import { Spinner } from "@/components/Spinner";
 import { TextInput } from "@/components/TextInput";
-import { applyTerminalAppearance } from "@/features/sessions";
+import { applyTerminalAppearance, defaultTerminalFontFamily } from "@/features/sessions";
 import { useSystemTheme } from "@/hooks/useSystemTheme";
 import { formatNumber, useLocale, useT } from "@/i18n";
 import type { AppSettings as AppSettingsDto, IpcFailure, TerminalAppearance } from "@/lib/ipc";
@@ -385,7 +385,11 @@ export function TerminalSection({
   );
 
   const fontFamily = draft.fontFamily.trim();
-  const previewFont = fontFamily === "" ? "var(--font-mono)" : `${fontFamily}, var(--font-mono)`;
+  // The face the terminal itself uses, which is this platform's terminal face
+  // and not the interface's monospace stack: a preview in a different font from
+  // the thing it previews would be a preview of nothing.
+  const platformFont = defaultTerminalFontFamily();
+  const previewFont = fontFamily === "" ? platformFont : `${fontFamily}, ${platformFont}`;
 
   function choosePalette(id: string) {
     if (id === draft.palette) return;

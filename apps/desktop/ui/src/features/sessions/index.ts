@@ -24,6 +24,6 @@ export { DisconnectDialog } from "./DisconnectDialog";
 // has to reach sessions that are already open. It is exported here rather than
 // left to be imported from `./terminals` directly, because a caller that knows
 // the module path also knows every other export in it — the registry included.
-export { isTerminalFocused, applyTerminalAppearance } from "./terminals";
+export { isTerminalFocused, applyTerminalAppearance, defaultTerminalFontFamily } from "./terminals";
 export { useSessions } from "./store";
 export type { SessionRecord } from "./store";

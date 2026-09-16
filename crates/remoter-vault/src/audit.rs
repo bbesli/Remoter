@@ -14,6 +14,7 @@
 
 use uuid::Uuid;
 
+use crate::actor::AuditActorRecord;
 use crate::storage::{AuditEvent, AuditOutcome};
 
 /// The filter groups the audit screen offers.
@@ -124,6 +125,11 @@ pub struct AuditRecord {
     pub session: Option<Uuid>,
     /// A short plain-language note. Never a secret.
     pub detail: Option<String>,
+    /// The operating-system account and machine the row was written from.
+    /// `None` for a row written before this was recorded, or by a process that
+    /// set no identity. What the operating system reported, not a proof: see
+    /// [`crate::AuditActor`].
+    pub actor: Option<AuditActorRecord>,
 }
 
 impl AuditRecord {
@@ -173,6 +179,7 @@ pub struct AuditQuery {
     outcomes: Vec<AuditOutcome>,
     node: Option<Uuid>,
     session: Option<Uuid>,
+    actor: Option<i64>,
     limit: Option<usize>,
     offset: usize,
 }
@@ -233,6 +240,14 @@ impl AuditQuery {
         self
     }
 
+    /// Only entries written under this identity — an
+    /// [`AuditActorRecord::id`](crate::AuditActorRecord).
+    #[must_use]
+    pub const fn by_actor(mut self, actor: i64) -> Self {
+        self.actor = Some(actor);
+        self
+    }
+
     /// At most this many entries.
     #[must_use]
     pub const fn limit(mut self, limit: usize) -> Self {
@@ -275,6 +290,10 @@ impl AuditQuery {
 
     pub(crate) const fn session(&self) -> Option<Uuid> {
         self.session
+    }
+
+    pub(crate) const fn actor(&self) -> Option<i64> {
+        self.actor
     }
 
     pub(crate) const fn limit_value(&self) -> Option<usize> {
@@ -355,6 +374,7 @@ mod tests {
             node: None,
             session: None,
             detail: None,
+            actor: None,
         };
         assert_eq!(record.event_kind(), None);
         assert_eq!(record.category(), None);

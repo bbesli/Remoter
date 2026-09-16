@@ -17,6 +17,7 @@ import userEvent from "@testing-library/user-event";
 const applyTerminalAppearance = vi.fn();
 vi.mock("@/features/sessions/terminals", () => ({
   applyTerminalAppearance: (...args: unknown[]) => applyTerminalAppearance(...args),
+  defaultTerminalFontFamily: () => "monospace",
 }));
 
 // jsdom has no media queries. The section reads one, through `useSystemTheme`,

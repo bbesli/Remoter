@@ -16,9 +16,42 @@ session, and logging *that a session happened at all*.
 ## Audit log — ✅ shipped
 
 An append-only log inside the encrypted vault. Every entry records what
-occurred, when, against which node, and with what outcome. It never contains
+occurred, when, against which node, with what outcome, and — ✅ since schema 3 —
+**which operating-system account on which computer wrote it**. It never contains
 secrets — `tests/audit_query.rs` runs a full lifecycle and searches the rendered
 rows for the credentials it used.
+
+### Who wrote an entry — ✅ shipped
+
+A vault is shared by copying the file and telling a colleague the password, and
+from then on the log has to be able to say which of the people who can open it
+did what. Each row carries the account and the computer the writing process ran
+as, read once at startup the way each operating system states it:
+
+| Platform | Computer | Account |
+|---|---|---|
+| Windows | `COMPUTERNAME` | `USERNAME`, with `USERDOMAIN` shown as `DOMAIN\user` when it is a real domain — an Active Directory NetBIOS name or `AzureAD` — and dropped when it only repeats the computer name, as it does for a local account |
+| macOS | `scutil --get ComputerName`, the name the Sharing pane shows | `id -un`, the process's real user ID resolved through Directory Services |
+| Linux and other Unixes | `/proc/sys/kernel/hostname`, then `/etc/hostname` | `id -un`, which follows NSS, so LDAP and SSSD accounts resolve |
+
+Commands run by absolute path; environment variables are the fallback outside
+Windows, where they are the platform's own mechanism. The detection is in
+`crates/remoter-ipc/src/actor.rs`, and every platform's branch is tested on every
+platform by substituting its sources.
+
+The identity is stored once, in an `audit_actor` table, and each row carries its
+number — a year of entries written by three people costs three names, not tens
+of thousands. The audit screen shows it in a **Who** column, filters by it, and
+both exports carry `machine`, `account` and `os` as the last three columns so a
+script written against an older export still finds every earlier column where it
+was.
+
+**Attribution, not authentication.** These are the names each computer's
+operating system reported to the process, and anybody who can unlock the vault
+can write any row they like. The column tells apart the people who can open the
+file; it does not prove who they are, and the screen's column header says so.
+Rows written before schema 3 — or by a process that could not tell who it ran
+as — show **Not recorded**, never a blank that would read as *nobody*.
 
 **Logged events**
 

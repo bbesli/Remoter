@@ -45,7 +45,7 @@ New to the project? Read in this order:
 | [sftp-command-surface.md](architecture/sftp-command-surface.md) | What the file manager needs from `remoter-ipc` |
 | [plugin-system.md](architecture/plugin-system.md) | WebAssembly ABI, capabilities, sandbox |
 | [storage.md](architecture/storage.md) | SQLite schema, migrations, sync-readiness |
-| [decisions/](architecture/decisions/) | Architecture Decision Records (0001–0014) |
+| [decisions/](architecture/decisions/) | Architecture Decision Records (0001–0015) |
 
 ### Security
 | Document | Contents |

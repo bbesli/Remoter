@@ -53,6 +53,23 @@ getrandom.workspace = true
 # as the same user).
 zeroize.workspace = true
 
+# The system clipboard, for a terminal that copies and pastes the way the
+# platform's own terminal does. The WebView's `navigator.clipboard` is not that:
+# WKWebView shows a system "Paste" confirmation bubble on every read, WebKitGTK's
+# permission behaviour varies by version, and none of them can reach the X11
+# PRIMARY selection that select-to-copy and middle-click paste are built on.
+# MIT OR Apache-2.0. `image-data` is off: text is all a terminal exchanges.
+#
+# `wayland-data-control` is deliberately off too. It adds wl-clipboard-rs, a
+# MIME sniffer and `wayland-sys`, for a protocol GNOME's compositor does not
+# implement — so on the most common Linux desktop arboard would fall back to X11
+# regardless. Through XWayland the compositor bridges both the clipboard and the
+# PRIMARY selection to native Wayland applications, which is the path every
+# desktop this ships to already has. Its new transitive crates: x11rb (MIT OR
+# Apache-2.0, pure Rust), and on Windows clipboard-win and error-code (BSL-1.0,
+# recorded in deny.toml).
+arboard = { version = "3.6", default-features = false }
+
 tauri = { version = "2", features = [] }
 
 [dev-dependencies]

@@ -134,6 +134,7 @@ after all.
 - ◐ Audit log and its viewer: shipped for vault, node, secret, trust, session and
   settings events, with JSON and CSV export. ⏳ File transfer, import and plugin
   events are not logged, and there is no retention policy
+  Each entry names the operating-system account and computer that wrote it (schema 3).
 - ⏳ Session groups with layouts, and broadcast typing with its safeguards — the
   group node kind exists in the data model and nothing opens one
 

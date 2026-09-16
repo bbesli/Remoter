@@ -1049,6 +1049,23 @@
       "_comment_": "Deliberately has no `message`, for the same reason as session.failed: the sentence is the transfer's own diagnostic, composed when it failed, and there is no detail beside it to fall back on."
     }
   },
+  "clipboard": {
+    "_comment_unavailable": "The system clipboard, used by the terminal's copy and paste. The core never logs what the clipboard held.",
+    "unavailable": {
+      "message": "تعذّر الوصول إلى حافظة النظام، فلم يُنسخ أو يُلصق أي شيء.",
+      "actions": [
+        "أعد المحاولة"
+      ]
+    },
+    "_comment_too-large": "The limit protects a remote shell from receiving megabytes of text as keystrokes by accident. The second action points at the file manager, which is the right tool for moving a file.",
+    "too-large": {
+      "message": "تحتوي الحافظة على نص أكبر مما يرسله اللصق في الطرفية. لم يُلصق أي شيء.",
+      "actions": [
+        "انسخ جزءًا أصغر",
+        "انقل الملف عبر SFTP بدلًا من ذلك"
+      ]
+    }
+  },
   "tunnel": {
     "no-such-tunnel": {
       "message": "لم يعد ذلك النفق مفتوحًا.",

@@ -25,7 +25,8 @@ import { SearchAddon } from "@xterm/addon-search";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 
-import { ipc, type TerminalAppearance } from "@/lib/ipc";
+import { asFailure, ipc, type ClipboardSelection, type IpcFailure, type TerminalAppearance } from "@/lib/ipc";
+import { currentPlatform } from "@/lib/platform";
 import {
   DEFAULT_TERMINAL_APPEARANCE,
   MAX_TERMINAL_FONT_SIZE,
@@ -37,6 +38,7 @@ import {
 } from "@/lib/terminalPalette";
 
 import { chooseRenderer, type RendererReport } from "./renderer";
+import { behaviourFor, keyAction, type TerminalAction } from "./terminalInput";
 
 import "@xterm/xterm/css/xterm.css";
 import "./terminalTokens.css";
@@ -62,6 +64,28 @@ const ECHO_WINDOW_MS = 2000;
 /** How much scrollback a session keeps. Bounded: it is decrypted-adjacent memory. */
 const SCROLLBACK = 5000;
 
+/**
+ * This platform's terminal conventions — clipboard keys, what the right and
+ * middle buttons do, the cursor, the default face. Decided once: the platform
+ * does not change while the application runs. See terminalInput.ts.
+ */
+const platform = currentPlatform();
+const behaviour = behaviourFor(platform);
+
+/**
+ * How long after a paste this code performed a paste event from the WebView is
+ * treated as the same paste arriving twice.
+ *
+ * WebKitGTK pastes the PRIMARY selection into a focused text field on a middle
+ * click by itself, and xterm's hidden textarea is one. This code pastes on that
+ * click too, through the core, so that it works on every engine; whichever of
+ * the two the engine lets through second is the duplicate.
+ */
+const NATIVE_PASTE_GUARD_MS = 750;
+
+/** How far one zoom step moves the font, in pixels. */
+const ZOOM_STEP = 1;
+
 /** What the shell reads off a terminal between renders. */
 export interface TerminalMetrics {
   bytesIn: number;
@@ -79,6 +103,27 @@ export interface TerminalCallbacks {
   onResize: (cols: number, rows: number) => void;
   /** Counters, at most once a second. */
   onMetrics: (metrics: TerminalMetrics) => void;
+}
+
+/**
+ * Something a terminal needs the interface around it to draw: its menu, or a
+ * clipboard that could not be reached. Terminals live outside React (see the
+ * header), so they announce these rather than render them.
+ */
+export type TerminalEvent =
+  | { kind: "menu"; tabId: string; x: number; y: number; hasSelection: boolean }
+  | { kind: "clipboardFailed"; tabId: string; failure: IpcFailure };
+
+const listeners = new Set<(event: TerminalEvent) => void>();
+
+/** Hears every terminal's menus and clipboard failures. Returns an unsubscribe. */
+export function subscribeTerminalEvents(listener: (event: TerminalEvent) => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+function emit(event: TerminalEvent): void {
+  for (const listener of listeners) listener(event);
 }
 
 interface Entry {
@@ -104,17 +149,17 @@ interface Entry {
   lastInputAt: number | null;
   flushTimer: number | null;
   callbacks: TerminalCallbacks;
+  /** Font size steps from the configured size, as Ctrl/Cmd +/- leave it. Not stored. */
+  zoom: number;
+  /** Until when a paste event from the WebView is a duplicate. See {@link NATIVE_PASTE_GUARD_MS}. */
+  nativePasteGuardUntil: number;
+  /** The pending PRIMARY-selection write, debounced while a drag is still selecting. */
+  primaryTimer: number | null;
 }
 
 const registry = new Map<string, Entry>();
 
 const encoder = new TextEncoder();
-
-/** Reads a CSS custom property, or empty when the document has none. */
-function token(name: string): string {
-  if (typeof getComputedStyle !== "function") return "";
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-}
 
 // ------------------------------------------------------------ appearance ----
 
@@ -194,10 +239,18 @@ function terminalTheme(colors: TerminalColors): ITheme {
  * screen says so in as many words.
  */
 function terminalFontFamily(): string {
-  const stack = token("--font-mono");
+  // The platform's own terminal face, not the interface's monospace stack: a
+  // terminal set in the editor font of the application around it is one of the
+  // things that made it read as a web page. A face the user chose goes first,
+  // with the platform's behind it for any glyph it lacks.
   const chosen = appearance.fontFamily.trim();
-  if (chosen === "") return stack;
-  return stack === "" ? chosen : `${chosen}, ${stack}`;
+  if (chosen === "") return behaviour.fontFamily;
+  return `${chosen}, ${behaviour.fontFamily}`;
+}
+
+/** The face a terminal is set in when the user has not chosen one. For the settings preview. */
+export function defaultTerminalFontFamily(): string {
+  return behaviour.fontFamily;
 }
 
 function terminalFontSize(): number {
@@ -244,7 +297,7 @@ export function applyTerminalAppearance(next: TerminalAppearance): void {
   for (const entry of registry.values()) {
     entry.term.options.theme = theme;
     if (fontFamily !== "") entry.term.options.fontFamily = fontFamily;
-    entry.term.options.fontSize = fontSize;
+    entry.term.options.fontSize = zoomed(fontSize, entry.zoom);
     // A safety net, kept deliberately.
     //
     // The WebGL addon does handle a colour change on its own — it subscribes
@@ -352,7 +405,15 @@ export function ensureTerminal(tabId: string, callbacks: TerminalCallbacks): Ent
     // renderer.ts for why a context that initialises proves nothing.
     allowProposedApi: true,
     convertEol: false,
-    cursorBlink: true,
+    cursorBlink: behaviour.cursorBlink,
+    cursorStyle: behaviour.cursorStyle,
+    wordSeparator: behaviour.wordSeparator,
+    // The right button is handled below, per platform. xterm's own habit of
+    // selecting the word under it would turn Windows' "right-click pastes"
+    // into "right-click copies the word you happened to be pointing at".
+    rightClickSelectsWord: false,
+    // Terminal.app: Option+click selects even while a program has the mouse.
+    macOptionClickForcesSelection: true,
     // The user's terminal font, defaulting to the interface's mono stack so
     // the terminal and the fingerprints beside it are set in the same face.
     // Empty falls through to xterm's own default.
@@ -411,7 +472,55 @@ export function ensureTerminal(tabId: string, callbacks: TerminalCallbacks): Ent
     lastInputAt: null,
     flushTimer: null,
     callbacks,
+    zoom: 0,
+    nativePasteGuardUntil: 0,
+    primaryTimer: null,
   };
+
+  // The clipboard and zoom keys, before xterm turns them into bytes for the
+  // far end. Returning false tells xterm the key is not input. Asked for every
+  // event of a chord, not only the keydown, so a release cannot slip through
+  // as a stray character after the press did something else.
+  term.attachCustomKeyEventHandler((event) => {
+    const action = keyAction(
+      platform,
+      {
+        type: "keydown",
+        key: event.key,
+        code: event.code,
+        ctrlKey: event.ctrlKey,
+        shiftKey: event.shiftKey,
+        altKey: event.altKey,
+        metaKey: event.metaKey,
+      },
+      term.hasSelection(),
+    );
+    if (action === null) return true;
+    if (event.type === "keydown") {
+      event.preventDefault();
+      void runTerminalAction(tabId, action);
+    }
+    return false;
+  });
+
+  if (behaviour.selectionIsPrimary) {
+    // Whatever is selected is the PRIMARY selection, as it is in every X11
+    // terminal. Debounced: a drag changes the selection on every mouse move,
+    // and only where it comes to rest is worth a round trip.
+    term.onSelectionChange(() => {
+      if (entry.primaryTimer !== null) window.clearTimeout(entry.primaryTimer);
+      entry.primaryTimer = window.setTimeout(() => {
+        entry.primaryTimer = null;
+        const text = term.getSelection();
+        if (text === "") return;
+        ipc.writeClipboardText("primary", text).catch((error: unknown) => {
+          emit({ kind: "clipboardFailed", tabId, failure: asFailure(error) });
+        });
+      }, 150);
+    });
+  }
+
+  installMouse(tabId, entry);
 
   term.onData((data) => {
     const bytes = encoder.encode(data);
@@ -586,6 +695,7 @@ export function disposeTerminal(tabId: string): void {
   const entry = registry.get(tabId);
   if (entry === undefined) return;
   if (entry.flushTimer !== null) window.clearTimeout(entry.flushTimer);
+  if (entry.primaryTimer !== null) window.clearTimeout(entry.primaryTimer);
   entry.observer?.disconnect();
   entry.host.remove();
   entry.term.dispose();
@@ -612,4 +722,162 @@ export function hasTerminal(tabId: string): boolean {
 export function isTerminalFocused(): boolean {
   const active = document.activeElement;
   return active instanceof Element && active.closest(".xterm") !== null;
+}
+
+// ------------------------------------------------------ clipboard and mouse ----
+
+function zoomed(size: number, zoom: number): number {
+  return Math.min(Math.max(size + zoom * ZOOM_STEP, MIN_TERMINAL_FONT_SIZE), MAX_TERMINAL_FONT_SIZE);
+}
+
+/** Whether the program on the far end has asked for mouse reports. */
+function farEndHasMouse(entry: Entry): boolean {
+  return entry.term.modes.mouseTrackingMode !== "none";
+}
+
+/**
+ * The buttons, per platform. Listeners go on the host in the capture phase, so
+ * they see a click before xterm's own handlers inside it do.
+ */
+function installMouse(tabId: string, entry: Entry): void {
+  const { host } = entry;
+
+  host.addEventListener(
+    "contextmenu",
+    (event) => {
+      // The WebView's own menu never: it is a browser's text-field menu.
+      event.preventDefault();
+      // The far end asked for the mouse, and xterm has already reported the
+      // press to it. Shift takes the button back, as in every native terminal.
+      if (farEndHasMouse(entry) && !event.shiftKey) return;
+
+      if (behaviour.rightClick === "copyOrPaste" && !event.shiftKey) {
+        if (entry.term.hasSelection()) void runTerminalAction(tabId, "copy");
+        else void runTerminalAction(tabId, "paste");
+        return;
+      }
+      emit({
+        kind: "menu",
+        tabId,
+        x: event.clientX,
+        y: event.clientY,
+        hasSelection: entry.term.hasSelection(),
+      });
+    },
+    true,
+  );
+
+  if (behaviour.middleClickPastes) {
+    const isOurMiddleClick = (event: MouseEvent) =>
+      event.button === 1 && !(farEndHasMouse(entry) && !event.shiftKey);
+
+    host.addEventListener(
+      "mousedown",
+      (event) => {
+        if (!isOurMiddleClick(event)) return;
+        event.preventDefault();
+        entry.term.focus();
+        void pasteInto(tabId, entry, "primary");
+      },
+      true,
+    );
+    for (const type of ["mouseup", "auxclick"] as const) {
+      host.addEventListener(
+        type,
+        (event) => {
+          if (isOurMiddleClick(event)) event.preventDefault();
+        },
+        true,
+      );
+    }
+  }
+
+  // A paste the WebView performs on its own, arriving just after one this code
+  // performed. See NATIVE_PASTE_GUARD_MS.
+  host.addEventListener(
+    "paste",
+    (event) => {
+      if (performance.now() < entry.nativePasteGuardUntil) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
+    },
+    true,
+  );
+}
+
+/**
+ * Performs a terminal action: from a key, from a click, or from the menu.
+ *
+ * Exported for the menu, which is drawn by React and calls back in here.
+ */
+export async function runTerminalAction(tabId: string, action: TerminalAction): Promise<void> {
+  const entry = registry.get(tabId);
+  if (entry === undefined) return;
+
+  switch (action) {
+    case "copy":
+      await copySelection(tabId, entry);
+      return;
+    case "paste":
+      await pasteInto(tabId, entry, "clipboard");
+      return;
+    case "pastePrimary":
+      await pasteInto(tabId, entry, "primary");
+      return;
+    case "selectAll":
+      entry.term.selectAll();
+      return;
+    case "clearScrollback":
+      entry.term.clear();
+      return;
+    case "zoomIn":
+    case "zoomOut":
+    case "zoomReset": {
+      entry.zoom = action === "zoomReset" ? 0 : entry.zoom + (action === "zoomIn" ? 1 : -1);
+      const size = zoomed(terminalFontSize(), entry.zoom);
+      // Keep the step count honest at the bounds, so zooming back out after
+      // hitting the ceiling takes one press and not ten.
+      entry.zoom = Math.round((size - terminalFontSize()) / ZOOM_STEP);
+      entry.term.options.fontSize = size;
+      try {
+        entry.fit.fit();
+      } catch {
+        // Not attached yet; the next attach fits it.
+      }
+      return;
+    }
+  }
+}
+
+async function copySelection(tabId: string, entry: Entry): Promise<void> {
+  const text = entry.term.getSelection();
+  if (text === "") return;
+  try {
+    await ipc.writeClipboardText("clipboard", text);
+  } catch (error) {
+    emit({ kind: "clipboardFailed", tabId, failure: asFailure(error) });
+    return;
+  }
+  // Windows Terminal lets go of the selection once it is copied — the cue that
+  // the copy happened. Terminal.app and GNOME keep it.
+  if (behaviour.rightClick === "copyOrPaste") entry.term.clearSelection();
+}
+
+async function pasteInto(tabId: string, entry: Entry, selection: ClipboardSelection): Promise<void> {
+  entry.nativePasteGuardUntil = performance.now() + NATIVE_PASTE_GUARD_MS;
+  let text: string | null;
+  try {
+    text = await ipc.readClipboardText(selection);
+  } catch (error) {
+    emit({ kind: "clipboardFailed", tabId, failure: asFailure(error) });
+    return;
+  }
+  if (text === null) return;
+  // `paste`, not `input`: it honours bracketed-paste mode, so a shell that
+  // asked for it receives the text as one paste rather than as keystrokes that
+  // run each line as it lands, and it turns line endings into the carriage
+  // returns a terminal sends for Enter.
+  entry.term.paste(text);
+  entry.term.focus();
 }

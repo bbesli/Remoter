@@ -12,8 +12,10 @@
 
 #![doc(html_no_source)]
 
+mod actor;
 mod audit;
 mod bridge;
+mod clipboard;
 mod commands;
 mod dto;
 mod error;
@@ -43,6 +45,25 @@ pub use sftp::{
 };
 pub use state::AppState;
 pub use tunnel::{TunnelDto, TunnelSpecDto};
+
+/// Records which operating-system account and machine this process runs as, so
+/// every audit row a vault writes from now on names them.
+///
+/// Call it once at startup, before the first vault is opened: the unlock row is
+/// written inside the unlock itself. Returns whether an identity was found and
+/// set. When the platform will not say, rows are written unattributed and the
+/// audit screen shows them as not recorded, which is truer than a guess.
+pub fn identify_process() -> bool {
+    match actor::detect() {
+        Some(actor) => remoter_vault::set_audit_actor(actor),
+        None => {
+            tracing::warn!(
+                "could not determine the account this process runs as; audit rows will be unattributed"
+            );
+            false
+        }
+    }
+}
 
 /// Registers every command with the Tauri builder.
 ///
@@ -91,8 +112,12 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         vault_admin::vault_settings_get,
         vault_admin::vault_settings_set,
         // --- audit ---
+        // --- clipboard ---
+        clipboard::clipboard_read_text,
+        clipboard::clipboard_write_text,
         audit::audit_query,
         audit::audit_filters,
+        audit::audit_actors,
         audit::audit_export,
         // --- import ---
         import::import_detect,

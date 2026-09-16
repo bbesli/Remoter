@@ -32,6 +32,7 @@ use remoter_core::{
 use uuid::Uuid;
 
 use crate::Purpose;
+use crate::actor::AuditActorSummary;
 use crate::audit::{AuditQuery, AuditRecord};
 use crate::credential::{ImportedKey, PrivateKeyMaterial};
 use crate::crypto::{self, MAC_LEN, NONCE_LEN, VaultKeys};
@@ -1867,6 +1868,15 @@ impl Vault {
     /// what the pager divides.
     pub fn audit_count(&self, query: &AuditQuery) -> Result<usize, VaultError> {
         self.store.audit_count(query)
+    }
+
+    /// Every operating-system identity that has written to this vault's audit
+    /// log, most recently active first, with how many rows each wrote.
+    ///
+    /// Answers the question a shared vault raises — which of the people who
+    /// can open this file did that — for the audit screen's "who" filter.
+    pub fn audit_actors(&self) -> Result<Vec<AuditActorSummary>, VaultError> {
+        self.store.audit_actors()
     }
 }
 

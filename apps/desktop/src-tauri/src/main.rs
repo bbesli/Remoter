@@ -25,6 +25,10 @@ fn main() {
         .with_target(false)
         .init();
 
+    // Before any vault can be opened: the row recording an unlock is written by
+    // the unlock itself, and it should name who unlocked.
+    remoter_ipc::identify_process();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())

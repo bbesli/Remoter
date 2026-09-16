@@ -16,7 +16,7 @@ import { Button } from "@/components/Button";
 import { Icon } from "@/components/Icon";
 import { Skeleton } from "@/components/Busy";
 import { compareInLocale, isolate, isolateLtr, useLocale, useT } from "@/i18n";
-import type { AuditFilters, TreeNode } from "@/lib/ipc";
+import type { AuditActorSummary, AuditFilters, TreeNode } from "@/lib/ipc";
 
 import { categoryLabel, outcomeLabel, type AuditT } from "./format";
 import {
@@ -35,11 +35,20 @@ interface AuditFilterBarProps {
   /** The core's vocabulary. `undefined` while `audit_filters` is in flight. */
   available: AuditFilters | undefined;
   nodes: readonly TreeNode[] | undefined;
+  /** Who has written to this vault's log. `undefined` while it is being read. */
+  actors: readonly AuditActorSummary[] | undefined;
   /** How many entries match, once a page has answered. */
   total: number | null;
 }
 
-export function AuditFilterBar({ value, onChange, available, nodes, total }: AuditFilterBarProps) {
+export function AuditFilterBar({
+  value,
+  onChange,
+  available,
+  nodes,
+  actors,
+  total,
+}: AuditFilterBarProps) {
   const t = useT("audit");
   const { code: locale } = useLocale();
 
@@ -137,6 +146,31 @@ export function AuditFilterBar({ value, onChange, available, nodes, total }: Aud
                     name: isolate(node.name),
                     host: isolateLtr(node.host),
                   })}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className={s.control}>
+        <span className={s.controlLabel}>{t("filters.whoLabel")}</span>
+        <select
+          className={s.select}
+          value={value.actorId === null ? "" : String(value.actorId)}
+          disabled={actors === undefined}
+          title={actors === undefined ? t("filters.actorsLoading") : undefined}
+          onChange={(e) =>
+            onChange({ ...value, actorId: e.target.value === "" ? null : Number(e.target.value) })
+          }
+        >
+          <option value="">{t("filters.anyone")}</option>
+          {/* In the core's order — most recently active first — which is the
+              order someone looking for "who touched this lately" wants. */}
+          {(actors ?? []).map(({ actor }) => (
+            <option key={actor.id} value={String(actor.id)}>
+              {t("filters.whoOption", {
+                account: isolateLtr(actor.account),
+                machine: isolate(actor.machine),
+              })}
             </option>
           ))}
         </select>

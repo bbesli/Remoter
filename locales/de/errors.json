@@ -1049,6 +1049,23 @@
       "_comment_": "Deliberately has no `message`, for the same reason as session.failed: the sentence is the transfer's own diagnostic, composed when it failed, and there is no detail beside it to fall back on."
     }
   },
+  "clipboard": {
+    "_comment_unavailable": "The system clipboard, used by the terminal's copy and paste. The core never logs what the clipboard held.",
+    "unavailable": {
+      "message": "Die Systemzwischenablage war nicht erreichbar, daher wurde nichts kopiert oder eingefügt.",
+      "actions": [
+        "Erneut versuchen"
+      ]
+    },
+    "_comment_too-large": "The limit protects a remote shell from receiving megabytes of text as keystrokes by accident. The second action points at the file manager, which is the right tool for moving a file.",
+    "too-large": {
+      "message": "Die Zwischenablage enthält mehr Text, als ein Einfügen ins Terminal sendet. Es wurde nichts eingefügt.",
+      "actions": [
+        "Einen kleineren Teil kopieren",
+        "Die Datei stattdessen per SFTP übertragen"
+      ]
+    }
+  },
   "tunnel": {
     "no-such-tunnel": {
       "message": "Dieser Tunnel ist nicht mehr offen.",

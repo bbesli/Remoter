@@ -1,6 +1,5 @@
 {
   "_comment_file": "The audit log viewer: the table, its filter bar, its event vocabulary, and the export dialog. This screen is what someone reads after an incident, so precision beats warmth everywhere in this file. Two rules that apply to the whole namespace: (1) nothing here may overstate what the log guarantees — see header.guarantee; (2) the words in `outcome` and `category` appear both on a filter chip and in a table cell, and a reader matching one against the other needs them to be the same word, so translate each of them once and reuse that choice.",
-
   "header": {
     "_comment_": "The bar across the top of the screen. `back` returns to the main window; this screen owns the whole window while it is open.",
     "back": "Voltar",
@@ -16,18 +15,20 @@
     "_comment_recordings": "Says why there is no recording player on a screen where someone would look for one. 'v0.2' is a version number and is not translated.",
     "recordings": "Ainda não existe um reprodutor de gravações: as sessões chegam na v0.2, então não há nada gravado para reproduzir."
   },
-
   "columns": {
     "_comment_": "Table column headers. Single words where possible; the columns are narrow.",
     "time": "Hora",
     "event": "Evento",
     "outcome": "Resultado",
+    "_comment_who": "The column naming the operating-system account and the computer that wrote each entry. One short word; the column is narrow.",
+    "who": "Quem",
+    "_comment_whoTitle": "SECURITY-ADJACENT. The tooltip on the Who column header. The names are what each computer's operating system reported, and anybody who can open the vault can write any entry; keep 'not proof of identity' unsoftened.",
+    "whoTitle": "A conta e o computador que gravaram a entrada, conforme informados pelo sistema operacional desse computador. Distingue as pessoas que conseguem abrir este cofre; não é prova de identidade.",
     "_comment_node": "A node is a connection or folder in the tree. See the glossary.",
     "node": "Nó",
     "_comment_detail": "The column holding the core's own short note about an entry. That note arrives already written and is not translated here.",
     "detail": "Detalhe"
   },
-
   "table": {
     "_comment_label": "The accessible name of the table itself. Read aloud before the rows.",
     "label": "Entradas de auditoria",
@@ -36,6 +37,12 @@
     "loadFailed": "Não foi possível ler o log de auditoria.",
     "filtersFailed": "Não foi possível ler a lista de filtros do log.",
     "nodesFailed": "Não foi possível ler a árvore, então o filtro por nó está indisponível.",
+    "_comment_actorsFailed": "A heading over the core's own error message, when the list of accounts for the Who filter could not be read.",
+    "actorsFailed": "Não foi possível ler a lista de contas, então o filtro Quem está indisponível.",
+    "_comment_actorUnrecorded": "In the Who column for an entry written before Remoter recorded who wrote entries, or by a copy of Remoter that could not tell. It means 'this was not recorded', never 'nobody'.",
+    "actorUnrecorded": "Não registrado",
+    "_comment_actorTitle": "The tooltip on a Who cell. {account} is an account name (possibly DOMAIN\\user), {machine} a computer name — both user data, isolated before they arrive. {os} is an operating system's proper name such as Windows or macOS, never translated.",
+    "actorTitle": "{account} em {machine} · {os}",
     "_comment_rowLoading": "Shown in a row whose page has not arrived yet. One word: it sits in the Time column of a 28px row.",
     "rowLoading": "Carregando",
     "_comment_noValue": "An em dash standing for 'this entry has no value in this column'. Replace it only if your language uses a different glyph for an empty table cell; it is not a word.",
@@ -51,7 +58,6 @@
     "_comment_shownNone": "Replaces `shown` when the filter matches nothing.",
     "shownNone": "Nenhuma linha"
   },
-
   "empty": {
     "_comment_": "The whole-table empty state. It is a filter result, never an empty log: a vault that has been opened has at least one entry in it.",
     "title": "Nenhuma entrada corresponde a estes filtros.",
@@ -59,7 +65,6 @@
     "_comment_clear": "A verb on a button: put every filter back to its default.",
     "clear": "Limpar filtros"
   },
-
   "outcome": {
     "_comment_": "How an audited action ended, in the Outcome column and on the outcome filter chips. Each is a past-tense statement about the action, not a label for a state: the action succeeded, failed, or was refused. Keep them distinct — `failed` and `denied` are different findings in an incident review, and a translation that merges them loses that. Each word is also carried by a glyph and a colour, so it can be short.",
     "success": "Bem-sucedida",
@@ -69,7 +74,6 @@
     "_comment_unknown": "An outcome written by a newer build of Remoter that this one has no word for. Shown rather than dropping the row.",
     "unknown": "Desconhecida"
   },
-
   "category": {
     "_comment_": "The filter chips, and the second half of a row's tooltip. `node` and `connection` are the pair to be careful with: `node` means a change to an entry in the tree — created, renamed, deleted — and `connection` means an attempt to actually reach a host. They are different questions, and neither may be translated as a bare 'Connections'.",
     "vault": "Cofre",
@@ -81,7 +85,6 @@
     "_comment_other": "The category of an event this build does not recognise.",
     "other": "Outros"
   },
-
   "event": {
     "_comment_": "What happened, in the Event column. Each key is the event's stored spelling and mirrors AuditEvent in crates/remoter-vault/src/storage.rs; an event written by a newer build has no key here and is shown as its stored spelling instead. Every one of these is a past-tense statement of a completed action — the Outcome column beside it says whether it worked, so 'Vault unlocked' with an outcome of 'Failed' means an unlock was attempted and refused. Do not add 'successfully' to any of them.",
     "vault_created": "Cofre criado",
@@ -125,7 +128,6 @@
     "_comment_setting_changed": "An application or vault setting was changed. The Detail column names which.",
     "setting_changed": "Configuração alterada"
   },
-
   "filters": {
     "_comment_": "The filter bar above the table. Its vocabulary comes from the core, so a chip can appear for a category this file has no word for.",
     "_comment_region": "The accessible name of the bar as a whole.",
@@ -154,11 +156,18 @@
     "nodesLoading": "Lendo a árvore…",
     "_comment_nodeOption": "One option in the node filter. {name} is the entry's name and {host} its hostname or address — both user data, in any script, and both isolated before they arrive so neither can reorder the other. The em dash separates them; it is not a word.",
     "nodeOption": "{name} — {host}",
+    "_comment_whoLabel": "The label on the Who filter: narrow the log to entries written by one account on one computer. One word, beside the control.",
+    "whoLabel": "Quem",
+    "_comment_anyone": "The first option in the Who filter: do not narrow by who wrote an entry. It also matches entries whose writer was not recorded.",
+    "anyone": "Todos",
+    "_comment_actorsLoading": "The tooltip on the Who filter while the list of accounts is still being read, which is why the control is disabled.",
+    "actorsLoading": "Lendo quem gravou neste log…",
+    "_comment_whoOption": "One option in the Who filter. {account} is an account name and {machine} a computer name — both user data, isolated before they arrive. The em dash separates them; it is not a word.",
+    "whoOption": "{account} — {machine}",
     "clear": "Limpar filtros",
     "_comment_matching": "How many entries the current filter matches, shown at the end of the bar. Terse on purpose: it sits beside the filters it describes, so it does not repeat the word 'entries'.",
     "matching": "{count, plural, one {# correspondente} many {# correspondentes} other {# correspondentes}}"
   },
-
   "export": {
     "_comment_": "The export dialog. Two things it says out loud, because both change whether someone should press the button: the export is itself written into the log, and the file it writes is not encrypted.",
     "title": "Exportar o log de auditoria",
@@ -168,14 +177,12 @@
     "plaintext": "O arquivo é gravado fora do cofre e não é criptografado.",
     "_comment_plaintextBody": "SECURITY-CRITICAL. The body of that callout. Both halves are needed: the file holds no passwords or key material, AND it holds a full history of which hosts were reached and when. Reassurance without the second half is misleading.",
     "plaintextBody": "Ele contém o que aconteceu, quando e contra qual host — nenhuma senha e nenhum material de chave, mas um histórico completo das suas conexões. Qualquer pessoa que consiga ler o arquivo consegue ler esse histórico.",
-
     "formatLabel": "Formato",
     "formatHelp": "JSON mantém os campos como eles estão armazenados. CSV abre em uma planilha.",
     "_comment_json": "A file format name. Not translated, in any language or script.",
     "json": "JSON",
     "_comment_csv": "A file format name. Not translated, in any language or script.",
     "csv": "CSV",
-
     "_comment_scopeLabel": "Which entries to write. The label above a pair of radio buttons.",
     "scopeLabel": "O que gravar",
     "_comment_scopeFiltered": "Everything the filter on the screen behind matches — which is more than the rows currently drawn.",
@@ -183,7 +190,6 @@
     "scopeAll": "O log inteiro",
     "_comment_scopeHelp": "Says exactly what 'the entries you are looking at' covers, because the obvious reading — the dozen rows on screen — is the wrong one.",
     "scopeHelp": "O filtro é aplicado a todo o intervalo escolhido, não à página que está na tela.",
-
     "_comment_pathLabel": "Where to write the file. Also the accessible name of the text field.",
     "pathLabel": "Gravar em",
     "_comment_pathPlaceholder": "An example of a file path, shown in an empty field. Adapt it to the path convention a reader of your language would recognise, but keep it an example and keep it a path.",
@@ -194,13 +200,11 @@
     "browseFailed": "A janela de arquivos do sistema não abriu. Digite o caminho.",
     "_comment_pathMissing": "A validation message, shown under the field and as the export button's tooltip. Imperative: it says what to do, not what went wrong.",
     "pathMissing": "Escolha primeiro onde gravar o arquivo.",
-
     "_comment_submit": "The button that performs the export. A verb.",
     "submit": "Exportar",
     "_comment_busy": "Read out while the file is being written, in place of the button's label.",
     "busy": "Gravando o arquivo…",
     "failed": "O log não foi exportado.",
-
     "_comment_done": "The heading of the callout that replaces the form once the file is written.",
     "done": "Exportado.",
     "_comment_doneDetail": "{count} is how many entries were written, {path} the file that was written (isolated, so a path in another script cannot reorder the sentence), {size} its size already formatted for this locale. The last sentence is deliberate: it tells the reader that the log they were just looking at has changed, so a row they did not expect is not a sign of something wrong.",

@@ -45,9 +45,11 @@ import { isolate, useT } from "@/i18n";
 // way only: nothing in `features/files` imports this feature, so the two are
 // not circular.
 import { FileSessionHost } from "@/features/files";
-import type { CloseReason } from "@/lib/ipc";
+import type { CloseReason, IpcFailure } from "@/lib/ipc";
+import { currentPlatform } from "@/lib/platform";
 import { useSessions, type SessionRecord } from "./store";
-import { attachTerminal, focusTerminal, hasTerminal } from "./terminals";
+import { attachTerminal, focusTerminal, hasTerminal, subscribeTerminalEvents } from "./terminals";
+import { TerminalContextMenu } from "./TerminalContextMenu";
 import { cancelConnect, closeTab, decideHostKey, dismissTab, reconnect } from "./manager";
 import { ConnectProgress } from "./ConnectProgress";
 import { FindBar } from "./FindBar";
@@ -149,19 +151,48 @@ function EndedPanel({ record }: { record: SessionRecord }) {
 
 export function SessionSurface({ empty }: { empty: ReactNode }) {
   const t = useT("sessions");
+  const tCommon = useT("common");
   const order = useSessions((st) => st.order);
   const byId = useSessions((st) => st.byId);
   const activeTabId = useSessions((st) => st.activeTabId);
   const [cancelling, setCancelling] = useState<string | null>(null);
   const [finding, setFinding] = useState(false);
+  const [menu, setMenu] = useState<{
+    tabId: string;
+    x: number;
+    y: number;
+    hasSelection: boolean;
+  } | null>(null);
+  const [clipboardFailure, setClipboardFailure] = useState<{
+    tabId: string;
+    failure: IpcFailure;
+  } | null>(null);
 
   const active = activeTabId === null ? undefined : byId[activeTabId];
 
+  // The terminals' own menus and clipboard failures. Terminals live outside
+  // React and announce these rather than drawing them.
+  useEffect(
+    () =>
+      subscribeTerminalEvents((event) => {
+        if (event.kind === "menu") {
+          setMenu({ tabId: event.tabId, x: event.x, y: event.y, hasSelection: event.hasSelection });
+        } else {
+          setClipboardFailure({ tabId: event.tabId, failure: event.failure });
+        }
+      }),
+    [],
+  );
+
   // Ctrl/Cmd+Shift+F opens the find bar. Shift, because `Ctrl+F` belongs to
-  // readline and to vi, and the terminal has the keyboard.
+  // readline and to vi, and the terminal has the keyboard. On macOS plain Cmd+F
+  // does too, as it does in Terminal.app: Cmd is never sent to the far end, so
+  // it cannot be taken from a shell.
   useEffect(() => {
+    const mac = currentPlatform() === "macos";
     const onKey = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey) || !event.shiftKey) return;
+      const macFind = mac && event.metaKey && !event.ctrlKey && !event.altKey;
+      if (!macFind && (!(event.ctrlKey || event.metaKey) || !event.shiftKey)) return;
       if (event.key.toLowerCase() !== "f") return;
       if (useApp.getState().openModals.size > 0) return;
       event.preventDefault();
@@ -182,7 +213,11 @@ export function SessionSurface({ empty }: { empty: ReactNode }) {
   // remote edges to protect in the first place.
   const inputError = active?.inputError ?? null;
   const warned = active !== undefined && active.warnings.length > 0;
-  const hasChrome = inputError !== null || warned;
+  const clipboardError =
+    clipboardFailure !== null && clipboardFailure.tabId === active?.tabId
+      ? clipboardFailure.failure
+      : null;
+  const hasChrome = inputError !== null || warned || clipboardError !== null;
 
   return (
     <>
@@ -194,6 +229,17 @@ export function SessionSurface({ empty }: { empty: ReactNode }) {
               title={t("surface.inputRefused")}
               tone="warning"
             />
+          )}
+          {clipboardError !== null && (
+            <FailureNotice
+              failure={clipboardError}
+              title={t("surface.clipboardFailed")}
+              tone="warning"
+            >
+              <Button variant="ghost" size="sm" onClick={() => setClipboardFailure(null)}>
+                {tCommon("action.dismiss")}
+              </Button>
+            </FailureNotice>
           )}
           {/* Everything the session warned about. Terminal and graphical alike:
               an SSH login banner and a VNC security type land in the same
@@ -245,6 +291,17 @@ export function SessionSurface({ empty }: { empty: ReactNode }) {
             all. Stated as "is a terminal" rather than "is not a framebuffer",
             so a third kind cannot arrive on the terminal's side of the test by
             default — which is exactly how the file session got a terminal. */}
+        {menu !== null && menu.tabId === active?.tabId && (
+          <TerminalContextMenu
+            tabId={menu.tabId}
+            x={menu.x}
+            y={menu.y}
+            hasSelection={menu.hasSelection}
+            onFind={() => setFinding(true)}
+            onClose={() => setMenu(null)}
+          />
+        )}
+
         {finding &&
           active !== undefined &&
           active.phase === "running" &&

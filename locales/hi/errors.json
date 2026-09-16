@@ -1049,6 +1049,23 @@
       "_comment_": "Deliberately has no `message`, for the same reason as session.failed: the sentence is the transfer's own diagnostic, composed when it failed, and there is no detail beside it to fall back on."
     }
   },
+  "clipboard": {
+    "_comment_unavailable": "The system clipboard, used by the terminal's copy and paste. The core never logs what the clipboard held.",
+    "unavailable": {
+      "message": "सिस्टम क्लिपबोर्ड तक पहुँचा नहीं जा सका, इसलिए कुछ भी कॉपी या पेस्ट नहीं हुआ।",
+      "actions": [
+        "फिर कोशिश करें"
+      ]
+    },
+    "_comment_too-large": "The limit protects a remote shell from receiving megabytes of text as keystrokes by accident. The second action points at the file manager, which is the right tool for moving a file.",
+    "too-large": {
+      "message": "क्लिपबोर्ड में उससे ज़्यादा टेक्स्ट है जितना टर्मिनल में पेस्ट भेजता है। कुछ भी पेस्ट नहीं हुआ।",
+      "actions": [
+        "छोटा हिस्सा कॉपी करें",
+        "इसके बजाय फ़ाइल SFTP से भेजें"
+      ]
+    }
+  },
   "tunnel": {
     "no-such-tunnel": {
       "message": "वह टनल अब खुली नहीं है।",

@@ -36,7 +36,7 @@ import { Button } from "@/components/Button";
 import { BusyStatus } from "@/components/Busy";
 import { FailureNotice } from "@/components/FailureNotice";
 import { Icon } from "@/components/Icon";
-import { formatNumber, useLocale, useT } from "@/i18n";
+import { formatNumber, isolate, isolateLtr, useLocale, useT } from "@/i18n";
 import { useApp } from "@/stores/app";
 import { asFailure, ipc } from "@/lib/ipc";
 import type { AuditEntry } from "@/lib/ipc";
@@ -44,11 +44,18 @@ import { qk } from "@/lib/queryKeys";
 
 import { AuditExportDialog } from "./AuditExportDialog";
 import { AuditFilterBar } from "./AuditFilterBar";
-import { buildAuditQuery, DEFAULT_FILTERS, pruneToAvailable, type AuditFilterState } from "./filters";
+import {
+  buildAuditQuery,
+  DEFAULT_FILTERS,
+  pruneActor,
+  pruneToAvailable,
+  type AuditFilterState,
+} from "./filters";
 import {
   eventLabel,
   formatFullTime,
   formatRowTime,
+  osName,
   outcomeLook,
   rowCategoryLabel,
   type AuditT,
@@ -100,9 +107,20 @@ export function AuditViewer() {
     queryFn: () => ipc.listNodes(),
   });
 
+  // Who has written to this log. Read from the vault, not gathered from the
+  // rows on screen, so the filter can offer someone whose entries are all on a
+  // page nobody has scrolled to.
+  const actorsQuery = useQuery({
+    queryKey: auditKeys.actors(),
+    queryFn: () => ipc.auditActors(),
+  });
+
   // A selection the core no longer offers is dropped rather than sent: an
   // unknown category would match nothing and the table would look broken.
-  const effective = pruneToAvailable(filters, filtersQuery.data);
+  const effective = pruneActor(
+    pruneToAvailable(filters, filtersQuery.data),
+    actorsQuery.data,
+  );
 
   const span = pageSpan(scrollTop, viewport);
 
@@ -211,6 +229,7 @@ export function AuditViewer() {
         onChange={applyFilters}
         available={filtersQuery.data}
         nodes={nodesQuery.data}
+        actors={actorsQuery.data}
         total={total}
       />
 
@@ -233,6 +252,18 @@ export function AuditViewer() {
             title={t("table.nodesFailed")}
             tone="warning"
             onRetry={() => void nodesQuery.refetch()}
+            retryLabel={tCommon("action.retry")}
+          />
+        </div>
+      )}
+
+      {actorsQuery.isError && (
+        <div className={s.notice}>
+          <FailureNotice
+            failure={asFailure(actorsQuery.error)}
+            title={t("table.actorsFailed")}
+            tone="warning"
+            onRetry={() => void actorsQuery.refetch()}
             retryLabel={tCommon("action.retry")}
           />
         </div>
@@ -265,6 +296,9 @@ export function AuditViewer() {
             </div>
             <div className={s.cell} role="columnheader">
               {t("columns.outcome")}
+            </div>
+            <div className={s.cell} role="columnheader" title={t("columns.whoTitle")}>
+              {t("columns.who")}
             </div>
             <div className={s.cell} role="columnheader">
               {t("columns.node")}
@@ -396,6 +430,7 @@ function Row({ index, entry, t, locale }: RowProps) {
         <div className={s.cell} role="cell" />
         <div className={s.cell} role="cell" />
         <div className={s.cell} role="cell" />
+        <div className={s.cell} role="cell" />
       </div>
     );
   }
@@ -440,6 +475,29 @@ function Row({ index, entry, t, locale }: RowProps) {
           <Icon name={look.icon} size={12} />
           {look.word}
         </span>
+      </div>
+
+      <div className={s.cell} role="cell">
+        {entry.actor === null ? (
+          // Not "nobody": the row was written by someone, before this build
+          // recorded who, or by a process that could not tell.
+          <span className={s.subtle}>{t("table.actorUnrecorded")}</span>
+        ) : (
+          <span
+            className={s.actor}
+            title={t("table.actorTitle", {
+              account: isolate(entry.actor.account),
+              machine: isolate(entry.actor.machine),
+              os: osName(entry.actor.os),
+            })}
+          >
+            {/* Both are names the operating system reported — data, in any
+                script — so each is isolated from the other. An account name
+                is written left to right whatever it contains. */}
+            <span className={clsx(s.actorAccount, s.mono)}>{isolateLtr(entry.actor.account)}</span>
+            <span className={s.actorMachine}>{isolate(entry.actor.machine)}</span>
+          </span>
+        )}
       </div>
 
       <div className={clsx(s.cell, s.mono)} role="cell">

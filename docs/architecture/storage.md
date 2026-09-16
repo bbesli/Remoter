@@ -108,9 +108,24 @@ CREATE TABLE audit_log (
     node_id    BLOB,
     session_id BLOB,
     outcome    TEXT NOT NULL,              -- 'success' | 'failure' | 'denied'
-    detail     BLOB                        -- CBOR; MUST NOT contain secrets
+    detail     BLOB,                       -- CBOR; MUST NOT contain secrets
+    actor_id   INTEGER REFERENCES audit_actor(id)  -- 003; NULL = not recorded
 );
 CREATE INDEX idx_audit_at ON audit_log(at DESC);
+CREATE INDEX idx_audit_actor ON audit_log(actor_id);
+
+-- Who wrote an audit row: the operating-system account and computer. One row
+-- per identity, not four columns per entry. `domain` is NOT NULL DEFAULT ''
+-- because SQLite treats NULLs as distinct in a UNIQUE constraint — the defect
+-- 002 repaired in the trust store.
+CREATE TABLE audit_actor (
+    id       INTEGER PRIMARY KEY,
+    machine  TEXT NOT NULL,
+    os_user  TEXT NOT NULL,
+    domain   TEXT NOT NULL DEFAULT '',
+    os       TEXT NOT NULL,
+    UNIQUE (machine, os_user, domain, os)
+);
 
 CREATE TABLE session_history (
     id           BLOB PRIMARY KEY,
@@ -168,18 +183,25 @@ searching `sunucu` should find `Sunucu`, and searching `munchen` should find
 ## Migrations
 
 Forward-only, numbered, embedded in the binary, run inside a transaction. The
-directory holds two files, and `SCHEMA_VERSION` in `storage.rs` is therefore 2:
+directory holds three files, and `SCHEMA_VERSION` in `storage.rs` is therefore 3:
 
 ```
 crates/remoter-vault/migrations/
-  001_initial.sql                 every table above, session_history included
+  001_initial.sql                 every table above except audit_actor,
+                                  session_history included
   002_trust_store_null_node.sql   an expression index, so a global host-key pin
                                   is replaced rather than duplicated
+  003_audit_actor.sql             the audit_actor table and audit_log.actor_id
 ```
 
 The numbering is not a history of the tables: `session_history` is created by
 `001_initial.sql` along with everything else, and 002 changes an index rather
 than adding a table.
+
+**Schema 3 is a one-way step for every copy of the file.** Opening a vault with a
+build that knows migration 003 migrates it on the next save, and from then on a
+build that stops at schema 2 refuses the file under rule 4 below. A vault shared
+between machines should be opened by an up-to-date build on all of them.
 
 Rules:
 

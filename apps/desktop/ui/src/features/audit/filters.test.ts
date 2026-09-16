@@ -15,6 +15,7 @@ import {
   DEFAULT_FILTERS,
   buildAuditQuery,
   isNarrowed,
+  pruneActor,
   pruneToAvailable,
   rangeStart,
   toggle,
@@ -43,6 +44,7 @@ describe("buildAuditQuery", () => {
     expect("categories" in query).toBe(false);
     expect("outcomes" in query).toBe(false);
     expect("nodeId" in query).toBe(false);
+    expect("actorId" in query).toBe(false);
     expect("since" in query).toBe(false);
   });
 
@@ -52,12 +54,14 @@ describe("buildAuditQuery", () => {
       categories: ["warning", "secret"],
       outcomes: ["failure"],
       nodeId: "node-1",
+      actorId: 7,
     };
     expect(buildAuditQuery(state, NOW)).toEqual({
       since: NOW - 7 * DAY,
       categories: ["warning", "secret"],
       outcomes: ["failure"],
       nodeId: "node-1",
+      actorId: 7,
     });
   });
 
@@ -144,5 +148,32 @@ describe("pruneToAvailable", () => {
     const state: AuditFilterState = { ...DEFAULT_FILTERS, categories: ["secret"] };
     const query = buildAuditQuery(pruneToAvailable(state, available), NOW);
     expect("categories" in query).toBe(false);
+  });
+});
+
+describe("pruneActor", () => {
+  const actor = (id: number) => ({
+    actor: { id, machine: "m", user: "u", domain: null, account: "u", os: "linux" },
+    entries: 1,
+    lastAt: 1,
+  });
+
+  it("keeps a selection that is one of this vault's identities", () => {
+    const state = { ...DEFAULT_FILTERS, actorId: 2 };
+    expect(pruneActor(state, [actor(1), actor(2)])).toBe(state);
+  });
+
+  it("drops a selection carried over from another vault, whose numbers mean someone else", () => {
+    const state = { ...DEFAULT_FILTERS, actorId: 9 };
+    expect(pruneActor(state, [actor(1)]).actorId).toBeNull();
+  });
+
+  it("leaves the selection alone until the list has arrived", () => {
+    const state = { ...DEFAULT_FILTERS, actorId: 9 };
+    expect(pruneActor(state, undefined)).toBe(state);
+  });
+
+  it("counts a person as narrowing the log", () => {
+    expect(isNarrowed({ ...DEFAULT_FILTERS, actorId: 1 })).toBe(true);
   });
 });

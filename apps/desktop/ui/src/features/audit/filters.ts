@@ -13,7 +13,13 @@
  * one does not still has a chip to be found under.
  */
 
-import type { AuditCategory, AuditFilters, AuditOutcome, AuditQuery } from "@/lib/ipc";
+import type {
+  AuditActorSummary,
+  AuditCategory,
+  AuditFilters,
+  AuditOutcome,
+  AuditQuery,
+} from "@/lib/ipc";
 
 /** The time windows the bar offers. `all` sends no lower bound at all. */
 export type TimeRange = "24h" | "7d" | "30d" | "90d" | "all";
@@ -28,6 +34,11 @@ export interface AuditFilterState {
   outcomes: readonly AuditOutcome[];
   /** `null` means every node, and also the rows that concern no node at all. */
   nodeId: string | null;
+  /**
+   * `null` means everyone — including the rows written before identities were
+   * recorded, which a filter on a person could never match.
+   */
+  actorId: number | null;
 }
 
 /**
@@ -40,6 +51,7 @@ export const DEFAULT_FILTERS: AuditFilterState = {
   categories: [],
   outcomes: [],
   nodeId: null,
+  actorId: null,
 };
 
 const DAY_MS = 86_400_000;
@@ -86,6 +98,7 @@ export function buildAuditQuery(
     ...(state.categories.length > 0 ? { categories: [...state.categories] } : {}),
     ...(state.outcomes.length > 0 ? { outcomes: [...state.outcomes] } : {}),
     ...(state.nodeId === null ? {} : { nodeId: state.nodeId }),
+    ...(state.actorId === null ? {} : { actorId: state.actorId }),
     ...(paging === undefined ? {} : { page: paging.page, pageSize: paging.pageSize }),
   };
 }
@@ -101,8 +114,29 @@ export function isNarrowed(state: AuditFilterState): boolean {
     state.range !== DEFAULT_FILTERS.range ||
     state.categories.length > 0 ||
     state.outcomes.length > 0 ||
-    state.nodeId !== null
+    state.nodeId !== null ||
+    state.actorId !== null
   );
+}
+
+/**
+ * Drops a "who" selection that is not one of this vault's identities.
+ *
+ * Identities are numbered per vault, so the selection a person made while one
+ * vault was open means somebody else — or nobody — in the next. Sending it
+ * would filter the second vault's log by a stranger and show an empty table
+ * with the filter looking correct.
+ *
+ * Returns the same object when nothing was dropped.
+ */
+export function pruneActor(
+  state: AuditFilterState,
+  actors: readonly AuditActorSummary[] | undefined,
+): AuditFilterState {
+  if (actors === undefined || state.actorId === null) return state;
+  return actors.some((summary) => summary.actor.id === state.actorId)
+    ? state
+    : { ...state, actorId: null };
 }
 
 /**

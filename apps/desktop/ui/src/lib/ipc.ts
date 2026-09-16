@@ -855,6 +855,12 @@ export interface VaultSettingsPatch {
   backupCount?: number;
 }
 
+/**
+ * Which clipboard: the ordinary one, or the X11 PRIMARY selection that a
+ * mouse selection fills and the middle button pastes.
+ */
+export type ClipboardSelection = "clipboard" | "primary";
+
 // ---------------------------------------------------------------- audit ----
 
 /** Which audit entries to read, and which page of them. */
@@ -872,6 +878,8 @@ export interface AuditQuery {
   outcomes?: AuditOutcome[];
   nodeId?: string;
   sessionId?: string;
+  /** Only entries written under this identity — an {@link AuditActor.id}. */
+  actorId?: number;
   /** Zero-based. Defaults to the first page. */
   page?: number;
   /** Defaults to 100, capped at 1000. */
@@ -905,6 +913,39 @@ export interface AuditEntry {
   nodeName: string | null;
   sessionId: string | null;
   detail: string | null;
+  /**
+   * The operating-system account and machine the entry was written from.
+   * `null` for an entry written before this was recorded, or by a process that
+   * could not say who it ran as — show that as not recorded, never as nobody.
+   */
+  actor: AuditActor | null;
+}
+
+/**
+ * Who wrote an audit entry: what the operating system reported to the process
+ * that wrote it. Attribution between the people who can open a vault, not a
+ * proof of identity.
+ */
+export interface AuditActor {
+  id: number;
+  machine: string;
+  /** The account without its domain. */
+  user: string;
+  /** Present only when it says something the machine name does not. */
+  domain: string | null;
+  /** `DOMAIN\user`, or the bare account — ready to show. */
+  account: string;
+  /** `"linux" | "windows" | "macos"` … — open-ended, render unknown ones as-is. */
+  os: string;
+}
+
+/** One identity that has written to this vault's audit log. */
+export interface AuditActorSummary {
+  actor: AuditActor;
+  /** How many entries carry it. */
+  entries: number;
+  /** Milliseconds since the epoch of its newest entry. */
+  lastAt: number | null;
 }
 
 export interface AuditPage {
@@ -2083,10 +2124,27 @@ export const ipc = {
   setVaultSettings: (patch: VaultSettingsPatch) =>
     invoke<VaultSettings>("vault_settings_set", { patch }),
 
+  // --- clipboard ---
+  /**
+   * The system clipboard's text, or `null` when it holds none. `primary` is the
+   * X11 selection the middle button pastes; it answers `null` on Windows and
+   * macOS, which have no such thing.
+   */
+  readClipboardText: (selection: ClipboardSelection) =>
+    invoke<string | null>("clipboard_read_text", { selection }),
+  /** Puts text on the system clipboard, or on the PRIMARY selection. */
+  writeClipboardText: (selection: ClipboardSelection, text: string) =>
+    invoke<void>("clipboard_write_text", { selection, text }),
+
   // --- audit ---
   /** One page of the audit log, newest first. */
   queryAudit: (query: AuditQuery) => invoke<AuditPage>("audit_query", { query }),
   auditFilters: () => invoke<AuditFilters>("audit_filters"),
+  /**
+   * Every account and machine that has written to this vault's log, most
+   * recently active first — the audit screen's "who" filter.
+   */
+  auditActors: () => invoke<AuditActorSummary[]>("audit_actors"),
   /**
    * Writes the filtered log to a file, and records that it was written.
    * Exporting copies entries; it never removes them.

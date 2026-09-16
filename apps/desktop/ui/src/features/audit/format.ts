@@ -231,3 +231,26 @@ export function formatRowTime(locale: string, at: number): string {
 export function formatFullTime(locale: string, at: number): string {
   return dateTimeFormat(locale, "full", FULL_TIME_OPTIONS).format(new Date(at));
 }
+
+/**
+ * An operating system's own name for itself, from the identifier the core
+ * stores (`std::env::consts::OS`).
+ *
+ * Proper nouns, so not in the catalogue: nobody translates "macOS". An
+ * identifier this build does not know is shown as stored rather than dropped —
+ * the row was written by a real machine, even one this list has not heard of.
+ */
+export function osName(os: string): string {
+  switch (os) {
+    case "linux":
+      return "Linux";
+    case "windows":
+      return "Windows";
+    case "macos":
+      return "macOS";
+    case "freebsd":
+      return "FreeBSD";
+    default:
+      return os;
+  }
+}

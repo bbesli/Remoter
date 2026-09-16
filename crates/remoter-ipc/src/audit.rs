@@ -18,14 +18,16 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use remoter_vault::{AuditCategory, AuditEvent, AuditOutcome, AuditQuery, AuditRecord, Vault};
+use remoter_vault::{
+    AuditActorRecord, AuditCategory, AuditEvent, AuditOutcome, AuditQuery, AuditRecord, Vault,
+};
 use tauri::State;
 use uuid::Uuid;
 
 use crate::commands::{read_tree, save};
 use crate::dto::{
-    AuditEntryDto, AuditExportDto, AuditExportResultDto, AuditFiltersDto, AuditPageDto,
-    AuditQueryDto,
+    AuditActorDto, AuditActorSummaryDto, AuditEntryDto, AuditExportDto, AuditExportResultDto,
+    AuditFiltersDto, AuditPageDto, AuditQueryDto,
 };
 use crate::error::IpcError;
 use crate::recents::write_atomic;
@@ -100,6 +102,46 @@ pub(crate) fn audit_filters() -> Result<AuditFiltersDto, IpcError> {
             .map(|event| event.as_str().to_owned())
             .collect(),
     })
+}
+
+/// Every operating-system account and machine that has written to this vault's
+/// log, most recently active first — the choices the screen's "who" filter
+/// offers.
+///
+/// Read from the vault rather than from the page on screen, so that a filter
+/// can pick someone whose entries are all on later pages.
+#[tauri::command]
+pub(crate) fn audit_actors(
+    state: State<'_, AppState>,
+) -> Result<Vec<AuditActorSummaryDto>, IpcError> {
+    audit_actors_impl(&state)
+}
+
+fn audit_actors_impl(state: &AppState) -> Result<Vec<AuditActorSummaryDto>, IpcError> {
+    let mut guard = state.lock();
+    let vault = guard.vault_ref()?;
+    let actors = vault
+        .audit_actors()
+        .map_err(|err| IpcError::from_vault(&err, "this vault"))?;
+    Ok(actors
+        .into_iter()
+        .map(|summary| AuditActorSummaryDto {
+            actor: actor_dto(&summary.record),
+            entries: summary.entries,
+            last_at: summary.last_at,
+        })
+        .collect())
+}
+
+fn actor_dto(record: &AuditActorRecord) -> AuditActorDto {
+    AuditActorDto {
+        id: record.id,
+        machine: record.actor.machine.clone(),
+        user: record.actor.user.clone(),
+        domain: record.actor.domain.clone(),
+        account: record.actor.account(),
+        os: record.actor.os.clone(),
+    }
 }
 
 /// Writes the filtered log to a file, and records that it was written.
@@ -242,6 +284,9 @@ fn build_query(dto: &AuditQueryDto) -> Result<AuditQuery, IpcError> {
     if let Some(id) = &dto.session_id {
         query = query.for_session(parse_uuid(id, "sessionId")?);
     }
+    if let Some(actor) = dto.actor_id {
+        query = query.by_actor(actor);
+    }
     Ok(query)
 }
 
@@ -284,14 +329,19 @@ fn entries_with_names(
             node_name: record.node.and_then(|id| names.get(&id).cloned()),
             session_id: record.session.map(|id| id.to_string()),
             detail: record.detail.clone(),
+            actor: record.actor.as_ref().map(actor_dto),
         })
         .collect())
 }
 
 /// The export's CSV rendering.
 fn render_csv(entries: &[AuditEntryDto]) -> String {
-    let mut out =
-        String::from("id,at,event,outcome,category,warning,nodeId,nodeName,sessionId,detail\n");
+    // The identity columns go last, so a spreadsheet or a script written against
+    // an export from before they existed still finds every older column where
+    // it was.
+    let mut out = String::from(
+        "id,at,event,outcome,category,warning,nodeId,nodeName,sessionId,detail,machine,account,os\n",
+    );
     for entry in entries {
         let row = [
             entry.id.to_string(),
@@ -304,6 +354,21 @@ fn render_csv(entries: &[AuditEntryDto]) -> String {
             entry.node_name.clone().unwrap_or_default(),
             entry.session_id.clone().unwrap_or_default(),
             entry.detail.clone().unwrap_or_default(),
+            entry
+                .actor
+                .as_ref()
+                .map(|actor| actor.machine.clone())
+                .unwrap_or_default(),
+            entry
+                .actor
+                .as_ref()
+                .map(|actor| actor.account.clone())
+                .unwrap_or_default(),
+            entry
+                .actor
+                .as_ref()
+                .map(|actor| actor.os.clone())
+                .unwrap_or_default(),
         ];
         out.push_str(
             &row.iter()
@@ -371,6 +436,14 @@ mod tests {
                 node_name: Some(String::from("db-01")),
                 session_id: None,
                 detail: Some(String::from("ssh")),
+                actor: Some(AuditActorDto {
+                    id: 1,
+                    machine: String::from("LAPTOP-9"),
+                    user: String::from("ayse"),
+                    domain: Some(String::from("DEVOPLUS")),
+                    account: String::from("DEVOPLUS\\ayse"),
+                    os: String::from("windows"),
+                }),
             },
             AuditEntryDto {
                 id: 1,
@@ -383,6 +456,7 @@ mod tests {
                 node_name: None,
                 session_id: None,
                 detail: None,
+                actor: None,
             },
         ];
 
@@ -392,8 +466,17 @@ mod tests {
         assert!(lines[0].starts_with("id,at,event,outcome"), "csv: {csv}");
         assert!(lines[1].contains("session_started"), "csv: {csv}");
         assert!(lines[1].contains("db-01"), "csv: {csv}");
-        // An absent field is empty rather than the word "None".
-        assert!(lines[2].ends_with(",,,,"), "csv: {csv}");
+        assert!(
+            lines[0].ends_with(",detail,machine,account,os"),
+            "the identity columns come after every older one: {csv}"
+        );
+        assert!(
+            lines[1].ends_with(",ssh,LAPTOP-9,DEVOPLUS\\ayse,windows"),
+            "csv: {csv}"
+        );
+        // An absent field is empty rather than the word "None" — including an
+        // identity that was not recorded.
+        assert!(lines[2].ends_with(",,,,,,,"), "csv: {csv}");
     }
 
     #[test]

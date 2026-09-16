@@ -20,13 +20,14 @@ use rusqlite::{Connection, MAIN_DB, OptionalExtension, params, params_from_iter}
 use uuid::Uuid;
 use zeroize::Zeroizing;
 
+use crate::actor::{AuditActor, AuditActorRecord, AuditActorSummary};
 use crate::audit::{AuditCategory, AuditQuery, AuditRecord};
 use crate::crypto::{self, KEY_LEN, NONCE_LEN};
 use crate::error::VaultError;
 use crate::secret::{ExposeSecret, Secret};
 
 /// The schema version this build writes and understands.
-pub const SCHEMA_VERSION: u32 = 2;
+pub const SCHEMA_VERSION: u32 = 3;
 
 /// AEAD algorithm identifier stored beside each secret, so the field can be
 /// re-keyed to a different cipher later without guessing.
@@ -43,6 +44,7 @@ const MIGRATIONS: &[(u32, &str)] = &[
         2,
         include_str!("../migrations/002_trust_store_null_node.sql"),
     ),
+    (3, include_str!("../migrations/003_audit_actor.sql")),
 ];
 
 /// What happened, for the audit log.
@@ -914,6 +916,34 @@ impl Store {
         session: Option<Uuid>,
         detail: Option<&str>,
     ) -> Result<i64, VaultError> {
+        self.audit_row_as(
+            at,
+            event,
+            outcome,
+            node,
+            session,
+            detail,
+            crate::actor::audit_actor(),
+        )
+    }
+
+    /// [`Store::audit_row`] under an explicit identity rather than the
+    /// process's.
+    ///
+    /// Separate so the tests in this file can attribute rows without setting
+    /// the process-wide identity, which every other test in the same binary
+    /// would then inherit.
+    #[allow(clippy::too_many_arguments, reason = "mirrors the audit_log columns")]
+    fn audit_row_as(
+        &self,
+        at: i64,
+        event: AuditEvent,
+        outcome: AuditOutcome,
+        node: Option<Uuid>,
+        session: Option<Uuid>,
+        detail: Option<&str>,
+        actor: Option<&AuditActor>,
+    ) -> Result<i64, VaultError> {
         let detail = match detail {
             Some(text) => {
                 let mut out = Vec::new();
@@ -923,12 +953,84 @@ impl Store {
             None => None,
         };
 
+        let actor = self.actor_row(actor)?;
         self.conn.execute(
-            "INSERT INTO audit_log (at, event, node_id, session_id, outcome, detail)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![at, event.as_str(), node, session, outcome.as_str(), detail],
+            "INSERT INTO audit_log (at, event, node_id, session_id, outcome, detail, actor_id)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![
+                at,
+                event.as_str(),
+                node,
+                session,
+                outcome.as_str(),
+                detail,
+                actor
+            ],
         )?;
         Ok(self.conn.last_insert_rowid())
+    }
+
+    /// The `audit_actor` row for an identity, created the first time it writes.
+    ///
+    /// Resolved on every write rather than remembered on the store, and that is
+    /// deliberate. Audit rows are written inside transactions that roll back —
+    /// an import commits all or nothing — and a remembered identifier from a
+    /// rolled-back insert names a row that no longer exists. With foreign keys
+    /// on, the next audit write would then fail outright, and every one after
+    /// it. Two statements against an in-memory database cost nothing by
+    /// comparison.
+    fn actor_row(&self, actor: Option<&AuditActor>) -> Result<Option<i64>, VaultError> {
+        let Some(actor) = actor else {
+            return Ok(None);
+        };
+        let domain = actor.domain.as_deref().unwrap_or("");
+        self.conn
+            .prepare_cached(
+                "INSERT OR IGNORE INTO audit_actor (machine, os_user, domain, os)
+                 VALUES (?1, ?2, ?3, ?4)",
+            )?
+            .execute(params![actor.machine, actor.user, domain, actor.os])?;
+        let id: i64 = self
+            .conn
+            .prepare_cached(
+                "SELECT id FROM audit_actor
+                 WHERE machine = ?1 AND os_user = ?2 AND domain = ?3 AND os = ?4",
+            )?
+            .query_row(
+                params![actor.machine, actor.user, domain, actor.os],
+                |row| row.get(0),
+            )?;
+        Ok(Some(id))
+    }
+
+    /// Every identity that has written to this vault, most recently active
+    /// first.
+    pub(crate) fn audit_actors(&self) -> Result<Vec<AuditActorSummary>, VaultError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT a.id, a.machine, a.os_user, a.domain, a.os, count(l.id), max(l.at)
+             FROM audit_actor a
+             LEFT JOIN audit_log l ON l.actor_id = a.id
+             GROUP BY a.id
+             ORDER BY max(l.at) DESC, a.id DESC",
+        )?;
+        let rows = stmt
+            .query_map([], |row| {
+                let entries: i64 = row.get(5)?;
+                Ok((read_actor(row, 0)?, entries, row.get::<_, Option<i64>>(6)?))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        rows.into_iter()
+            .map(|(record, entries, last_at)| {
+                let record = record.ok_or(VaultError::CorruptRow("audit_actor"))?;
+                let entries = usize::try_from(entries)
+                    .map_err(|_| VaultError::CorruptRow("audit_actor count"))?;
+                Ok(AuditActorSummary {
+                    record,
+                    entries,
+                    last_at,
+                })
+            })
+            .collect()
     }
 
     /// Corrects one audit row's outcome.
@@ -1001,10 +1103,12 @@ impl Store {
         values.push(Value::Integer(offset));
 
         let sql = format!(
-            "SELECT id, at, event, outcome, node_id, session_id, detail
-             FROM audit_log
+            "SELECT l.id, l.at, l.event, l.outcome, l.node_id, l.session_id, l.detail,
+                    a.id, a.machine, a.os_user, a.domain, a.os
+             FROM audit_log l
+             LEFT JOIN audit_actor a ON a.id = l.actor_id
              WHERE {where_clause}
-             ORDER BY at DESC, id DESC
+             ORDER BY l.at DESC, l.id DESC
              LIMIT ?{limit_index} OFFSET ?{offset_index}",
             limit_index = values.len() - 1,
             offset_index = values.len(),
@@ -1185,6 +1289,10 @@ fn audit_filter(query: &AuditQuery) -> (String, Vec<Value>) {
         let placeholder = bind(Value::Blob(session.as_bytes().to_vec()), &mut values);
         clauses.push(format!("session_id = {placeholder}"));
     }
+    if let Some(actor) = query.actor() {
+        let placeholder = bind(Value::Integer(actor), &mut values);
+        clauses.push(format!("actor_id = {placeholder}"));
+    }
 
     if !query.outcomes().is_empty() {
         let placeholders: Vec<String> = query
@@ -1250,7 +1358,32 @@ fn read_audit_record(row: &rusqlite::Row<'_>) -> rusqlite::Result<AuditRecord> {
         node: row.get(4)?,
         session: row.get(5)?,
         detail: detail.and_then(|bytes| ciborium::from_reader::<String, _>(bytes.as_slice()).ok()),
+        actor: read_actor(row, 7)?,
     })
+}
+
+/// Reads an `audit_actor` row laid out as `id, machine, os_user, domain, os`
+/// starting at column `first`.
+///
+/// `None` when the columns are NULL — a row written before migration 003, or by
+/// a process that set no identity — and also when the stored names would not
+/// make an identity, which only a vault edited by hand can hold. Showing such a
+/// row as not recorded is truer than showing it as written by nobody.
+fn read_actor(row: &rusqlite::Row<'_>, first: usize) -> rusqlite::Result<Option<AuditActorRecord>> {
+    let Some(id) = row.get::<_, Option<i64>>(first)? else {
+        return Ok(None);
+    };
+    let machine: String = row.get(first + 1)?;
+    let user: String = row.get(first + 2)?;
+    let domain: String = row.get(first + 3)?;
+    let os: String = row.get(first + 4)?;
+    Ok(AuditActor::new(
+        &machine,
+        &user,
+        Some(domain.as_str()).filter(|d| !d.is_empty()),
+        &os,
+    )
+    .map(|actor| AuditActorRecord { id, actor }))
 }
 
 /// Rewrites a node's tag rows.
@@ -1710,6 +1843,197 @@ mod tests {
         );
         assert_eq!(AuditOutcome::parse("denied"), Some(AuditOutcome::Denied));
         assert_eq!(AuditEvent::parse("from_the_future"), None);
+    }
+
+    fn someone(machine: &str, user: &str) -> AuditActor {
+        AuditActor::new(machine, user, None, "linux").unwrap()
+    }
+
+    #[test]
+    fn a_row_names_the_account_and_machine_it_was_written_from() {
+        let s = store();
+        let burak = someone("workstation", "burak");
+        let colleague = AuditActor::new("LAPTOP-9", "ayse", Some("DEVOPLUS"), "windows").unwrap();
+
+        for (at, who) in [(10, &burak), (20, &colleague), (30, &burak)] {
+            s.audit_row_as(
+                at,
+                AuditEvent::SessionStarted,
+                AuditOutcome::Success,
+                None,
+                None,
+                None,
+                Some(who),
+            )
+            .unwrap();
+        }
+        s.audit_row_as(
+            40,
+            AuditEvent::VaultSaved,
+            AuditOutcome::Success,
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+
+        let rows = s.audit_query(&AuditQuery::new()).unwrap();
+        let written_by: Vec<Option<String>> = rows
+            .iter()
+            .map(|row| row.actor.as_ref().map(|a| a.actor.account()))
+            .collect();
+        assert_eq!(
+            written_by,
+            vec![
+                None,
+                Some("burak".to_owned()),
+                Some("DEVOPLUS\\ayse".to_owned()),
+                Some("burak".to_owned()),
+            ],
+            "newest first; the row with no identity says so instead of borrowing one"
+        );
+
+        // One identity is one row however many entries it writes, so the log
+        // grows by an integer per entry and not by two names.
+        let actors = s.audit_actors().unwrap();
+        assert_eq!(actors.len(), 2);
+        let counts: Vec<(String, usize)> = actors
+            .iter()
+            .map(|a| (a.record.actor.account(), a.entries))
+            .collect();
+        assert_eq!(
+            counts,
+            vec![("burak".to_owned(), 2), ("DEVOPLUS\\ayse".to_owned(), 1)],
+            "most recently active first"
+        );
+
+        let only_colleague = s
+            .audit_query(&AuditQuery::new().by_actor(actors[1].record.id))
+            .unwrap();
+        assert_eq!(only_colleague.len(), 1);
+        assert_eq!(only_colleague[0].at, 20);
+        assert_eq!(
+            s.audit_count(&AuditQuery::new().by_actor(actors[0].record.id))
+                .unwrap(),
+            2
+        );
+    }
+
+    #[test]
+    fn an_account_without_a_domain_is_found_again_rather_than_duplicated() {
+        // The trap migration 002 fell into: SQLite treats NULLs as distinct in
+        // a UNIQUE constraint. With a nullable domain every write by a local
+        // account would have added a fresh identity row.
+        let s = store();
+        let burak = someone("workstation", "burak");
+        for at in 0..5 {
+            s.audit_row_as(
+                at,
+                AuditEvent::NodeUpdated,
+                AuditOutcome::Success,
+                None,
+                None,
+                None,
+                Some(&burak),
+            )
+            .unwrap();
+        }
+        let count: i64 = s
+            .conn
+            .query_row("SELECT count(*) FROM audit_actor", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn an_audit_write_inside_a_rolled_back_transaction_does_not_break_the_next_one() {
+        // The reason the identity is looked up on every write instead of being
+        // remembered. A rolled-back import takes its `audit_actor` insert with
+        // it; a remembered identifier would then point at nothing, and with
+        // foreign keys on every later audit write would fail.
+        let s = store();
+        let burak = someone("workstation", "burak");
+        {
+            let tx = s.conn.unchecked_transaction().unwrap();
+            s.audit_row_as(
+                1,
+                AuditEvent::NodeCreated,
+                AuditOutcome::Success,
+                None,
+                None,
+                None,
+                Some(&burak),
+            )
+            .unwrap();
+            tx.rollback().unwrap();
+        }
+        s.audit_row_as(
+            2,
+            AuditEvent::NodeCreated,
+            AuditOutcome::Success,
+            None,
+            None,
+            None,
+            Some(&burak),
+        )
+        .unwrap();
+        let rows = s.audit_query(&AuditQuery::new()).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(
+            rows[0].actor.as_ref().map(|a| a.actor.user.as_str()),
+            Some("burak")
+        );
+    }
+
+    #[test]
+    fn a_vault_from_before_identities_keeps_its_rows_and_marks_them_unrecorded() {
+        // Build a schema-2 database by hand — the shape every vault written
+        // before this build has — with one audit row in it, then load it.
+        let conn = Connection::open_in_memory().unwrap();
+        for (version, sql) in &MIGRATIONS[..2] {
+            conn.execute_batch(sql).unwrap();
+            conn.execute(
+                "INSERT INTO schema_version (version, applied_at) VALUES (?1, 0)",
+                params![*version],
+            )
+            .unwrap();
+        }
+        conn.execute(
+            "INSERT INTO audit_log (at, event, outcome) VALUES (5, 'vault_unlocked', 'success')",
+            [],
+        )
+        .unwrap();
+        let image = conn.serialize(MAIN_DB).unwrap().to_vec();
+        drop(conn);
+
+        let s = Store::load(&image, 1).unwrap();
+        assert_eq!(s.schema_version().unwrap(), 3);
+        let rows = s.audit_query(&AuditQuery::new()).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].event, "vault_unlocked");
+        assert_eq!(
+            rows[0].actor, None,
+            "nothing is invented for a row written before"
+        );
+
+        s.audit_row_as(
+            6,
+            AuditEvent::VaultSaved,
+            AuditOutcome::Success,
+            None,
+            None,
+            None,
+            Some(&someone("workstation", "burak")),
+        )
+        .unwrap();
+        assert_eq!(
+            s.audit_query(&AuditQuery::new()).unwrap()[0]
+                .actor
+                .as_ref()
+                .map(|a| a.actor.user.as_str()),
+            Some("burak")
+        );
     }
 
     #[test]

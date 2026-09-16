@@ -91,7 +91,7 @@
 
 .row {
   display: grid;
-  grid-template-columns: 9.5rem 12rem 8rem 11rem minmax(0, 1fr);
+  grid-template-columns: 9.5rem 12rem 8rem 12rem 11rem minmax(0, 1fr);
   align-items: center;
   height: var(--audit-row-h);
 }
@@ -257,4 +257,30 @@
 .count {
   font-family: var(--font-mono);
   white-space: nowrap;
+}
+
+/* Who wrote the entry: the account first, the machine beside it and quieter —
+   the account is what tells two colleagues apart, the machine is the aside. */
+.actor {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+
+.actorAccount {
+  flex: none;
+  max-inline-size: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg-strong);
+}
+
+.actorMachine {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg-subtle);
 }

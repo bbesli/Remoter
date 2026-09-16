@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import { QueryClientProvider } from "@tanstack/react-query";
 
 import { App } from "./app/App";
+import { installNativeFeel } from "./app/nativeFeel";
 import { createQueryClient } from "./app/queryClient";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { I18nProvider } from "./i18n";
@@ -11,6 +12,11 @@ import "./styles/base.css";
 // Configured in `app/queryClient.ts`, where the vault-lock detector lives with
 // it. A client built inline here is a client no test can render against.
 const queryClient = createQueryClient();
+
+// A desktop application, not a page: no reload, no print, no browser menus.
+// Development builds keep them, because reload and the inspector are how the
+// interface is worked on. See `app/nativeFeel.ts`.
+if (import.meta.env.PROD) installNativeFeel();
 
 const root = document.getElementById("root");
 if (!root) throw new Error("#root is missing from index.html");

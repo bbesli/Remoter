@@ -250,6 +250,8 @@
     "reconnectNotice": "reconnecting",
     "_comment_inputRefused": "Over the core's message when a keystroke was not delivered — a frozen session, most often. Says what did not happen rather than 'an error occurred'.",
     "inputRefused": "The last keystroke did not reach the server",
+    "_comment_clipboardFailed": "A heading over the core's own message when a copy or paste in the terminal could not reach the system clipboard.",
+    "clipboardFailed": "The clipboard could not be used",
     "framebuffer": {
       "_comment_": "The screen an RDP or VNC session is seen on, and driven from. Keys and clicks go to the remote host while this screen has focus, so the strings under input describe a live rule the user has to be able to act on, not decoration. RDP and VNC are protocol names and are never translated.",
       "_comment_label": "The accessible name of the remote screen. Not visible. {name} is the connection's name, from the vault: user data, in any script.",
@@ -443,6 +445,17 @@
     "close": "Close the find bar",
     "_comment_noMatch": "Beside the field when the text is not in the scrollback. Lower case: it is a note, not an error.",
     "noMatch": "no match"
+  },
+  "terminalMenu": {
+    "_comment_": "The menu a right click opens over a terminal on macOS and Linux (and Shift+right-click on Windows). Items are the ones GNOME Terminal and Terminal.app offer; use the words your platform's own terminal menus use. Shortcuts beside them are drawn by the application and are not in this file.",
+    "label": "Terminal",
+    "copy": "Copy",
+    "paste": "Paste",
+    "selectAll": "Select All",
+    "_comment_find": "Opens the find bar over the scrollback. The ellipsis means more input follows, as in native menus.",
+    "find": "Find…",
+    "_comment_clearScrollback": "Erases the terminal's history of past output on this computer. It does not touch anything on the server.",
+    "clearScrollback": "Clear Scrollback"
   },
   "panels": {
     "_comment_": "One panel, two panes: what is running, and what ports are open on this machine.",
