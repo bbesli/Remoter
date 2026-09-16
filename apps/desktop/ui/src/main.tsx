@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 
 import { App } from "./app/App";
 import { installNativeFeel } from "./app/nativeFeel";
+import { applyRememberedTheme } from "./app/theme";
 import { createQueryClient } from "./app/queryClient";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { I18nProvider } from "./i18n";
@@ -17,6 +18,10 @@ const queryClient = createQueryClient();
 // Development builds keep them, because reload and the inspector are how the
 // interface is worked on. See `app/nativeFeel.ts`.
 if (import.meta.env.PROD) installNativeFeel();
+
+// The theme the window last showed, before the first frame is drawn. The
+// stored setting follows over IPC a moment later and wins. See `app/theme.ts`.
+applyRememberedTheme();
 
 const root = document.getElementById("root");
 if (!root) throw new Error("#root is missing from index.html");

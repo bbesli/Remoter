@@ -10,12 +10,9 @@
  * as an overlay rather than a second stacked bar.
  */
 
-import { useEffect } from "react";
-
 import { WindowControls } from "@/components/WindowChrome";
 import { DisconnectDialog, requestCloseWindow } from "@/features/sessions";
 import { useApp } from "@/stores/app";
-import { useSystemTheme } from "@/hooks/useSystemTheme";
 import { VaultPicker } from "@/features/vault/VaultPicker";
 import { CreateVaultWizard } from "@/features/vault/CreateVaultWizard";
 import { RecoveryKeyScreen } from "@/features/vault/RecoveryKeyScreen";
@@ -26,15 +23,13 @@ import { VaultSettings } from "@/features/vaultsettings/VaultSettings";
 import { AuditViewer } from "@/features/audit/AuditViewer";
 import { ImportWizard } from "@/features/import/ImportWizard";
 
+import { useAppliedTheme } from "./theme";
+
 export function App() {
   const screen = useApp((state) => state.screen);
-  const theme = useApp((state) => state.theme);
-  const systemTheme = useSystemTheme();
-
-  useEffect(() => {
-    const resolved = theme === "system" ? systemTheme : theme;
-    document.documentElement.dataset["theme"] = resolved;
-  }, [theme, systemTheme]);
+  // The stored theme, applied from the first frame rather than when Settings
+  // is first opened. See `app/theme.ts`.
+  useAppliedTheme();
 
   /*
    * The disconnect confirmation is mounted here, on both branches, for two
