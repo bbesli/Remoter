@@ -708,6 +708,13 @@
         "गेटवे के रूप में कोई कनेक्शन चुनें"
       ]
     },
+    "_comment_gateway-hop-not-ssh": "The core's own sentence names which hop and which protocol it is; this is the general form. SSH is a protocol name and is never translated.",
+    "gateway-hop-not-ssh": {
+      "message": "हर गेटवे हॉप का SSH कनेक्शन होना ज़रूरी है, क्योंकि ट्रैफ़िक SSH के ज़रिए आगे भेजा जाता है।",
+      "actions": [
+        "गेटवे के रूप में कोई SSH कनेक्शन चुनें"
+      ]
+    },
     "credential-unknown": {
       "message": "यह जिस क्रेडेंशियल का उपयोग करता है वह हटा दिया गया। कोई दूसरा चुनें, या अभी एक दर्ज करें।",
       "actions": [

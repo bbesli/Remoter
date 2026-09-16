@@ -394,6 +394,12 @@ export interface TreeNode {
    */
   attachedCredentialId: string | null;
   /**
+   * Connections and folders: the gateway chain set on this node itself.
+   * `null` when it is inherited; an empty list when this node explicitly
+   * connects directly. The effective chain is `EffectiveConnection.gatewayChain`.
+   */
+  gateway: GatewayHop[] | null;
+  /**
    * Credentials: the connection this credential belongs to, or `null` for a
    * shared one.
    *
@@ -475,6 +481,17 @@ export interface PrivateKeyInfo {
 }
 
 /** Carries a credential's password; see {@link UnlockRequest}. */
+/**
+ * One hop of a gateway chain: an SSH connection the session is forwarded
+ * through, and optionally the credential to authenticate to it with.
+ */
+export interface GatewayHop {
+  /** The connection that forwards. Must be an SSH connection. */
+  nodeId: string;
+  /** `null` uses the hop connection's own resolved credential. */
+  credentialId: string | null;
+}
+
 export interface CreateNode {
   parentId: string | null;
   kind: NodeKind;
@@ -501,6 +518,8 @@ export interface CreateNode {
    * credential, and the connection points at it.
    */
   credentialId?: string | null;
+  /** A gateway chain to set on the new node. Absent inherits; empty connects directly. */
+  gateway?: GatewayHop[] | null;
 }
 
 /** Carries a credential's password; see {@link UnlockRequest}. */
@@ -560,6 +579,12 @@ export interface UpdateNode {
    * `session.setting-invalid`, naming the key and never the value.
    */
   settings?: Record<string, string | null>;
+  /**
+   * The gateway chain to set on this node. An empty list connects directly,
+   * overriding a chain above; going back to the inherited chain is
+   * `clearOverrides: ["gateway"]`.
+   */
+  gateway?: GatewayHop[];
 }
 
 /**

@@ -708,6 +708,13 @@
         "Choisir une connexion comme passerelle"
       ]
     },
+    "_comment_gateway-hop-not-ssh": "The core's own sentence names which hop and which protocol it is; this is the general form. SSH is a protocol name and is never translated.",
+    "gateway-hop-not-ssh": {
+      "message": "Chaque saut de passerelle doit être une connexion SSH, car le trafic est relayé par SSH.",
+      "actions": [
+        "Choisir une connexion SSH comme passerelle"
+      ]
+    },
     "credential-unknown": {
       "message": "L'identifiant utilisé ici a été supprimé. Choisissez-en un autre, ou saisissez-en un maintenant.",
       "actions": [

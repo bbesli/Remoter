@@ -72,9 +72,9 @@ today* table in [README.md](../README.md#what-works-today).
 - ◐ Tabs: open, close and reorder work. ⏳ Detach does not
 - ✅ Local, remote and dynamic forwarding — in `remoter-proto-ssh` rather than a
   `remoter-tunnel` crate, which was never created
-- ◐ Jump host chains: built and honoured by every protocol and by tunnels, and
-  imported from `ssh_config`'s `ProxyJump`. ⏳ The connection editor has no
-  gateway field, so a chain cannot yet be configured by hand
+- ✅ Jump host chains: built and honoured by every protocol and by tunnels,
+  imported from `ssh_config`'s `ProxyJump`, and set in the connection editor on a
+  connection or a folder. ⏳ A per-hop credential cannot yet be chosen there
 - ✅ SSH agent integration, off by default
 - ⏳ **Presenter decision gate** — see the harness above. It was not run
 

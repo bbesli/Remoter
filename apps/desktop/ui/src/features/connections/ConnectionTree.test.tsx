@@ -51,6 +51,7 @@ function node(over: Partial<TreeNode> & { id: string }): TreeNode {
     agentCommentFilter: null,
     credentialId: null,
     attachedCredentialId: null,
+    gateway: null,
     attachedTo: null,
     credentialChange: null,
     inheritedFieldCount: 0,

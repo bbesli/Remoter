@@ -708,6 +708,13 @@
         "Eine Verbindung als Gateway wählen"
       ]
     },
+    "_comment_gateway-hop-not-ssh": "The core's own sentence names which hop and which protocol it is; this is the general form. SSH is a protocol name and is never translated.",
+    "gateway-hop-not-ssh": {
+      "message": "Jeder Gateway-Sprung muss eine SSH-Verbindung sein, denn der Verkehr wird über SSH weitergeleitet.",
+      "actions": [
+        "Eine SSH-Verbindung als Gateway wählen"
+      ]
+    },
     "credential-unknown": {
       "message": "Die hier verwendeten Anmeldedaten wurden gelöscht. Wählen Sie andere oder geben Sie jetzt welche ein.",
       "actions": [

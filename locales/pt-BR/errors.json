@@ -708,6 +708,13 @@
         "Escolher uma conexão como gateway"
       ]
     },
+    "_comment_gateway-hop-not-ssh": "The core's own sentence names which hop and which protocol it is; this is the general form. SSH is a protocol name and is never translated.",
+    "gateway-hop-not-ssh": {
+      "message": "Cada salto de gateway tem de ser uma conexão SSH, porque o tráfego é encaminhado por SSH.",
+      "actions": [
+        "Escolher uma conexão SSH como gateway"
+      ]
+    },
     "credential-unknown": {
       "message": "A credencial que isto usa foi excluída. Escolha outra, ou informe uma agora.",
       "actions": [

@@ -708,6 +708,13 @@
         "Elegir una conexión como pasarela"
       ]
     },
+    "_comment_gateway-hop-not-ssh": "The core's own sentence names which hop and which protocol it is; this is the general form. SSH is a protocol name and is never translated.",
+    "gateway-hop-not-ssh": {
+      "message": "Cada salto de pasarela tiene que ser una conexión SSH, porque el tráfico se reenvía a través de SSH.",
+      "actions": [
+        "Elegir una conexión SSH como pasarela"
+      ]
+    },
     "credential-unknown": {
       "message": "La credencial que usa esto se ha borrado. Elige otra, o introduce una ahora.",
       "actions": [

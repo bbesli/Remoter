@@ -79,6 +79,7 @@ import { useApp } from "@/stores/app";
 import { useModalRegistration } from "@/hooks/useModalRegistration";
 
 import { useFocusTrap } from "./focusTrap";
+import { GatewayField, sameHops, type GatewayDraft, type GatewayInheritance } from "./GatewayField";
 import { nodeGlyph, protocolClass } from "./NodeRow";
 import s from "./ConnectionEditor.module.css";
 
@@ -527,6 +528,36 @@ interface FormState {
    * keys that differ from where they started are sent.
    */
   settings: Record<string, Draft>;
+  /** Connections and folders: the jump hosts. `own: false` inherits. */
+  gateway: GatewayDraft;
+}
+
+/**
+ * The chain a node would inherit, read from its ancestors in the tree already
+ * on screen: the nearest folder that sets one. The same rule the core resolves
+ * by, applied to the nodes the editor already holds, so a connection still
+ * being created can show what it will inherit before it exists.
+ */
+function inheritedGateway(
+  nodes: readonly TreeNode[],
+  parentId: string | null,
+): GatewayInheritance {
+  const byId = new Map(nodes.map((node) => [node.id, node]));
+  const seen = new Set<string>();
+  let current = parentId;
+  while (current !== null && !seen.has(current)) {
+    seen.add(current);
+    const ancestor = byId.get(current);
+    if (ancestor === undefined) break;
+    if (ancestor.gateway !== null) {
+      return {
+        chain: ancestor.gateway.map((hop) => byId.get(hop.nodeId)?.name ?? hop.nodeId),
+        source: ancestor.name,
+      };
+    }
+    current = ancestor.parentId;
+  }
+  return { chain: null, source: null };
 }
 
 /**
@@ -703,6 +734,8 @@ function EditorDialog({ target }: { target: EditorTarget }) {
         // A connection that does not exist yet has no inheritance to resolve
         // and no settings section; the field is here so the shape is one shape.
         settings: {},
+        // Inherit, as every other inheritable field starts.
+        gateway: { own: false, hops: [] },
       });
       return;
     }
@@ -734,6 +767,7 @@ function EditorDialog({ target }: { target: EditorTarget }) {
       keyPath: "",
       keyPassphrase: "",
       settings: settingDrafts(resolved),
+      gateway: { own: node.gateway !== null, hops: node.gateway ?? [] },
     });
   }, [form, node, origin, resolvable, resolveQuery.data, resolved, target]);
 
@@ -746,6 +780,7 @@ function EditorDialog({ target }: { target: EditorTarget }) {
         : { own: true, value: node.port === null ? "" : String(node.port) },
       identity: seedIdentity(node, origin),
       settings: settingDrafts(resolved),
+      gateway: { own: node.gateway !== null, hops: node.gateway ?? [] },
     };
   }, [node, origin, resolved, target.mode]);
 
@@ -851,14 +886,27 @@ function EditorDialog({ target }: { target: EditorTarget }) {
   // A connection and a credential are the two kinds that carry a login. A
   // folder passes one down; it does not have one.
   const hasIdentity = isConnection === true || node?.kind === "credential";
+  // Jump hosts are set on a connection, or on a folder for everything in it.
+  const hasGateway =
+    isConnection === true ||
+    (target.mode === "create" ? target.kind === "folder" : node?.kind === "folder");
+  const gatewayInheritance = useMemo(
+    () =>
+      inheritedGateway(
+        nodes,
+        target.mode === "create" ? target.parentId : (node?.parentId ?? null),
+      ),
+    [nodes, node?.parentId, target],
+  );
 
   const plan = useMemo(() => {
     if (form === null || node === undefined || initial === null) return null;
     return buildPatch(form, node, initial, {
       isConnection: isConnection === true,
       hasIdentity,
+      hasGateway,
     });
-  }, [form, node, initial, isConnection, hasIdentity]);
+  }, [form, node, initial, isConnection, hasIdentity, hasGateway]);
 
   /*
    * The login this connection would fall back to, and where it comes from.
@@ -920,7 +968,8 @@ function EditorDialog({ target }: { target: EditorTarget }) {
 
   const dirty =
     target.mode === "create"
-      ? form !== null && (form.name !== "" || form.host.value !== "" || identityDirty)
+      ? form !== null &&
+        (form.name !== "" || form.host.value !== "" || identityDirty || form.gateway.own)
       : plan !== null && (Object.keys(plan.patch).length > 0 || plan.setsPassword || methodChanged);
 
   const keyStored = initial?.identity.own === true && initial.identity.auth === "privateKey";
@@ -1033,6 +1082,7 @@ function EditorDialog({ target }: { target: EditorTarget }) {
           // Lands on a credential the core attaches to this connection. That
           // is the whole reason typing a username on one server just works.
           username: writesIdentity ? nullIfBlank(form.username) : null,
+          ...(hasGateway && form.gateway.own ? { gateway: form.gateway.hops } : {}),
         },
         credential: writesIdentity ? credentialInputFor(form) : null,
       });
@@ -1410,6 +1460,24 @@ function EditorDialog({ target }: { target: EditorTarget }) {
                         }
                       />
                     )}
+                  </section>
+                </>
+              )}
+
+              {hasGateway && (
+                <>
+                  <div className={s.rule} />
+                  <section className={s.section}>
+                    <div className={s.sectionTitle}>{t("editor.sectionGateway")}</div>
+                    <GatewayField
+                      nodeId={target.mode === "edit" ? target.nodeId : null}
+                      kind={isConnection === true ? "connection" : "folder"}
+                      draft={form.gateway}
+                      inheritance={gatewayInheritance}
+                      nodes={nodes}
+                      disabled={busy}
+                      onChange={(gateway) => setForm({ ...form, gateway })}
+                    />
                   </section>
                 </>
               )}
@@ -2597,6 +2665,7 @@ interface InitialDrafts {
   identity: IdentityState;
   /** The settings as the core resolved them, so a patch carries only changes. */
   settings: Record<string, Draft>;
+  gateway: GatewayDraft;
 }
 
 /** What an edit does to the login, which is what the interface has to explain. */
@@ -2618,6 +2687,8 @@ interface PatchPlan {
 interface PatchKinds {
   isConnection: boolean;
   hasIdentity: boolean;
+  /** Connections and folders route through jump hosts. */
+  hasGateway: boolean;
 }
 
 /**
@@ -2661,6 +2732,18 @@ function buildPatch(
 
     const settings = settingsPatch(form.settings, initial.settings);
     if (settings !== undefined) patch.settings = settings;
+  }
+
+  if (kinds.hasGateway) {
+    if (form.gateway.own) {
+      // An own chain that did not change sends nothing; an own empty chain is
+      // "connect directly", which is an instruction and is sent.
+      if (!initial.gateway.own || !sameHops(form.gateway.hops, initial.gateway.hops)) {
+        patch.gateway = form.gateway.hops;
+      }
+    } else if (initial.gateway.own) {
+      clear.push("gateway");
+    }
   }
 
   const login = kinds.hasIdentity

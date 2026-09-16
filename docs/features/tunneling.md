@@ -5,10 +5,9 @@ network, is most of them.
 
 > **What ships.** Local, remote and dynamic forwarding, against a node, with or
 > without a shell; the loopback default and its opt-in; the live tunnel list.
-> Jump host chains work in the core and are honoured by every protocol —
-> ⏳ but the connection editor has no gateway field, so a chain can only reach a
-> connection by importing an `ssh_config` that has `ProxyJump`. ⏳ Also not
-> built: persistent tunnels with auto-start, reconnect and health checks; SOCKS5
+> Jump host chains work in the core, are honoured by every protocol, and are
+> set in the connection editor or imported from an `ssh_config`'s `ProxyJump`.
+> ⏳ Not built: persistent tunnels with auto-start, reconnect and health checks; SOCKS5
 > `UDP ASSOCIATE`; and every entry in the *Proxy support* table.
 
 ## Jump host chains
@@ -143,5 +142,4 @@ mechanisms with very different risk profiles:
 Remoter prefers chains and keeps agent forwarding off by default, with the risk
 stated inline where it is enabled — turning it on raises a session warning the
 user sees. ⏳ The editor does not yet point out that a connection with a gateway
-chain probably does not need agent forwarding, because the editor has no gateway
-field to notice.
+chain probably does not need agent forwarding.

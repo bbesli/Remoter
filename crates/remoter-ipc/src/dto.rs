@@ -326,6 +326,11 @@ pub struct NodeDto {
     /// credential is this connection's own username and secret, shown inline,
     /// while a shared one is a credential the user picked and is named as such.
     pub attached_credential_id: Option<String>,
+    /// Connections and folders: the gateway chain set **on this node**, hop by
+    /// hop, when one is. `None` when it is inherited; `Some(vec![])` when this
+    /// node explicitly connects directly, overriding a chain above it.
+    /// `node_resolve` is where the effective chain and its provenance are.
+    pub gateway: Option<Vec<GatewayHopDto>>,
     /// Credentials: the connection this credential belongs to, or `None` for a
     /// shared one.
     ///
@@ -351,6 +356,18 @@ pub struct NodeDto {
     /// How many nodes inherit something from this one; shown as "inherits 3".
     pub inherited_field_count: usize,
     pub updated_at: i64,
+}
+
+/// One hop of a gateway chain: the SSH connection traffic is forwarded
+/// through, and optionally the credential to authenticate to it with.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GatewayHopDto {
+    /// The connection node that forwards. Must be an SSH connection.
+    pub node_id: String,
+    /// The credential node to authenticate this hop with. `None` uses the
+    /// hop connection's own resolved credential.
+    pub credential_id: Option<String>,
 }
 
 /// How a credential authenticates, as the editor sends it.
@@ -431,6 +448,10 @@ pub struct CreateNodeDto {
     /// is how a connection reaches a private key or the agent — the key lives
     /// on a credential, and the connection points at it.
     pub credential_id: Option<String>,
+    /// Connections and folders: a gateway chain to set on the new node. Absent
+    /// inherits; an empty list connects directly.
+    #[serde(default)]
+    pub gateway: Option<Vec<GatewayHopDto>>,
 }
 
 /// **Review note (CLAUDE.md §5).** Carries a credential's password; see
@@ -469,6 +490,12 @@ pub struct UpdateNodeDto {
     /// other says "have one of your own", and guessing between them is not
     /// something this layer may do.
     pub credential_id: Option<String>,
+    /// Connections and folders: the gateway chain to set on this node, hop by
+    /// hop. An empty list is an explicit direct connection, overriding any
+    /// chain above; going back to the inherited chain is
+    /// `clearOverrides: ["gateway"]`.
+    #[serde(default)]
+    pub gateway: Option<Vec<GatewayHopDto>>,
     /// Field names to reset to `Inherited::Inherit`.
     pub clear_overrides: Option<Vec<String>>,
     /// Protocol settings to write on this node, one entry per key touched.
@@ -1447,6 +1474,7 @@ mod tests {
             password: Some(String::from(PASSWORD)),
             credential: None,
             credential_id: None,
+            gateway: None,
         };
         let rendered = format!("{create:?}");
         assert!(!rendered.contains(PASSWORD), "rendered: {rendered}");
@@ -1468,6 +1496,7 @@ mod tests {
             credential_id: None,
             clear_overrides: None,
             settings: None,
+            gateway: None,
         };
         let rendered = format!("{update:?}");
         assert!(!rendered.contains(PASSWORD), "rendered: {rendered}");
@@ -1492,6 +1521,7 @@ mod tests {
             credential_id: None,
             clear_overrides: None,
             settings: None,
+            gateway: None,
         };
         let rendered = format!("{update:?}");
         assert!(rendered.contains("password: None"), "rendered: {rendered}");

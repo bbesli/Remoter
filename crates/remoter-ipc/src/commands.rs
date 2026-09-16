@@ -20,9 +20,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use remoter_core::{
-    ConnectionProps, CredentialProps, CredentialRef, EffectiveConnection, GatewayChain, Inherited,
-    KeyFormat, Node, NodeId, NodeKind, NodeRef, Provenance, ReconnectPolicy, RecordingPolicy,
-    SecretKind, Tag, Tree, TreePatch, validate_port,
+    ConnectionProps, CredentialProps, CredentialRef, EffectiveConnection, GatewayChain, GatewayHop,
+    Inherited, KeyFormat, Node, NodeId, NodeKind, NodeRef, Provenance, ReconnectPolicy,
+    RecordingPolicy, SecretKind, Tag, Tree, TreePatch, validate_port,
 };
 use remoter_proto::{DefaultOrigin, OptionLabel, SettingField, SettingKind, SettingsSchema};
 use remoter_vault::{
@@ -36,8 +36,8 @@ use zeroize::Zeroizing;
 
 use crate::dto::{
     AppSettingsDto, BackupDto, CreateNodeDto, CreateVaultRequestDto, CreateVaultResultDto,
-    CredentialInputDto, EffectiveConnectionDto, KdfParamsDto, NodeDto, PasswordStrengthDto,
-    PrivateKeyInfoDto, ProtocolSchemaDto, RecentVaultDto, RecoverySheetDto,
+    CredentialInputDto, EffectiveConnectionDto, GatewayHopDto, KdfParamsDto, NodeDto,
+    PasswordStrengthDto, PrivateKeyInfoDto, ProtocolSchemaDto, RecentVaultDto, RecoverySheetDto,
     RecoverySheetWrittenDto, ResolvedFieldDto, SearchHitDto, SettingFieldDto, SettingKindDto,
     SettingOptionDto, SettingOptionLabelDto, ShortcutDto, SlotDto, UnlockRequestDto,
     UpdateCheckDto, UpdateNodeDto, UpdateReleaseDto, VaultProbeDto, VaultStateDto,
@@ -895,6 +895,9 @@ pub(crate) fn node_create_impl(
     if let Some(credential_id) = input.credential_id.as_deref() {
         attach_credential(&mut node.kind, &tree, credential_id, id)?;
     }
+    if let Some(hops) = input.gateway.as_deref() {
+        set_gateway(&mut node.kind, &tree, hops, id)?;
+    }
 
     // A username or a secret on a new connection becomes a credential of its
     // own, created here so that the connection is saved already pointing at it.
@@ -984,6 +987,9 @@ fn node_update_impl(
     apply_patch(&mut node, patch)?;
     if let Some(credential_id) = patch.credential_id.as_deref() {
         attach_credential(&mut node.kind, &tree, credential_id, id)?;
+    }
+    if let Some(hops) = patch.gateway.as_deref() {
+        set_gateway(&mut node.kind, &tree, hops, id)?;
     }
 
     let mut tree_patch = TreePatch::default();
@@ -2332,6 +2338,81 @@ fn build_kind(input: &CreateNodeDto, material: &CredentialMaterial) -> Result<No
 /// The reference is checked against the tree here rather than left to the
 /// storage layer: a connection pointing at something that is not a credential
 /// fails at connect time, which is the worst moment to find out.
+/// Sets a node's own gateway chain from the editor's list of hops.
+///
+/// The tree validates the rest when the node is written — a hop that is the
+/// node itself, one that is not in the vault, one that is not a connection, a
+/// repeated hop, a chain over the hop limit. What only this layer can know is
+/// which protocol can forward: the hop dialer is SSH, so a hop that is an RDP
+/// or a VNC connection would be accepted by the tree and then fail at connect
+/// time with a message about SSH to a machine that never spoke it. It is
+/// refused here, where the editor can say which hop and why.
+fn set_gateway(
+    kind: &mut NodeKind,
+    tree: &Tree,
+    hops: &[GatewayHopDto],
+    owner: NodeId,
+) -> Result<(), IpcError> {
+    let mut chain = GatewayChain::direct();
+    for (index, hop) in hops.iter().enumerate() {
+        let node_id = parse_node_id(&hop.node_id, "gateway.nodeId")?;
+        // A node routed through itself, or through one jump host twice.
+        // `Tree::update` does not look for either — the first was found by a
+        // test that expected a refusal and got a saved chain — and a session
+        // would only have refused them at connect time.
+        if node_id == owner
+            || chain
+                .hops
+                .iter()
+                .any(|earlier| earlier.node.id() == node_id)
+        {
+            return Err(IpcError::from_validation(
+                &remoter_core::ValidationError::GatewayCycle { hop: node_id },
+            ));
+        }
+        if let Some(target) = tree.get(node_id) {
+            if let Some(connection) = target.kind.as_connection() {
+                if connection.protocol.as_str() != "ssh" {
+                    return Err(IpcError::new(
+                        "validation.gateway-hop-not-ssh",
+                        format!(
+                            "Gateway hop {position} is `{name}`, a {protocol} connection. \
+                             Traffic is forwarded through SSH, so every hop has to be an SSH \
+                             connection.",
+                            position = index + 1,
+                            name = target.name,
+                            protocol = connection.protocol.as_str().to_uppercase(),
+                        ),
+                    )
+                    .with_actions(["Choose an SSH connection as the gateway"]));
+                }
+            }
+        }
+        chain.hops.push(match hop.credential_id.as_deref() {
+            Some(credential) => GatewayHop::with_credential(
+                node_id,
+                CredentialRef::live(parse_node_id(credential, "gateway.credentialId")?),
+            ),
+            None => GatewayHop::new(node_id),
+        });
+    }
+
+    // Length, a hop that is gone or is not a connection: the tree checks
+    // those when the node is written, and its refusals already say which.
+    match kind {
+        NodeKind::Connection(props) => props.gateway = Inherited::Explicit(chain),
+        NodeKind::Folder(props) => props.gateway = Inherited::Explicit(chain),
+        _ => {
+            return Err(IpcError::new(
+                "node.field-not-applicable",
+                "Only connections and folders route through a gateway.",
+            )
+            .with_actions(["Edit a connection or a folder instead"]));
+        }
+    }
+    Ok(())
+}
+
 fn attach_credential(
     kind: &mut NodeKind,
     tree: &Tree,
@@ -3027,6 +3108,19 @@ pub(crate) fn node_dto(tree: &Tree, node: &Node, counts: &BTreeMap<NodeId, usize
             .and_then(Inherited::explicit)
             .map(|credential| credential.id().to_string()),
         attached_credential_id: own_attached_credential(tree, node).map(|id| id.to_string()),
+        gateway: node
+            .gateway_field()
+            .and_then(Inherited::explicit)
+            .map(|chain| {
+                chain
+                    .hops
+                    .iter()
+                    .map(|hop| GatewayHopDto {
+                        node_id: hop.node.id().to_string(),
+                        credential_id: hop.credential.as_ref().map(|c| c.id().to_string()),
+                    })
+                    .collect()
+            }),
         attached_to: node
             .kind
             .as_credential()
@@ -4384,6 +4478,7 @@ mod tests {
             password: None,
             credential: None,
             credential_id: None,
+            gateway: None,
         }
     }
 
@@ -4399,6 +4494,7 @@ mod tests {
             password: None,
             credential: None,
             credential_id: None,
+            gateway: None,
         }
     }
 
@@ -4474,6 +4570,7 @@ mod tests {
                 password: Some(String::from("hunter2")),
                 credential: None,
                 credential_id: None,
+                gateway: None,
             },
         );
         assert!(
@@ -4518,6 +4615,7 @@ mod tests {
                 credential_id: None,
                 clear_overrides: None,
                 settings: None,
+                gateway: None,
             },
         );
         assert!(
@@ -4547,6 +4645,7 @@ mod tests {
                 credential_id: None,
                 clear_overrides: Some(vec![String::from("port")]),
                 settings: None,
+                gateway: None,
             },
         );
         assert!(cleared.is_ok_and(|node| node.port == Some(22)));
@@ -4569,6 +4668,7 @@ mod tests {
                 credential_id: None,
                 clear_overrides: None,
                 settings: None,
+                gateway: None,
             },
         );
         assert!(named.is_ok(), "setting a username failed: {}", why(&named));
@@ -5128,6 +5228,7 @@ mod tests {
             password: Some(String::from("hunter2")),
             credential: None,
             credential_id: None,
+            gateway: None,
         };
 
         let failed = node_create_impl(&state, &mut input);
@@ -5155,6 +5256,7 @@ mod tests {
             credential_id: None,
             clear_overrides: None,
             settings: None,
+            gateway: None,
         };
 
         let failed = node_update_impl(&state, Uuid::now_v7().to_string(), &mut patch);
@@ -5709,6 +5811,7 @@ mod credential_tests {
             password: None,
             credential: Some(credential),
             credential_id: None,
+            gateway: None,
         }
     }
 
@@ -6644,6 +6747,7 @@ mod credential_tests {
                 credential_id: None,
                 clear_overrides: None,
                 settings: None,
+                gateway: None,
             },
         );
         assert!(updated.is_ok(), "updating failed: {}", why(&updated));
@@ -6688,6 +6792,7 @@ mod credential_tests {
                 credential_id: None,
                 clear_overrides: None,
                 settings: None,
+                gateway: None,
             },
         );
         assert!(updated.is_ok(), "updating failed: {}", why(&updated));
@@ -6728,6 +6833,7 @@ mod credential_tests {
             password: None,
             credential: None,
             credential_id: None,
+            gateway: None,
         };
         let refused = build_kind(&input, &material);
         assert!(refused.is_err_and(|err| err.code == "node.field-not-applicable"));
@@ -6771,6 +6877,7 @@ mod credential_tests {
                 password: None,
                 credential: None,
                 credential_id: Some(key_credential.id.clone()),
+                gateway: None,
             },
         );
         assert!(created.is_ok(), "creating failed: {}", why(&created));
@@ -6814,6 +6921,7 @@ mod credential_tests {
                 credential_id: None,
                 clear_overrides: Some(vec![String::from("credential")]),
                 settings: None,
+                gateway: None,
             },
         );
         assert!(reverted.is_ok_and(|node| node.credential_id.is_none()));
@@ -6833,6 +6941,7 @@ mod credential_tests {
                 password: None,
                 credential: None,
                 credential_id: None,
+                gateway: None,
             },
         );
         let Ok(folder) = folder else {
@@ -6854,6 +6963,7 @@ mod credential_tests {
                 credential_id: Some(folder.id),
                 clear_overrides: None,
                 settings: None,
+                gateway: None,
             },
         );
         assert!(refused.is_err_and(|err| err.code == "validation.credential-kind"));
@@ -6874,6 +6984,7 @@ mod credential_tests {
                 credential_id: Some(Uuid::now_v7().to_string()),
                 clear_overrides: None,
                 settings: None,
+                gateway: None,
             },
         );
         assert!(missing.is_err_and(|err| err.code == "validation.credential-unknown"));
@@ -6910,6 +7021,7 @@ mod identity_tests {
             credential_id: None,
             clear_overrides: None,
             settings: None,
+            gateway: None,
         }
     }
 
@@ -6925,6 +7037,7 @@ mod identity_tests {
             password: None,
             credential: None,
             credential_id: None,
+            gateway: None,
         }
     }
 
@@ -7418,6 +7531,7 @@ mod settings_tests {
             credential_id: None,
             clear_overrides: None,
             settings: None,
+            gateway: None,
         }
     }
 
@@ -7454,6 +7568,7 @@ mod settings_tests {
                 password: None,
                 credential: None,
                 credential_id: None,
+                gateway: None,
             },
         )
     }
@@ -7472,6 +7587,7 @@ mod settings_tests {
                 password: None,
                 credential: None,
                 credential_id: None,
+                gateway: None,
             },
         )
     }
@@ -7658,5 +7774,240 @@ mod subtitle_kind_tests {
         ] {
             assert_eq!(kind.as_str(), expected);
         }
+    }
+}
+
+/// Jump hosts, set from the connection editor.
+///
+/// The core has resolved and dialled gateway chains for a long time; what was
+/// missing was a way to create one other than importing an `ssh_config`. These
+/// tests go through the same commands the editor calls and read the chain back
+/// the way a session reads it: through `node_resolve`.
+#[cfg(test)]
+#[expect(
+    clippy::panic,
+    reason = "a gateway test without a vault has nothing left to assert"
+)]
+mod gateway_tests {
+    use super::*;
+    use crate::test_support::{Scratch, open_vault};
+
+    fn create(
+        state: &AppState,
+        kind: &str,
+        name: &str,
+        protocol: Option<&str>,
+        parent: Option<&str>,
+    ) -> NodeDto {
+        let mut input = CreateNodeDto {
+            parent_id: parent.map(ToOwned::to_owned),
+            kind: kind.to_owned(),
+            name: name.to_owned(),
+            protocol: protocol.map(ToOwned::to_owned),
+            host: protocol.map(|_| format!("{name}.example.internal")),
+            port: None,
+            username: None,
+            password: None,
+            credential: None,
+            credential_id: None,
+            gateway: None,
+        };
+        match node_create_impl(state, &mut input) {
+            Ok(node) => node,
+            Err(err) => panic!("creating {name} failed: {}", err.message),
+        }
+    }
+
+    fn patch(gateway: Option<Vec<GatewayHopDto>>, clear: Option<Vec<String>>) -> UpdateNodeDto {
+        UpdateNodeDto {
+            name: None,
+            description: None,
+            tags: None,
+            colour: None,
+            host: None,
+            port: None,
+            username: None,
+            password: None,
+            credential: None,
+            credential_id: None,
+            clear_overrides: clear,
+            settings: None,
+            gateway,
+        }
+    }
+
+    fn hop(node: &NodeDto) -> GatewayHopDto {
+        GatewayHopDto {
+            node_id: node.id.clone(),
+            credential_id: None,
+        }
+    }
+
+    fn chain(state: &AppState, id: &str) -> Vec<String> {
+        match node_resolve_impl(state, id.to_owned()) {
+            Ok(effective) => effective.gateway_chain,
+            Err(err) => panic!("resolving failed: {}", err.message),
+        }
+    }
+
+    fn setup() -> (Scratch, AppState) {
+        let scratch = Scratch::new();
+        let Some(state) = open_vault(&scratch) else {
+            panic!("the vault could not be created");
+        };
+        (scratch, state)
+    }
+
+    #[test]
+    fn a_chain_set_in_the_editor_is_the_chain_a_session_resolves() {
+        let (_scratch, state) = setup();
+        let outer = create(&state, "connection", "bastion", Some("ssh"), None);
+        let inner = create(&state, "connection", "jump-2", Some("ssh"), None);
+        let target = create(&state, "connection", "db-01", Some("ssh"), None);
+
+        let updated = node_update_impl(
+            &state,
+            target.id.clone(),
+            &mut patch(Some(vec![hop(&outer), hop(&inner)]), None),
+        );
+        let Ok(updated) = updated else {
+            panic!("setting the chain failed");
+        };
+
+        assert_eq!(updated.gateway, Some(vec![hop(&outer), hop(&inner)]));
+        assert_eq!(
+            chain(&state, &target.id),
+            vec!["bastion", "jump-2"],
+            "outermost first"
+        );
+    }
+
+    #[test]
+    fn a_folder_chain_is_inherited_and_a_connection_can_go_direct_again() {
+        let (_scratch, state) = setup();
+        let bastion = create(&state, "connection", "bastion", Some("ssh"), None);
+        let folder = create(&state, "folder", "Production", None, None);
+        let target = create(
+            &state,
+            "connection",
+            "web-01",
+            Some("ssh"),
+            Some(&folder.id),
+        );
+
+        let set = node_update_impl(
+            &state,
+            folder.id.clone(),
+            &mut patch(Some(vec![hop(&bastion)]), None),
+        );
+        assert!(
+            set.is_ok(),
+            "a folder takes a chain for everything under it"
+        );
+        assert_eq!(chain(&state, &target.id), vec!["bastion"]);
+
+        // An empty list is an explicit "connect directly", not "inherit".
+        let direct = node_update_impl(
+            &state,
+            target.id.clone(),
+            &mut patch(Some(Vec::new()), None),
+        );
+        assert_eq!(direct.ok().and_then(|node| node.gateway), Some(Vec::new()));
+        assert!(chain(&state, &target.id).is_empty());
+
+        // And clearing the override brings the folder's chain back.
+        let cleared = node_update_impl(
+            &state,
+            target.id.clone(),
+            &mut patch(None, Some(vec![String::from("gateway")])),
+        );
+        assert_eq!(cleared.ok().map(|node| node.gateway), Some(None));
+        assert_eq!(chain(&state, &target.id), vec!["bastion"]);
+    }
+
+    #[test]
+    fn a_hop_that_cannot_forward_is_refused_where_it_is_chosen() {
+        let (_scratch, state) = setup();
+        let rdp = create(&state, "connection", "terminal-server", Some("rdp"), None);
+        let target = create(&state, "connection", "db-01", Some("ssh"), None);
+
+        let refused = node_update_impl(
+            &state,
+            target.id.clone(),
+            &mut patch(Some(vec![hop(&rdp)]), None),
+        );
+        let Err(err) = refused else {
+            panic!("an RDP connection was accepted as an SSH jump host");
+        };
+        assert_eq!(err.code, "validation.gateway-hop-not-ssh");
+        assert!(err.message.contains("terminal-server"), "{}", err.message);
+        assert!(
+            chain(&state, &target.id).is_empty(),
+            "a refused chain must not be written"
+        );
+    }
+
+    #[test]
+    fn a_connection_cannot_be_its_own_jump_host() {
+        let (_scratch, state) = setup();
+        let target = create(&state, "connection", "db-01", Some("ssh"), None);
+
+        let refused = node_update_impl(
+            &state,
+            target.id.clone(),
+            &mut patch(Some(vec![hop(&target)]), None),
+        );
+        assert!(
+            refused
+                .as_ref()
+                .is_err_and(|err| err.code == "validation.gateway-cycle"),
+            "expected validation.gateway-cycle, got {:?}",
+            refused.as_ref().err().map(|err| err.code.clone())
+        );
+    }
+
+    #[test]
+    fn a_jump_host_named_twice_in_one_chain_is_refused() {
+        let (_scratch, state) = setup();
+        let bastion = create(&state, "connection", "bastion", Some("ssh"), None);
+        let target = create(&state, "connection", "db-01", Some("ssh"), None);
+
+        let refused = node_update_impl(
+            &state,
+            target.id.clone(),
+            &mut patch(Some(vec![hop(&bastion), hop(&bastion)]), None),
+        );
+        assert!(
+            refused
+                .as_ref()
+                .is_err_and(|err| err.code == "validation.gateway-cycle"),
+            "expected validation.gateway-cycle, got {:?}",
+            refused.as_ref().err().map(|err| err.code.clone())
+        );
+    }
+
+    #[test]
+    fn a_chain_can_be_set_when_the_connection_is_created() {
+        let (_scratch, state) = setup();
+        let bastion = create(&state, "connection", "bastion", Some("ssh"), None);
+        let mut input = CreateNodeDto {
+            parent_id: None,
+            kind: String::from("connection"),
+            name: String::from("db-02"),
+            protocol: Some(String::from("rdp")),
+            host: Some(String::from("db-02.example.internal")),
+            port: None,
+            username: None,
+            password: None,
+            credential: None,
+            credential_id: None,
+            gateway: Some(vec![hop(&bastion)]),
+        };
+        let created = node_create_impl(&state, &mut input);
+        let Ok(created) = created else {
+            panic!("creating with a chain failed");
+        };
+        // The target may be any protocol; only the hops have to speak SSH.
+        assert_eq!(chain(&state, &created.id), vec!["bastion"]);
     }
 }

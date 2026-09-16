@@ -48,6 +48,7 @@ const CONNECTION: TreeNode = {
   agentCommentFilter: null,
   credentialId: null,
   attachedCredentialId: null,
+  gateway: null,
   attachedTo: null,
   credentialChange: null,
   inheritedFieldCount: 0,

@@ -114,6 +114,7 @@ fn fixture_for(protocol: &str, key_path: &str, passphrase: Option<&str>) -> Fixt
                 passphrase: passphrase.map(ToOwned::to_owned),
             }),
             credential_id: None,
+            gateway: None,
         },
     )
     .expect("the credential node should be created");
@@ -131,6 +132,7 @@ fn fixture_for(protocol: &str, key_path: &str, passphrase: Option<&str>) -> Fixt
             password: None,
             credential: None,
             credential_id: Some(credential.id.clone()),
+            gateway: None,
         },
     )
     .expect("the connection node should be created");

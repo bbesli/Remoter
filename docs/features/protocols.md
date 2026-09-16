@@ -273,9 +273,8 @@ them, and they are two different identifiers — and accepts any other
 identifier typed in, because Microsoft publishes several hundred.
 
 **Gateway**: ⏳ RD Gateway support is planned for v1.1. RDP through an SSH
-bastion works via the gateway chain, which covers most of the same need — though
-today a chain can only reach a connection by import, because the connection
-editor has no gateway field yet.
+bastion works via the gateway chain, set in the connection editor's Jump hosts
+section, which covers most of the same need.
 
 **Known gaps versus FreeRDP** — stated plainly because users will hit them:
 audio and microphone redirection, printer redirection, smart card redirection,

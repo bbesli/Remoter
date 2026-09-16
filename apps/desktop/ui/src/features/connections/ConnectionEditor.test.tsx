@@ -110,6 +110,7 @@ function node(over: Partial<TreeNode> & { id: string }): TreeNode {
     agentCommentFilter: null,
     credentialId: null,
     attachedCredentialId: null,
+    gateway: null,
     attachedTo: null,
     credentialChange: null,
     inheritedFieldCount: 0,
@@ -268,6 +269,17 @@ beforeEach(() => {
  * provenance line. `Field` wraps all of them in one element, which is what
  * makes "the Override button belonging to THIS setting" expressible.
  */
+/**
+ * The Credentials section alone. The jump host section below it has its own
+ * "Override here" and "Revert to inherited", so a login test that asked the
+ * whole dialog for one would be asking about two.
+ */
+async function credentialsSection(): Promise<HTMLElement> {
+  const found = (await screen.findByText("Credentials")).parentElement;
+  if (found === null) throw new Error("no Credentials section");
+  return found;
+}
+
 function row(label: string): HTMLElement {
   const found = screen.getByText(label).parentElement;
   if (found === null) throw new Error(`no field around the label ${label}`);
@@ -435,7 +447,7 @@ describe("a connection whose credential comes from a folder", () => {
     renderEditor({ mode: "edit", nodeId: "conn-1" });
 
     await user.click(
-      await screen.findByRole("button", { name: "Override here" }),
+      await within(await credentialsSection()).findByRole("button", { name: "Override here" }),
     );
 
     // The line that says the choice has a consequence — quiet, and at the
@@ -471,10 +483,10 @@ describe("a connection whose credential comes from a folder", () => {
     // Override, then change your mind: nothing of this connection's own was
     // ever saved, so there is nothing for the core to undo.
     await user.click(
-      await screen.findByRole("button", { name: "Override here" }),
+      await within(await credentialsSection()).findByRole("button", { name: "Override here" }),
     );
     await user.click(
-      screen.getByRole("button", { name: /Revert to inherited/ }),
+      within(await credentialsSection()).getByRole("button", { name: /Revert to inherited/ }),
     );
 
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();

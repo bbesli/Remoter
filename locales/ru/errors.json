@@ -708,6 +708,13 @@
         "Выбрать подключение в качестве шлюза"
       ]
     },
+    "_comment_gateway-hop-not-ssh": "The core's own sentence names which hop and which protocol it is; this is the general form. SSH is a protocol name and is never translated.",
+    "gateway-hop-not-ssh": {
+      "message": "Каждый переход шлюза должен быть SSH-подключением, потому что трафик передаётся через SSH.",
+      "actions": [
+        "Выбрать SSH-подключение в качестве шлюза"
+      ]
+    },
     "credential-unknown": {
       "message": "Учётные данные, которые здесь используются, удалены. Выберите другие или введите их сейчас.",
       "actions": [

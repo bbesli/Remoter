@@ -708,6 +708,13 @@
         "Ağ geçidi olarak bir bağlantı seç"
       ]
     },
+    "_comment_gateway-hop-not-ssh": "The core's own sentence names which hop and which protocol it is; this is the general form. SSH is a protocol name and is never translated.",
+    "gateway-hop-not-ssh": {
+      "message": "Her ağ geçidi sıçraması bir SSH bağlantısı olmalı, çünkü trafik SSH üzerinden iletilir.",
+      "actions": [
+        "Ağ geçidi olarak bir SSH bağlantısı seç"
+      ]
+    },
     "credential-unknown": {
       "message": "Bunun kullandığı kimlik bilgisi silinmiş. Başka birini seç ya da şimdi bir tane gir.",
       "actions": [

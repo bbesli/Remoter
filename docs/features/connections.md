@@ -189,7 +189,14 @@ schema, so a plugin protocol gets exactly the same editing experience as SSH.
 - The editor also states, per protocol, what *this build's* adapter cannot do —
   RDP's absent clipboard and redirection channels, VNC's fixed size — rather
   than omitting those settings and letting the absence read as an oversight
-- ⏳ There is no gateway field, so a jump chain cannot be configured here
+- ✅ Jump hosts are a section of the editor on a connection and on a folder: an
+  ordered list of SSH connections, the first reached directly and the last
+  reaching the host. A folder's chain is inherited with its source shown, and a
+  connection can override it with its own or with none — an explicit empty
+  chain, which is not the same instruction as inheriting. Only SSH connections
+  are offered, and the core refuses anything else, a hop that is the connection
+  itself, and a jump host named twice. ⏳ A per-hop credential cannot be chosen
+  here yet; each hop logs in with its own connection's credential
 - Cancel discards; there is no autosave, because a half-edited connection that
   silently persists is worse than one that is lost
 

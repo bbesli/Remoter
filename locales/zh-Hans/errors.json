@@ -708,6 +708,13 @@
         "选择一个连接作为网关"
       ]
     },
+    "_comment_gateway-hop-not-ssh": "The core's own sentence names which hop and which protocol it is; this is the general form. SSH is a protocol name and is never translated.",
+    "gateway-hop-not-ssh": {
+      "message": "每个网关跳点都必须是 SSH 连接，因为流量通过 SSH 转发。",
+      "actions": [
+        "选择一个 SSH 连接作为网关"
+      ]
+    },
     "credential-unknown": {
       "message": "这里使用的凭据已被删除。请选择其他凭据，或现在输入一个。",
       "actions": [

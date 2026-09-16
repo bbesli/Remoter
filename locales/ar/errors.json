@@ -708,6 +708,13 @@
         "اختيار اتصال ليكون البوابة"
       ]
     },
+    "_comment_gateway-hop-not-ssh": "The core's own sentence names which hop and which protocol it is; this is the general form. SSH is a protocol name and is never translated.",
+    "gateway-hop-not-ssh": {
+      "message": "يجب أن تكون كل قفزة بوابة اتصال SSH، لأن حركة البيانات تُمرَّر عبر SSH.",
+      "actions": [
+        "اختيار اتصال SSH ليكون البوابة"
+      ]
+    },
     "credential-unknown": {
       "message": "بيانات الاعتماد التي يستخدمها هذا قد حُذفت. اختر غيرها، أو أدخل واحدة الآن.",
       "actions": [
