@@ -429,7 +429,13 @@ fn an_include_naming_a_missing_file_says_which_one() {
     else {
         panic!("expected a read failure naming the file");
     };
-    assert_eq!(path, "/c/missing.conf");
+    // Compared as a path, not as a string. `normalise` rebuilds from
+    // components, so on Windows the same file is spelled `\\c\\missing.conf`
+    // and a string comparison fails over the separator while naming the right
+    // file. `Path` treats both separators as separators, which is the question
+    // the test is actually asking: does the refusal name the file it could not
+    // read.
+    assert_eq!(Path::new(&path), Path::new("/c").join("missing.conf"));
 }
 
 #[test]

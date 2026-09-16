@@ -6557,7 +6557,25 @@ mod credential_tests {
                 },
             ),
         );
-        assert!(created.is_ok(), "creating failed: {}", why(&created));
+        // This half has failed on macOS CI alone, where `ssh-keygen` is linked
+        // against LibreSSL rather than OpenSSL, and the message by itself does
+        // not say which container was written or at which stage it was
+        // refused. The armour header lines answer both and hold nothing secret
+        // — the banner, `Proc-Type` and the `DEK-Info` cipher name and IV of a
+        // throwaway key — so they go in the failure, and the base64 body does
+        // not.
+        assert!(
+            created.is_ok(),
+            "creating failed: {} [code {}; detail {:?}; header {:?}]",
+            why(&created),
+            created.as_ref().err().map_or("", |err| err.code.as_str()),
+            created.as_ref().err().and_then(|err| err.detail.clone()),
+            std::fs::read_to_string(&ec_file)
+                .unwrap_or_default()
+                .lines()
+                .take_while(|line| line.starts_with("-----") || line.contains(':'))
+                .collect::<Vec<_>>()
+        );
         let Ok(id) = created.map(|node| node.id).and_then(|id| {
             Uuid::parse_str(&id).map_err(|_| IpcError::invalid_request("id", "not a uuid"))
         }) else {
