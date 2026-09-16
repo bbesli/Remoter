@@ -442,6 +442,12 @@
       ]
     }
   },
+  "export": {
+    "encode": {
+      "message": "Las conexiones no se han podido codificar, así que no se ha escrito nada.",
+      "actions": []
+    }
+  },
   "import": {
     "too-large": {
       "message": "Ese archivo es más grande de lo que lee esta compilación. No se ha analizado nada.",

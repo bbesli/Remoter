@@ -93,6 +93,11 @@ const FAVOURITE_TAGS: ReadonlySet<string> = new Set(["favourite", "favorite"]);
 /** The children map keys roots under a value no node id can collide with. */
 const ROOT_KEY = " root";
 
+/** Whether the tree's menu offers to export a node: folders and connections. */
+function exportable(node: TreeNode): boolean {
+  return node.kind === "folder" || node.kind === "connection";
+}
+
 /** Keeps the context menu clear of the window edge it was opened against. */
 const MENU_MARGIN = 180;
 
@@ -651,6 +656,7 @@ export function ConnectionTree() {
   const expanded = useApp((st) => st.expanded);
   const toggleExpanded = useApp((st) => st.toggleExpanded);
   const setPaletteOpen = useApp((st) => st.setPaletteOpen);
+  const openExport = useApp((st) => st.openExport);
   const openEditor = useConnectionEditor((st) => st.open);
 
   const queryClient = useQueryClient();
@@ -2115,6 +2121,23 @@ export function ConnectionTree() {
           >
             <Icon name="settings" size={13} />
             {t("menu.edit")}
+          </button>
+          {/* A folder or a connection exports itself and what is under it;
+              empty space exports the vault. A credential on its own is not a
+              thing any of the formats has a place for. */}
+          <button
+            type="button"
+            role="menuitem"
+            className={s.menuItem}
+            disabled={menuNode !== null && !exportable(menuNode)}
+            onClick={() => {
+              if (menuNode !== null && !exportable(menuNode)) return;
+              setMenu(null);
+              openExport(menuNode?.id ?? null);
+            }}
+          >
+            <Icon name="upload" size={13} />
+            {t("menu.export")}
           </button>
           <button
             type="button"

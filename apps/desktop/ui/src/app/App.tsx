@@ -22,11 +22,14 @@ import { AppSettings } from "@/features/settings/AppSettings";
 import { VaultSettings } from "@/features/vaultsettings/VaultSettings";
 import { AuditViewer } from "@/features/audit/AuditViewer";
 import { ImportWizard } from "@/features/import/ImportWizard";
+import { TreeExportDialog } from "@/features/export";
 
 import { useAppliedTheme } from "./theme";
 
 export function App() {
   const screen = useApp((state) => state.screen);
+  const exportRequest = useApp((state) => state.exportRequest);
+  const closeExport = useApp((state) => state.closeExport);
   // The stored theme, applied from the first frame rather than when Settings
   // is first opened. See `app/theme.ts`.
   useAppliedTheme();
@@ -44,6 +47,12 @@ export function App() {
       <>
         <MainWindow />
         <DisconnectDialog />
+        {/* Here rather than in the tree, for the same reason as the dialog
+            above: it is opened from the title bar and the palette as well as
+            from the tree's menu. */}
+        {exportRequest !== null && (
+          <TreeExportDialog rootId={exportRequest.rootId} onClose={closeExport} />
+        )}
       </>
     );
   }

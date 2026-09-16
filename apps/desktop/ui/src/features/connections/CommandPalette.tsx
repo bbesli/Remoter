@@ -176,6 +176,7 @@ function PaletteSheet({ onClose }: { onClose: () => void }) {
   const { code: locale } = useLocale();
   const select = useApp((st) => st.select);
   const go = useApp((st) => st.go);
+  const openExport = useApp((st) => st.openExport);
   const openEditor = useConnectionEditor((st) => st.open);
   const queryClient = useQueryClient();
 
@@ -268,6 +269,15 @@ function PaletteSheet({ onClose }: { onClose: () => void }) {
         },
       },
       {
+        id: "export",
+        label: t("palette.actionExport"),
+        glyph: "upload",
+        run: () => {
+          onClose();
+          openExport(null);
+        },
+      },
+      {
         id: "audit",
         label: t("palette.actionAudit"),
         glyph: "file",
@@ -307,7 +317,7 @@ function PaletteSheet({ onClose }: { onClose: () => void }) {
     // there was no such action.
     const needle = foldForSearch(typed, locale);
     return all.filter((a) => foldForSearch(a.label, locale).includes(needle));
-  }, [query, locale, lock, locking, lockShortcut, onClose, openEditor, go, t]);
+  }, [query, locale, lock, locking, lockShortcut, onClose, openEditor, go, openExport, t]);
 
   const items = useMemo<Item[]>(
     () => [

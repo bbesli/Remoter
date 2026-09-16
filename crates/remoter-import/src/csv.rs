@@ -16,7 +16,7 @@
 //! | `password` | no | Plaintext. Sealed at commit; never written anywhere. |
 //! | `description` | no | Free-form notes. |
 //! | `tags` | no | `;`-separated. |
-//! | `gateway` | no | The `name` of another row, used as a jump host. |
+//! | `gateway` | no | The `name` of another row, used as a jump host — or several, joined by `>`, traversed in that order. |
 //!
 //! Column order does not matter and any optional column may be absent.
 //! Anything else in the header is kept: its values go into `custom_fields`
@@ -27,6 +27,13 @@
 //! delimiter is whichever of `,`, `;` and tab appears most often in the header,
 //! because a spreadsheet exported in a locale that uses `,` for decimals
 //! writes `;` and the user should not have to know that.
+//!
+//! A value that starts with `=`, `+`, `-` or `@` is one a spreadsheet runs as a
+//! formula, so the exporter writes it behind an apostrophe — the guard OWASP
+//! describes for CSV injection, and the one spreadsheets themselves use to
+//! mean "this is text". The reader takes one apostrophe back off such a value,
+//! in every column but `password`, which is how an exported name like `=prod`
+//! comes back as `=prod` and not as `'=prod`. See [`formula_like`].
 
 use std::collections::HashMap;
 
@@ -120,10 +127,17 @@ pub fn parse(bytes: &[u8], limits: &Limits) -> Result<ImportPreview, ImportError
 
     for row in rows {
         let field = |name: &str| -> &str {
-            columns
+            let value = columns
                 .get(name)
                 .and_then(|index| row.get(*index))
-                .map_or("", |value| value.trim())
+                .map_or("", |value| value.trim());
+            // A password is taken exactly as written: this reader cannot know
+            // whether an apostrophe in one is a guard or a character.
+            if name == "password" {
+                value
+            } else {
+                unguard(value)
+            }
         };
 
         let host = field("host");
@@ -231,23 +245,24 @@ pub fn parse(bytes: &[u8], limits: &Limits) -> Result<ImportPreview, ImportError
     }
 
     for (connection, connection_name, target) in pending {
-        match by_name.get(&target) {
-            Some(hop) if *hop != connection => {
+        match route(&target, &by_name, connection) {
+            Some(hops) => {
+                let count = hops.len();
                 builder.set_gateway(
                     connection,
                     Inherited::Explicit(GatewayChain {
-                        hops: vec![GatewayHop::new(*hop)],
+                        hops: hops.into_iter().map(GatewayHop::new).collect(),
                     }),
                 );
                 builder.report_mut().push(
                     limits,
                     Finding::GatewayMapped {
                         item: connection_name,
-                        hops: 1,
+                        hops: count,
                     },
                 );
             }
-            _ => {
+            None => {
                 if let Some(node) = builder.node_mut(connection) {
                     if let Some(key) = custom_key("csv", "gateway") {
                         preserve(node, key, target.clone(), limits.max_custom_fields);
@@ -271,6 +286,52 @@ pub fn parse(bytes: &[u8], limits: &Limits) -> Result<ImportPreview, ImportError
     }
     credentials.finish(&mut builder);
     Ok(builder.finish())
+}
+
+/// The hops a `gateway` cell names, or `None` when any of them is not a row.
+///
+/// The whole cell is tried as one name first, so a connection whose name has a
+/// `>` in it still works as a single hop. Otherwise the cell is a `>`-separated
+/// route, and every hop has to resolve: a route missing its middle leads
+/// somewhere other than where the file says. A hop that is the connection
+/// itself, a hop visited twice and a route longer than the domain model allows
+/// are refused for the same reason.
+fn route(cell: &str, by_name: &HashMap<String, NodeId>, connection: NodeId) -> Option<Vec<NodeId>> {
+    let hops: Vec<NodeId> = match by_name.get(cell) {
+        Some(hop) => vec![*hop],
+        None => cell
+            .split('>')
+            .map(|name| by_name.get(name.trim()).copied())
+            .collect::<Option<Vec<_>>>()?,
+    };
+    let mut seen = std::collections::HashSet::new();
+    let usable = !hops.is_empty()
+        && hops.len() <= remoter_core::MAX_GATEWAY_HOPS
+        && hops
+            .iter()
+            .all(|hop| *hop != connection && seen.insert(*hop));
+    usable.then_some(hops)
+}
+
+/// Whether a spreadsheet would take `value` as a formula once one leading
+/// apostrophe is gone.
+///
+/// Leading apostrophes are looked through, which is what makes the guard
+/// reversible for a value that really does start with one: `'=x` is written
+/// `''=x` and read back as `'=x`. A tab or a carriage return at the start
+/// counts too, because OWASP lists both as ways into a formula.
+pub(crate) fn formula_like(value: &str) -> bool {
+    value
+        .trim_start_matches('\'')
+        .starts_with(['=', '+', '-', '@', '\t', '\r'])
+}
+
+/// Takes the exporter's guard apostrophe back off a value.
+fn unguard(value: &str) -> &str {
+    match value.strip_prefix('\'') {
+        Some(rest) if formula_like(rest) => rest,
+        _ => value,
+    }
 }
 
 /// Creates folder nodes for `/`-separated paths, once each.

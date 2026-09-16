@@ -131,6 +131,6 @@ pub use session::{
 };
 pub use sftp::{
     DirectoryEntry, EntryKind, SftpBrowser, TransferDirection, TransferId, TransferQueue,
-    TransferRequest, TransferState, TransferStatus, run_queue,
+    TransferRequest, TransferState, TransferStatus, run_queue, run_queue_reporting,
 };
 pub use socks::{Socks5Address, Socks5Command, Socks5Error, Socks5Reply, Socks5Request};

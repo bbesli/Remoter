@@ -48,8 +48,8 @@ port forwarding, three importers, the audit log and ten localisations are
 implemented and have been used against real servers.
 
 What is **not** implemented, so that you do not go looking for it: session
-recording of any kind, the FIDO2 key slot, FTP, the plugin host, export in any
-format, the clipboard, and tab detach or split view. `docs/` is a specification
+recording of any kind, the FIDO2 key slot, FTP, the plugin host, the encrypted
+`.rmtr` archive, the clipboard, and tab detach or split view. `docs/` is a specification
 that describes the finished product, so it describes more than exists —
 [README.md](README.md#what-works-today) carries the shipped-versus-planned
 table, and §3 below is the tree as it actually is.
@@ -112,7 +112,8 @@ crates/
                         dynamic forwarding, the SOCKS5 server
   remoter-proto-rdp/    RDP (IronRDP), CredSSP/NTLMv2
   remoter-proto-vnc/    VNC / RFB (vnc-rs), with the handshake owned here
-  remoter-import/       mRemoteNG confCons.xml, ssh_config, CSV
+  remoter-import/       mRemoteNG confCons.xml, ssh_config, CSV; and the
+                        CSV / ssh_config / JSON exporters
   remoter-plugin-abi/   Plugin ABI types and wire format   (Apache-2.0 OR MIT)
   remoter-plugin-sdk/   Guest-side helpers for plugin authors (Apache-2.0 OR MIT)
   remoter-ipc/          Tauri command surface — the ONLY crate Tauri touches

@@ -22,21 +22,21 @@ use crate::storage::{AuditEvent, AuditOutcome};
 /// Four of them are a partition of the event names: every event belongs to
 /// exactly one. [`AuditCategory::Warning`] is the exception and deliberately
 /// cuts across the others — it is what someone reviewing an incident scrolls
-/// for, which is a question about outcomes and about three specific events, not
+/// for, which is a question about outcomes and about four specific events, not
 /// about which subsystem wrote the row.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum AuditCategory {
     /// The vault file itself: unlocks, saves, key slots, settings.
     Vault,
-    /// The tree: nodes created, changed, moved, deleted.
+    /// The tree: nodes created, changed, moved, deleted, imported, exported.
     Node,
     /// Secret fields: stored, used, revealed, exported.
     Secret,
-    /// Sessions and the trust store.
+    /// Sessions, the files they transfer, and the trust store.
     Connection,
     /// Anything that did not succeed, plus the events an incident review looks
     /// for whether or not they succeeded: a refused host key, a plaintext
-    /// export, a failed unlock.
+    /// export, a copy of the tree leaving the vault, a failed unlock.
     Warning,
 }
 
@@ -47,6 +47,7 @@ pub enum AuditCategory {
 const ALWAYS_A_WARNING: &[AuditEvent] = &[
     AuditEvent::TrustRejected,
     AuditEvent::SecretExported,
+    AuditEvent::DataExported,
     AuditEvent::VaultUnlockFailed,
 ];
 

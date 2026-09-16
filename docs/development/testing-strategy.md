@@ -72,7 +72,7 @@ proptest! {
     }
 
     /// ⏳ Export then import reproduces the original exactly. Does not exist:
-    /// neither `export_json` nor `import_json` is a function in this workspace.
+    /// the JSON export is written, and nothing reads it back.
     #[test]
     fn export_import_roundtrip(tree in arb_tree()) {
         let exported = export_json(&tree)?;
@@ -82,9 +82,10 @@ proptest! {
 }
 ```
 
-Targets today: ✅ inheritance resolution, tree operations, and the importers.
-⏳ Export/import round trips (no export), gateway chain validation and vault
-serialise/deserialise have no property test.
+Targets today: ✅ inheritance resolution, tree operations, the importers, and a
+CSV export of arbitrary field contents read back through the CSV importer.
+⏳ The lossless JSON round trip (no JSON importer), gateway chain validation and
+vault serialise/deserialise have no property test.
 
 ## Fuzzing
 

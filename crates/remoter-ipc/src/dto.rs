@@ -939,6 +939,29 @@ pub struct AuditExportResultDto {
     pub bytes: u64,
 }
 
+// --------------------------------------------------------------- export ----
+
+/// Which part of the tree to write, where, and as what.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TreeExportDto {
+    pub path: String,
+    /// `"csv" | "ssh-config" | "json"`
+    pub format: String,
+    /// The folder or connection to export with everything under it. Absent
+    /// exports the whole vault.
+    pub root_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TreeExportResultDto {
+    pub path: String,
+    pub bytes: u64,
+    /// What went into the file and what could not. Names and hosts only.
+    pub report: remoter_import::export::ExportReport,
+}
+
 // --------------------------------------------------------------- import ----
 
 /// What a file appears to be, before anything is parsed.

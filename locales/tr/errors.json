@@ -442,6 +442,12 @@
       ]
     }
   },
+  "export": {
+    "encode": {
+      "message": "Bağlantılar kodlanamadı; bu yüzden hiçbir şey yazılmadı.",
+      "actions": []
+    }
+  },
   "import": {
     "too-large": {
       "message": "Bu dosya, bu yapının okuduğundan daha büyük. Hiçbir şey ayrıştırılmadı.",

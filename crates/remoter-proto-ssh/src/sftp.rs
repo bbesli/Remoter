@@ -2150,7 +2150,26 @@ pub async fn run_queue(
     events: Option<&EventSink>,
     cancel: &CancellationToken,
 ) {
-    drain(browser, queue, events, cancel).await;
+    drain(browser, queue, events, cancel, &mut |_, _| {}).await;
+}
+
+/// [`run_queue`], telling `on_finished` about each transfer that ran.
+///
+/// Called once per transfer that was started and then ended — completed,
+/// failed, or stopped by the user or the session — with what was asked for and
+/// how it ended, before the queue shows the new state. Not called for a
+/// transfer the session was cancelled before it started: nothing moved.
+///
+/// This is how the audit log learns that a file left the machine or arrived on
+/// it, without this crate knowing there is an audit log.
+pub async fn run_queue_reporting(
+    browser: &SftpBrowser,
+    queue: &TransferQueue,
+    events: Option<&EventSink>,
+    cancel: &CancellationToken,
+    on_finished: &mut (dyn FnMut(&TransferRequest, &TransferState) + Send),
+) {
+    drain(browser, queue, events, cancel, on_finished).await;
 }
 
 async fn drain<T: Transferrer>(
@@ -2158,6 +2177,7 @@ async fn drain<T: Transferrer>(
     queue: &TransferQueue,
     events: Option<&EventSink>,
     cancel: &CancellationToken,
+    on_finished: &mut (dyn FnMut(&TransferRequest, &TransferState) + Send),
 ) {
     while let Some((request, id, transfer_cancel)) = queue.take_next() {
         if cancel.is_cancelled() {
@@ -2194,6 +2214,7 @@ async fn drain<T: Transferrer>(
             Err(ProtocolError::Cancelled) => TransferState::Cancelled,
             Err(error) => TransferState::Failed(remoter_proto::FailureReport::from(&error)),
         };
+        on_finished(&request, &state);
         queue.set_state(id, state);
         if cancel.is_cancelled() {
             return;
@@ -2790,7 +2811,8 @@ mod tests {
         let runner = NeverFinishes {
             started: Arc::clone(&started),
         };
-        let draining = drain(&runner, &queue, None, &cancel);
+        let mut ignore = |_: &TransferRequest, _: &TransferState| {};
+        let draining = drain(&runner, &queue, None, &cancel, &mut ignore);
         let watching = async {
             started.notified().await;
             assert!(
@@ -3020,7 +3042,8 @@ mod tests {
         let runner = NeverFinishes {
             started: Arc::clone(&started),
         };
-        let draining = drain(&runner, &queue, None, &cancel);
+        let mut ignore = |_: &TransferRequest, _: &TransferState| {};
+        let draining = drain(&runner, &queue, None, &cancel, &mut ignore);
         let watching = async {
             // The first transfer is moving; stop it alone.
             started.notified().await;
@@ -3042,6 +3065,86 @@ mod tests {
             TransferState::Cancelled,
             "the session token stopped the second one"
         );
+    }
+
+    /// Moves the whole file at once, or fails the way a server does.
+    struct Finishes {
+        outcome: Result<u64, ()>,
+    }
+
+    impl Transferrer for Finishes {
+        async fn transfer(
+            &self,
+            _request: &TransferRequest,
+            _events: Option<&EventSink>,
+            _cancel: &CancellationToken,
+            _on_start: &mut (dyn FnMut(TransferStart) + Send),
+            _on_progress: &mut (dyn FnMut(u64, Option<u64>) + Send),
+        ) -> Result<u64, ProtocolError> {
+            self.outcome.map_err(|()| ProtocolError::Io {
+                operation: "writing the file",
+                source: std::io::Error::from(std::io::ErrorKind::PermissionDenied),
+            })
+        }
+    }
+
+    /// Each transfer that ran is reported once, with how it ended — the hook
+    /// the audit log hangs off. One that never started is not reported.
+    #[tokio::test]
+    async fn every_transfer_that_ran_is_reported_once_with_its_ending() {
+        let queue = TransferQueue::new(1);
+        let upload = queue.enqueue(request(TransferDirection::Upload));
+        let download = queue.enqueue(request(TransferDirection::Download));
+        let cancel = CancellationToken::new();
+        let mut seen: Vec<(TransferDirection, TransferState)> = Vec::new();
+
+        let runner = Finishes { outcome: Ok(4096) };
+        drain(&runner, &queue, None, &cancel, &mut |request, state| {
+            seen.push((request.direction, state.clone()));
+        })
+        .await;
+        assert_eq!(
+            seen,
+            [
+                (
+                    TransferDirection::Upload,
+                    TransferState::Completed { bytes: 4096 }
+                ),
+                (
+                    TransferDirection::Download,
+                    TransferState::Completed { bytes: 4096 }
+                ),
+            ]
+        );
+        assert_eq!(
+            queue.status(upload).unwrap().state,
+            TransferState::Completed { bytes: 4096 }
+        );
+        assert_eq!(
+            queue.status(download).unwrap().state,
+            TransferState::Completed { bytes: 4096 }
+        );
+
+        seen.clear();
+        queue.enqueue(request(TransferDirection::Upload));
+        let runner = Finishes { outcome: Err(()) };
+        drain(&runner, &queue, None, &cancel, &mut |request, state| {
+            seen.push((request.direction, state.clone()));
+        })
+        .await;
+        assert!(matches!(
+            seen.as_slice(),
+            [(TransferDirection::Upload, TransferState::Failed(_))]
+        ));
+
+        seen.clear();
+        queue.enqueue(request(TransferDirection::Download));
+        cancel.cancel();
+        drain(&runner, &queue, None, &cancel, &mut |request, state| {
+            seen.push((request.direction, state.clone()));
+        })
+        .await;
+        assert!(seen.is_empty(), "nothing moved, so nothing is reported");
     }
 
     #[test]

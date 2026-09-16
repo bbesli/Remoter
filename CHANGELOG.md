@@ -236,6 +236,34 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 - `docs/architecture/sftp-command-surface.md`: what the file manager needs from
   `remoter-ipc`
 
+#### Export
+- The connection tree, or one folder of it, exports as **CSV**, an **OpenSSH
+  config** or **JSON**, from the title bar, the command palette or the tree's
+  menu. No password, private key or passphrase is written in any of the three,
+  and the dialog says so — and says that the file itself is not encrypted —
+  before the button
+- CSV rows carry each connection's effective values, so a port or an account a
+  folder sets appears on every row under it. The OpenSSH config writes SSH and
+  SFTP connections as `Host` blocks with `ProxyJump` routes, under aliases `ssh`
+  can actually select. The JSON is the tree as the vault stores it, inheritance
+  and all
+- Both flat formats read back through their importers as the same connections,
+  under test. The CSV importer now reads a route of several jump hosts joined by
+  `>`, and a value the exporter guarded against spreadsheet formula injection
+  comes back without its guard
+- Whatever a format could not say the way the vault says it — an RDP host in an
+  OpenSSH config, a route through a jump host that shares its name with another
+  connection, a folder name with a `/` in it — is listed after the export
+  instead of being dropped quietly
+
+#### Audit
+- Imports, exports and file transfers are recorded. An import writes one row
+  naming its source and counts beside the rows for the entries it created; an
+  export writes its format, count and destination and shows under Warnings; an
+  upload or a download through a file pane writes both paths, the size and the
+  session, and a failed one is a warning. Exporting the audit log is now recorded
+  as the data export it is rather than as a secret leaving the vault
+
 #### Packaging and release
 - Installers for Windows and macOS beside the Linux ones that already existed:
   an NSIS `-setup.exe` and an `.msi` on Windows, and a universal `.dmg` on

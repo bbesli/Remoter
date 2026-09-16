@@ -435,11 +435,41 @@ fn literal_aliases(blocks: &[Block]) -> Vec<String> {
     out
 }
 
-/// `HostName` with the `%h` token expanded, or the alias when there is none.
+/// `HostName` with its tokens expanded, or the alias when there is none.
+///
+/// `%h` is the alias and `%%` a literal `%`, read left to right in one pass so
+/// that `%%h` is a percent sign and an `h`, as `ssh` reads it. An IPv6 literal
+/// is written bare in an `ssh_config` and kept bracketed in the domain model,
+/// so the brackets are added here.
 fn resolve_hostname(options: &Effective, alias: &str) -> String {
-    options
-        .get("hostname")
-        .map_or_else(|| alias.to_owned(), |name| name.replace("%h", alias))
+    let Some(written) = options.get("hostname") else {
+        return alias.to_owned();
+    };
+    let mut name = String::with_capacity(written.len());
+    let mut chars = written.chars();
+    while let Some(c) = chars.next() {
+        if c != '%' {
+            name.push(c);
+            continue;
+        }
+        match chars.next() {
+            Some('h') => name.push_str(alias),
+            Some('%') => name.push('%'),
+            Some(other) => {
+                name.push('%');
+                name.push(other);
+            }
+            None => name.push('%'),
+        }
+    }
+    let address = name
+        .split_once('%')
+        .map_or(name.as_str(), |(address, _)| address);
+    if address.parse::<std::net::Ipv6Addr>().is_ok() {
+        format!("[{name}]")
+    } else {
+        name
+    }
 }
 
 /// A value that came from the defaults block is inherited from the folder that

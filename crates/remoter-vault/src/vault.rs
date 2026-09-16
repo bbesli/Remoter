@@ -1847,6 +1847,21 @@ impl Vault {
             .audit(now_millis(), event, outcome, Some(node), None, detail)
     }
 
+    /// The same, attributed to the session it happened in as well — a file
+    /// moved over a session's connection, say. `session` is the id
+    /// [`Vault::session_start`] returned.
+    pub fn audit_in_session(
+        &mut self,
+        event: AuditEvent,
+        outcome: AuditOutcome,
+        node: Option<Uuid>,
+        session: Option<Uuid>,
+        detail: Option<&str>,
+    ) -> Result<(), VaultError> {
+        self.store
+            .audit(now_millis(), event, outcome, node, session, detail)
+    }
+
     /// The most recent audit entries, newest first, as
     /// `(timestamp_millis, event, outcome, detail)`.
     pub fn audit_recent(&self, limit: usize) -> Result<Vec<AuditEntry>, VaultError> {

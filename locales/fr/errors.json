@@ -442,6 +442,12 @@
       ]
     }
   },
+  "export": {
+    "encode": {
+      "message": "Les connexions n'ont pas pu être encodées ; rien n'a donc été écrit.",
+      "actions": []
+    }
+  },
   "import": {
     "too-large": {
       "message": "Ce fichier est plus grand que ce que cette build lit. Rien n'a été analysé.",

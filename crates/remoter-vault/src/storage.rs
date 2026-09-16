@@ -83,6 +83,11 @@ pub enum AuditEvent {
     NodeDeleted,
     /// A node was reparented or reordered.
     NodeMoved,
+    /// Entries were brought into the vault from another manager's file.
+    DataImported,
+    /// Entries were written to a file outside the vault. Never their secrets:
+    /// a secret leaving the vault is [`AuditEvent::SecretExported`].
+    DataExported,
     /// A secret field was written.
     SecretStored,
     /// A secret field was deleted.
@@ -101,6 +106,10 @@ pub enum AuditEvent {
     SessionStarted,
     /// A session ended.
     SessionEnded,
+    /// A file was copied from this computer to a remote host.
+    FileUploaded,
+    /// A file was copied from a remote host to this computer.
+    FileDownloaded,
     /// An application setting changed.
     SettingChanged,
 }
@@ -128,6 +137,8 @@ impl AuditEvent {
         Self::NodeUpdated,
         Self::NodeDeleted,
         Self::NodeMoved,
+        Self::DataImported,
+        Self::DataExported,
         Self::SecretStored,
         Self::SecretRemoved,
         Self::SecretUsed,
@@ -137,6 +148,8 @@ impl AuditEvent {
         Self::TrustRejected,
         Self::SessionStarted,
         Self::SessionEnded,
+        Self::FileUploaded,
+        Self::FileDownloaded,
         Self::SettingChanged,
     ];
 
@@ -162,9 +175,12 @@ impl AuditEvent {
             | Self::KdfUpgraded
             | Self::SettingChanged => AuditCategory::Vault,
 
-            Self::NodeCreated | Self::NodeUpdated | Self::NodeDeleted | Self::NodeMoved => {
-                AuditCategory::Node
-            }
+            Self::NodeCreated
+            | Self::NodeUpdated
+            | Self::NodeDeleted
+            | Self::NodeMoved
+            | Self::DataImported
+            | Self::DataExported => AuditCategory::Node,
 
             Self::SecretStored
             | Self::SecretRemoved
@@ -172,9 +188,12 @@ impl AuditEvent {
             | Self::SecretRevealed
             | Self::SecretExported => AuditCategory::Secret,
 
-            Self::TrustPinned | Self::TrustRejected | Self::SessionStarted | Self::SessionEnded => {
-                AuditCategory::Connection
-            }
+            Self::TrustPinned
+            | Self::TrustRejected
+            | Self::SessionStarted
+            | Self::SessionEnded
+            | Self::FileUploaded
+            | Self::FileDownloaded => AuditCategory::Connection,
         }
     }
 
@@ -198,6 +217,8 @@ impl AuditEvent {
             Self::NodeUpdated => "node_updated",
             Self::NodeDeleted => "node_deleted",
             Self::NodeMoved => "node_moved",
+            Self::DataImported => "data_imported",
+            Self::DataExported => "data_exported",
             Self::SecretStored => "secret_stored",
             Self::SecretRemoved => "secret_removed",
             Self::SecretUsed => "secret_used",
@@ -207,6 +228,8 @@ impl AuditEvent {
             Self::TrustRejected => "trust_rejected",
             Self::SessionStarted => "session_started",
             Self::SessionEnded => "session_ended",
+            Self::FileUploaded => "file_uploaded",
+            Self::FileDownloaded => "file_downloaded",
             Self::SettingChanged => "setting_changed",
         }
     }
@@ -1308,7 +1331,7 @@ fn audit_filter(query: &AuditQuery) -> (String, Vec<Value>) {
         for category in query.categories() {
             match category {
                 // Defined by outcome as much as by event: anything that did not
-                // succeed, plus the three events a review looks for whether or
+                // succeed, plus the events a review looks for whether or
                 // not they succeeded.
                 AuditCategory::Warning => {
                     let names: Vec<String> = AuditEvent::ALL

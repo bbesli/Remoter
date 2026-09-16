@@ -53,7 +53,10 @@ pub(crate) fn audit_query(
     audit_query_impl(&state, query)
 }
 
-fn audit_query_impl(state: &AppState, query: AuditQueryDto) -> Result<AuditPageDto, IpcError> {
+pub(crate) fn audit_query_impl(
+    state: &AppState,
+    query: AuditQueryDto,
+) -> Result<AuditPageDto, IpcError> {
     let page = query.page.unwrap_or(0);
     let page_size = query
         .page_size
@@ -206,18 +209,17 @@ fn audit_export_impl(
     let size = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
     write_atomic(&path, &bytes)?;
 
-    // The log records that a copy of it left the vault. `remoter-vault` has no
-    // event of its own for this, and `SecretExported` is the one that carries
-    // the meaning that matters — data left the vault, deliberately, and an
-    // incident review should see it. The detail says what was exported, so the
-    // row cannot be misread as credentials leaving in plaintext.
+    // The log records that a copy of it left the vault. `DataExported` rather
+    // than `SecretExported`: data left the vault, deliberately, and an incident
+    // review should see it — but no credential did, and the row must not say
+    // one did. Both events are under the warnings filter.
     let detail = format!(
         "audit log exported: {} entries, {format}, to {}",
         entries.len(),
         path.display()
     );
     if let Err(err) = vault.audit(
-        AuditEvent::SecretExported,
+        AuditEvent::DataExported,
         AuditOutcome::Success,
         Some(&detail),
     ) {

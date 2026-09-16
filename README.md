@@ -18,7 +18,7 @@ RDP · SSH · VNC · SFTP — every session in a tab, every secret in a vault yo
 > four protocol adapters — SSH, SFTP, RDP and VNC — are implemented and have
 > been used against real servers. Several advertised-looking features are not
 > built yet: no session recording, no FIDO2 key slot, no FTP, no plugin host, no
-> export, no clipboard. [What works, and what does not](#what-works-today) is
+> clipboard. [What works, and what does not](#what-works-today) is
 > the honest table; the [roadmap](docs/roadmap.md) is where the rest sits.
 >
 > Do not put your only copy of a credential in it yet. Builds are unsigned and
@@ -65,8 +65,8 @@ what the [docs](docs/) still describe as the destination.
 | **Tunnels** | Local (`-L`), remote (`-R`) and dynamic SOCKS5 (`-D`) forwards, opened against a node with or without a shell, loopback by default with an explicit opt-in to expose | Persistent tunnels with auto-start and reconnect, SOCKS5 `UDP ASSOCIATE`, using a SOCKS or HTTP `CONNECT` proxy as a connection's transport |
 | **Jump hosts** | Multi-hop chains through SSH connections, set in the connection editor on a connection or on a folder for everything in it, inherited like any other field and overridable with a chain of its own or with none; honoured by every protocol and by tunnels; imported from `ssh_config`'s `ProxyJump` | Choosing a per-hop credential in the editor — a hop logs in with its own connection's credential, and an imported per-hop credential is kept but cannot be changed here |
 | **Import** | mRemoteNG `confCons.xml` (GCM and legacy CBC), `~/.ssh/config`, CSV — each with detection, preview, findings report and an all-or-nothing commit | Royal TS, PuTTY, RDCMan, `.rdp`; `known_hosts` into the trust store |
-| **Export** | — | **Everything.** No archive, JSON, CSV or `ssh_config` export exists |
-| **Audit log** | Append-only inside the vault: vault lifecycle, key slots, node changes, secret use, trust decisions, sessions, settings. Each entry names the account and computer that wrote it, per operating system, with a Who column and filter. Filterable viewer, JSON and CSV export | File transfer, import and plugin events; retention policy; the external audit sink |
+| **Export** | The whole vault or one folder as CSV (one row per connection, with the values it inherits written in), an OpenSSH config (SSH and SFTP connections as `Host` blocks, routes as `ProxyJump`) or JSON (the tree as stored, inheritance included). Never a password or key; each format says what it could not carry; CSV and the OpenSSH config read back through their importers; recorded in the audit log | The encrypted `.rmtr` archive, plaintext secret export, importing the JSON back |
+| **Audit log** | Append-only inside the vault: vault lifecycle, key slots, node changes, imports and exports, secret use, trust decisions, sessions, files uploaded and downloaded, settings. Each entry names the account and computer that wrote it, per operating system, with a Who column and filter. Filterable viewer, JSON and CSV export | Remote file delete and rename events, plugin events; retention policy; the external audit sink |
 | **Recording** | — | **Everything.** There is no recorder, no player and no `remoter-record` crate. Sessions report a `recordable` capability that nothing consumes |
 | **Interface** | React 19 + CSS modules, four themes (light, dark and a high-contrast pair) following the OS by default, editable terminal palette with a live contrast check, full keyboard navigation, ten languages including RTL | Tab detach, split view, session groups and layouts, broadcast typing, the WCAG 2.2 AA audit across all four themes |
 | **Protocols** | SSH, SFTP, RDP, VNC | FTP/FTPS, Telnet, serial, local shell, and everything behind the plugin host |
@@ -116,7 +116,7 @@ To build from source instead, carry on below.
 │    ├─ ssh (russh) — shell, SFTP, forwarding, SOCKS5       │
 │    ├─ rdp (IronRDP)                                       │
 │    └─ vnc (vnc-rs)                                        │
-│  remoter-import   confCons.xml · ssh_config · CSV         │
+│  remoter-import   confCons.xml · ssh_config · CSV, export │
 │  remoter-ipc      the Tauri command surface               │
 │  remoter-plugin-abi / -sdk   plugin ABI, no host yet      │
 └───────────────────────────────────────────────────────────┘

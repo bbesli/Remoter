@@ -147,6 +147,20 @@ fn the_h_token_in_a_hostname_expands_to_the_alias() {
 }
 
 #[test]
+fn a_doubled_percent_is_a_percent_and_a_bare_ipv6_address_is_an_address() {
+    let preview = preview_of(
+        "Host lab\n    HostName fe80::1%%eth0\nHost literal\n    HostName %%h.example.com\n",
+    );
+    assert_eq!(connection(&preview, "lab").host, "[fe80::1%eth0]");
+    // `%%h` is a percent sign and an `h`, not the alias: `%h.example.com` is
+    // no host name, so the block is skipped rather than read as
+    // `literal.example.com`.
+    assert!(preview.nodes().iter().all(|node| node.name != "literal"));
+    let preview = preview_of("Host v6\n    HostName 2001:db8::1\n");
+    assert_eq!(connection(&preview, "v6").host, "[2001:db8::1]");
+}
+
+#[test]
 fn proxy_jump_becomes_a_gateway_chain_that_references_the_bastion_node() {
     let preview = preview_of(ESTATE);
     let bastion = find(&preview, "bastion").id;

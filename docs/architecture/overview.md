@@ -60,7 +60,7 @@ Requirement 3 is where those two meet, and it is the hardest part of the design
 ║                      chains in remoter-proto                          ║
 ║  remoter-record      NOT A CRATE — the audit log is in remoter-vault; ║
 ║                      recording does not exist at all                  ║
-║  remoter-import      confCons.xml · ssh_config · CSV                  ║
+║  remoter-import      confCons.xml · ssh_config · CSV, and exporters   ║
 ╠═══════════════════════════════════════════════════════════════════════╣
 ║  PROTOCOL ADAPTERS                                                    ║
 ║  proto-ssh (russh) — shell, SFTP, forwards, SOCKS5                    ║
@@ -90,7 +90,7 @@ crate and implemented above it.
 | `remoter-vault` | Container format, key slots, KDF, AEAD, SQLite storage, migrations | Knowledge of what a "connection" means beyond opaque records |
 | `remoter-proto` | `Protocol` trait, `SessionSupervisor`, session lifecycle, event bus | Any specific protocol's wire format |
 | `remoter-proto-*` | One protocol each: handshake, framing, capability negotiation | Session policy, retry strategy, UI decisions |
-| `remoter-import` | Parsers for foreign formats → `remoter-core` types | Writing to the vault |
+| `remoter-import` | Parsers for foreign formats → `remoter-core` types, and writers from a tree back out to CSV, `ssh_config` and JSON | Writing to the vault; reading or writing a secret on export |
 | `remoter-plugin-abi` / `-sdk` | The plugin boundary's types and guest helpers | Loading anything |
 | `remoter-ipc` | Tauri commands, DTOs, event channels, rate limits | Business rules |
 

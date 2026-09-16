@@ -1,15 +1,16 @@
 # Import and Export
 
-> **What ships: the import half, and none of the export half.** Three importers
-> are built — mRemoteNG `confCons.xml`, `~/.ssh/config` and CSV — each with
-> format detection, a bounded parse, a preview the user selects from, an
-> all-or-nothing commit and a findings report, and each with a `cargo-fuzz`
-> target. ⏳ **Nothing exports, in any format**, so *Export* and
-> *Round-tripping* below are specification entire; the only files that leave
-> the vault today are the audit log and the recovery sheet. ⏳ Also not built:
-> per-item conflict resolution against what the vault already holds (step 5 of
-> the flow), `known_hosts` into the trust store, and every source in the table
-> marked ⏳. Each is marked in place below.
+> **What ships: the three importers and three of the five export formats.**
+> Three importers are built — mRemoteNG `confCons.xml`, `~/.ssh/config` and CSV
+> — each with format detection, a bounded parse, a preview the user selects
+> from, an all-or-nothing commit and a findings report, and each with a
+> `cargo-fuzz` target. ✅ Export writes CSV, an OpenSSH config and JSON, for the
+> whole vault or one folder, never with a secret in it; CSV and the OpenSSH
+> config are read back by their own importers under test. ⏳ Not built: the
+> encrypted `.rmtr` archive in either form, plaintext secret export, anything
+> that reads the JSON back, per-item conflict resolution against what the vault
+> already holds (step 5 of the flow), `known_hosts` into the trust store, and
+> every source in the table marked ⏳. Each is marked in place below.
 
 Migration is the highest-leverage feature for adoption: an administrator with
 four hundred connections in mRemoteNG will not retype them, and no amount of
@@ -204,42 +205,87 @@ deliberately crafted.
 Imported passwords are written straight into the vault's encrypted fields.
 Plaintext never touches disk, and no temporary decrypted copy is created.
 
-## Export — ⏳ not built
+## Export — ◐ three formats of five
 
-**Nothing exports.** There is no export command in `remoter-ipc`, no archive
-writer and no serialiser for any of the formats below. The only thing that
-leaves the vault as a file today is the audit log, as JSON or CSV, and the
-recovery sheet written at vault creation.
+✅ **The connection tree, or one folder of it, exports as CSV, an OpenSSH config
+or JSON.** The writers are `remoter-import`'s `export` module — pure functions
+over the tree, with no file and no vault in reach — and `tree_export` in
+`remoter-ipc` picks the part of the tree, writes the file atomically and
+readable by its owner only, and records the export in the audit log as
+`data_exported`, under the warnings filter. The dialog is reached from the title
+bar, the command palette, and the tree's menu on a folder, a connection or empty
+space.
 
-This is the single largest gap between this document and the software, and it
-matters more than most: "you are not locked in" is a promise the README makes
-and the code does not yet keep.
+| Format | Secrets | Use | |
+|---|---|---|---|
+| **Remoter archive** (`.rmtr`) | Encrypted with a password you set | Backup, sharing a subtree with a colleague | ⏳ |
+| **Remoter archive, structure only** | Excluded | Sharing a topology without credentials | ⏳ |
+| **JSON** | Excluded — always, not by default | Scripting, version control, review | ✅ |
+| **CSV** | Excluded — always, not by default | Spreadsheets, inventory | ✅ |
+| **`~/.ssh/config` fragment** | References only | Using the same hosts from the command line | ✅ |
 
-| Format | Secrets | Use |
-|---|---|---|
-| **Remoter archive** (`.rmtr`) | Encrypted with a password you set | Backup, sharing a subtree with a colleague |
-| **Remoter archive, structure only** | Excluded | Sharing a topology without credentials |
-| **JSON** | Excluded by default | Scripting, version control, review |
-| **CSV** | Excluded by default | Spreadsheets, inventory |
-| **`~/.ssh/config` fragment** | References only | Using the same hosts from the command line |
+**What each one carries.**
 
-Exporting secrets in plaintext requires an explicit, separately confirmed
-action; the resulting file carries a warning header, and the export is written
-to the audit log. This is deliberately made slightly awkward: a plaintext export
-of every credential in an estate is the single most damaging artefact this
-application can produce.
+- **CSV** is one row per connection in the column set the CSV importer
+  documents, with each connection's *effective* values: a port or an account a
+  folder sets is written into every row under it, because a spreadsheet row has
+  no folder to inherit from. The `password` column is always empty. A route
+  through several jump hosts is written as their names joined by `>`, which the
+  importer reads back as the same route. A value a spreadsheet would run as a
+  formula — one starting `=`, `+`, `-` or `@` — is written behind an apostrophe,
+  OWASP's CSV-injection guard, and the importer takes it back off. The file opens
+  with a UTF-8 byte-order mark, so Excel reads `ş` and `ü` as themselves.
+- **OpenSSH config** is one `Host` block per SSH or SFTP connection, with
+  `HostName`, `Port`, `User`, `IdentityFile`, `ProxyJump`, `ConnectTimeout` and
+  `ServerAliveInterval` from the effective values. There is no `Host *` block: a
+  file of defaults would also apply to every host in whatever config it is
+  `Include`d beside. The alias is the connection's name reduced to what a `Host`
+  pattern holds literally and `ssh` can select — lowercase, no spaces, accents
+  folded — and made unique. An `IdentityFile` line is written only for a
+  credential that is a key file *path*; a key stored in the vault is not
+  written, as a key or as anything else.
+- **JSON** is the tree as the vault stores it: inheritance states, protocol
+  settings, custom fields, groups, icons and colours, every value spelled the way
+  `remoter-core` serialises it. A credential says which kind of secret it holds
+  and nothing of it. References to nodes outside an exported folder are kept, and
+  the nodes they point at are listed by id, kind and name alone.
 
-The `.rmtr` archive uses the same envelope construction as the vault
+**A loss is never silent.** Whatever a format could not say the way the vault
+says it comes back as a note the dialog shows: an RDP connection an OpenSSH
+config has no place for, a route whose hop shares its name with another exported
+connection — left out, rather than written in a way a re-import would resolve to
+the wrong machine — a hop outside the exported folder, a hop's own credential, a
+renamed alias, a folder name with a `/` in it.
+
+⏳ **Plaintext secret export does not exist.** When it is built it requires an
+explicit, separately confirmed action; the resulting file carries a warning
+header, and the export is written to the audit log. This is deliberately made
+slightly awkward: a plaintext export of every credential in an estate is the
+single most damaging artefact this application can produce.
+
+⏳ The `.rmtr` archive uses the same envelope construction as the vault
 ([vault-format.md](../security/vault-format.md)) with a single password slot, so
-there is one cryptographic design to review rather than two.
+there is one cryptographic design to review rather than two. Nothing writes one.
 
-## Round-tripping — ⏳ blocked on export
+## Round-tripping — ◐ CSV and OpenSSH config
 
 Export followed by import must reproduce the original exactly, including
 inheritance states, custom fields, tags and protocol settings that the running
 version does not itself understand. A round-trip property test is to enforce
 this, because it is the guarantee that makes "you are not locked in" more than a
-slogan. ⏳ It is not written, and cannot be: there is no export for it to round
-a tree through. The three property tests that exist cover inheritance
-resolution, moves and the importers — see
+slogan.
+
+✅ What is tested today is the round trip each flat format can make: an estate
+exported as CSV and read back by the CSV importer gives connections with the
+same folder path, protocol, host, port, account, domain, route, description and
+tags; one exported as an OpenSSH config and read back gives the same hosts,
+ports, accounts, key file references, timeouts and multi-hop routes; and a
+property test sends arbitrary descriptions — delimiters, quotes, newlines,
+formula characters, apostrophes in front of them — through the CSV and back.
+These are in `crates/remoter-import/src/export/tests.rs`.
+
+⏳ The lossless round trip — inheritance and all — is the JSON's to make, and
+nothing reads the JSON back yet, so it is not written. The three property tests
+of the kind this section asks for cover inheritance resolution, moves and the
+importers — see
 [testing-strategy.md](../development/testing-strategy.md#property-tests).

@@ -76,6 +76,16 @@ interface AppStore {
   setPaletteOpen: (open: boolean) => void;
 
   /**
+   * The export dialog, when it is open: which part of the tree it was opened
+   * for. `rootId` null is the whole vault. A dialog rather than a screen,
+   * because it is asked from the tree's own menu about the folder under the
+   * pointer, and leaving the tree to answer would lose that.
+   */
+  exportRequest: { rootId: string | null } | null;
+  openExport: (rootId: string | null) => void;
+  closeExport: () => void;
+
+  /**
    * The session tabs that have a file pane docked under them.
    *
    * A set rather than a single id, because a docked pane is not a view of the
@@ -158,6 +168,10 @@ export const useApp = create<AppStore>((set) => ({
 
   paletteOpen: false,
   setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
+
+  exportRequest: null,
+  openExport: (rootId) => set({ exportRequest: { rootId } }),
+  closeExport: () => set({ exportRequest: null }),
 
   filePaneTabs: new Set<string>(),
   toggleFilePane: (tabId) =>

@@ -61,6 +61,7 @@
 
 pub mod csv;
 mod error;
+pub mod export;
 mod limits;
 mod mapping;
 pub mod mremoteng;
@@ -135,6 +136,13 @@ pub fn detect(bytes: &[u8]) -> Option<SourceFormat> {
     // nothing about what the file is — so these read the head only.
     let head = xml::sniff_head(&bytes[..bytes.len().min(SNIFF_BYTES)]);
     let text: &str = &head;
+    // A header row naming both required columns is a CSV, whatever its rows
+    // say. Asked before the line test below because a quoted description can
+    // hold a line that opens `host is behind the NAT`, and the exporter writes
+    // exactly that header.
+    if is_csv_header(text.lines().next().unwrap_or_default()) {
+        return Some(SourceFormat::Csv);
+    }
     if text.lines().map(str::trim_start).any(|line| {
         let lowered = line.to_ascii_lowercase();
         lowered.starts_with("host ")
@@ -149,6 +157,27 @@ pub fn detect(bytes: &[u8]) -> Option<SourceFormat> {
         return Some(SourceFormat::Csv);
     }
     None
+}
+
+/// Whether a line is a CSV header with the two columns [`csv`] requires, each
+/// a cell of its own.
+///
+/// Stricter than the fallback test in [`detect`], which only asks whether the
+/// word and a delimiter are on the line: a comment in an `ssh_config` can say
+/// "host, port and user", and cannot say `name` and `host` as whole cells.
+fn is_csv_header(line: &str) -> bool {
+    let line = line.trim_start_matches('\u{feff}');
+    [',', ';', '\t'].into_iter().any(|delimiter| {
+        let mut cells = line
+            .split(delimiter)
+            .map(|cell| cell.trim().trim_matches('"').trim().to_ascii_lowercase());
+        let (mut name, mut host) = (false, false);
+        for cell in cells.by_ref() {
+            name |= cell == "name";
+            host |= cell == "host";
+        }
+        name && host
+    })
 }
 
 /// The local name of the document's root element — its *first* element, not

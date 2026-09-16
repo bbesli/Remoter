@@ -1,6 +1,6 @@
 [package]
 name = "remoter-import"
-description = "Importers for other connection managers: mRemoteNG, OpenSSH config, CSV"
+description = "Importers for other connection managers (mRemoteNG, OpenSSH config, CSV), and the exporters back out"
 license = "GPL-3.0-or-later"
 version.workspace = true
 edition.workspace = true
@@ -33,11 +33,12 @@ aes-gcm = "0.11"
 zeroize.workspace = true
 
 serde.workspace = true
+# The JSON export. Already in the graph through `remoter-ipc`.
+serde_json.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
 proptest.workspace = true
-serde_json.workspace = true
 
 [lints]
 workspace = true

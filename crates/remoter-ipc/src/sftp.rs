@@ -42,7 +42,8 @@ use remoter_proto_ssh::SftpBrowser;
 use remoter_proto_ssh::sftp::{
     DeleteReport, DirectoryEntry, EntryKind, MAX_DIRECTORY_BYTES, MAX_DIRECTORY_ENTRIES, NameRisks,
     TransferDirection, TransferId, TransferQueue, TransferRequest, TransferStart, TransferState,
-    TransferStatus, escape_untrusted, local_name_for, run_queue, safe_name, validate_remote_path,
+    TransferStatus, escape_untrusted, local_name_for, run_queue_reporting, safe_name,
+    validate_remote_path,
 };
 use serde::{Deserialize, Serialize};
 use tauri::State;
@@ -512,9 +513,13 @@ async fn drive_queue(
     events: remoter_proto::EventSink,
     waker: Arc<Notify>,
     cancel: CancellationToken,
+    audit: TransferAudit,
 ) {
+    let mut on_finished = |request: &TransferRequest, state: &TransferState| {
+        audit.record(request, state);
+    };
     loop {
-        run_queue(&browser, &queue, Some(&events), &cancel).await;
+        run_queue_reporting(&browser, &queue, Some(&events), &cancel, &mut on_finished).await;
         if cancel.is_cancelled() {
             return;
         }
@@ -523,6 +528,74 @@ async fn drive_queue(
             () = cancel.cancelled() => return,
             () = waker.notified() => {}
         }
+    }
+}
+
+/// Writes a row to the audit log for each file a pane moved.
+///
+/// Best effort, as the session rows are: a transfer that finished while the
+/// vault was locked underneath it — the lock policy can leave sessions running
+/// — has nowhere to be written, and failing the transfer over its bookkeeping
+/// would be the wrong trade. The row reaches disk with the vault's next save,
+/// which locking performs.
+///
+/// Paths go through [`escape_untrusted`] first. The remote one is whatever the
+/// server named the file, and a name carrying a right-to-left override or a
+/// newline would otherwise sit in the log reading as something it is not.
+#[derive(Clone)]
+struct TransferAudit {
+    inner: Arc<Mutex<crate::state::Inner>>,
+    node: uuid::Uuid,
+    session: Option<uuid::Uuid>,
+}
+
+impl TransferAudit {
+    fn record(&self, request: &TransferRequest, state: &TransferState) {
+        let Some((outcome, detail)) = transfer_detail(request, state) else {
+            return;
+        };
+        let event = match request.direction {
+            TransferDirection::Upload => remoter_vault::AuditEvent::FileUploaded,
+            TransferDirection::Download => remoter_vault::AuditEvent::FileDownloaded,
+        };
+        let mut guard = self.inner.lock();
+        let Ok(vault) = guard.vault_mut() else {
+            return;
+        };
+        if let Err(error) =
+            vault.audit_in_session(event, outcome, Some(self.node), self.session, Some(&detail))
+        {
+            tracing::debug!(%error, "a file transfer's audit row was not written");
+        }
+    }
+}
+
+/// The outcome and the plain-text note for a finished transfer, or `None` for
+/// one the user stopped.
+///
+/// A stopped transfer is not recorded: stopping is the user declining to move
+/// the file, and a partial file left behind is what a resume picks up rather
+/// than a copy anyone asked for.
+fn transfer_detail(
+    request: &TransferRequest,
+    state: &TransferState,
+) -> Option<(remoter_vault::AuditOutcome, String)> {
+    let remote = escape_untrusted(&request.remote);
+    let local = escape_untrusted(&request.local.display().to_string());
+    let route = match request.direction {
+        TransferDirection::Upload => format!("{local} to {remote}"),
+        TransferDirection::Download => format!("{remote} to {local}"),
+    };
+    match state {
+        TransferState::Completed { bytes } => Some((
+            remoter_vault::AuditOutcome::Success,
+            format!("{route}, {bytes} bytes"),
+        )),
+        TransferState::Failed(report) => Some((
+            remoter_vault::AuditOutcome::Failure,
+            format!("{route}: {}", escape_untrusted(&report.message)),
+        )),
+        _ => None,
     }
 }
 
@@ -547,7 +620,7 @@ pub(crate) async fn sftp_open_impl(
     session_id: u64,
 ) -> Result<SftpPaneDto, IpcError> {
     let hub = state.sessions();
-    let (connection, events, cancel) = hub.attach_parts(session_id).ok_or_else(|| {
+    let parts = hub.attach_parts(session_id).ok_or_else(|| {
         IpcError::new(
             "sftp.session-not-ready",
             "That session is not connected, so there is nothing to browse on it yet. A file pane \
@@ -555,6 +628,18 @@ pub(crate) async fn sftp_open_impl(
         )
         .with_actions(["Wait for it to connect", "Open the connection again"])
     })?;
+    let crate::session::AttachParts {
+        connection,
+        events,
+        cancel,
+        node,
+        audit_session,
+    } = parts;
+    let audit = TransferAudit {
+        inner: state.inner_handle(),
+        node: *node.as_uuid(),
+        session: audit_session,
+    };
 
     let browser = SftpBrowser::open(connection)
         .await
@@ -580,6 +665,7 @@ pub(crate) async fn sftp_open_impl(
             events.clone(),
             waker,
             cancel.clone(),
+            audit.clone(),
         )));
     }
 
@@ -2040,5 +2126,78 @@ mod tests {
             sftp_open_impl(&state, 1).await.err().map(|e| e.code),
             Some(String::from("sftp.session-not-ready"))
         );
+    }
+
+    /// A file that moved is on the record, with where it went and how big it
+    /// was; one the user stopped is not; and a remote name the server chose
+    /// cannot carry a control character into the log.
+    #[test]
+    fn a_finished_transfer_is_written_to_the_audit_log() {
+        let scratch = crate::test_support::Scratch::new();
+        let Some(state) = crate::test_support::open_vault(&scratch) else {
+            panic!("the vault could not be created");
+        };
+        let node = uuid::Uuid::now_v7();
+        let audit = TransferAudit {
+            inner: state.inner_handle(),
+            node,
+            session: None,
+        };
+        let upload = TransferRequest {
+            direction: TransferDirection::Upload,
+            remote: String::from("/srv/in\u{202E}coming/report.pdf"),
+            local: PathBuf::from("/home/you/report.pdf"),
+            resume: false,
+        };
+        let download = TransferRequest {
+            direction: TransferDirection::Download,
+            ..upload.clone()
+        };
+
+        audit.record(&upload, &TransferState::Completed { bytes: 2048 });
+        audit.record(&download, &TransferState::Cancelled);
+        audit.record(
+            &download,
+            &TransferState::Failed(remoter_proto::FailureReport::from(&ProtocolError::Io {
+                operation: "writing the file",
+                source: std::io::Error::from(std::io::ErrorKind::PermissionDenied),
+            })),
+        );
+
+        let log = crate::audit::audit_query_impl(&state, crate::dto::AuditQueryDto::default())
+            .expect("the log reads");
+        let rows: Vec<_> = log
+            .entries
+            .iter()
+            .filter(|entry| entry.event.starts_with("file_"))
+            .collect();
+        assert_eq!(rows.len(), 2, "{rows:?}");
+
+        let uploaded = rows
+            .iter()
+            .find(|row| row.event == "file_uploaded")
+            .unwrap();
+        assert_eq!(uploaded.outcome, "success");
+        assert_eq!(uploaded.node_id.as_deref(), Some(node.to_string().as_str()));
+        let detail = uploaded.detail.as_deref().unwrap_or_default();
+        assert!(
+            detail.starts_with("/home/you/report.pdf to /srv/in"),
+            "{detail}"
+        );
+        assert!(
+            detail.ends_with("coming/report.pdf, 2048 bytes"),
+            "{detail}"
+        );
+        assert!(
+            !detail.contains('\u{202E}'),
+            "the override reached the log: {detail}"
+        );
+
+        let downloaded = rows
+            .iter()
+            .find(|row| row.event == "file_downloaded")
+            .unwrap();
+        assert_eq!(downloaded.outcome, "failure");
+        assert!(downloaded.warning, "a failed transfer is a warning");
     }
 }

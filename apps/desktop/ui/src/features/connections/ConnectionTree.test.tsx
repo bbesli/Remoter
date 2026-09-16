@@ -9,7 +9,7 @@
  */
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -102,7 +102,11 @@ function renderTree() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  useApp.setState({ openModals: new Set<string>(), selectedNodeId: null });
+  useApp.setState({
+    openModals: new Set<string>(),
+    selectedNodeId: null,
+    exportRequest: null,
+  });
   useConnectionEditor.setState({ target: null });
   // jsdom implements no layout, so it has no `scrollIntoView`; the tree keeps
   // the keyboard cursor in view with it.
@@ -124,6 +128,37 @@ describe("credentials in the sidebar", () => {
     expect(await screen.findByRole("treeitem", { name: /svc-deploy/ })).toBeInTheDocument();
     // One row for the server, not one per server-plus-login.
     expect(screen.getAllByRole("treeitem", { name: /web-01/ })).toHaveLength(1);
+  });
+});
+
+describe("exporting from the tree's menu", () => {
+  it("exports the folder under the pointer, the vault from empty space, and not a credential", async () => {
+    ipcMock.listNodes.mockResolvedValue([
+      node({ id: "prod", kind: "folder", name: "Production" }),
+      node({ id: "cred-shared", kind: "credential", name: "svc-deploy", sortOrder: 1 }),
+    ]);
+    renderTree();
+
+    fireEvent.contextMenu(await screen.findByRole("treeitem", { name: /Production/ }), {
+      clientX: 20,
+      clientY: 20,
+    });
+    await userEvent.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Export…" }));
+    expect(useApp.getState().exportRequest).toEqual({ rootId: "prod" });
+    expect(screen.queryByRole("menu")).toBeNull();
+
+    useApp.setState({ exportRequest: null });
+    fireEvent.contextMenu(screen.getByRole("treeitem", { name: /svc-deploy/ }), {
+      clientX: 20,
+      clientY: 40,
+    });
+    expect(
+      within(screen.getByRole("menu")).getByRole("menuitem", { name: "Export…" }),
+    ).toBeDisabled();
+
+    fireEvent.contextMenu(screen.getByRole("tree"), { clientX: 20, clientY: 60 });
+    await userEvent.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Export…" }));
+    expect(useApp.getState().exportRequest).toEqual({ rootId: null });
   });
 });
 

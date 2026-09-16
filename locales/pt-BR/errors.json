@@ -442,6 +442,12 @@
       ]
     }
   },
+  "export": {
+    "encode": {
+      "message": "As conexões não puderam ser codificadas, então nada foi gravado.",
+      "actions": []
+    }
+  },
   "import": {
     "too-large": {
       "message": "Esse arquivo é maior do que esta compilação lê. Nada foi analisado.",

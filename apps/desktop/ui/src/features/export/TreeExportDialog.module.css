@@ -1,0 +1,138 @@
+/*
+ * The connection export dialog.
+ *
+ * Ordinary modal geometry. The one deliberate choice is that the "this is
+ * audited" line sits above everything else, in the reading order, rather than
+ * beneath the buttons where a consequence notice usually gets put.
+ */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  background: var(--bg-overlay);
+}
+
+.dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: min(34rem, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  padding: var(--space-5);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-3);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--fg-default);
+}
+
+.audited {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--fg-default);
+}
+
+.audited svg {
+  flex: none;
+  margin-block-start: 2px;
+  color: var(--warning);
+}
+
+.choices {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.choice {
+  flex: 1 1 auto;
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-inset);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.choice:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  color: var(--fg-default);
+}
+
+.choice:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.choiceOn {
+  background: var(--accent-tint);
+  border-color: var(--accent);
+  color: var(--fg-default);
+  font-weight: 600;
+}
+
+.pathRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.pathInput {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.notes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.notesTitle {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--fg-default);
+}
+
+.notesList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-height: 14rem;
+  margin: 0;
+  padding-inline-start: var(--space-5);
+  overflow-y: auto;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--fg-muted);
+}
+
+.notesMore {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+}

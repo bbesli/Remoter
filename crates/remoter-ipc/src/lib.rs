@@ -19,6 +19,7 @@ mod clipboard;
 mod commands;
 mod dto;
 mod error;
+mod export;
 mod import;
 #[cfg(all(test, feature = "integration-tests"))]
 mod live_tests;
@@ -111,14 +112,16 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         // --- per-vault settings ---
         vault_admin::vault_settings_get,
         vault_admin::vault_settings_set,
-        // --- audit ---
         // --- clipboard ---
         clipboard::clipboard_read_text,
         clipboard::clipboard_write_text,
+        // --- audit ---
         audit::audit_query,
         audit::audit_filters,
         audit::audit_actors,
         audit::audit_export,
+        // --- export ---
+        export::tree_export,
         // --- import ---
         import::import_detect,
         import::import_parse,

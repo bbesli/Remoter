@@ -29,6 +29,7 @@ import {
   Star,
   Trash2,
   TriangleAlert,
+  Upload,
   Usb,
   X,
   type LucideIcon,
@@ -52,6 +53,7 @@ export type IconName =
   | "shield"
   | "copy"
   | "download"
+  | "upload"
   | "printer"
   | "arrow-left"
   | "arrow-right"
@@ -77,6 +79,7 @@ const ICONS: Record<IconName, LucideIcon> = {
   shield: Shield,
   copy: Copy,
   download: Download,
+  upload: Upload,
   printer: Printer,
   "arrow-left": ArrowLeft,
   "arrow-right": ArrowRight,

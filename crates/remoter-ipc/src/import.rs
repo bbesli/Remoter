@@ -312,6 +312,24 @@ fn import_commit_impl(state: &AppState, req: ImportCommitDto) -> Result<ImportRe
             .set_secret(node, PASSWORD_FIELD, secret)
             .map_err(|err| IpcError::from_vault(&err, "this vault"))?;
     }
+
+    // One row for the import as a whole, beside the row per node `apply` wrote:
+    // four hundred "entry created" rows explain themselves only if something
+    // says where they came from.
+    let detail = format!(
+        "imported from {}: folders {}, connections {}, credentials {}, passwords {secrets_stored}",
+        pending_source.label(),
+        counts.folders,
+        counts.connections,
+        counts.credentials,
+    );
+    vault
+        .audit(
+            remoter_vault::AuditEvent::DataImported,
+            remoter_vault::AuditOutcome::Success,
+            Some(&detail),
+        )
+        .map_err(|err| IpcError::from_vault(&err, "this vault"))?;
     save(vault)?;
 
     Ok(ImportResultDto {
@@ -650,6 +668,30 @@ mod vault_tests {
         assert!(
             !rendered.contains(CSV_PASSWORD),
             "the tree leaked a password"
+        );
+
+        // The import is on the record as one row of its own that says where
+        // the entries came from, and not what their passwords were.
+        let log = crate::audit::audit_query_impl(&state, crate::dto::AuditQueryDto::default());
+        let Ok(log) = log else {
+            panic!("reading the audit log failed");
+        };
+        let imported: Vec<_> = log
+            .entries
+            .iter()
+            .filter(|entry| entry.event == "data_imported")
+            .collect();
+        assert_eq!(imported.len(), 1, "one row per import: {:?}", log.entries);
+        let detail = imported[0].detail.as_deref().unwrap_or_default();
+        assert!(
+            detail == "imported from csv: folders 2, connections 2, credentials 1, passwords 1",
+            "{detail}"
+        );
+        assert!(!imported[0].warning, "bringing data in is not a warning");
+        let rendered = serde_json::to_string(&log).unwrap_or_default();
+        assert!(
+            !rendered.contains(CSV_PASSWORD),
+            "the audit log leaked a password"
         );
 
         // The preview is spent: committing it twice does not import twice.

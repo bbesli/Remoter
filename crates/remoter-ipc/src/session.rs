@@ -455,6 +455,17 @@ type SessionParts = (
 );
 
 /// One registered session, from this layer's side.
+/// See [`SessionHub::attach_parts`].
+pub(crate) struct AttachParts {
+    pub(crate) connection: Arc<SshConnection>,
+    pub(crate) events: EventSink,
+    pub(crate) cancel: tokio_util::sync::CancellationToken,
+    /// The connection node the session was opened on.
+    pub(crate) node: NodeId,
+    /// The session's row in the audit log's session history, if it has one.
+    pub(crate) audit_session: Option<Uuid>,
+}
+
 pub(crate) struct SessionEntry {
     /// Behind an `Arc` so a command can clone it out of the registry and await
     /// on it with the lock released. A session task wanting the same lock while
@@ -547,28 +558,22 @@ impl SessionHub {
     }
 
     /// What a file pane needs to attach to a session: the connection it will
-    /// open a subsystem channel on, the sink its progress travels over, and a
-    /// token that is a child of the session's own.
+    /// open a subsystem channel on, the sink its progress travels over, a
+    /// token that is a child of the session's own, and what its audit rows are
+    /// attributed to.
     ///
     /// Cloned out under the lock and returned, so the caller never holds the
     /// registry lock while it talks to the server.
-    pub(crate) fn attach_parts(
-        &self,
-        session_id: u64,
-    ) -> Option<(
-        Arc<SshConnection>,
-        EventSink,
-        tokio_util::sync::CancellationToken,
-    )> {
+    pub(crate) fn attach_parts(&self, session_id: u64) -> Option<AttachParts> {
         let sessions = self.sessions.lock();
         let entry = sessions.get(&session_id)?;
-        let connection = entry.connection.clone()?;
-        let events = entry.events.clone()?;
-        Some((
-            connection,
-            events,
-            entry.handle.cancellation_token().child_token(),
-        ))
+        Some(AttachParts {
+            connection: entry.connection.clone()?,
+            events: entry.events.clone()?,
+            cancel: entry.handle.cancellation_token().child_token(),
+            node: entry.node,
+            audit_session: entry.audit_id,
+        })
     }
 
     /// Takes every pane opened on one session, so the caller can stop them.

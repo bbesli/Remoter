@@ -442,6 +442,12 @@
       ]
     }
   },
+  "export": {
+    "encode": {
+      "message": "The connections could not be encoded, so nothing was written.",
+      "actions": []
+    }
+  },
   "import": {
     "too-large": {
       "message": "That file is larger than this build reads. Nothing was parsed.",

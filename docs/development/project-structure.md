@@ -14,7 +14,7 @@ Remoter/
 │   ├── remoter-proto-ssh/     SSH, SFTP, port forwarding, the SOCKS5 server
 │   ├── remoter-proto-rdp/     RDP, CredSSP/NTLMv2
 │   ├── remoter-proto-vnc/     VNC / RFB, handshake owned here (ADR-0013)
-│   ├── remoter-import/        Foreign format parsers
+│   ├── remoter-import/        Foreign format parsers, and the exporters
 │   ├── remoter-plugin-abi/    Plugin ABI types and wire format  (Apache-2.0 OR MIT)
 │   ├── remoter-plugin-sdk/    Guest-side helpers for plugin authors (Apache-2.0 OR MIT)
 │   └── remoter-ipc/           Tauri command surface

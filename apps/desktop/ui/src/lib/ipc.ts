@@ -1010,6 +1010,61 @@ export interface AuditExportResult {
   bytes: number;
 }
 
+// --------------------------------------------------------------- export ----
+
+/** The formats the connection tree can be written as. */
+export type TreeExportFormat = "csv" | "ssh-config" | "json";
+
+/** Which part of the tree to write, where, and as what. */
+export interface TreeExport {
+  path: string;
+  format: TreeExportFormat;
+  /** The folder or connection to export with everything under it; null is the whole vault. */
+  rootId: string | null;
+}
+
+/** Why a jump host route did not make it into a file whole. */
+export type ExportGatewayProblem =
+  | "deleted-hop"
+  | "ambiguous-hop"
+  | "hop-outside-export"
+  | "hop-credential"
+  | "hop-not-ssh";
+
+/**
+ * Something an export could not write the way the vault holds it. Names and
+ * hosts only — never a secret. Mirrors `ExportNote` in
+ * `crates/remoter-import/src/export/mod.rs`.
+ */
+export type ExportNote =
+  | { kind: "unsupported-protocol"; item: string; protocol: string }
+  | { kind: "gateway-not-written"; item: string; reason: ExportGatewayProblem }
+  | { kind: "renamed"; item: string; written: string }
+  | { kind: "folder-name-splits"; folder: string }
+  | { kind: "value-not-written"; item: string; field: string }
+  | { kind: "outside-reference"; item: string; target: string };
+
+/** What went into an export, and what could not. */
+export interface ExportReport {
+  format: TreeExportFormat;
+  folders: number;
+  connections: number;
+  credentials: number;
+  /** Connections the format had no way to describe, and left out. */
+  skipped: number;
+  /** Rows, Host blocks or nodes — whatever the format's unit is. */
+  written: number;
+  notes: ExportNote[];
+  /** Notes past the core's ceiling that were counted and not kept. */
+  notesDropped: number;
+}
+
+export interface TreeExportResult {
+  path: string;
+  bytes: number;
+  report: ExportReport;
+}
+
 // --------------------------------------------------------------- import ----
 
 /** What a file appears to be, before anything is parsed. */
@@ -2175,6 +2230,14 @@ export const ipc = {
    * Exporting copies entries; it never removes them.
    */
   exportAudit: (req: AuditExport) => invoke<AuditExportResult>("audit_export", { req }),
+
+  // --- export ---
+  /**
+   * Writes the tree, or one folder of it, as CSV, an OpenSSH config or JSON.
+   * No password, key or passphrase is ever in the file, and the export is
+   * recorded in the audit log.
+   */
+  exportTree: (req: TreeExport) => invoke<TreeExportResult>("tree_export", { req }),
 
   // --- import ---
   /**

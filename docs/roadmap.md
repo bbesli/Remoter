@@ -131,10 +131,11 @@ after all.
 - ⏳ Terminal recording in asciicast v2, with echo-based password redaction
 - ⏳ Framebuffer recording
 - ⏳ Built-in playback with seek and search
-- ◐ Audit log and its viewer: shipped for vault, node, secret, trust, session and
-  settings events, with JSON and CSV export. ⏳ File transfer, import and plugin
-  events are not logged, and there is no retention policy
-  Each entry names the operating-system account and computer that wrote it (schema 3).
+- ◐ Audit log and its viewer: shipped for vault, node, import, export, secret,
+  trust, session, file transfer and settings events, with JSON and CSV export.
+  Each entry names the operating-system account and computer that wrote it
+  (schema 3). ⏳ Remote file delete and rename, and plugin events, are not
+  logged, and there is no retention policy
 - ⏳ Session groups with layouts, and broadcast typing with its safeguards — the
   group node kind exists in the data model and nothing opens one
 
@@ -150,8 +151,9 @@ after all.
   default password), ✅ `~/.ssh/config` (including `Include`, `Match`, wildcards
   and `ProxyJump`), ✅ CSV. ⏳ Royal TS and PuTTY are not written
 - ◐ Import preview and report ship. ⏳ Per-item conflict resolution does not
-- ⏳ Export in every documented format. **Nothing exports.** There is no archive,
-  no JSON, no CSV and no `ssh_config` fragment
+- ◐ Export: ✅ CSV, `ssh_config` and JSON, for the whole vault or a folder, with
+  no secret in any of them. ⏳ The `.rmtr` archive, encrypted or structure-only,
+  and plaintext secret export
 - ✅ All ten languages, including RTL
 - ⏳ FTP/FTPS
 - ◐ High-contrast themes ship (`hc-light`, `hc-dark`). ⏳ The full accessibility pass has not been done
@@ -159,8 +161,9 @@ after all.
 **Exit criteria**
 
 - ⏳ A 500-connection mRemoteNG file imports with inheritance preserved
-- ⏳ Export/import round trip is lossless, verified by property test — blocked on
-  export existing
+- ◐ Export/import round trip: ✅ CSV and `ssh_config` exports read back as the
+  same connections, under test, with a property test on CSV field contents. ⏳
+  Lossless, inheritance included — needs an importer for the JSON
 - ◐ Every fuzz target has run 24 hours with no crash — three targets exist, for
   the three importers; none has had a 24-hour run recorded
 - ⏳ WCAG 2.2 AA verified across all four themes — the four themes exist; nothing has audited them

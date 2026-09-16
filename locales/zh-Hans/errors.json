@@ -442,6 +442,12 @@
       ]
     }
   },
+  "export": {
+    "encode": {
+      "message": "连接无法编码，因此未写入任何内容。",
+      "actions": []
+    }
+  },
   "import": {
     "too-large": {
       "message": "该文件超过此版本可读取的大小。未解析任何内容。",

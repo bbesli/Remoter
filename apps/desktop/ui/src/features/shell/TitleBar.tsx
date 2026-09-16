@@ -71,6 +71,7 @@ export function TitleBar({ vault, onLock, locking = false, onSettings }: TitleBa
   const t = useT("shell");
   const tCommon = useT("common");
   const go = useApp((st) => st.go);
+  const openExport = useApp((st) => st.openExport);
   const [maximised, setMaximised] = useState(false);
   // Null until a control is actually pressed and refused; the bar stays clean
   // in the normal case.
@@ -248,6 +249,23 @@ export function TitleBar({ vault, onLock, locking = false, onSettings }: TitleBa
           <Icon name={entry.glyph} size={15} />
         </button>
       ))}
+
+      {/* Beside import, its opposite. A dialog rather than a screen, so it is
+          not one of the entries above. */}
+      <button
+        type="button"
+        className={s.iconButton}
+        title={
+          unlocked
+            ? t("titleBar.exporter")
+            : t("titleBar.needsVault", { action: t("titleBar.exporter") })
+        }
+        aria-label={t("titleBar.exporter")}
+        onClick={() => openExport(null)}
+        disabled={!unlocked}
+      >
+        <Icon name="upload" size={15} />
+      </button>
 
       <button
         type="button"

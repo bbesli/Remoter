@@ -65,8 +65,9 @@ as — show **Not recorded**, never a blank that would read as *nobody*.
 | Settings | Changed | ✅ |
 | Sessions, detail | Duration and close reason, in the `session_history` table beside the log | ◐ — `bytes_in` and `bytes_out` are written as zero, because nothing counts them |
 | Security, detail | Legacy algorithm enabled, agent forwarding enabled | ⏳ |
-| Transfers | File uploaded, downloaded, deleted, renamed — with paths and sizes | ⏳ |
-| Data | Imported, exported (with a flag for plaintext exports) | ⏳ — an import currently appears as the nodes it created |
+| Transfers | File uploaded, downloaded — with both paths, the size, and the session it moved over; a failed transfer is a warning | ✅ |
+| Transfers, remote changes | File deleted, renamed on the remote host | ⏳ |
+| Data | Imported (source and counts, beside the row per node created), exported (format, count and destination — for the connection tree and for this log alike), filed under *Connection records*, and every export under *Warnings* as well | ✅ — plaintext secret export, which would carry its own flag, does not exist |
 | Plugins | Installed, loaded, capability granted, terminated | ⏳ — there is no plugin host |
 
 `AuditEvent::ALL` is walked by a round-trip test, so an event added to the enum

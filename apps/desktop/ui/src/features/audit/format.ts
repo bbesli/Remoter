@@ -128,6 +128,8 @@ const KNOWN_EVENTS = [
   "node_updated",
   "node_deleted",
   "node_moved",
+  "data_imported",
+  "data_exported",
   "secret_stored",
   "secret_removed",
   "secret_used",
@@ -137,6 +139,8 @@ const KNOWN_EVENTS = [
   "trust_rejected",
   "session_started",
   "session_ended",
+  "file_uploaded",
+  "file_downloaded",
   "setting_changed",
 ] as const;
 

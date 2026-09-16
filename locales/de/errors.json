@@ -442,6 +442,12 @@
       ]
     }
   },
+  "export": {
+    "encode": {
+      "message": "Die Verbindungen konnten nicht kodiert werden, daher wurde nichts geschrieben.",
+      "actions": []
+    }
+  },
   "import": {
     "too-large": {
       "message": "Diese Datei ist größer, als dieser Build liest. Es wurde nichts geparst.",
