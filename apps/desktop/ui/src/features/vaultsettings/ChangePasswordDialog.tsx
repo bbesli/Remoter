@@ -172,6 +172,7 @@ export function ChangePasswordDialog({
         onChange={setNewKeyfile}
         vaultPath={vaultPath}
         disabled={busy}
+        canGenerate
       />
 
       {busy && (

@@ -1,6 +1,5 @@
 {
   "_comment_file": "The vault settings screen: which keys open this vault file, and the policies stored inside the file itself — auto-lock, recording and rolling backups. Loaded when the screen opens, not before. Read the SECURITY-CRITICAL comments before translating anything in this namespace: several of these strings are the last warning a person sees before an operation that can leave an encrypted file that nobody, including us, can ever open. A softened warning here is a real and foreseeable way to lose someone's data.",
-
   "screen": {
     "title": "保险库设置",
     "_comment_close": "Both the accessible name of the header's close control and the label of the button offered beside a failed read.",
@@ -23,17 +22,14 @@
     "locked": "没有打开的保险库",
     "lockedBody": "这些设置就存在保险库文件里，所以只有在它解锁时才能读取。"
   },
-
   "status": {
     "_comment_saving": "Shown beside a spinner while one setting is being written. Used by all three policy panels.",
     "saving": "正在保存…"
   },
-
   "dialog": {
     "_comment_blockedFallback": "A noun phrase, not a sentence: it is interpolated into the window-close confirmation as the thing that would be lost — 'Closing now loses …'. Only reached if a dialog refuses to be dismissed without saying what is at stake, which no dialog on this screen does.",
     "blockedFallback": "某样再也无法显示的东西"
   },
-
   "keyfile": {
     "_comment_": "Choosing the file that acts as a second factor on a key slot. A key file is an ordinary file of the user's choosing; its contents are mixed into the key, so losing the file loses the slot.",
     "_comment_none": "Shown in place of a path when no key file has been chosen. Adjective-free noun: 'no file chosen'.",
@@ -43,9 +39,20 @@
     "_comment_dialogTitle": "The title bar of the operating system's file browser.",
     "dialogTitle": "为此槽位选择密钥文件",
     "_comment_dialogFailed": "Shown when the platform has no file browser to open. 'Remoter' is the product name and is never translated.",
-    "dialogFailed": "此系统没有打开文件浏览器。请在平台提供的输入框里直接键入路径，或者从带有文件浏览器的会话中启动 Remoter。"
+    "dialogFailed": "此系统没有打开文件浏览器。请在平台提供的输入框里直接键入路径，或者从带有文件浏览器的会话中启动 Remoter。",
+    "_comment_generate": "A button beside Browse that writes a brand-new random key file and uses it for this slot. The ellipsis means a save dialog follows.",
+    "generate": "生成…",
+    "_comment_generating": "The same button while the file is being written.",
+    "generating": "正在写入…",
+    "_comment_generateDialogTitle": "The title bar of the operating system's save dialog for the new key file.",
+    "generateDialogTitle": "新密钥文件写到哪里",
+    "_comment_generateFailed": "A heading over the core's own message when the new key file could not be written — for example because a file already exists at that path, which is never overwritten.",
+    "generateFailed": "无法写入密钥文件",
+    "_comment_generated": "SECURITY-CRITICAL. Shown under the path once a new key file has been written. Losing that file loses this slot; keep both halves: where it is, and that a copy must be kept away from the vault.",
+    "generated": "新的密钥文件已写入该位置。请把一份副本保存在保险库旁边以外的地方——没有它，这个槽位将无法使用。",
+    "_comment_besideTheVault": "SECURITY-CRITICAL. The new key file was written into the vault's own folder. It works, but stops being a second factor. Do not turn it into a refusal.",
+    "besideTheVault": "它就放在保险库旁边，所以任何人只要拷走一个，就等于同时拷走了两个。这样能用；只是它不再是第二重因素了。"
   },
-
   "slot": {
     "_comment_": "How one key slot is described. A slot is one independent way of unwrapping the vault key: the same vault can have several, and any one of them opens it.",
     "_comment_kind": "The four kinds of slot. 'Security key' is a hardware authenticator (FIDO2); 'Remember on this device' is the operating system's own credential store.",
@@ -66,39 +73,31 @@
     "withKeyfile": "还需要它的密钥文件",
     "noKeyfile": "仅用密码"
   },
-
   "slots": {
     "title": "密钥槽位",
     "description": "每个槽位都能独立解开同一把保险库密钥。添加或删除槽位不会重新加密任何内容，因此改主意的代价既小又安全。",
-
     "_comment_openedWithBadge": "A badge on the slot that unlocked the vault in this session. Lower case, no full stop: it is a badge, not a sentence.",
     "openedWithBadge": "本次会话用的就是它",
     "_comment_neverUsedBadge": "A badge on a recovery key that has never opened this vault — the slot most likely to have been lost. Lower case, no full stop.",
     "neverUsedBadge": "从未使用过",
-
     "_comment_change": "Verb, on the button that changes this slot's password.",
     "change": "更改",
     "_comment_rotate": "Verb, on the button that replaces this recovery key with a new one.",
     "rotate": "轮换",
     "_comment_remove": "Verb, on the button that deletes this slot from the vault.",
     "remove": "删除",
-
     "_comment_add": "Verb phrase, on the row that opens the add-a-slot dialog.",
     "add": "添加槽位",
     "_comment_addHint": "The three kinds that can be added, as a hint under the button. The middots are separators.",
     "addHint": "再加一个密码 · 一把恢复密钥 · 这台设备",
-
     "_comment_unusedRecoveryBody": "SECURITY-CRITICAL. Shown on a recovery key that has never been used. Do not soften 'there is no way into this vault without one of these slots' — it is literally true, and a reader who takes it as caution rather than fact is the reader who loses the vault.",
     "unusedRecoveryBody": "生成了却从未用过的密钥，恰恰是最容易弄丢的那一把。如果您现在拿不出它，就马上轮换——没有这些槽位中的任何一个，就没有任何办法进入这个保险库。",
-
     "_comment_invariantTitle": "SECURITY-CRITICAL. The standing notice at the foot of the panel.",
     "invariantTitle": "保险库必须始终保留至少一个可用槽位",
     "_comment_invariantBody": "SECURITY-CRITICAL. 'no escrow key and no support override' must survive translation as an absolute: there is no recovery path of any kind, and 'including us' means the people who wrote this program. 'Remoter' is the product name and is never translated.",
     "invariantBody": "Remoter 不会让您删掉最后一个槽位，而删除恢复密钥槽位则需要手动输入一句确认。这里没有托管密钥，也没有客服可以绕过：如果所有槽位都丢了，这个文件就没有任何人能打开，包括我们。",
-
     "_comment_removeFailed": "The title of the failure notice when a removal fails after its dialog has closed.",
     "removeFailed": "该槽位没有被删除。",
-
     "_comment_lastSlotRefusal": "SECURITY-CRITICAL. Why the last remaining slot cannot be removed, shown on the disabled control before anything is clicked. This refusal has no undo behind it: if it were bypassed the file would be unopenable forever.",
     "lastSlotRefusal": "这是进入此保险库的唯一途径。删掉它会留下一个永远没人能打开的文件——这里没有托管密钥，也没有客服可以绕过。",
     "_comment_openedWithWarning": "A warning, not a refusal: this slot is the one that unlocked the vault in this session.",
@@ -106,7 +105,6 @@
     "_comment_lastRecoveryWarning": "SECURITY-CRITICAL. A warning, not a refusal. 'the end of the vault' means the vault can never be opened again; do not weaken it to 'a problem'.",
     "lastRecoveryWarning": "这是此保险库上最后一把恢复密钥。没有了它，一旦忘记密码，这个保险库就到此为止了。"
   },
-
   "rotateRecovery": {
     "_comment_": "Replacing one recovery key with a freshly generated one. The vault master key is untouched, so this is cheap — unlike the master key rotation further down the same screen.",
     "title": "轮换这把恢复密钥",
@@ -120,12 +118,10 @@
     "blocked": "新密钥正在生成中。此刻关闭就会失去它：它只显示一次，而且没有任何办法重新签发。",
     "failed": "恢复密钥没有轮换。"
   },
-
   "expensive": {
     "_comment_label": "A heading over the one operation on this screen that re-encrypts the whole vault and therefore takes real time.",
     "label": "高开销操作"
   },
-
   "rotateMaster": {
     "_comment_": "Rotating the vault master key: a new master key, every slot re-wrapped around it, and every stored secret re-encrypted.",
     "cardTitle": "轮换保险库主密钥",
@@ -135,22 +131,17 @@
     "cardButton": "轮换主密钥",
     "_comment_cardAside": "SECURITY-CRITICAL. Rotation does not reach copies of the file that already exist. 'Delete them' is an instruction, not a suggestion.",
     "cardAside": "该文件的旧副本仍然可以用旧钥匙打开。请把它们删掉。",
-
     "title": "轮换保险库主密钥",
     "lead": "会生成一把新的主密钥，每个槽位都围绕它重新包裹，保险库里的每一份机密也都重新封装。",
-
     "whenTitle": "什么时候该这么做",
     "whenBody": "在您的某把钥匙被攻破期间，这个文件可能已经外泄了一份副本。更改密码只是重新包裹一个槽位；而这项操作会替换掉整个正文所依赖的那把密钥。",
-
     "_comment_limitTitle": "SECURITY-CRITICAL. What rotation cannot do, shown both before and after the operation.",
     "limitTitle": "它做不到什么",
     "_comment_limitBody": "SECURITY-CRITICAL. Must not be softened into reassurance: a leaked copy stays readable with the old keys forever, and so do the backup files beside the vault. 'rotation protects what happens next, not what already left' is the whole point of the paragraph.",
     "limitBody": "已经泄露出去的那份副本，仍然可以用旧钥匙打开；这个保险库旁边的滚动备份也一样，而本次保存会把它们轮转一遍。请把您知道的副本删掉；轮换保护的是此后发生的事，而不是已经流出去的东西。",
-
     "costTitle": "它确实要花时间",
     "_comment_costBody": "PLURAL, on the number of password slots being re-wrapped. Argon2id is a key derivation function and is never translated. The one-slot wording is deliberately different rather than showing the numeral 1.",
     "costBody": "{count, plural, =1 {Argon2id 会为那唯一的密码槽位运行一次，保险库里每一份存储的机密也都会重新封装。} other {每个密码槽位都要跑一次 Argon2id——这里有 # 个——保险库里每一份存储的机密也都会重新封装。}}",
-
     "_comment_slotsLegend": "The legend over the per-slot form. Every slot must either be opened or explicitly discarded; there is no third option, which is what 'accounted for' means.",
     "slotsLegend": "每一个槽位都必须有个交代",
     "_comment_password": "The label of the password field for one slot.",
@@ -161,11 +152,9 @@
     "drop": "我没有这一把。丢弃这个槽位。",
     "_comment_dropped": "Replaces the label above once the checkbox is ticked.",
     "dropped": "将被丢弃",
-
     "recoveryNote": "会为这个槽位签发一把新的恢复密钥，并在轮换结束时显示一次。",
     "keychainNote": "用本机密钥环里的令牌重新包裹。如果令牌已经没了，就丢弃这个槽位，事后再把这台机器重新登记一次。",
     "fido2Note": "本版本无法重新包裹安全密钥槽位。",
-
     "_comment_problemsTitle": "The heading over the list of reasons the rotation cannot start yet.",
     "problemsTitle": "还不能开始轮换",
     "_comment_problemNoCredential": "One entry in that list. {index} is the slot number, {label} the name the user gave the slot — never translated. The quoted phrase refers to the discard checkbox on that slot's card, so it should match the wording of rotateMaster.drop.",
@@ -174,7 +163,6 @@
     "problemFido2": "槽位 {index, number}（{label}）是一把安全密钥，本版本无法重新包裹它。请在这里丢弃它、事后重新登记一次，或者取消本次轮换。",
     "_comment_problemEmpty": "SECURITY-CRITICAL. A rotation that discards every slot would produce a file with no way in at all.",
     "problemEmpty": "所有槽位都被标记为丢弃。一次什么都不保留的轮换，会产生一个谁都打不开的文件。",
-
     "_comment_confirm": "Verb phrase, on the button that starts the rotation.",
     "confirm": "轮换主密钥",
     "busy": "正在换密钥…",
@@ -185,7 +173,6 @@
     "_comment_unchanged": "Reassurance after a failure, and it is exact: a failed rotation is atomic, so nothing at all was written.",
     "unchanged": "什么都没有改变：保险库与您按下按钮之前完全一样。"
   },
-
   "rotationSummary": {
     "_comment_": "What the rotation did, shown after the last new recovery key has been written down.",
     "title": "保险库已完成换钥",
@@ -197,11 +184,9 @@
     "_comment_resealed": "PLURAL. Every password, key and passphrase stored in the vault, re-encrypted under the new master key.",
     "resealed": "{count, plural, other {# 份机密已重新封装}}"
   },
-
   "addSlot": {
     "title": "添加密钥槽位",
     "lead": "每个槽位都能独立解开同一把保险库密钥。添加一个，只是把那把密钥用新的凭据重新包裹一次，不会重新加密任何内容，所以它是瞬时的，改主意也很安全。",
-
     "_comment_kindLegend": "The legend over the three radio cards below.",
     "kindLegend": "哪一种槽位",
     "kindPassword": "再加一个密码",
@@ -210,31 +195,26 @@
     "kindRecoveryHelp": "一个保险库可以有多把。把一封密封信放进保险柜，就是想要第二把的正当理由。",
     "kindKeychain": "在此设备上记住",
     "kindKeychainHelp": "把本机的凭据存储登记进来，这样在您登录期间打开保险库无需任何提示。但任何能使用您桌面会话的人，从此也能打开这个保险库。",
-
     "label": "此槽位的名称",
     "labelHelp": "会显示在这个列表和解锁界面上，好把这个槽位与其他槽位区分开。",
     "_comment_labelPlaceholder": "An example name, in the empty field. Replace it with a plausible example in this locale rather than translating it word for word.",
     "labelPlaceholder": "运维笔记本",
     "_comment_labelBlocked": "Why the Add button is disabled. Shown as its tooltip.",
     "labelBlocked": "请先给这个槽位起个名字。",
-
     "password": "密码",
     "_comment_passwordHelp": "SECURITY-CRITICAL. A second password opens the whole vault; it is not a lesser credential.",
     "passwordHelp": "它能打开整个保险库，和主密码完全一样。所以它也应当一样强。",
     "confirm": "再输入一次密码",
     "confirmMismatch": "两次输入的密码不一致。",
     "passwordBlocked": "请把密码一模一样地输入两次。",
-
     "keyfile": "密钥文件（可选）",
     "_comment_keyfileHelp": "SECURITY-CRITICAL. Losing the key file loses this slot, permanently.",
     "keyfileHelp": "任何文件都可以成为这个槽位的第二重因素。一旦把它弄丢，这个槽位就永久失效；其他槽位不受影响。",
     "_comment_keyfileRefused": "Why the Add button is disabled: the chosen file cannot be a key file, and the field above already says which rule it broke.",
     "keyfileRefused": "请另选一个密钥文件。上面那栏已经说明了那个文件为什么不能用。",
-
     "_comment_recoveryNotice": "SECURITY-CRITICAL. 'shown once, and then dropped' is literal: the key exists nowhere after this dialog closes. 'Add' is the button label, addSlot.add.",
     "recoveryNotice": "密钥会在您按下“添加槽位”时生成，显示一次，随后就被丢弃。",
     "keychainNotice": "令牌存放在本机的密钥环里。别的机器用不了这个槽位，而在这里删除它会同时抹掉那个令牌。",
-
     "_comment_add": "Verb phrase, on the confirming button.",
     "add": "添加槽位",
     "adding": "正在派生密钥…",
@@ -244,34 +224,27 @@
     "addingBlocked": "这个槽位已经在写入了。等内核给出结果，这个对话框就会关闭——而恢复密钥槽位还得先把密钥交给您。",
     "failed": "该槽位没有添加成功。"
   },
-
   "changePassword": {
     "title": "更改此槽位的密码",
     "lead": "该槽位会围绕新密码重新包裹。主密钥不变，因此不会重新加密任何内容，其他每个槽位照常可用，恢复密钥也依然有效。",
-
     "_comment_notARotation": "SECURITY-CRITICAL. The distinction between changing a password and rotating the master key. A user who believes this repairs a leak will not then do the thing that does.",
     "notARotation": "如果是文件本身泄露了，这一步帮不上忙",
     "notARotationBody": "在旧密码还在使用期间被拿走的副本，仍然可以用旧密码打开。应对那种情况的办法是轮换保险库主密钥，它就在这个界面上。",
-
     "current": "当前密码",
     "currentHelp": "在替换任何东西之前先验证它，所以这里打错字不会把槽位锁死。",
     "currentKeyfile": "当前密钥文件",
     "currentKeyfileHelp": "此槽位需要它，因此这次更改也需要它。",
-
     "next": "新密码",
     "confirm": "再输入一次新密码",
     "confirmMismatch": "两次输入的密码不一致。",
-
     "newKeyfile": "从现在起使用的密钥文件",
     "_comment_newKeyfileHelp": "SECURITY-CRITICAL. The current key file is NOT carried over; leaving the field empty removes it. A translation that implies otherwise is the difference between a slot that opens tomorrow and one that does not.",
     "newKeyfileHelp": "这一项必须由您明确指定，留空也算一种指定：当前的密钥文件不会自动沿用。留空就表示此槽位从此只需要密码。",
-
     "_comment_blockedCurrent": "The four reasons the confirming button is disabled, shown as its tooltip.",
     "blockedCurrent": "请输入此槽位的当前密码。",
     "blockedCurrentKeyfile": "请选择此槽位当前需要的密钥文件。",
     "blockedNew": "请把新密码一模一样地输入两次。",
     "blockedKeyfile": "该文件不能作为密钥文件。",
-
     "_comment_save": "Verb phrase, on the confirming button.",
     "save": "更改密码",
     "saving": "正在派生密钥…",
@@ -279,15 +252,12 @@
     "savingStage": "正在验证当前密码，随后派生新密钥…",
     "failed": "密码没有更改。"
   },
-
   "removeSlot": {
     "title": "删除此槽位",
     "lead": "这个槽位条目会从文件头中删除。不会重新加密任何内容，其他每个槽位照常可用——这不是一次轮换。",
-
     "refusedTitle": "此槽位无法删除",
     "_comment_warningTitle": "The heading over a warning that does not block the removal.",
     "warningTitle": "动手之前",
-
     "_comment_phrase": "SECURITY-CRITICAL. The sentence the user must type out before the recovery slot can be deleted. It is compared against what they type, ignoring case and repeated spaces, so it MUST read naturally in this language and MUST be easy to retype — no unusual punctuation, no words that could be spelled two ways. Translate the meaning: the person is stating that they understand they are giving up their last way back into the vault. A tick box was rejected here deliberately; typing is what makes someone read it.",
     "phrase": "我明白这会删除我最后的退路",
     "phrasePrompt": "请输入这句话以确认：",
@@ -296,17 +266,14 @@
     "phraseHint": "照着上面写的一字不差地输入。",
     "_comment_phraseBlocked": "Why the confirming button is disabled, shown as its tooltip.",
     "phraseBlocked": "请输入上面那句话才能删除此槽位。",
-
     "_comment_lostKey": "Reassurance for the common case: a key you have lost can still be revoked, because revoking deletes the vault's record of it rather than the key itself.",
     "lostKey": "吊销删除的是槽位条目本身，所以一把已经弄丢的密钥照样可以吊销——不需要它在手边。",
-
     "_comment_remove": "Verb phrase, on the confirming button.",
     "remove": "删除槽位",
     "removing": "正在删除…",
     "removingBlocked": "删除操作已经交给内核了。等它给出结果，这个对话框才会关闭，这样结果才有地方显示。",
     "failed": "该槽位没有被删除。"
   },
-
   "recoveryKey": {
     "_comment_": "SECURITY-CRITICAL SECTION. A recovery key is shown here and nowhere else, ever. Nothing in the program can produce it again. Every string in this object must keep that finality.",
     "title": "您的新恢复密钥",
@@ -314,7 +281,6 @@
     "titleSequence": "您的新恢复密钥（{position, number}/{total, number}）",
     "_comment_lead": "SECURITY-CRITICAL. {index} is the slot number. 'shown here and nowhere else' is literal.",
     "lead": "槽位 {index, number}。该槽位原先那把密钥现在已经作废，而这一把只在这里显示，别处都不会再出现。",
-
     "_comment_done": "First person, on the button that dismisses the key. The user is asserting they have written it down.",
     "done": "我已经保存好了",
     "_comment_doneLast": "The same button on the last key of a sequence.",
@@ -324,11 +290,9 @@
     "_comment_escapeBlocked": "SECURITY-CRITICAL. The answer to pressing Escape, which everywhere else in the program closes a dialog. Here it does not, and this sentence says why.",
     "escapeBlocked": "这把密钥只显示一次。没有记下来就关掉，这个槽位里装的就是一把您手上没有的密钥。"
   },
-
   "autoLock": {
     "title": "自动锁定",
     "description": "锁定会把每一把密钥和缓存的机密清零，并丢弃内存中的数据库。再次打开需要完整解锁一次。",
-
     "idleLegend": "闲置多久后锁定",
     "_comment_choiceNever": "The first choice on the idle ladder: the vault never locks on its own.",
     "choiceNever": "从不",
@@ -336,22 +300,18 @@
     "choiceMinutes": "{count, plural, other {# 分钟}}",
     "_comment_choiceHours": "PLURAL. The same ladder above an hour.",
     "choiceHours": "{count, plural, other {# 小时}}",
-
     "_comment_idleHelp": "What 'idle' actually measures. This sentence was wrong once and cost people work: it claimed the desktop's input idle time was being read, so users believed typing in a terminal kept the vault open when it did not. Translate what is measured, not what would be nicer to measure.",
     "idleHelp": "这里的“闲置”指的是：没有任何东西访问过保险库，也没有任何会话传输过流量。您发出的按键和主机送来的输出都算数，所以一个您只是在旁边看着、并没有打字的会话，只要输出还在到达，就不会进入闲置。",
     "_comment_idleScope": "The limitation of that measurement. 'Remoter' is the product name and is never translated.",
     "idleScope": "Remoter 不会读取桌面本身的输入闲置时间，所以您人就坐在键盘前、只是在用别的程序，这段时间同样算作闲置。",
     "_comment_idleNever": "Shown only when 'Never' is chosen. A judgement about a security decision, offered without scolding.",
     "idleNever": "“从不”意味着保险库会一直开着，直到您手动锁定或退出程序。在一台只有您能碰到的机器上，这是站得住脚的选择；在一张共用的办公桌上，这是个糟糕的选择。",
-
     "screenLock": "屏幕锁定时",
     "suspend": "挂起或休眠时",
     "minimise": "窗口最小化时",
     "minimiseHelp": "默认关闭。大多数人最小化窗口的次数，远比真正离开座位的次数多。",
-
     "_comment_unavailable": "The state word on a switch this build cannot honour — neither on nor off in any sense the user cares about. An abbreviation of 'not applicable'; use this locale's equivalent or write it out.",
     "unavailable": "不适用",
-
     "_comment_noScreenLock": "One sentence per event this build cannot observe, naming what is missing rather than saying 'not supported', so a reader can tell whether it will ever change.",
     "noScreenLock": "此版本看不到本系统上的屏幕锁定，所以这个开关锁不上任何东西。要看到它，需要监听桌面环境的屏幕锁定信号，而 Remoter 还没有监听它。",
     "noSuspend": "此版本看不到这台机器进入挂起，所以这个开关在这里锁不上任何东西。",
@@ -360,7 +320,6 @@
     "onResumeSuspend": "Remoter 无法让本系统提前通知它即将挂起，因此它是在机器恢复之后才锁定，而不是在睡下去之前。机器睡着期间，密钥就在内存里；如果它进入休眠，密钥就在休眠映像里。",
     "_comment_keptForOtherMachines": "Appended to whichever of the three sentences above applies. The setting travels inside the vault file, so it still works on a computer that can see the event.",
     "keptForOtherMachines": "这项设置保存在保险库里，所以在 Remoter 能看到该事件的电脑上，它依然生效。",
-
     "sessionsLegend": "运行中的会话怎么处理",
     "keepRunning": "让它们继续运行",
     "_comment_keepRunningHelp": "The default, with the reason for it, which comes from docs/security/key-management.md.",
@@ -371,19 +330,15 @@
     "_comment_disconnectAllHelp": "Warns about data loss: work in a session that has not been saved on the remote host is gone.",
     "disconnectAllHelp": "最严格。会话中尚未保存的工作会丢失，包括正在进行的传输。",
     "audited": "更改这一项会写入保险库的审计日志。",
-
     "failed": "该设置没有保存。"
   },
-
   "recording": {
     "title": "录制策略",
     "description": "此保险库中所有没有自设策略的条目都会继承它，所以设一次就管住整棵树。",
-
     "_comment_notYetTitle": "SECURITY-CRITICAL. This build has no recorder at all. A user who believes they hold a compliance record they do not have is the one failure of this screen that costs something, so this notice must not be softened or made conditional.",
     "notYetTitle": "此版本不会录制任何内容",
     "_comment_notYetBody": "'Remoter' is the product name and is never translated.",
     "notYetBody": "Remoter 还没有录制器：无论您选中哪张卡片，此保险库中的每一个会话打开时都不会被录制。下面的选择现在就存进保险库，等会话录制功能做好之后才会真正生效。",
-
     "_comment_": "Every sentence describing recording behaviour below is in the future tense on purpose: nothing on this screen may read as a claim about what happens today. Keep the future tense in translation wherever this language marks it.",
     "never": "从不录制",
     "neverHelp": "此保险库中的任何内容都不会被录制，除非它下面的某个文件夹或连接自己设了策略。",
@@ -391,37 +346,28 @@
     "askHelp": "会话打开前会有一个提示。选择拒绝，会话将以不录制的方式打开。",
     "always": "始终录制",
     "alwaysHelp": "每一个会话都会被录制，并在打开前给出提示。如果录制器启动不了，会话仍然会打开——在这个策略下，录制是尽力而为的。",
-
     "_comment_required": "Why a fourth policy is described rather than offered. The quoted word 'required' names a policy in docs/features/recording-audit.md; keep it quoted and translate it the same way wherever that policy is named.",
     "required": "还有第四种策略“强制录制”——录制，并且在录制无法启动时拒绝连接——这里没有提供它。保险库文件里没有存放它的字段，所以第四张卡片实际存下来的只会是上面三种之一，其含义会比它的名字弱。",
-
     "storage": "录像将存放在保险库之外、由您选定的目录中，每一份都用从保险库主密钥派生出的密钥加密，因此只有在保险库解锁时才能读取。不会上传到任何地方。",
-
     "failed": "录制策略没有保存。"
   },
-
   "backups": {
     "title": "备份",
     "_comment_description": "vault.rvault.bak.1 is a file name pattern and is never translated.",
     "description": "在覆盖保险库之前，原先那个文件会被轮转成旁边的一份滚动备份：vault.rvault.bak.1 一直到 .bak.N。",
-
     "legend": "保留多少份",
     "_comment_none": "The zero option on the ladder, in place of the numeral 0.",
     "none": "不保留",
-
     "_comment_onceASession": "Why the number means less than it looks like it means: backups rotate on the first save after the vault is opened, not on every save.",
     "onceASession": "每个会话轮转一次，而不是每次保存都轮转",
     "onceASessionBody": "对节点的每一次编辑都是一次保存。如果每次保存都做备份，那么三份备份也就是四次点击的深度，出错之前的那个文件早就被挤掉了。改成在一个会话的第一次保存时轮转，.bak.1 就正好是您打开保险库那一刻的样子。",
-
     "_comment_zeroTitle": "Keeping no backups is a legitimate choice, not a mistake to be talked out of.",
     "zeroTitle": "一份都不留也是正经选择",
     "zeroBody": "如果这个保险库放在同步文件夹里，云服务商已经保留了密文的历史副本，您未必还想让磁盘上多躺几份。",
-
     "_comment_present": "PLURAL, on how many backup files are beside the vault at this moment. The zero and one wordings are deliberately different from the general case rather than showing a numeral.",
     "present": "{count, plural, =0 {此保险库旁边现在没有任何备份。} =1 {此保险库旁边现在有一份备份。} other {此保险库旁边现在有 # 份备份。}}",
     "_comment_presentPrune": "Follows the sentence above. Lowering the setting does not delete files that already exist.",
     "presentPrune": "调低这个数字不会删除已经写下的文件；下一次轮转会停在新的上限处。",
-
     "failed": "备份份数没有保存。"
   }
 }

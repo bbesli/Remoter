@@ -10,16 +10,26 @@
  * The plugin rejects when the platform has no file browser to start. Left
  * unhandled, Browse becomes a button that does nothing, which is the defect
  * this project keeps finding.
+ *
+ * A slot that is gaining a key file can also have one made for it. Before this,
+ * a vault created without a key file could only be given one the user already
+ * had — the creation wizard offered to generate one, and the two places a key
+ * file is added afterwards did not. Generating writes 256 random bits through
+ * the core, owner-readable only, and never over an existing file: a path that is
+ * already taken is refused rather than replaced, because the file already there
+ * may be another vault's key file.
  */
 
 import { useState } from "react";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open, save } from "@tauri-apps/plugin-dialog";
 
 import { BusyButton } from "@/components/Busy";
 import { Button } from "@/components/Button";
+import { FailureNotice } from "@/components/FailureNotice";
 import { Field } from "@/components/Field";
 import { folderOf, keyfileFilters, keyfileRefusal } from "@/features/vault/keyfile";
 import { isolateLtr, useT } from "@/i18n";
+import { asFailure, ipc, type IpcFailure } from "@/lib/ipc";
 
 import s from "./KeyfileField.module.css";
 
@@ -32,6 +42,12 @@ interface KeyfileFieldProps {
   /** The open vault, so the browser starts in its folder and cannot pick it. */
   vaultPath: string;
   disabled?: boolean | undefined;
+  /**
+   * Whether a new key file can be generated here. True where a slot is gaining
+   * a key file; false where the field asks for the one a slot already has,
+   * which no newly generated file could ever be.
+   */
+  canGenerate?: boolean | undefined;
 }
 
 export function KeyfileField({
@@ -41,11 +57,16 @@ export function KeyfileField({
   onChange,
   vaultPath,
   disabled = false,
+  canGenerate = false,
 }: KeyfileFieldProps) {
   const t = useT("vaultsettings");
   const tCommon = useT("common");
   const [browsing, setBrowsing] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [dialogError, setDialogError] = useState<string | null>(null);
+  const [generateFailure, setGenerateFailure] = useState<IpcFailure | null>(null);
+  /** The file this field generated, so the note about keeping it follows the path. */
+  const [generated, setGenerated] = useState<string | null>(null);
 
   const refusal = keyfileRefusal(path ?? "", vaultPath);
 
@@ -68,8 +89,53 @@ export function KeyfileField({
     }
     setDialogError(null);
     const chosen = Array.isArray(picked) ? picked[0] : picked;
-    if (typeof chosen === "string") onChange(chosen);
+    if (typeof chosen === "string") {
+      setGenerateFailure(null);
+      onChange(chosen);
+    }
   }
+
+  async function generate() {
+    setGenerating(true);
+    setGenerateFailure(null);
+    try {
+      let target: string | null;
+      try {
+        target = await save({
+          title: t("keyfile.generateDialogTitle"),
+          defaultPath: `${folderOf(vaultPath)}${suggestedName(vaultPath)}`,
+          filters: keyfileFilters(),
+        });
+      } catch {
+        setDialogError(t("keyfile.dialogFailed"));
+        return;
+      }
+      setDialogError(null);
+      if (target === null) return;
+
+      // The same rules as a file chosen with Browse, applied before anything
+      // is written: a key file cannot be the vault or one of its backups.
+      const refused = keyfileRefusal(target, vaultPath);
+      if (refused !== null) {
+        setDialogError(refused);
+        return;
+      }
+
+      try {
+        await ipc.generateKeyfile(target);
+      } catch (error) {
+        setGenerateFailure(asFailure(error));
+        return;
+      }
+      setGenerated(target);
+      onChange(target);
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  const justGenerated = path !== null && path === generated;
+  const besideTheVault = justGenerated && folderOf(path) === folderOf(vaultPath);
 
   return (
     <Field
@@ -93,6 +159,18 @@ export function KeyfileField({
         >
           {tCommon("action.browse")}
         </BusyButton>
+        {canGenerate && (
+          <BusyButton
+            size="sm"
+            variant="secondary"
+            busy={generating}
+            busyLabel={t("keyfile.generating")}
+            disabled={disabled || browsing}
+            onClick={() => void generate()}
+          >
+            {t("keyfile.generate")}
+          </BusyButton>
+        )}
         {path !== null && (
           <Button size="sm" variant="ghost" disabled={disabled} onClick={() => onChange(null)}>
             {t("keyfile.clear")}
@@ -100,8 +178,27 @@ export function KeyfileField({
         )}
       </div>
       {dialogError !== null && <p className={s.dialogError}>{dialogError}</p>}
+      {generateFailure !== null && (
+        <FailureNotice failure={generateFailure} title={t("keyfile.generateFailed")} tone="warning" />
+      )}
+      {justGenerated && (
+        <p className={s.generated} role="status">
+          {t("keyfile.generated")}
+        </p>
+      )}
+      {besideTheVault && <p className={s.dialogError}>{t("keyfile.besideTheVault")}</p>}
     </Field>
   );
+}
+
+/**
+ * The name offered for a new key file: the vault's own name with `.keyfile`,
+ * so the two are recognisably a pair wherever the key file ends up.
+ */
+function suggestedName(vaultPath: string): string {
+  const cut = Math.max(vaultPath.lastIndexOf("/"), vaultPath.lastIndexOf("\\"));
+  const stem = vaultPath.slice(cut + 1).replace(/\.rvault$/i, "");
+  return `${stem === "" ? "remoter" : stem}.keyfile`;
 }
 
 /** Whether a chosen key file is usable, for the dialogs that gate on it. */

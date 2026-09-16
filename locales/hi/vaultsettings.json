@@ -1,6 +1,5 @@
 {
   "_comment_file": "The vault settings screen: which keys open this vault file, and the policies stored inside the file itself — auto-lock, recording and rolling backups. Loaded when the screen opens, not before. Read the SECURITY-CRITICAL comments before translating anything in this namespace: several of these strings are the last warning a person sees before an operation that can leave an encrypted file that nobody, including us, can ever open. A softened warning here is a real and foreseeable way to lose someone's data.",
-
   "screen": {
     "title": "वॉल्ट सेटिंग्स",
     "_comment_close": "Both the accessible name of the header's close control and the label of the button offered beside a failed read.",
@@ -23,17 +22,14 @@
     "locked": "कोई वॉल्ट खुला नहीं है",
     "lockedBody": "ये सेटिंग्स वॉल्ट फ़ाइल के अंदर ही रहती हैं, इसलिए उन्हें तभी पढ़ा जा सकता है जब वह अनलॉक हो।"
   },
-
   "status": {
     "_comment_saving": "Shown beside a spinner while one setting is being written. Used by all three policy panels.",
     "saving": "सेव हो रहा है…"
   },
-
   "dialog": {
     "_comment_blockedFallback": "A noun phrase, not a sentence: it is interpolated into the window-close confirmation as the thing that would be lost — 'Closing now loses …'. Only reached if a dialog refuses to be dismissed without saying what is at stake, which no dialog on this screen does.",
     "blockedFallback": "ऐसी चीज़ जो दोबारा नहीं दिखाई जा सकती"
   },
-
   "keyfile": {
     "_comment_": "Choosing the file that acts as a second factor on a key slot. A key file is an ordinary file of the user's choosing; its contents are mixed into the key, so losing the file loses the slot.",
     "_comment_none": "Shown in place of a path when no key file has been chosen. Adjective-free noun: 'no file chosen'.",
@@ -43,9 +39,20 @@
     "_comment_dialogTitle": "The title bar of the operating system's file browser.",
     "dialogTitle": "इस स्लॉट के लिए कुंजी फ़ाइल चुनें",
     "_comment_dialogFailed": "Shown when the platform has no file browser to open. 'Remoter' is the product name and is never translated.",
-    "dialogFailed": "इस सिस्टम ने कोई फ़ाइल ब्राउज़र नहीं खोला। प्लैटफ़ॉर्म जो फ़ील्ड देता है उसमें पथ टाइप करें, या Remoter को ऐसे सेशन से चलाएँ जिसमें फ़ाइल ब्राउज़र हो।"
+    "dialogFailed": "इस सिस्टम ने कोई फ़ाइल ब्राउज़र नहीं खोला। प्लैटफ़ॉर्म जो फ़ील्ड देता है उसमें पथ टाइप करें, या Remoter को ऐसे सेशन से चलाएँ जिसमें फ़ाइल ब्राउज़र हो।",
+    "_comment_generate": "A button beside Browse that writes a brand-new random key file and uses it for this slot. The ellipsis means a save dialog follows.",
+    "generate": "बनाएँ…",
+    "_comment_generating": "The same button while the file is being written.",
+    "generating": "लिखा जा रहा है…",
+    "_comment_generateDialogTitle": "The title bar of the operating system's save dialog for the new key file.",
+    "generateDialogTitle": "नई कुंजी फ़ाइल कहाँ लिखी जाए",
+    "_comment_generateFailed": "A heading over the core's own message when the new key file could not be written — for example because a file already exists at that path, which is never overwritten.",
+    "generateFailed": "कुंजी फ़ाइल लिखी नहीं जा सकी",
+    "_comment_generated": "SECURITY-CRITICAL. Shown under the path once a new key file has been written. Losing that file loses this slot; keep both halves: where it is, and that a copy must be kept away from the vault.",
+    "generated": "वहाँ एक नई कुंजी फ़ाइल लिख दी गई है। उसकी एक प्रति वॉल्ट के बगल के बजाय कहीं और रखें — उसके बिना यह स्लॉट काम करना बंद कर देगा।",
+    "_comment_besideTheVault": "SECURITY-CRITICAL. The new key file was written into the vault's own folder. It works, but stops being a second factor. Do not turn it into a refusal.",
+    "besideTheVault": "यह वॉल्ट के ठीक बगल में है, इसलिए जो एक को कॉपी करेगा वह दोनों को कॉपी कर लेगा। काम यह करेगी; बस यह दूसरा फ़ैक्टर नहीं रह जाती।"
   },
-
   "slot": {
     "_comment_": "How one key slot is described. A slot is one independent way of unwrapping the vault key: the same vault can have several, and any one of them opens it.",
     "_comment_kind": "The four kinds of slot. 'Security key' is a hardware authenticator (FIDO2); 'Remember on this device' is the operating system's own credential store.",
@@ -66,39 +73,31 @@
     "withKeyfile": "इसे अपनी कुंजी फ़ाइल भी चाहिए",
     "noKeyfile": "सिर्फ़ पासवर्ड"
   },
-
   "slots": {
     "title": "कुंजी स्लॉट",
     "description": "हर स्लॉट अपने आप उसी एक वॉल्ट कुंजी को खोलता है। कोई स्लॉट जोड़ने या हटाने से कुछ भी दोबारा एन्क्रिप्ट नहीं होता, इसलिए यह तेज़ भी है और इसमें मन बदल लेना भी सुरक्षित है।",
-
     "_comment_openedWithBadge": "A badge on the slot that unlocked the vault in this session. Lower case, no full stop: it is a badge, not a sentence.",
     "openedWithBadge": "इसी सेशन में खोला गया",
     "_comment_neverUsedBadge": "A badge on a recovery key that has never opened this vault — the slot most likely to have been lost. Lower case, no full stop.",
     "neverUsedBadge": "कभी इस्तेमाल नहीं हुआ",
-
     "_comment_change": "Verb, on the button that changes this slot's password.",
     "change": "बदलें",
     "_comment_rotate": "Verb, on the button that replaces this recovery key with a new one.",
     "rotate": "नई बनाएँ",
     "_comment_remove": "Verb, on the button that deletes this slot from the vault.",
     "remove": "हटाएँ",
-
     "_comment_add": "Verb phrase, on the row that opens the add-a-slot dialog.",
     "add": "स्लॉट जोड़ें",
     "_comment_addHint": "The three kinds that can be added, as a hint under the button. The middots are separators.",
     "addHint": "एक और पासवर्ड · एक रिकवरी कुंजी · यह डिवाइस",
-
     "_comment_unusedRecoveryBody": "SECURITY-CRITICAL. Shown on a recovery key that has never been used. Do not soften 'there is no way into this vault without one of these slots' — it is literally true, and a reader who takes it as caution rather than fact is the reader who loses the vault.",
     "unusedRecoveryBody": "जो कुंजी बनाई गई और कभी इस्तेमाल नहीं हुई, उसी के खो जाने की सबसे ज़्यादा संभावना होती है। अगर वह इस समय आपके हाथ में नहीं है, तो अभी नई बना लें — इन स्लॉटों में से किसी एक के बिना इस वॉल्ट में घुसने का कोई रास्ता नहीं है।",
-
     "_comment_invariantTitle": "SECURITY-CRITICAL. The standing notice at the foot of the panel.",
     "invariantTitle": "वॉल्ट में कम से कम एक काम करने वाला स्लॉट रहना ही चाहिए",
     "_comment_invariantBody": "SECURITY-CRITICAL. 'no escrow key and no support override' must survive translation as an absolute: there is no recovery path of any kind, and 'including us' means the people who wrote this program. 'Remoter' is the product name and is never translated.",
     "invariantBody": "Remoter आपको आख़िरी स्लॉट हटाने नहीं देगा, और रिकवरी स्लॉट हटाने के लिए एक वाक्य टाइप करके पुष्टि करनी पड़ती है। न कोई एस्क्रो कुंजी है और न सपोर्ट के पास इसे पार करने का कोई रास्ता: अगर हर स्लॉट खो गया, तो यह फ़ाइल कोई नहीं खोल पाएगा — हम भी नहीं।",
-
     "_comment_removeFailed": "The title of the failure notice when a removal fails after its dialog has closed.",
     "removeFailed": "स्लॉट हटा नहीं।",
-
     "_comment_lastSlotRefusal": "SECURITY-CRITICAL. Why the last remaining slot cannot be removed, shown on the disabled control before anything is clicked. This refusal has no undo behind it: if it were bypassed the file would be unopenable forever.",
     "lastSlotRefusal": "इस वॉल्ट में घुसने का यही एकमात्र रास्ता है। इसे हटाने से ऐसी फ़ाइल बचेगी जिसे कोई कभी नहीं खोल पाएगा — न कोई एस्क्रो कुंजी है, न सपोर्ट के पास इसे पार करने का कोई रास्ता।",
     "_comment_openedWithWarning": "A warning, not a refusal: this slot is the one that unlocked the vault in this session.",
@@ -106,7 +105,6 @@
     "_comment_lastRecoveryWarning": "SECURITY-CRITICAL. A warning, not a refusal. 'the end of the vault' means the vault can never be opened again; do not weaken it to 'a problem'.",
     "lastRecoveryWarning": "इस वॉल्ट पर यह आख़िरी रिकवरी कुंजी है। इसके बिना, पासवर्ड भूल जाने का मतलब है कि वॉल्ट हमेशा के लिए ख़त्म।"
   },
-
   "rotateRecovery": {
     "_comment_": "Replacing one recovery key with a freshly generated one. The vault master key is untouched, so this is cheap — unlike the master key rotation further down the same screen.",
     "title": "यह रिकवरी कुंजी बदलकर नई बनाएँ",
@@ -120,12 +118,10 @@
     "blocked": "नई कुंजी बनाई जा रही है। अभी बंद करने पर वह खो जाएगी: वह एक ही बार दिखाई जाती है और उसे दोबारा जारी करने का कोई तरीका नहीं है।",
     "failed": "रिकवरी कुंजी नहीं बदली गई।"
   },
-
   "expensive": {
     "_comment_label": "A heading over the one operation on this screen that re-encrypts the whole vault and therefore takes real time.",
     "label": "महँगी कार्रवाई"
   },
-
   "rotateMaster": {
     "_comment_": "Rotating the vault master key: a new master key, every slot re-wrapped around it, and every stored secret re-encrypted.",
     "cardTitle": "वॉल्ट की मास्टर कुंजी बदलें",
@@ -135,22 +131,17 @@
     "cardButton": "मास्टर कुंजी बदलें",
     "_comment_cardAside": "SECURITY-CRITICAL. Rotation does not reach copies of the file that already exist. 'Delete them' is an instruction, not a suggestion.",
     "cardAside": "फ़ाइल की पुरानी कॉपियाँ पुरानी कुंजियों से खुलती रहेंगी। उन्हें मिटा दें।",
-
     "title": "वॉल्ट की मास्टर कुंजी बदलें",
     "lead": "एक नई मास्टर कुंजी बनती है, हर स्लॉट उसके इर्द-गिर्द दोबारा लपेटा जाता है, और वॉल्ट का हर सीक्रेट दोबारा सील किया जाता है।",
-
     "whenTitle": "यह कब सही जवाब है",
     "whenBody": "जब आपकी कोई कुंजी लीक हुई हो और उसी दौरान इस फ़ाइल की कोई कॉपी भी बाहर गई हो। पासवर्ड बदलने से सिर्फ़ एक स्लॉट दोबारा लपेटा जाता है; यह उस कुंजी को ही बदल देता है जिसके तहत पूरा मुख्य हिस्सा एन्क्रिप्ट है।",
-
     "_comment_limitTitle": "SECURITY-CRITICAL. What rotation cannot do, shown both before and after the operation.",
     "limitTitle": "यह क्या नहीं कर सकता",
     "_comment_limitBody": "SECURITY-CRITICAL. Must not be softened into reassurance: a leaked copy stays readable with the old keys forever, and so do the backup files beside the vault. 'rotation protects what happens next, not what already left' is the whole point of the paragraph.",
     "limitBody": "जो कॉपी लीक हो चुकी है, वह पुरानी कुंजियों से खुलती ही रहेगी, और इस वॉल्ट के बगल वाले रोलिंग बैकअप भी — जिन्हें यह सेव करने की क्रिया आगे खिसका देती है। जिन कॉपियों के बारे में आप जानते हैं उन्हें मिटा दें; कुंजी बदलना आगे होने वाली चीज़ों से बचाता है, उससे नहीं जो पहले ही बाहर जा चुका है।",
-
     "costTitle": "इसमें सचमुच समय लगता है",
     "_comment_costBody": "PLURAL, on the number of password slots being re-wrapped. Argon2id is a key derivation function and is never translated. The one-slot wording is deliberately different rather than showing the numeral 1.",
     "costBody": "{count, plural, one {इकलौते पासवर्ड स्लॉट के लिए Argon2id एक बार चलता है, और हर सेव किया हुआ सीक्रेट दोबारा सील किया जाता है।} other {हर पासवर्ड स्लॉट के लिए Argon2id एक बार चलता है — यहाँ ऐसे # स्लॉट हैं — और हर सेव किया हुआ सीक्रेट दोबारा सील किया जाता है।}}",
-
     "_comment_slotsLegend": "The legend over the per-slot form. Every slot must either be opened or explicitly discarded; there is no third option, which is what 'accounted for' means.",
     "slotsLegend": "हर स्लॉट का हिसाब देना ज़रूरी है",
     "_comment_password": "The label of the password field for one slot.",
@@ -161,11 +152,9 @@
     "drop": "यह मेरे पास नहीं है। इस स्लॉट को छोड़ दें।",
     "_comment_dropped": "Replaces the label above once the checkbox is ticked.",
     "dropped": "छोड़ दिया जाएगा",
-
     "recoveryNote": "इस स्लॉट के लिए नई रिकवरी कुंजी जारी की जाएगी, और कुंजी बदलने का काम पूरा होने पर एक बार दिखाई जाएगी।",
     "keychainNote": "इस मशीन के keyring में रखे टोकन से दोबारा लपेटा जाएगा। अगर वह टोकन नहीं रहा, तो स्लॉट छोड़ दें और बाद में इस मशीन को फिर से जोड़ लें।",
     "fido2Note": "यह संस्करण सिक्योरिटी कुंजी वाले स्लॉट को दोबारा नहीं लपेट सकता।",
-
     "_comment_problemsTitle": "The heading over the list of reasons the rotation cannot start yet.",
     "problemsTitle": "कुंजी बदलने के लिए अभी तैयार नहीं",
     "_comment_problemNoCredential": "One entry in that list. {index} is the slot number, {label} the name the user gave the slot — never translated. The quoted phrase refers to the discard checkbox on that slot's card, so it should match the wording of rotateMaster.drop.",
@@ -174,7 +163,6 @@
     "problemFido2": "स्लॉट {index, number} ({label}) एक सिक्योरिटी कुंजी है, जिसे यह संस्करण दोबारा नहीं लपेट सकता। इसे यहाँ छोड़ दें और बाद में फिर से जोड़ लें, या पूरी कार्रवाई रद्द कर दें।",
     "_comment_problemEmpty": "SECURITY-CRITICAL. A rotation that discards every slot would produce a file with no way in at all.",
     "problemEmpty": "हर स्लॉट छोड़ने के लिए चुना गया है। जिस कार्रवाई के बाद एक भी स्लॉट न बचे, वह ऐसी फ़ाइल बनाती है जिसे कोई नहीं खोल सकता।",
-
     "_comment_confirm": "Verb phrase, on the button that starts the rotation.",
     "confirm": "मास्टर कुंजी बदलें",
     "busy": "नई कुंजी लगाई जा रही है…",
@@ -185,7 +173,6 @@
     "_comment_unchanged": "Reassurance after a failure, and it is exact: a failed rotation is atomic, so nothing at all was written.",
     "unchanged": "कुछ भी नहीं बदला: वॉल्ट ठीक वैसा ही है जैसा बटन दबाने से पहले था।"
   },
-
   "rotationSummary": {
     "_comment_": "What the rotation did, shown after the last new recovery key has been written down.",
     "title": "वॉल्ट पर नई कुंजी लग चुकी है",
@@ -197,11 +184,9 @@
     "_comment_resealed": "PLURAL. Every password, key and passphrase stored in the vault, re-encrypted under the new master key.",
     "resealed": "{count, plural, one {# सीक्रेट दोबारा सील किया गया} other {# सीक्रेट दोबारा सील किए गए}}"
   },
-
   "addSlot": {
     "title": "कुंजी स्लॉट जोड़ें",
     "lead": "हर स्लॉट अपने आप उसी एक वॉल्ट कुंजी को खोलता है। स्लॉट जोड़ने पर वह कुंजी एक नए क्रेडेंशियल के तहत दोबारा लपेटी जाती है और कुछ भी दोबारा एन्क्रिप्ट नहीं होता, इसलिए यह तुरंत हो जाता है और इसमें मन बदल लेना सुरक्षित है।",
-
     "_comment_kindLegend": "The legend over the three radio cards below.",
     "kindLegend": "किस तरह का स्लॉट",
     "kindPassword": "एक और पासवर्ड",
@@ -210,31 +195,26 @@
     "kindRecoveryHelp": "एक वॉल्ट में एक से ज़्यादा भी हो सकती हैं। तिजोरी में रखा सीलबंद लिफ़ाफ़ा दूसरी कुंजी चाहने की जायज़ वजह है।",
     "kindKeychain": "इस डिवाइस पर याद रखें",
     "kindKeychainHelp": "यह इस मशीन के क्रेडेंशियल स्टोर को जोड़ देता है, ताकि आपके लॉग इन रहते वॉल्ट बिना कुछ पूछे खुल जाए। इसके बाद जो भी आपका डेस्कटॉप सेशन इस्तेमाल कर सकता है, वह वॉल्ट खोल सकता है।",
-
     "label": "इस स्लॉट का नाम",
     "labelHelp": "यह नाम इसी सूची में और अनलॉक स्क्रीन पर दिखता है, ताकि एक स्लॉट दूसरे से अलग पहचाना जा सके।",
     "_comment_labelPlaceholder": "An example name, in the empty field. Replace it with a plausible example in this locale rather than translating it word for word.",
     "labelPlaceholder": "ऑप्स लैपटॉप",
     "_comment_labelBlocked": "Why the Add button is disabled. Shown as its tooltip.",
     "labelBlocked": "पहले स्लॉट को कोई नाम दें।",
-
     "password": "पासवर्ड",
     "_comment_passwordHelp": "SECURITY-CRITICAL. A second password opens the whole vault; it is not a lesser credential.",
     "passwordHelp": "यह पूरा वॉल्ट खोलता है, ठीक वैसे ही जैसे मास्टर पासवर्ड खोलता है। यह उतना ही मज़बूत होना चाहिए।",
     "confirm": "पासवर्ड दोबारा टाइप करें",
     "confirmMismatch": "दोनों पासवर्ड एक जैसे नहीं हैं।",
     "passwordBlocked": "पासवर्ड दो बार, एक ही तरह टाइप करें।",
-
     "keyfile": "कुंजी फ़ाइल (वैकल्पिक)",
     "_comment_keyfileHelp": "SECURITY-CRITICAL. Losing the key file loses this slot, permanently.",
     "keyfileHelp": "कोई भी फ़ाइल इस स्लॉट के लिए दूसरा फ़ैक्टर बन जाती है। वह खो गई तो यह स्लॉट काम करना बंद कर देगा; बाक़ी स्लॉटों पर कोई असर नहीं पड़ेगा।",
     "_comment_keyfileRefused": "Why the Add button is disabled: the chosen file cannot be a key file, and the field above already says which rule it broke.",
     "keyfileRefused": "कोई दूसरी कुंजी फ़ाइल चुनें। ऊपर की फ़ील्ड बताती है कि वह फ़ाइल क्यों नहीं चल सकती।",
-
     "_comment_recoveryNotice": "SECURITY-CRITICAL. 'shown once, and then dropped' is literal: the key exists nowhere after this dialog closes. 'Add' is the button label, addSlot.add.",
     "recoveryNotice": "“स्लॉट जोड़ें” दबाने पर कुंजी बनती है, एक बार दिखाई जाती है, और फिर छोड़ दी जाती है।",
     "keychainNotice": "टोकन इस मशीन के keyring में रहता है। कोई दूसरी मशीन इस स्लॉट का इस्तेमाल नहीं कर सकती, और इसे यहाँ से हटाने पर वह टोकन मिट जाता है।",
-
     "_comment_add": "Verb phrase, on the confirming button.",
     "add": "स्लॉट जोड़ें",
     "adding": "कुंजी निकाली जा रही है…",
@@ -244,34 +224,27 @@
     "addingBlocked": "स्लॉट पहले से ही लिखा जा रहा है। कोर के जवाब देने पर यह बंद होगा — और रिकवरी स्लॉट के मामले में पहले एक कुंजी आपको सौंपनी भी है।",
     "failed": "स्लॉट जुड़ा नहीं।"
   },
-
   "changePassword": {
     "title": "इस स्लॉट का पासवर्ड बदलें",
     "lead": "स्लॉट नए पासवर्ड के इर्द-गिर्द दोबारा लपेटा जाता है। मास्टर कुंजी नहीं बदलती, इसलिए कुछ भी दोबारा एन्क्रिप्ट नहीं होता, बाक़ी हर स्लॉट काम करता रहता है और रिकवरी कुंजियाँ भी चलती रहती हैं।",
-
     "_comment_notARotation": "SECURITY-CRITICAL. The distinction between changing a password and rotating the master key. A user who believes this repairs a leak will not then do the thing that does.",
     "notARotation": "अगर फ़ाइल ही लीक हुई हो, तो इससे कोई फ़ायदा नहीं",
     "notARotationBody": "जो कॉपी पुराने पासवर्ड के चलन के दौरान ली गई थी, वह पुराने पासवर्ड से खुलती रहेगी। उसका जवाब वॉल्ट की मास्टर कुंजी बदलना है, और वह विकल्प इसी स्क्रीन पर है।",
-
     "current": "मौजूदा पासवर्ड",
     "currentHelp": "कुछ भी बदलने से पहले इसकी जाँच होती है, ताकि यहाँ की टाइपिंग ग़लती से स्लॉट बंद न हो जाए।",
     "currentKeyfile": "मौजूदा कुंजी फ़ाइल",
     "currentKeyfileHelp": "इस स्लॉट को यह चाहिए ही, इसलिए बदलाव के लिए भी यह ज़रूरी है।",
-
     "next": "नया पासवर्ड",
     "confirm": "नया पासवर्ड दोबारा टाइप करें",
     "confirmMismatch": "दोनों पासवर्ड एक जैसे नहीं हैं।",
-
     "newKeyfile": "अब से कुंजी फ़ाइल",
     "_comment_newKeyfileHelp": "SECURITY-CRITICAL. The current key file is NOT carried over; leaving the field empty removes it. A translation that implies otherwise is the difference between a slot that opens tomorrow and one that does not.",
     "newKeyfileHelp": "यह साफ़-साफ़ चुनना पड़ता है, खाली छोड़ना भी एक चुनाव है: मौजूदा कुंजी फ़ाइल आगे नहीं ले जाई जाती। खाली छोड़ने का मतलब है कि इस स्लॉट को सिर्फ़ पासवर्ड चाहिए।",
-
     "_comment_blockedCurrent": "The four reasons the confirming button is disabled, shown as its tooltip.",
     "blockedCurrent": "इस स्लॉट का मौजूदा पासवर्ड टाइप करें।",
     "blockedCurrentKeyfile": "इस स्लॉट को अभी जो कुंजी फ़ाइल चाहिए, उसे चुनें।",
     "blockedNew": "नया पासवर्ड दो बार, एक ही तरह टाइप करें।",
     "blockedKeyfile": "वह फ़ाइल कुंजी फ़ाइल नहीं बन सकती।",
-
     "_comment_save": "Verb phrase, on the confirming button.",
     "save": "पासवर्ड बदलें",
     "saving": "कुंजी निकाली जा रही है…",
@@ -279,15 +252,12 @@
     "savingStage": "मौजूदा पासवर्ड जाँचा जा रहा है, फिर नई कुंजी निकाली जाएगी…",
     "failed": "पासवर्ड नहीं बदला गया।"
   },
-
   "removeSlot": {
     "title": "यह स्लॉट हटाएँ",
     "lead": "स्लॉट की एंट्री हेडर से मिट जाती है। कुछ भी दोबारा एन्क्रिप्ट नहीं होता और बाक़ी हर स्लॉट काम करता रहता है — यह मास्टर कुंजी बदलना नहीं है।",
-
     "refusedTitle": "यह स्लॉट हटाया नहीं जा सकता",
     "_comment_warningTitle": "The heading over a warning that does not block the removal.",
     "warningTitle": "उससे पहले",
-
     "_comment_phrase": "SECURITY-CRITICAL. The sentence the user must type out before the recovery slot can be deleted. It is compared against what they type, ignoring case and repeated spaces, so it MUST read naturally in this language and MUST be easy to retype — no unusual punctuation, no words that could be spelled two ways. Translate the meaning: the person is stating that they understand they are giving up their last way back into the vault. A tick box was rejected here deliberately; typing is what makes someone read it.",
     "phrase": "यह मेरा अंतिम सहारा है और इसे हटाना मुझे स्वीकार है",
     "phrasePrompt": "पुष्टि के लिए यह वाक्य टाइप करें:",
@@ -296,17 +266,14 @@
     "phraseHint": "ठीक वही शब्द जो ऊपर लिखे हैं। छोटे-बड़े अक्षरों का फ़र्क़ नहीं पड़ता।",
     "_comment_phraseBlocked": "Why the confirming button is disabled, shown as its tooltip.",
     "phraseBlocked": "यह स्लॉट हटाने के लिए ऊपर लिखा वाक्य टाइप करें।",
-
     "_comment_lostKey": "Reassurance for the common case: a key you have lost can still be revoked, because revoking deletes the vault's record of it rather than the key itself.",
     "lostKey": "रद्द करने पर स्लॉट की एंट्री मिटती है, इसलिए जो कुंजी आप खो चुके हैं उसे भी रद्द किया जा सकता है — उसका आपके पास होना ज़रूरी नहीं।",
-
     "_comment_remove": "Verb phrase, on the confirming button.",
     "remove": "स्लॉट हटाएँ",
     "removing": "हटाया जा रहा है…",
     "removingBlocked": "हटाने का काम कोर के पास पहुँच चुका है। उसके जवाब देने पर यह बंद होगा, ताकि नतीजा दिखने की जगह बनी रहे।",
     "failed": "स्लॉट हटा नहीं।"
   },
-
   "recoveryKey": {
     "_comment_": "SECURITY-CRITICAL SECTION. A recovery key is shown here and nowhere else, ever. Nothing in the program can produce it again. Every string in this object must keep that finality.",
     "title": "आपकी नई रिकवरी कुंजी",
@@ -314,7 +281,6 @@
     "titleSequence": "आपकी नई रिकवरी कुंजी ({total, number} में से {position, number})",
     "_comment_lead": "SECURITY-CRITICAL. {index} is the slot number. 'shown here and nowhere else' is literal.",
     "lead": "स्लॉट {index, number}। इस स्लॉट के पास पहले जो कुंजी थी वह अब बेकार है, और यह नई कुंजी सिर्फ़ यहीं दिखाई जा रही है, और कहीं नहीं।",
-
     "_comment_done": "First person, on the button that dismisses the key. The user is asserting they have written it down.",
     "done": "मैंने इसे सुरक्षित रख लिया है",
     "_comment_doneLast": "The same button on the last key of a sequence.",
@@ -324,11 +290,9 @@
     "_comment_escapeBlocked": "SECURITY-CRITICAL. The answer to pressing Escape, which everywhere else in the program closes a dialog. Here it does not, and this sentence says why.",
     "escapeBlocked": "यह कुंजी एक ही बार दिखाई जाती है। इसे लिखे बिना बंद करने पर स्लॉट के पास ऐसी कुंजी रह जाएगी जो आपके पास नहीं है।"
   },
-
   "autoLock": {
     "title": "ऑटो-लॉक",
     "description": "लॉक होने पर हर कुंजी और कैश में रखा हर सीक्रेट मेमोरी में शून्य से मिटा दिया जाता है और इन-मेमोरी डेटाबेस हटा दिया जाता है। दोबारा खोलने के लिए पूरा अनलॉक करना पड़ता है।",
-
     "idleLegend": "इतनी देर निष्क्रिय रहने पर लॉक करें",
     "_comment_choiceNever": "The first choice on the idle ladder: the vault never locks on its own.",
     "choiceNever": "कभी नहीं",
@@ -336,22 +300,18 @@
     "choiceMinutes": "{count, plural, one {# मिनट} other {# मिनट}}",
     "_comment_choiceHours": "PLURAL. The same ladder above an hour.",
     "choiceHours": "{count, plural, one {# घंटा} other {# घंटे}}",
-
     "_comment_idleHelp": "What 'idle' actually measures. This sentence was wrong once and cost people work: it claimed the desktop's input idle time was being read, so users believed typing in a terminal kept the vault open when it did not. Translate what is measured, not what would be nicer to measure.",
     "idleHelp": "“निष्क्रिय” का मतलब है कि न किसी ने वॉल्ट को छुआ है और न किसी सेशन में कोई ट्रैफ़िक चला है। आपके भेजे कीस्ट्रोक और होस्ट का भेजा आउटपुट, दोनों गिने जाते हैं, इसलिए जिस सेशन को आप सिर्फ़ देख रहे हैं और उसमें टाइप नहीं कर रहे, वह भी आउटपुट आते रहने तक निष्क्रिय नहीं माना जाता।",
     "_comment_idleScope": "The limitation of that measurement. 'Remoter' is the product name and is never translated.",
     "idleScope": "Remoter डेस्कटॉप का अपना इनपुट-निष्क्रियता समय नहीं पढ़ता, इसलिए किसी दूसरे ऐप्लिकेशन में बिताया गया समय निष्क्रिय ही गिना जाता है, भले ही आप कीबोर्ड पर ही बैठे हों।",
     "_comment_idleNever": "Shown only when 'Never' is chosen. A judgement about a security decision, offered without scolding.",
     "idleNever": "“कभी नहीं” का मतलब है कि वॉल्ट तब तक खुला रहेगा जब तक आप उसे खुद लॉक न करें या ऐप्लिकेशन बंद न करें। जिस मशीन तक सिर्फ़ आप पहुँच सकते हैं, उस पर यह एक जायज़ चुनाव है; साझा डेस्क पर यह बुरा चुनाव है।",
-
     "screenLock": "जब स्क्रीन लॉक हो",
     "suspend": "सस्पेंड या हाइबरनेट पर",
     "minimise": "जब विंडो छोटी की जाए",
     "minimiseHelp": "डिफ़ॉल्ट रूप से बंद। ज़्यादातर लोग विंडो छोटी करने का काम उससे कहीं ज़्यादा बार करते हैं जितनी बार वे डेस्क से उठते हैं।",
-
     "_comment_unavailable": "The state word on a switch this build cannot honour — neither on nor off in any sense the user cares about. An abbreviation of 'not applicable'; use this locale's equivalent or write it out.",
     "unavailable": "लागू नहीं",
-
     "_comment_noScreenLock": "One sentence per event this build cannot observe, naming what is missing rather than saying 'not supported', so a reader can tell whether it will ever change.",
     "noScreenLock": "यह बिल्ड इस सिस्टम पर स्क्रीन लॉक होते नहीं देख सकता, इसलिए यह स्विच कुछ भी लॉक नहीं करेगा। उसे देखने का मतलब है डेस्कटॉप का स्क्रीन-लॉक संकेत, जिसे Remoter अभी सुनता नहीं।",
     "noSuspend": "यह बिल्ड इस मशीन को सस्पेंड होते नहीं देख सकता, इसलिए यह स्विच यहाँ कुछ भी लॉक नहीं करेगा।",
@@ -360,7 +320,6 @@
     "onResumeSuspend": "Remoter इस सिस्टम से सस्पेंड होने की पहले से सूचना नहीं माँग सकता, इसलिए वह मशीन के सोने से पहले नहीं, बल्कि उसके वापस आने पर लॉक करता है। मशीन के सोते समय कुंजियाँ मेमोरी में रहती हैं, और हाइबरनेट होने पर वे हाइबरनेशन इमेज में चली जाती हैं।",
     "_comment_keptForOtherMachines": "Appended to whichever of the three sentences above applies. The setting travels inside the vault file, so it still works on a computer that can see the event.",
     "keptForOtherMachines": "यह सेटिंग वॉल्ट में ही रखी जाती है, इसलिए जिस कंप्यूटर पर Remoter यह घटना देख सकता है, वहाँ यह लागू होती रहती है।",
-
     "sessionsLegend": "चल रहे सेशनों का क्या होगा",
     "keepRunning": "उन्हें चलने दें",
     "_comment_keepRunningHelp": "The default, with the reason for it, which comes from docs/security/key-management.md.",
@@ -371,19 +330,15 @@
     "_comment_disconnectAllHelp": "Warns about data loss: work in a session that has not been saved on the remote host is gone.",
     "disconnectAllHelp": "सबसे सख़्त। सेशन में जो काम सेव नहीं हुआ वह खो जाता है, बीच में चल रहे ट्रांसफ़र भी।",
     "audited": "इसे बदलना वॉल्ट के ऑडिट लॉग में लिखा जाता है।",
-
     "failed": "वह सेटिंग सेव नहीं हुई।"
   },
-
   "recording": {
     "title": "रिकॉर्डिंग नीति",
     "description": "इस वॉल्ट की हर वह चीज़ इसे इनहेरिट करती है जिसकी अपनी नीति नहीं है, इसलिए इसे पूरे ट्री के लिए एक ही बार तय किया जाता है।",
-
     "_comment_notYetTitle": "SECURITY-CRITICAL. This build has no recorder at all. A user who believes they hold a compliance record they do not have is the one failure of this screen that costs something, so this notice must not be softened or made conditional.",
     "notYetTitle": "इस संस्करण में कुछ भी रिकॉर्ड नहीं होता",
     "_comment_notYetBody": "'Remoter' is the product name and is never translated.",
     "notYetBody": "Remoter में अभी कोई रिकॉर्डर है ही नहीं: आप जो भी कार्ड चुनें, इस वॉल्ट का हर सेशन बिना रिकॉर्डिंग के ही खुलेगा। नीचे किया गया चुनाव अभी वॉल्ट में सेव हो जाता है और तब लागू होगा जब सेशन रिकॉर्डिंग बन जाएगी।",
-
     "_comment_": "Every sentence describing recording behaviour below is in the future tense on purpose: nothing on this screen may read as a claim about what happens today. Keep the future tense in translation wherever this language marks it.",
     "never": "कभी नहीं",
     "neverHelp": "इस वॉल्ट में कुछ भी रिकॉर्ड नहीं किया जाएगा, बशर्ते इसके नीचे का कोई फ़ोल्डर या कनेक्शन अपनी अलग नीति न तय करे।",
@@ -391,37 +346,28 @@
     "askHelp": "सेशन खुलने से पहले एक सवाल पूछा जाएगा। मना करने पर सेशन बिना रिकॉर्डिंग के खुल जाएगा।",
     "always": "हमेशा",
     "alwaysHelp": "हर सेशन रिकॉर्ड किया जाएगा, और खुलने से पहले उसकी सूचना दी जाएगी। अगर रिकॉर्डर शुरू नहीं हो पाया तो भी सेशन खुल जाएगा — इस नीति पर रिकॉर्डिंग यथासंभव प्रयास भर होगी।",
-
     "_comment_required": "Why a fourth policy is described rather than offered. The quoted word 'required' names a policy in docs/features/recording-audit.md; keep it quoted and translate it the same way wherever that policy is named.",
     "required": "एक चौथी नीति, \"आवश्यक\" — रिकॉर्ड करो, और रिकॉर्डिंग शुरू न हो पाए तो कनेक्ट करने से मना कर दो — यहाँ नहीं दी गई है। वॉल्ट फ़ाइल में उसके लिए कोई फ़ील्ड ही नहीं है, इसलिए चौथा कार्ड ऊपर की तीनों में से कोई एक ही सेव करता और अपने नाम से कमज़ोर चीज़ का मतलब देता।",
-
     "storage": "रिकॉर्डिंग वॉल्ट के बाहर, आपकी चुनी हुई डायरेक्टरी में रहेंगी, और हर एक ऐसी कुंजी से एन्क्रिप्टेड होगी जो वॉल्ट की मास्टर कुंजी से निकाली जाती है — यानी वे तभी पढ़ी जा सकेंगी जब वॉल्ट अनलॉक हो। कुछ भी कहीं अपलोड नहीं किया जाता।",
-
     "failed": "रिकॉर्डिंग नीति सेव नहीं हुई।"
   },
-
   "backups": {
     "title": "बैकअप",
     "_comment_description": "vault.rvault.bak.1 is a file name pattern and is never translated.",
     "description": "वॉल्ट के ऊपर लिखे जाने से पहले पिछली फ़ाइल उसी के बगल में रोलिंग बैकअप के रूप में खिसका दी जाती है: vault.rvault.bak.1 से लेकर .bak.N तक।",
-
     "legend": "कितने रखे जाएँ",
     "_comment_none": "The zero option on the ladder, in place of the numeral 0.",
     "none": "कोई नहीं",
-
     "_comment_onceASession": "Why the number means less than it looks like it means: backups rotate on the first save after the vault is opened, not on every save.",
     "onceASession": "हर सेशन में एक बार खिसकते हैं, हर सेव पर नहीं",
     "onceASessionBody": "किसी नोड में किया गया हर बदलाव एक सेव है। अगर हर सेव पर बैकअप लिया जाता, तो तीन बैकअप चार क्लिक में ही भर जाते और ग़लती से पहले वाली फ़ाइल तब तक जा चुकी होती। सेशन के पहले सेव पर खिसकाने से .bak.1 वही वॉल्ट रहता है जैसा वह आपके खोलते समय था।",
-
     "_comment_zeroTitle": "Keeping no backups is a legitimate choice, not a mistake to be talked out of.",
     "zeroTitle": "कोई बैकअप न रखना भी एक सही चुनाव है",
     "zeroBody": "अगर यह वॉल्ट किसी सिंक होने वाले फ़ोल्डर में है, तो प्रोवाइडर पहले से ही सिफरटेक्स्ट की पुरानी कॉपियाँ रखता है, और हो सकता है आप उसकी और कॉपियाँ डिस्क पर पड़ी हुई न चाहते हों।",
-
     "_comment_present": "PLURAL, on how many backup files are beside the vault at this moment. The zero and one wordings are deliberately different from the general case rather than showing a numeral.",
     "present": "{count, plural, =0 {इस समय इस वॉल्ट के बगल में कोई बैकअप नहीं है।} one {इस समय इस वॉल्ट के बगल में एक बैकअप है।} other {इस समय इस वॉल्ट के बगल में # बैकअप हैं।}}",
     "_comment_presentPrune": "Follows the sentence above. Lowering the setting does not delete files that already exist.",
     "presentPrune": "संख्या घटाने से वे फ़ाइलें नहीं मिटतीं जो पहले ही लिखी जा चुकी हैं; अगली बार खिसकाते समय नई सीमा पर रुक जाया जाएगा।",
-
     "failed": "बैकअप की संख्या सेव नहीं हुई।"
   }
 }

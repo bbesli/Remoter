@@ -207,6 +207,7 @@ export function AddSlotDialog({
             onChange={setKeyfile}
             vaultPath={vaultPath}
             disabled={working}
+            canGenerate
           />
         </>
       )}

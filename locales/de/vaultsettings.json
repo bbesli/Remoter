@@ -1,6 +1,5 @@
 {
   "_comment_file": "The vault settings screen: which keys open this vault file, and the policies stored inside the file itself — auto-lock, recording and rolling backups. Loaded when the screen opens, not before. Read the SECURITY-CRITICAL comments before translating anything in this namespace: several of these strings are the last warning a person sees before an operation that can leave an encrypted file that nobody, including us, can ever open. A softened warning here is a real and foreseeable way to lose someone's data.",
-
   "screen": {
     "title": "Tresor-Einstellungen",
     "_comment_close": "Both the accessible name of the header's close control and the label of the button offered beside a failed read.",
@@ -23,17 +22,14 @@
     "locked": "Es ist kein Tresor geöffnet",
     "lockedBody": "Diese Einstellungen stehen in der Tresordatei und lassen sich deshalb nur lesen, solange sie entsperrt ist."
   },
-
   "status": {
     "_comment_saving": "Shown beside a spinner while one setting is being written. Used by all three policy panels.",
     "saving": "Wird gespeichert…"
   },
-
   "dialog": {
     "_comment_blockedFallback": "A noun phrase, not a sentence: it is interpolated into the window-close confirmation as the thing that would be lost — 'Closing now loses …'. Only reached if a dialog refuses to be dismissed without saying what is at stake, which no dialog on this screen does.",
     "blockedFallback": "etwas, das nicht noch einmal angezeigt werden kann"
   },
-
   "keyfile": {
     "_comment_": "Choosing the file that acts as a second factor on a key slot. A key file is an ordinary file of the user's choosing; its contents are mixed into the key, so losing the file loses the slot.",
     "_comment_none": "Shown in place of a path when no key file has been chosen. Adjective-free noun: 'no file chosen'.",
@@ -43,9 +39,20 @@
     "_comment_dialogTitle": "The title bar of the operating system's file browser.",
     "dialogTitle": "Schlüsseldatei für diesen Slot auswählen",
     "_comment_dialogFailed": "Shown when the platform has no file browser to open. 'Remoter' is the product name and is never translated.",
-    "dialogFailed": "Dieses System hat keinen Dateibrowser geöffnet. Geben Sie den Pfad in das Feld ein, das die Plattform Ihnen anbietet, oder starten Sie Remoter aus einer Sitzung, die einen hat."
+    "dialogFailed": "Dieses System hat keinen Dateibrowser geöffnet. Geben Sie den Pfad in das Feld ein, das die Plattform Ihnen anbietet, oder starten Sie Remoter aus einer Sitzung, die einen hat.",
+    "_comment_generate": "A button beside Browse that writes a brand-new random key file and uses it for this slot. The ellipsis means a save dialog follows.",
+    "generate": "Erzeugen…",
+    "_comment_generating": "The same button while the file is being written.",
+    "generating": "Wird geschrieben…",
+    "_comment_generateDialogTitle": "The title bar of the operating system's save dialog for the new key file.",
+    "generateDialogTitle": "Wohin die neue Schlüsseldatei geschrieben wird",
+    "_comment_generateFailed": "A heading over the core's own message when the new key file could not be written — for example because a file already exists at that path, which is never overwritten.",
+    "generateFailed": "Die Schlüsseldatei konnte nicht geschrieben werden",
+    "_comment_generated": "SECURITY-CRITICAL. Shown under the path once a new key file has been written. Losing that file loses this slot; keep both halves: where it is, and that a copy must be kept away from the vault.",
+    "generated": "Dort wurde eine neue Schlüsseldatei geschrieben. Bewahren Sie eine Kopie woanders als neben dem Tresor auf – ohne sie funktioniert dieser Slot nicht mehr.",
+    "_comment_besideTheVault": "SECURITY-CRITICAL. The new key file was written into the vault's own folder. It works, but stops being a second factor. Do not turn it into a refusal.",
+    "besideTheVault": "Diese Datei liegt direkt neben dem Tresor: Wer das eine kopiert, kopiert auch das andere. Es funktioniert; es ist dann nur kein zweiter Faktor mehr."
   },
-
   "slot": {
     "_comment_": "How one key slot is described. A slot is one independent way of unwrapping the vault key: the same vault can have several, and any one of them opens it.",
     "_comment_kind": "The four kinds of slot. 'Security key' is a hardware authenticator (FIDO2); 'Remember on this device' is the operating system's own credential store.",
@@ -66,39 +73,31 @@
     "withKeyfile": "Benötigt zusätzlich seine Schlüsseldatei",
     "noKeyfile": "Nur Passwort"
   },
-
   "slots": {
     "title": "Schlüsselslots",
     "description": "Jeder Slot entpackt unabhängig denselben Tresorschlüssel. Einen hinzuzufügen oder zu entfernen verschlüsselt nichts neu, es geht also schnell und Sie können es gefahrlos wieder ändern.",
-
     "_comment_openedWithBadge": "A badge on the slot that unlocked the vault in this session. Lower case, no full stop: it is a badge, not a sentence.",
     "openedWithBadge": "diese Sitzung geöffnet",
     "_comment_neverUsedBadge": "A badge on a recovery key that has never opened this vault — the slot most likely to have been lost. Lower case, no full stop.",
     "neverUsedBadge": "nie verwendet",
-
     "_comment_change": "Verb, on the button that changes this slot's password.",
     "change": "Ändern",
     "_comment_rotate": "Verb, on the button that replaces this recovery key with a new one.",
     "rotate": "Rotieren",
     "_comment_remove": "Verb, on the button that deletes this slot from the vault.",
     "remove": "Entfernen",
-
     "_comment_add": "Verb phrase, on the row that opens the add-a-slot dialog.",
     "add": "Slot hinzufügen",
     "_comment_addHint": "The three kinds that can be added, as a hint under the button. The middots are separators.",
     "addHint": "ein weiteres Passwort · ein Wiederherstellungsschlüssel · dieses Gerät",
-
     "_comment_unusedRecoveryBody": "SECURITY-CRITICAL. Shown on a recovery key that has never been used. Do not soften 'there is no way into this vault without one of these slots' — it is literally true, and a reader who takes it as caution rather than fact is the reader who loses the vault.",
     "unusedRecoveryBody": "Erzeugt und nie verwendet – genau das ist der Slot, der am ehesten verloren geht. Wenn Sie ihn nicht griffbereit haben, rotieren Sie ihn jetzt: Ohne einen dieser Slots gibt es keinen Weg in diesen Tresor.",
-
     "_comment_invariantTitle": "SECURITY-CRITICAL. The standing notice at the foot of the panel.",
     "invariantTitle": "Ein Tresor muss mindestens einen brauchbaren Slot behalten",
     "_comment_invariantBody": "SECURITY-CRITICAL. 'no escrow key and no support override' must survive translation as an absolute: there is no recovery path of any kind, and 'including us' means the people who wrote this program. 'Remoter' is the product name and is never translated.",
     "invariantBody": "Remoter lässt Sie den letzten nicht löschen, und das Löschen des Wiederherstellungs-Slots verlangt eine getippte Bestätigung. Es gibt keinen hinterlegten Zweitschlüssel und keine Freischaltung durch den Support: Sind alle Slots verloren, kann niemand die Datei mehr öffnen, wir eingeschlossen.",
-
     "_comment_removeFailed": "The title of the failure notice when a removal fails after its dialog has closed.",
     "removeFailed": "Der Slot wurde nicht entfernt.",
-
     "_comment_lastSlotRefusal": "SECURITY-CRITICAL. Why the last remaining slot cannot be removed, shown on the disabled control before anything is clicked. This refusal has no undo behind it: if it were bypassed the file would be unopenable forever.",
     "lastSlotRefusal": "Das ist der einzige Weg in diesen Tresor. Ihn zu entfernen würde eine Datei hinterlassen, die niemand je wieder öffnen kann – es gibt keinen hinterlegten Zweitschlüssel und keine Freischaltung durch den Support.",
     "_comment_openedWithWarning": "A warning, not a refusal: this slot is the one that unlocked the vault in this session.",
@@ -106,7 +105,6 @@
     "_comment_lastRecoveryWarning": "SECURITY-CRITICAL. A warning, not a refusal. 'the end of the vault' means the vault can never be opened again; do not weaken it to 'a problem'.",
     "lastRecoveryWarning": "Das ist der letzte Wiederherstellungsschlüssel dieses Tresors. Ohne einen solchen bedeutet ein vergessenes Passwort das Ende des Tresors."
   },
-
   "rotateRecovery": {
     "_comment_": "Replacing one recovery key with a freshly generated one. The vault master key is untouched, so this is cheap — unlike the master key rotation further down the same screen.",
     "title": "Diesen Wiederherstellungsschlüssel rotieren",
@@ -120,12 +118,10 @@
     "blocked": "Der neue Schlüssel wird gerade erzeugt. Jetzt zu schließen würde ihn verlieren: Er wird einmal angezeigt, und nichts kann ihn neu ausstellen.",
     "failed": "Der Wiederherstellungsschlüssel wurde nicht rotiert."
   },
-
   "expensive": {
     "_comment_label": "A heading over the one operation on this screen that re-encrypts the whole vault and therefore takes real time.",
     "label": "Aufwendige Operation"
   },
-
   "rotateMaster": {
     "_comment_": "Rotating the vault master key: a new master key, every slot re-wrapped around it, and every stored secret re-encrypted.",
     "cardTitle": "Master-Schlüssel des Tresors rotieren",
@@ -135,22 +131,17 @@
     "cardButton": "Master-Schlüssel rotieren",
     "_comment_cardAside": "SECURITY-CRITICAL. Rotation does not reach copies of the file that already exist. 'Delete them' is an instruction, not a suggestion.",
     "cardAside": "Alte Kopien der Datei bleiben mit den alten Schlüsseln lesbar. Löschen Sie sie.",
-
     "title": "Master-Schlüssel des Tresors rotieren",
     "lead": "Es wird ein neuer Master-Schlüssel erzeugt, jeder Slot neu darum herum verpackt und jedes Geheimnis im Tresor neu versiegelt.",
-
     "whenTitle": "Wann das die richtige Antwort ist",
     "whenBody": "Eine Kopie dieser Datei ist womöglich abgeflossen, während einer Ihrer Schlüssel kompromittiert war. Ein Passwortwechsel verpackt einen Slot neu; dies ersetzt den Schlüssel, unter dem der gesamte Rumpf verschlüsselt ist.",
-
     "_comment_limitTitle": "SECURITY-CRITICAL. What rotation cannot do, shown both before and after the operation.",
     "limitTitle": "Was sie nicht leisten kann",
     "_comment_limitBody": "SECURITY-CRITICAL. Must not be softened into reassurance: a leaked copy stays readable with the old keys forever, and so do the backup files beside the vault. 'rotation protects what happens next, not what already left' is the whole point of the paragraph.",
     "limitBody": "Die abgeflossene Kopie lässt sich weiterhin mit den alten Schlüsseln öffnen, und ebenso die rollierenden Backups neben diesem Tresor, die dieser Speichervorgang rotiert. Löschen Sie die Kopien, von denen Sie wissen; eine Rotation schützt, was als Nächstes geschieht, nicht das, was bereits abgeflossen ist.",
-
     "costTitle": "Es dauert wirklich",
     "_comment_costBody": "PLURAL, on the number of password slots being re-wrapped. Argon2id is a key derivation function and is never translated. The one-slot wording is deliberately different rather than showing the numeral 1.",
     "costBody": "{count, plural, one {Argon2id läuft einmal, für den einen Passwort-Slot, und jedes gespeicherte Geheimnis wird neu versiegelt.} other {Argon2id läuft einmal je Passwort-Slot – hier # – und jedes gespeicherte Geheimnis wird neu versiegelt.}}",
-
     "_comment_slotsLegend": "The legend over the per-slot form. Every slot must either be opened or explicitly discarded; there is no third option, which is what 'accounted for' means.",
     "slotsLegend": "Jeder Slot muss abgehandelt werden",
     "_comment_password": "The label of the password field for one slot.",
@@ -161,11 +152,9 @@
     "drop": "Ich habe diesen nicht. Slot verwerfen.",
     "_comment_dropped": "Replaces the label above once the checkbox is ticked.",
     "dropped": "Wird verworfen",
-
     "recoveryNote": "Für diesen Slot wird ein neuer Wiederherstellungsschlüssel ausgestellt und am Ende der Rotation einmal angezeigt.",
     "keychainNote": "Wird aus dem Token im Schlüsselbund dieses Rechners neu verpackt. Ist das Token weg, verwerfen Sie den Slot und melden Sie diesen Rechner danach erneut an.",
     "fido2Note": "Diese Version kann einen Sicherheitsschlüssel-Slot nicht neu verpacken.",
-
     "_comment_problemsTitle": "The heading over the list of reasons the rotation cannot start yet.",
     "problemsTitle": "Noch nicht bereit zur Rotation",
     "_comment_problemNoCredential": "One entry in that list. {index} is the slot number, {label} the name the user gave the slot — never translated. The quoted phrase refers to the discard checkbox on that slot's card, so it should match the wording of rotateMaster.drop.",
@@ -174,7 +163,6 @@
     "problemFido2": "Slot {index, number} ({label}) ist ein Sicherheitsschlüssel, den diese Version nicht neu verpacken kann. Verwerfen Sie ihn hier und melden Sie ihn danach erneut an – oder brechen Sie ab.",
     "_comment_problemEmpty": "SECURITY-CRITICAL. A rotation that discards every slot would produce a file with no way in at all.",
     "problemEmpty": "Jeder Slot ist zum Verwerfen markiert. Eine Rotation, die nichts behält, erzeugt eine Datei, die niemand öffnen kann.",
-
     "_comment_confirm": "Verb phrase, on the button that starts the rotation.",
     "confirm": "Master-Schlüssel rotieren",
     "busy": "Wird neu verschlüsselt…",
@@ -185,7 +173,6 @@
     "_comment_unchanged": "Reassurance after a failure, and it is exact: a failed rotation is atomic, so nothing at all was written.",
     "unchanged": "Nichts hat sich geändert: Der Tresor ist genau so, wie er vor dem Druck auf die Schaltfläche war."
   },
-
   "rotationSummary": {
     "_comment_": "What the rotation did, shown after the last new recovery key has been written down.",
     "title": "Der Tresor wurde neu verschlüsselt",
@@ -197,11 +184,9 @@
     "_comment_resealed": "PLURAL. Every password, key and passphrase stored in the vault, re-encrypted under the new master key.",
     "resealed": "{count, plural, one {# Geheimnis neu versiegelt} other {# Geheimnisse neu versiegelt}}"
   },
-
   "addSlot": {
     "title": "Schlüsselslot hinzufügen",
     "lead": "Jeder Slot entpackt unabhängig denselben Tresorschlüssel. Einen hinzuzufügen verpackt diesen Schlüssel unter neuen Zugangsdaten neu und verschlüsselt nichts neu – es geht also sofort, und Sie können es gefahrlos wieder ändern.",
-
     "_comment_kindLegend": "The legend over the three radio cards below.",
     "kindLegend": "Art des Slots",
     "kindPassword": "Ein weiteres Passwort",
@@ -210,31 +195,26 @@
     "kindRecoveryHelp": "Ein Tresor darf mehrere haben. Ein versiegelter Umschlag im Safe ist ein legitimer Grund für einen zweiten.",
     "kindKeychain": "Auf diesem Gerät merken",
     "kindKeychainHelp": "Meldet den Zugangsdatenspeicher dieses Rechners an, sodass sich der Tresor ohne Abfrage öffnet, solange Sie angemeldet sind. Wer Ihre Desktop-Sitzung benutzen kann, kann dann auch den Tresor öffnen.",
-
     "label": "Name für diesen Slot",
     "labelHelp": "Wird in dieser Liste und auf dem Entsperrbildschirm angezeigt, damit sich ein Slot von den anderen unterscheiden lässt.",
     "_comment_labelPlaceholder": "An example name, in the empty field. Replace it with a plausible example in this locale rather than translating it word for word.",
     "labelPlaceholder": "Notebook Betrieb",
     "_comment_labelBlocked": "Why the Add button is disabled. Shown as its tooltip.",
     "labelBlocked": "Geben Sie dem Slot zuerst einen Namen.",
-
     "password": "Passwort",
     "_comment_passwordHelp": "SECURITY-CRITICAL. A second password opens the whole vault; it is not a lesser credential.",
     "passwordHelp": "Dieses öffnet den gesamten Tresor, genau wie das Master-Passwort. Es sollte ebenso stark sein.",
     "confirm": "Passwort wiederholen",
     "confirmMismatch": "Die beiden Passwörter sind nicht gleich.",
     "passwordBlocked": "Geben Sie das Passwort zweimal gleich ein.",
-
     "keyfile": "Schlüsseldatei (optional)",
     "_comment_keyfileHelp": "SECURITY-CRITICAL. Losing the key file loses this slot, permanently.",
     "keyfileHelp": "Jede Datei wird zum zweiten Faktor für diesen Slot. Verlieren Sie sie, funktioniert dieser Slot nicht mehr; die anderen Slots bleiben davon unberührt.",
     "_comment_keyfileRefused": "Why the Add button is disabled: the chosen file cannot be a key file, and the field above already says which rule it broke.",
     "keyfileRefused": "Wählen Sie eine andere Schlüsseldatei. Das Feld oben nennt den Grund, warum diese nicht verwendet werden kann.",
-
     "_comment_recoveryNotice": "SECURITY-CRITICAL. 'shown once, and then dropped' is literal: the key exists nowhere after this dialog closes. 'Add' is the button label, addSlot.add.",
     "recoveryNotice": "Der Schlüssel wird erzeugt, wenn Sie „Slot hinzufügen“ drücken, einmal angezeigt und danach verworfen.",
     "keychainNotice": "Das Token liegt im Schlüsselbund dieses Rechners. Ein anderer Rechner kann diesen Slot nicht nutzen, und ihn hier zu entfernen löscht das Token.",
-
     "_comment_add": "Verb phrase, on the confirming button.",
     "add": "Slot hinzufügen",
     "adding": "Schlüssel wird abgeleitet…",
@@ -244,34 +224,27 @@
     "addingBlocked": "Der Slot wird bereits geschrieben. Dieses Fenster schließt sich, wenn der Kern antwortet – und ein Wiederherstellungs-Slot hat vorher noch einen Schlüssel zu übergeben.",
     "failed": "Der Slot wurde nicht hinzugefügt."
   },
-
   "changePassword": {
     "title": "Passwort dieses Slots ändern",
     "lead": "Der Slot wird um das neue Passwort herum neu verpackt. Der Master-Schlüssel ändert sich nicht, es wird also nichts neu verschlüsselt, alle anderen Slots funktionieren weiter und die Wiederherstellungsschlüssel bleiben gültig.",
-
     "_comment_notARotation": "SECURITY-CRITICAL. The distinction between changing a password and rotating the master key. A user who believes this repairs a leak will not then do the thing that does.",
     "notARotation": "Das hilft nicht, wenn die Datei selbst abgeflossen ist",
     "notARotationBody": "Eine Kopie, die entstanden ist, während das alte Passwort in Gebrauch war, lässt sich weiterhin mit dem alten Passwort öffnen. Die Antwort darauf ist, den Master-Schlüssel des Tresors zu rotieren – das finden Sie auf diesem Bildschirm.",
-
     "current": "Aktuelles Passwort",
     "currentHelp": "Wird geprüft, bevor irgendetwas ersetzt wird, damit ein Tippfehler hier den Slot nicht aussperren kann.",
     "currentKeyfile": "Aktuelle Schlüsseldatei",
     "currentKeyfileHelp": "Dieser Slot verlangt eine, deshalb braucht die Änderung sie ebenfalls.",
-
     "next": "Neues Passwort",
     "confirm": "Neues Passwort wiederholen",
     "confirmMismatch": "Die beiden Passwörter sind nicht gleich.",
-
     "newKeyfile": "Schlüsseldatei ab jetzt",
     "_comment_newKeyfileHelp": "SECURITY-CRITICAL. The current key file is NOT carried over; leaving the field empty removes it. A translation that implies otherwise is the difference between a slot that opens tomorrow and one that does not.",
     "newKeyfileHelp": "Ausdrücklich zu wählen, auch wenn Sie das Feld leer lassen: Die aktuelle Schlüsseldatei wird nicht übernommen. Leer bedeutet, dass dieser Slot nur noch ein Passwort benötigt.",
-
     "_comment_blockedCurrent": "The four reasons the confirming button is disabled, shown as its tooltip.",
     "blockedCurrent": "Geben Sie das aktuelle Passwort des Slots ein.",
     "blockedCurrentKeyfile": "Wählen Sie die Schlüsseldatei, die dieser Slot derzeit verlangt.",
     "blockedNew": "Geben Sie das neue Passwort zweimal gleich ein.",
     "blockedKeyfile": "Diese Datei kann keine Schlüsseldatei sein.",
-
     "_comment_save": "Verb phrase, on the confirming button.",
     "save": "Passwort ändern",
     "saving": "Schlüssel wird abgeleitet…",
@@ -279,15 +252,12 @@
     "savingStage": "Das aktuelle Passwort wird geprüft, danach wird der neue Schlüssel abgeleitet…",
     "failed": "Das Passwort wurde nicht geändert."
   },
-
   "removeSlot": {
     "title": "Diesen Slot entfernen",
     "lead": "Der Slot-Eintrag wird aus dem Header gelöscht. Es wird nichts neu verschlüsselt, und alle anderen Slots funktionieren weiter – das hier ist keine Rotation.",
-
     "refusedTitle": "Dieser Slot kann nicht entfernt werden",
     "_comment_warningTitle": "The heading over a warning that does not block the removal.",
     "warningTitle": "Bevor Sie das tun",
-
     "_comment_phrase": "SECURITY-CRITICAL. The sentence the user must type out before the recovery slot can be deleted. It is compared against what they type, ignoring case and repeated spaces, so it MUST read naturally in this language and MUST be easy to retype — no unusual punctuation, no words that could be spelled two ways. Translate the meaning: the person is stating that they understand they are giving up their last way back into the vault. A tick box was rejected here deliberately; typing is what makes someone read it.",
     "phrase": "Ich gebe damit mein letztes Mittel zum Entsperren dieses Tresors auf",
     "phrasePrompt": "Geben Sie diesen Satz zur Bestätigung ein:",
@@ -296,17 +266,14 @@
     "phraseHint": "Die Wörter genau wie oben. Groß- und Kleinschreibung spielt keine Rolle.",
     "_comment_phraseBlocked": "Why the confirming button is disabled, shown as its tooltip.",
     "phraseBlocked": "Geben Sie den Satz oben ein, um diesen Slot zu entfernen.",
-
     "_comment_lostKey": "Reassurance for the common case: a key you have lost can still be revoked, because revoking deletes the vault's record of it rather than the key itself.",
     "lostKey": "Ein Widerruf löscht den Slot-Eintrag. Ein verlorener Schlüssel lässt sich also trotzdem widerrufen – Sie müssen ihn dafür nicht zur Hand haben.",
-
     "_comment_remove": "Verb phrase, on the confirming button.",
     "remove": "Slot entfernen",
     "removing": "Wird entfernt…",
     "removingBlocked": "Die Entfernung liegt bereits beim Kern. Dieses Fenster schließt sich, wenn er antwortet, damit das Ergebnis irgendwo erscheinen kann.",
     "failed": "Der Slot wurde nicht entfernt."
   },
-
   "recoveryKey": {
     "_comment_": "SECURITY-CRITICAL SECTION. A recovery key is shown here and nowhere else, ever. Nothing in the program can produce it again. Every string in this object must keep that finality.",
     "title": "Ihr neuer Wiederherstellungsschlüssel",
@@ -314,7 +281,6 @@
     "titleSequence": "Ihr neuer Wiederherstellungsschlüssel ({position, number} von {total, number})",
     "_comment_lead": "SECURITY-CRITICAL. {index} is the slot number. 'shown here and nowhere else' is literal.",
     "lead": "Slot {index, number}. Der Schlüssel, den dieser Slot vorher hielt, ist jetzt wertlos, und dieser hier wird hier und nirgendwo sonst angezeigt.",
-
     "_comment_done": "First person, on the button that dismisses the key. The user is asserting they have written it down.",
     "done": "Ich habe ihn gesichert",
     "_comment_doneLast": "The same button on the last key of a sequence.",
@@ -324,11 +290,9 @@
     "_comment_escapeBlocked": "SECURITY-CRITICAL. The answer to pressing Escape, which everywhere else in the program closes a dialog. Here it does not, and this sentence says why.",
     "escapeBlocked": "Dieser Schlüssel wird einmal angezeigt. Schließen, ohne ihn festzuhalten, hinterlässt einen Slot mit einem Schlüssel, den Sie nicht haben."
   },
-
   "autoLock": {
     "title": "Automatische Sperre",
     "description": "Das Sperren überschreibt jeden Schlüssel und jedes zwischengespeicherte Geheimnis mit Nullen und verwirft die Datenbank im Arbeitsspeicher. Zum erneuten Öffnen ist ein vollständiges Entsperren nötig.",
-
     "idleLegend": "Sperren nach Leerlauf von",
     "_comment_choiceNever": "The first choice on the idle ladder: the vault never locks on its own.",
     "choiceNever": "Nie",
@@ -336,22 +300,18 @@
     "choiceMinutes": "{count, plural, one {# Min} other {# Min}}",
     "_comment_choiceHours": "PLURAL. The same ladder above an hour.",
     "choiceHours": "{count, plural, one {# Stunde} other {# Stunden}}",
-
     "_comment_idleHelp": "What 'idle' actually measures. This sentence was wrong once and cost people work: it claimed the desktop's input idle time was being read, so users believed typing in a terminal kept the vault open when it did not. Translate what is measured, not what would be nicer to measure.",
     "idleHelp": "Leerlauf bedeutet, dass nichts den Tresor berührt hat und keine Sitzung Daten übertragen hat. Sowohl Tastendrücke, die Sie senden, als auch Ausgaben, die ein Host sendet, zählen mit. Eine Sitzung, die Sie beobachten, ohne zu tippen, läuft also nicht in den Leerlauf, solange Ausgaben eintreffen.",
     "_comment_idleScope": "The limitation of that measurement. 'Remoter' is the product name and is never translated.",
     "idleScope": "Remoter liest die Leerlaufzeit der Eingabegeräte des Desktops nicht aus. Zeit, die Sie in einer anderen Anwendung verbringen, zählt deshalb als Leerlauf, obwohl Sie an der Tastatur sitzen.",
     "_comment_idleNever": "Shown only when 'Never' is chosen. A judgement about a security decision, offered without scolding.",
     "idleNever": "„Nie“ bedeutet, dass der Tresor offen bleibt, bis Sie ihn sperren oder das Programm beenden. Auf einem Rechner, an den nur Sie herankommen, ist das eine vertretbare Entscheidung; an einem geteilten Arbeitsplatz eine schlechte.",
-
     "screenLock": "Wenn der Bildschirm gesperrt wird",
     "suspend": "Beim Standby oder Ruhezustand",
     "minimise": "Wenn das Fenster minimiert wird",
     "minimiseHelp": "Standardmäßig aus. Die meisten minimieren weit häufiger, als sie weggehen.",
-
     "_comment_unavailable": "The state word on a switch this build cannot honour — neither on nor off in any sense the user cares about. An abbreviation of 'not applicable'; use this locale's equivalent or write it out.",
     "unavailable": "entfällt",
-
     "_comment_noScreenLock": "One sentence per event this build cannot observe, naming what is missing rather than saying 'not supported', so a reader can tell whether it will ever change.",
     "noScreenLock": "Dieser Build kann die Bildschirmsperre dieses Systems nicht sehen, dieser Schalter würde also nichts sperren. Sehen hieße, auf das Bildschirmsperr-Signal des Desktops zu hören, und das tut Remoter noch nicht.",
     "noSuspend": "Dieser Build kann nicht sehen, wenn dieser Rechner in den Standby geht, dieser Schalter würde hier also nichts sperren.",
@@ -360,7 +320,6 @@
     "onResumeSuspend": "Remoter kann dieses System nicht um eine Vorankündigung des Standby bitten und sperrt deshalb, wenn der Rechner zurückkommt, statt bevor er schlafen geht. Die Schlüssel liegen im Arbeitsspeicher, während er schläft, und im Ruhezustandsabbild, wenn er in den Ruhezustand geht.",
     "_comment_keptForOtherMachines": "Appended to whichever of the three sentences above applies. The setting travels inside the vault file, so it still works on a computer that can see the event.",
     "keptForOtherMachines": "Die Einstellung wird im Tresor gespeichert und gilt daher weiterhin auf einem Rechner, auf dem Remoter das Ereignis sehen kann.",
-
     "sessionsLegend": "Was mit laufenden Sitzungen geschieht",
     "keepRunning": "Weiterlaufen lassen",
     "_comment_keepRunningHelp": "The default, with the reason for it, which comes from docs/security/key-management.md.",
@@ -371,19 +330,15 @@
     "_comment_disconnectAllHelp": "Warns about data loss: work in a session that has not been saved on the remote host is gone.",
     "disconnectAllHelp": "Am striktesten. Nicht gespeicherte Arbeit in einer Sitzung geht verloren, einschließlich laufender Übertragungen.",
     "audited": "Eine Änderung hier wird in das Audit-Log des Tresors geschrieben.",
-
     "failed": "Diese Einstellung wurde nicht gespeichert."
   },
-
   "recording": {
     "title": "Aufzeichnungsrichtlinie",
     "description": "Wird von allem in diesem Tresor geerbt, das keine eigene setzt, und ist damit einmal für den ganzen Baum gesetzt.",
-
     "_comment_notYetTitle": "SECURITY-CRITICAL. This build has no recorder at all. A user who believes they hold a compliance record they do not have is the one failure of this screen that costs something, so this notice must not be softened or made conditional.",
     "notYetTitle": "In dieser Version wird nichts aufgezeichnet",
     "_comment_notYetBody": "'Remoter' is the product name and is never translated.",
     "notYetBody": "Remoter hat noch keinen Rekorder: Welche Karte auch ausgewählt ist, jede Sitzung in diesem Tresor wird ohne Aufzeichnung geöffnet. Die Auswahl unten wird jetzt im Tresor gespeichert und wirkt, sobald die Sitzungsaufzeichnung gebaut ist.",
-
     "_comment_": "Every sentence describing recording behaviour below is in the future tense on purpose: nothing on this screen may read as a claim about what happens today. Keep the future tense in translation wherever this language marks it.",
     "never": "Nie",
     "neverHelp": "In diesem Tresor wird nichts aufgezeichnet werden, sofern nicht ein Ordner oder eine Verbindung darunter eine eigene Richtlinie setzt.",
@@ -391,37 +346,28 @@
     "askHelp": "Eine Rückfrage, bevor die Sitzung geöffnet wird. Wird sie abgelehnt, wird die Sitzung ohne Aufzeichnung geöffnet werden.",
     "always": "Immer",
     "alwaysHelp": "Jede Sitzung wird aufgezeichnet werden, nach einem Hinweis vor dem Öffnen. Kann der Rekorder nicht starten, wird die Sitzung dennoch geöffnet – die Aufzeichnung wird bei dieser Richtlinie nach bestem Bemühen erfolgen.",
-
     "_comment_required": "Why a fourth policy is described rather than offered. The quoted word 'required' names a policy in docs/features/recording-audit.md; keep it quoted and translate it the same way wherever that policy is named.",
     "required": "Eine vierte Richtlinie, „erforderlich“ – aufzeichnen und die Verbindung verweigern, wenn die Aufzeichnung nicht starten kann –, wird hier nicht angeboten. Die Tresordatei hat kein Feld dafür, eine vierte Karte würde also eine der drei oben speichern und etwas Schwächeres bedeuten, als ihr Name sagt.",
-
     "storage": "Aufzeichnungen werden außerhalb des Tresors liegen, in einem Verzeichnis Ihrer Wahl, jede verschlüsselt mit einem aus dem Master-Schlüssel des Tresors abgeleiteten Schlüssel und damit nur lesbar, solange der Tresor entsperrt ist. Es wird nichts irgendwohin hochgeladen.",
-
     "failed": "Die Aufzeichnungsrichtlinie wurde nicht gespeichert."
   },
-
   "backups": {
     "title": "Backups",
     "_comment_description": "vault.rvault.bak.1 is a file name pattern and is never translated.",
     "description": "Bevor der Tresor überschrieben wird, wird die vorherige Datei daneben zu einem rollierenden Backup rotiert: vault.rvault.bak.1 bis .bak.N.",
-
     "legend": "Wie viele aufbewahrt werden",
     "_comment_none": "The zero option on the ladder, in place of the numeral 0.",
     "none": "Keine",
-
     "_comment_onceASession": "Why the number means less than it looks like it means: backups rotate on the first save after the vault is opened, not on every save.",
     "onceASession": "Einmal je Sitzung rotiert, nicht bei jedem Speichern",
     "onceASessionBody": "Jede Änderung an einem Knoten ist ein Speichervorgang. Würde bei jedem ein Backup angelegt, wären drei Backups nur vier Klicks tief, und die Datei von vor einem Fehler wäre längst weg. Weil beim ersten Speichern einer Sitzung rotiert wird, ist .bak.1 genau der Tresor, wie er beim Öffnen war.",
-
     "_comment_zeroTitle": "Keeping no backups is a legitimate choice, not a mistake to be talked out of.",
     "zeroTitle": "Keine aufzubewahren ist eine echte Möglichkeit",
     "zeroBody": "Liegt dieser Tresor in einem synchronisierten Ordner, bewahrt der Anbieter bereits ältere Kopien des Geheimtextes auf, und Sie möchten vielleicht nicht zusätzlich weitere Kopien davon auf der Platte haben.",
-
     "_comment_present": "PLURAL, on how many backup files are beside the vault at this moment. The zero and one wordings are deliberately different from the general case rather than showing a numeral.",
     "present": "{count, plural, =0 {Neben diesem Tresor liegt derzeit kein Backup.} one {Neben diesem Tresor liegt derzeit ein Backup.} other {Neben diesem Tresor liegen derzeit # Backups.}}",
     "_comment_presentPrune": "Follows the sentence above. Lowering the setting does not delete files that already exist.",
     "presentPrune": "Die Zahl zu senken löscht die bereits geschriebenen Dateien nicht; die nächste Rotation hält dann bei der neuen Grenze.",
-
     "failed": "Die Anzahl der Backups wurde nicht gespeichert."
   }
 }

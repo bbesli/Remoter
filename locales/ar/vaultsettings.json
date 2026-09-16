@@ -1,6 +1,5 @@
 {
   "_comment_file": "The vault settings screen: which keys open this vault file, and the policies stored inside the file itself — auto-lock, recording and rolling backups. Loaded when the screen opens, not before. Read the SECURITY-CRITICAL comments before translating anything in this namespace: several of these strings are the last warning a person sees before an operation that can leave an encrypted file that nobody, including us, can ever open. A softened warning here is a real and foreseeable way to lose someone's data.",
-
   "screen": {
     "title": "إعدادات الخزنة",
     "_comment_close": "Both the accessible name of the header's close control and the label of the button offered beside a failed read.",
@@ -23,17 +22,14 @@
     "locked": "لا توجد خزنة مفتوحة",
     "lockedBody": "هذه الإعدادات تعيش داخل ملف الخزنة، فلا يمكن قراءتها إلا وهي مفتوحة."
   },
-
   "status": {
     "_comment_saving": "Shown beside a spinner while one setting is being written. Used by all three policy panels.",
     "saving": "جارٍ الحفظ…"
   },
-
   "dialog": {
     "_comment_blockedFallback": "A noun phrase, not a sentence: it is interpolated into the window-close confirmation as the thing that would be lost — 'Closing now loses …'. Only reached if a dialog refuses to be dismissed without saying what is at stake, which no dialog on this screen does.",
     "blockedFallback": "شيء لا يمكن عرضه مرة أخرى"
   },
-
   "keyfile": {
     "_comment_": "Choosing the file that acts as a second factor on a key slot. A key file is an ordinary file of the user's choosing; its contents are mixed into the key, so losing the file loses the slot.",
     "_comment_none": "Shown in place of a path when no key file has been chosen. Adjective-free noun: 'no file chosen'.",
@@ -43,9 +39,20 @@
     "_comment_dialogTitle": "The title bar of the operating system's file browser.",
     "dialogTitle": "اختر ملف المفتاح لهذه الفتحة",
     "_comment_dialogFailed": "Shown when the platform has no file browser to open. 'Remoter' is the product name and is never translated.",
-    "dialogFailed": "لم يفتح هذا النظام متصفح ملفات. اكتب المسار في الحقل الذي يتيحه لك النظام، أو شغّل Remoter من جلسة فيها متصفح ملفات."
+    "dialogFailed": "لم يفتح هذا النظام متصفح ملفات. اكتب المسار في الحقل الذي يتيحه لك النظام، أو شغّل Remoter من جلسة فيها متصفح ملفات.",
+    "_comment_generate": "A button beside Browse that writes a brand-new random key file and uses it for this slot. The ellipsis means a save dialog follows.",
+    "generate": "إنشاء…",
+    "_comment_generating": "The same button while the file is being written.",
+    "generating": "جارٍ الكتابة…",
+    "_comment_generateDialogTitle": "The title bar of the operating system's save dialog for the new key file.",
+    "generateDialogTitle": "أين يُكتب ملف المفتاح الجديد",
+    "_comment_generateFailed": "A heading over the core's own message when the new key file could not be written — for example because a file already exists at that path, which is never overwritten.",
+    "generateFailed": "تعذّرت كتابة ملف المفتاح",
+    "_comment_generated": "SECURITY-CRITICAL. Shown under the path once a new key file has been written. Losing that file loses this slot; keep both halves: where it is, and that a copy must be kept away from the vault.",
+    "generated": "كُتب ملف مفتاح جديد هناك. احتفظ بنسخة منه في مكان آخر غير جوار الخزنة — بدونها تتوقف هذه الفتحة عن العمل.",
+    "_comment_besideTheVault": "SECURITY-CRITICAL. The new key file was written into the vault's own folder. It works, but stops being a second factor. Do not turn it into a refusal.",
+    "besideTheVault": "هذا الملف يقع بجوار الخزنة، فمن ينسخ أحدهما ينسخ الاثنين. سيعمل؛ لكنه يكفّ عن كونه عاملًا ثانيًا."
   },
-
   "slot": {
     "_comment_": "How one key slot is described. A slot is one independent way of unwrapping the vault key: the same vault can have several, and any one of them opens it.",
     "_comment_kind": "The four kinds of slot. 'Security key' is a hardware authenticator (FIDO2); 'Remember on this device' is the operating system's own credential store.",
@@ -66,39 +73,31 @@
     "withKeyfile": "تحتاج إلى ملف مفتاحها أيضًا",
     "noKeyfile": "كلمة مرور فقط"
   },
-
   "slots": {
     "title": "فتحات المفاتيح",
     "description": "كل فتحة تفك تغليف مفتاح الخزنة نفسه على نحو مستقل. وإضافة فتحة أو إزالتها لا تعيد تشفير أي شيء، فهي سريعة ويمكنك العدول عنها بأمان.",
-
     "_comment_openedWithBadge": "A badge on the slot that unlocked the vault in this session. Lower case, no full stop: it is a badge, not a sentence.",
     "openedWithBadge": "فُتحت بها هذه الجلسة",
     "_comment_neverUsedBadge": "A badge on a recovery key that has never opened this vault — the slot most likely to have been lost. Lower case, no full stop.",
     "neverUsedBadge": "لم تُستخدم قط",
-
     "_comment_change": "Verb, on the button that changes this slot's password.",
     "change": "تغيير",
     "_comment_rotate": "Verb, on the button that replaces this recovery key with a new one.",
     "rotate": "تدوير",
     "_comment_remove": "Verb, on the button that deletes this slot from the vault.",
     "remove": "إزالة",
-
     "_comment_add": "Verb phrase, on the row that opens the add-a-slot dialog.",
     "add": "إضافة فتحة",
     "_comment_addHint": "The three kinds that can be added, as a hint under the button. The middots are separators.",
     "addHint": "كلمة مرور أخرى · مفتاح استرداد · هذا الجهاز",
-
     "_comment_unusedRecoveryBody": "SECURITY-CRITICAL. Shown on a recovery key that has never been used. Do not soften 'there is no way into this vault without one of these slots' — it is literally true, and a reader who takes it as caution rather than fact is the reader who loses the vault.",
     "unusedRecoveryBody": "المفتاح الذي وُلِّد ولم يُستخدم قط هو بالضبط أكثر الفتحات عرضةً للضياع. فإن لم تستطع الوصول إليه، فدوّره الآن — إذ لا سبيل إلى هذه الخزنة إلا عبر إحدى هذه الفتحات.",
-
     "_comment_invariantTitle": "SECURITY-CRITICAL. The standing notice at the foot of the panel.",
     "invariantTitle": "لا بد أن تحتفظ الخزنة بفتحة واحدة صالحة على الأقل",
     "_comment_invariantBody": "SECURITY-CRITICAL. 'no escrow key and no support override' must survive translation as an absolute: there is no recovery path of any kind, and 'including us' means the people who wrote this program. 'Remoter' is the product name and is never translated.",
     "invariantBody": "لن يسمح لك Remoter بحذف آخر فتحة، وحذف فتحة الاسترداد يتطلب تأكيدًا مكتوبًا. لا يوجد مفتاح مودَع لدى طرف ثالث ولا تجاوز من الدعم الفني: فإن ضاعت كل الفتحات، لن يستطيع أحد فتح الملف، بمن في ذلك نحن.",
-
     "_comment_removeFailed": "The title of the failure notice when a removal fails after its dialog has closed.",
     "removeFailed": "لم تُزل الفتحة.",
-
     "_comment_lastSlotRefusal": "SECURITY-CRITICAL. Why the last remaining slot cannot be removed, shown on the disabled control before anything is clicked. This refusal has no undo behind it: if it were bypassed the file would be unopenable forever.",
     "lastSlotRefusal": "هذه هي الطريقة الوحيدة للدخول إلى هذه الخزنة. وإزالتها ستترك ملفًا لا يستطيع أحد فتحه أبدًا — إذ لا يوجد مفتاح مودَع لدى طرف ثالث ولا تجاوز من الدعم الفني.",
     "_comment_openedWithWarning": "A warning, not a refusal: this slot is the one that unlocked the vault in this session.",
@@ -106,7 +105,6 @@
     "_comment_lastRecoveryWarning": "SECURITY-CRITICAL. A warning, not a refusal. 'the end of the vault' means the vault can never be opened again; do not weaken it to 'a problem'.",
     "lastRecoveryWarning": "هذا آخر مفتاح استرداد في هذه الخزنة. وبدون مفتاح استرداد، فإن نسيان كلمة المرور يعني نهاية الخزنة."
   },
-
   "rotateRecovery": {
     "_comment_": "Replacing one recovery key with a freshly generated one. The vault master key is untouched, so this is cheap — unlike the master key rotation further down the same screen.",
     "title": "تدوير مفتاح الاسترداد هذا",
@@ -120,12 +118,10 @@
     "blocked": "يجري توليد المفتاح الجديد. والإغلاق الآن سيفقده: فهو يُعرض مرة واحدة ولا شيء يستطيع إصداره من جديد.",
     "failed": "لم يُدوَّر مفتاح الاسترداد."
   },
-
   "expensive": {
     "_comment_label": "A heading over the one operation on this screen that re-encrypts the whole vault and therefore takes real time.",
     "label": "عملية مكلفة"
   },
-
   "rotateMaster": {
     "_comment_": "Rotating the vault master key: a new master key, every slot re-wrapped around it, and every stored secret re-encrypted.",
     "cardTitle": "تدوير المفتاح الرئيسي للخزنة",
@@ -135,22 +131,17 @@
     "cardButton": "دوّر المفتاح الرئيسي",
     "_comment_cardAside": "SECURITY-CRITICAL. Rotation does not reach copies of the file that already exist. 'Delete them' is an instruction, not a suggestion.",
     "cardAside": "النسخ القديمة من الملف تبقى قابلة للقراءة بالمفاتيح القديمة. احذفها.",
-
     "title": "تدوير المفتاح الرئيسي للخزنة",
     "lead": "يُولَّد مفتاح رئيسي جديد، ويُعاد تغليف كل فتحة حوله، ويُعاد ختم كل سر في الخزنة.",
-
     "whenTitle": "متى يكون هذا هو الجواب الصحيح",
     "whenBody": "حين يُحتمل أن نسخة من هذا الملف قد تسربت بينما كان أحد مفاتيحك مخترقًا. تغييرُ كلمة مرور يعيد تغليف فتحة واحدة؛ أما هذا فيستبدل المفتاح الذي يُشفَّر به المتن بأكمله.",
-
     "_comment_limitTitle": "SECURITY-CRITICAL. What rotation cannot do, shown both before and after the operation.",
     "limitTitle": "ما لا يستطيع فعله",
     "_comment_limitBody": "SECURITY-CRITICAL. Must not be softened into reassurance: a leaked copy stays readable with the old keys forever, and so do the backup files beside the vault. 'rotation protects what happens next, not what already left' is the whole point of the paragraph.",
     "limitBody": "النسخة التي تسربت لا تزال تُفتح بالمفاتيح القديمة، وكذلك النسخ الاحتياطية المتعاقبة بجوار هذه الخزنة، وهي التي يدوّرها هذا الحفظ. احذف النسخ التي تعرفها؛ فالتدوير يحمي ما سيأتي لاحقًا، لا ما خرج بالفعل.",
-
     "costTitle": "يستغرق وقتًا حقيقيًا",
     "_comment_costBody": "PLURAL, on the number of password slots being re-wrapped. Argon2id is a key derivation function and is never translated. The one-slot wording is deliberately different rather than showing the numeral 1.",
     "costBody": "{count, plural, zero {لا توجد فتحات كلمة مرور، ويُعاد ختم كل سر مخزَّن.} one {تعمل Argon2id مرة واحدة، من أجل فتحة كلمة المرور الوحيدة، ويُعاد ختم كل سر مخزَّن.} two {تعمل Argon2id مرة لكل فتحة كلمة مرور — وهما فتحتان هنا — ويُعاد ختم كل سر مخزَّن.} few {تعمل Argon2id مرة لكل فتحة كلمة مرور — و# فتحات هنا — ويُعاد ختم كل سر مخزَّن.} many {تعمل Argon2id مرة لكل فتحة كلمة مرور — و# فتحة هنا — ويُعاد ختم كل سر مخزَّن.} other {تعمل Argon2id مرة لكل فتحة كلمة مرور — و# فتحة هنا — ويُعاد ختم كل سر مخزَّن.}}",
-
     "_comment_slotsLegend": "The legend over the per-slot form. Every slot must either be opened or explicitly discarded; there is no third option, which is what 'accounted for' means.",
     "slotsLegend": "لا بد من البتّ في كل فتحة",
     "_comment_password": "The label of the password field for one slot.",
@@ -161,11 +152,9 @@
     "drop": "لا أملك هذه الفتحة. أسقِطها.",
     "_comment_dropped": "Replaces the label above once the checkbox is ticked.",
     "dropped": "ستُسقَط",
-
     "recoveryNote": "يُصدَر مفتاح استرداد جديد لهذه الفتحة، ويُعرض مرة واحدة عند انتهاء التدوير.",
     "keychainNote": "يُعاد تغليفها من الرمز الموجود في سلسلة مفاتيح هذا الجهاز. وإن كان الرمز قد ضاع، فأسقِط الفتحة وسجّل هذا الجهاز من جديد بعد ذلك.",
     "fido2Note": "لا يستطيع هذا الإصدار إعادة تغليف فتحة مفتاح أمان.",
-
     "_comment_problemsTitle": "The heading over the list of reasons the rotation cannot start yet.",
     "problemsTitle": "غير جاهز للتدوير",
     "_comment_problemNoCredential": "One entry in that list. {index} is the slot number, {label} the name the user gave the slot — never translated. The quoted phrase refers to the discard checkbox on that slot's card, so it should match the wording of rotateMaster.drop.",
@@ -174,7 +163,6 @@
     "problemFido2": "الفتحة {index, number} ({label}) مفتاح أمان، ولا يستطيع هذا الإصدار إعادة تغليفه. أسقِطها هنا وسجّلها من جديد بعد ذلك، أو ألغِ العملية.",
     "_comment_problemEmpty": "SECURITY-CRITICAL. A rotation that discards every slot would produce a file with no way in at all.",
     "problemEmpty": "كل الفتحات مُعلَّمة للإسقاط. والتدوير الذي لا يُبقي شيئًا يُنتج ملفًا لا يستطيع أحد فتحه.",
-
     "_comment_confirm": "Verb phrase, on the button that starts the rotation.",
     "confirm": "دوّر المفتاح الرئيسي",
     "busy": "جارٍ إعادة إنشاء المفاتيح…",
@@ -185,7 +173,6 @@
     "_comment_unchanged": "Reassurance after a failure, and it is exact: a failed rotation is atomic, so nothing at all was written.",
     "unchanged": "لم يتغير شيء: الخزنة كما كانت تمامًا قبل ضغطك الزر."
   },
-
   "rotationSummary": {
     "_comment_": "What the rotation did, shown after the last new recovery key has been written down.",
     "title": "أُعيد إنشاء مفاتيح الخزنة",
@@ -197,11 +184,9 @@
     "_comment_resealed": "PLURAL. Every password, key and passphrase stored in the vault, re-encrypted under the new master key.",
     "resealed": "{count, plural, zero {لم يُعد ختم أي سر} one {أُعيد ختم سر واحد} two {أُعيد ختم سرّين} few {أُعيد ختم # أسرار} many {أُعيد ختم # سرًّا} other {أُعيد ختم # سر}}"
   },
-
   "addSlot": {
     "title": "إضافة فتحة مفتاح",
     "lead": "كل فتحة تفك تغليف مفتاح الخزنة نفسه على نحو مستقل. وإضافة فتحة تعيد تغليف ذلك المفتاح تحت بيانات اعتماد جديدة ولا تعيد تشفير شيء، فهي فورية ويمكنك العدول عنها بأمان.",
-
     "_comment_kindLegend": "The legend over the three radio cards below.",
     "kindLegend": "أي نوع من الفتحات",
     "kindPassword": "كلمة مرور أخرى",
@@ -210,31 +195,26 @@
     "kindRecoveryHelp": "يمكن للخزنة أن تحمل أكثر من واحد. ووضع مظروف مختوم في خزنة حديدية سبب مشروع للرغبة في مفتاح ثانٍ.",
     "kindKeychain": "التذكّر على هذا الجهاز",
     "kindKeychainHelp": "يسجّل مخزن بيانات اعتماد هذا الجهاز، فتُفتح الخزنة دون مطالبة ما دمت مسجّل الدخول. وعندها يستطيع كل من يستطيع استخدام جلسة سطح مكتبك أن يفتح الخزنة.",
-
     "label": "اسم لهذه الفتحة",
     "labelHelp": "يظهر في هذه القائمة وفي شاشة فتح القفل، حتى يمكن تمييز فتحة عن غيرها.",
     "_comment_labelPlaceholder": "An example name, in the empty field. Replace it with a plausible example in this locale rather than translating it word for word.",
     "labelPlaceholder": "لابتوب العمليات",
     "_comment_labelBlocked": "Why the Add button is disabled. Shown as its tooltip.",
     "labelBlocked": "أعطِ الفتحة اسمًا أولًا.",
-
     "password": "كلمة المرور",
     "_comment_passwordHelp": "SECURITY-CRITICAL. A second password opens the whole vault; it is not a lesser credential.",
     "passwordHelp": "هذه تفتح الخزنة بأكملها، تمامًا كما تفعل كلمة المرور الرئيسية. فينبغي أن تكون بالقوة نفسها.",
     "confirm": "أعد كتابة كلمة المرور",
     "confirmMismatch": "كلمتا المرور غير متطابقتين.",
     "passwordBlocked": "اكتب كلمة المرور مرتين، بالطريقة نفسها.",
-
     "keyfile": "ملف المفتاح (اختياري)",
     "_comment_keyfileHelp": "SECURITY-CRITICAL. Losing the key file loses this slot, permanently.",
     "keyfileHelp": "أي ملف يصبح عاملًا ثانيًا لهذه الفتحة. وإن فقدته توقفت هذه الفتحة عن العمل؛ أما الفتحات الأخرى فلا تتأثر.",
     "_comment_keyfileRefused": "Why the Add button is disabled: the chosen file cannot be a key file, and the field above already says which rule it broke.",
     "keyfileRefused": "اختر ملف مفتاح آخر. والحقل أعلاه يوضح سبب عدم صلاحية ذلك الملف.",
-
     "_comment_recoveryNotice": "SECURITY-CRITICAL. 'shown once, and then dropped' is literal: the key exists nowhere after this dialog closes. 'Add' is the button label, addSlot.add.",
     "recoveryNotice": "يُولَّد المفتاح عند ضغطك «أضف الفتحة»، ويُعرض مرة واحدة، ثم يُسقَط.",
     "keychainNotice": "يعيش الرمز في سلسلة مفاتيح هذا الجهاز. ولا يستطيع جهاز آخر استخدام هذه الفتحة، وإزالتها من هنا تمحو الرمز.",
-
     "_comment_add": "Verb phrase, on the confirming button.",
     "add": "أضف الفتحة",
     "adding": "جارٍ اشتقاق المفتاح…",
@@ -244,34 +224,27 @@
     "addingBlocked": "الفتحة قيد الكتابة بالفعل. وسيُغلق هذا حين تُجيب النواة — وفتحة الاسترداد لديها مفتاح تسلّمه أولًا.",
     "failed": "لم تُضف الفتحة."
   },
-
   "changePassword": {
     "title": "تغيير كلمة مرور هذه الفتحة",
     "lead": "يُعاد تغليف الفتحة حول كلمة المرور الجديدة. ولا يتغير المفتاح الرئيسي، فلا يُعاد تشفير شيء، وتظل كل الفتحات الأخرى تعمل، وتبقى مفاتيح الاسترداد صالحة.",
-
     "_comment_notARotation": "SECURITY-CRITICAL. The distinction between changing a password and rotating the master key. A user who believes this repairs a leak will not then do the thing that does.",
     "notARotation": "هذا لا يفيد إن كان الملف نفسه قد تسرّب",
     "notARotationBody": "النسخة التي أُخذت أثناء استخدام كلمة المرور القديمة تظل تُفتح بكلمة المرور القديمة. وتدوير المفتاح الرئيسي للخزنة هو الجواب على ذلك، وهو موجود في هذه الشاشة.",
-
     "current": "كلمة المرور الحالية",
     "currentHelp": "يجري التحقق منها قبل استبدال أي شيء، فالخطأ المطبعي هنا لا يمكن أن يُقفل الفتحة.",
     "currentKeyfile": "ملف المفتاح الحالي",
     "currentKeyfileHelp": "هذه الفتحة تتطلب ملف مفتاح، فالتغيير يحتاج إليه أيضًا.",
-
     "next": "كلمة المرور الجديدة",
     "confirm": "أعد كتابة كلمة المرور الجديدة",
     "confirmMismatch": "كلمتا المرور غير متطابقتين.",
-
     "newKeyfile": "ملف المفتاح من الآن فصاعدًا",
     "_comment_newKeyfileHelp": "SECURITY-CRITICAL. The current key file is NOT carried over; leaving the field empty removes it. A translation that implies otherwise is the difference between a slot that opens tomorrow and one that does not.",
     "newKeyfileHelp": "يُختار صراحةً، بما في ذلك تركه فارغًا: فملف المفتاح الحالي لا يُنقل إلى الوضع الجديد. وتركه فارغًا يعني أن هذه الفتحة لن تحتاج إلا إلى كلمة مرور.",
-
     "_comment_blockedCurrent": "The four reasons the confirming button is disabled, shown as its tooltip.",
     "blockedCurrent": "اكتب كلمة المرور الحالية لهذه الفتحة.",
     "blockedCurrentKeyfile": "اختر ملف المفتاح الذي تتطلبه هذه الفتحة حاليًا.",
     "blockedNew": "اكتب كلمة المرور الجديدة مرتين، بالطريقة نفسها.",
     "blockedKeyfile": "لا يصلح هذا الملف ليكون ملف مفتاح.",
-
     "_comment_save": "Verb phrase, on the confirming button.",
     "save": "غيّر كلمة المرور",
     "saving": "جارٍ اشتقاق المفتاح…",
@@ -279,15 +252,12 @@
     "savingStage": "جارٍ التحقق من كلمة المرور الحالية، ثم اشتقاق المفتاح الجديد…",
     "failed": "لم تُغيَّر كلمة المرور."
   },
-
   "removeSlot": {
     "title": "إزالة هذه الفتحة",
     "lead": "يُحذف مدخل الفتحة من الترويسة. ولا يُعاد تشفير شيء وتظل كل الفتحات الأخرى تعمل — فهذا ليس تدويرًا.",
-
     "refusedTitle": "لا يمكن إزالة هذه الفتحة",
     "_comment_warningTitle": "The heading over a warning that does not block the removal.",
     "warningTitle": "قبل أن تفعل",
-
     "_comment_phrase": "SECURITY-CRITICAL. The sentence the user must type out before the recovery slot can be deleted. It is compared against what they type, ignoring case and repeated spaces, so it MUST read naturally in this language and MUST be easy to retype — no unusual punctuation, no words that could be spelled two ways. Translate the meaning: the person is stating that they understand they are giving up their last way back into the vault. A tick box was rejected here deliberately; typing is what makes someone read it.",
     "phrase": "أفهم أن هذا يحذف ملاذي الأخير للدخول",
     "phrasePrompt": "اكتب هذه الجملة للتأكيد:",
@@ -296,17 +266,14 @@
     "phraseHint": "الكلمات كما هي مكتوبة أعلاه. والمسافات الزائدة لا تهم.",
     "_comment_phraseBlocked": "Why the confirming button is disabled, shown as its tooltip.",
     "phraseBlocked": "اكتب الجملة أعلاه لإزالة هذه الفتحة.",
-
     "_comment_lostKey": "Reassurance for the common case: a key you have lost can still be revoked, because revoking deletes the vault's record of it rather than the key itself.",
     "lostKey": "الإبطال يحذف مدخل الفتحة، فالمفتاح الذي فقدته يمكن إبطاله رغم ذلك — ولست بحاجة إلى أن يكون بين يديك.",
-
     "_comment_remove": "Verb phrase, on the confirming button.",
     "remove": "أزل الفتحة",
     "removing": "جارٍ الإزالة…",
     "removingBlocked": "الإزالة لدى النواة بالفعل. وسيُغلق هذا حين تُجيب، حتى تجد نتيجتها مكانًا تظهر فيه.",
     "failed": "لم تُزل الفتحة."
   },
-
   "recoveryKey": {
     "_comment_": "SECURITY-CRITICAL SECTION. A recovery key is shown here and nowhere else, ever. Nothing in the program can produce it again. Every string in this object must keep that finality.",
     "title": "مفتاح الاسترداد الجديد الخاص بك",
@@ -314,7 +281,6 @@
     "titleSequence": "مفتاح الاسترداد الجديد الخاص بك ({position, number} من {total, number})",
     "_comment_lead": "SECURITY-CRITICAL. {index} is the slot number. 'shown here and nowhere else' is literal.",
     "lead": "الفتحة {index, number}. المفتاح الذي كانت تحمله هذه الفتحة صار عديم الفائدة، وهذا المفتاح يُعرض هنا ولا يُعرض في أي مكان آخر.",
-
     "_comment_done": "First person, on the button that dismisses the key. The user is asserting they have written it down.",
     "done": "حفظته",
     "_comment_doneLast": "The same button on the last key of a sequence.",
@@ -324,11 +290,9 @@
     "_comment_escapeBlocked": "SECURITY-CRITICAL. The answer to pressing Escape, which everywhere else in the program closes a dialog. Here it does not, and this sentence says why.",
     "escapeBlocked": "هذا المفتاح يُعرض مرة واحدة. والإغلاق دون تدوينه يترك الفتحة تحمل مفتاحًا لا تملكه."
   },
-
   "autoLock": {
     "title": "القفل التلقائي",
     "description": "القفل يكتب الأصفار فوق كل مفتاح وكل سر مخزَّن مؤقتًا، ويُسقط قاعدة البيانات من الذاكرة. وإعادة الفتح تتطلب فتح قفل كاملًا.",
-
     "idleLegend": "أقفل بعد خمول مدته",
     "_comment_choiceNever": "The first choice on the idle ladder: the vault never locks on its own.",
     "choiceNever": "أبدًا",
@@ -336,22 +300,18 @@
     "choiceMinutes": "{count, plural, zero {# دقيقة} one {دقيقة واحدة} two {دقيقتان} few {# دقائق} many {# دقيقة} other {# دقيقة}}",
     "_comment_choiceHours": "PLURAL. The same ladder above an hour.",
     "choiceHours": "{count, plural, zero {# ساعة} one {ساعة واحدة} two {ساعتان} few {# ساعات} many {# ساعة} other {# ساعة}}",
-
     "_comment_idleHelp": "What 'idle' actually measures. This sentence was wrong once and cost people work: it claimed the desktop's input idle time was being read, so users believed typing in a terminal kept the vault open when it did not. Translate what is measured, not what would be nicer to measure.",
     "idleHelp": "الخمول يعني أن لا شيء مسّ الخزنة وأن لا جلسة حملت أي حركة بيانات. وضغطات المفاتيح التي ترسلها والمخرجات التي يرسلها المضيف كلاهما يُحتسب، فالجلسة التي تشاهدها دون أن تكتب فيها لا تصبح خاملة ما دامت المخرجات تصل.",
     "_comment_idleScope": "The limitation of that measurement. 'Remoter' is the product name and is never translated.",
     "idleScope": "لا يقرأ Remoter زمن خمول الإدخال الخاص بسطح المكتب نفسه، فالوقت الذي تقضيه في تطبيق آخر يُحتسب خمولًا وإن كنت جالسًا أمام لوحة المفاتيح.",
     "_comment_idleNever": "Shown only when 'Never' is chosen. A judgement about a security decision, offered without scolding.",
     "idleNever": "«أبدًا» تعني أن الخزنة تبقى مفتوحة حتى تقفلها أنت أو تخرج من البرنامج. وهذا اختيار له وجاهته على جهاز لا يصل إليه غيرك، واختيار سيئ على مكتب مشترك.",
-
     "screenLock": "عند قفل الشاشة",
     "suspend": "عند التعليق أو الإسبات",
     "minimise": "عند تصغير النافذة",
     "minimiseHelp": "معطّل افتراضيًا. فأكثر الناس يصغّرون النافذة أكثر بكثير مما يبتعدون عن الجهاز.",
-
     "_comment_unavailable": "The state word on a switch this build cannot honour — neither on nor off in any sense the user cares about. An abbreviation of 'not applicable'; use this locale's equivalent or write it out.",
     "unavailable": "لا ينطبق",
-
     "_comment_noScreenLock": "One sentence per event this build cannot observe, naming what is missing rather than saying 'not supported', so a reader can tell whether it will ever change.",
     "noScreenLock": "لا تستطيع هذه النسخة رؤية قفل الشاشة على هذا النظام، فهذا المفتاح لن يقفل شيئًا. والمقصود برؤيته هو إشارة قفل الشاشة من سطح المكتب، وهي إشارة لا ينصت لها Remoter بعد.",
     "noSuspend": "لا تستطيع هذه النسخة رؤية تعليق هذا الجهاز، فهذا المفتاح لن يقفل شيئًا هنا.",
@@ -360,7 +320,6 @@
     "onResumeSuspend": "لا يستطيع Remoter أن يطلب من هذا النظام إشعارًا مسبقًا بالتعليق، فهو يقفل عند عودة الجهاز لا قبل نومه. والمفاتيح موجودة في الذاكرة أثناء نومه، وموجودة في صورة الإسبات إن أُسبِت.",
     "_comment_keptForOtherMachines": "Appended to whichever of the three sentences above applies. The setting travels inside the vault file, so it still works on a computer that can see the event.",
     "keptForOtherMachines": "يُحفظ الإعداد في الخزنة، فيظل ساريًا على حاسوب يستطيع فيه Remoter رؤية الحدث.",
-
     "sessionsLegend": "ماذا يحدث للجلسات العاملة",
     "keepRunning": "أبقِها عاملة",
     "_comment_keepRunningHelp": "The default, with the reason for it, which comes from docs/security/key-management.md.",
@@ -371,19 +330,15 @@
     "_comment_disconnectAllHelp": "Warns about data loss: work in a session that has not been saved on the remote host is gone.",
     "disconnectAllHelp": "الأشد. والعمل غير المحفوظ داخل جلسة يضيع، بما في ذلك عمليات النقل الجارية.",
     "audited": "تغيير هذا يُكتب في سجل تدقيق الخزنة.",
-
     "failed": "لم يُحفظ ذلك الإعداد."
   },
-
   "recording": {
     "title": "سياسة التسجيل",
     "description": "يرثها كل ما في هذه الخزنة مما لا يضبط سياسة خاصة به، فتُضبط مرة واحدة للشجرة بأكملها.",
-
     "_comment_notYetTitle": "SECURITY-CRITICAL. This build has no recorder at all. A user who believes they hold a compliance record they do not have is the one failure of this screen that costs something, so this notice must not be softened or made conditional.",
     "notYetTitle": "لا يُسجَّل شيء في هذا الإصدار",
     "_comment_notYetBody": "'Remoter' is the product name and is never translated.",
     "notYetBody": "لا يملك Remoter مسجّلًا بعد: فأيًّا كانت البطاقة المختارة، تُفتح كل جلسة في هذه الخزنة دون تسجيل. والاختيار أدناه يُخزَّن في الخزنة الآن ويسري مفعوله عندما يُبنى تسجيل الجلسات.",
-
     "_comment_": "Every sentence describing recording behaviour below is in the future tense on purpose: nothing on this screen may read as a claim about what happens today. Keep the future tense in translation wherever this language marks it.",
     "never": "أبدًا",
     "neverHelp": "لن يُسجَّل شيء في هذه الخزنة، إلا إذا ضبط مجلد أو اتصال تحتها سياسة خاصة به.",
@@ -391,37 +346,28 @@
     "askHelp": "مطالبة قبل فتح الجلسة. والرفض سيفتح الجلسة دون تسجيل.",
     "always": "دائمًا",
     "alwaysHelp": "ستُسجَّل كل جلسة، بعد إشعار قبل فتحها. وإن تعذّر بدء المسجّل فستُفتح الجلسة رغم ذلك — فالتسجيل عند هذه السياسة سيكون بأفضل جهد ممكن.",
-
     "_comment_required": "Why a fourth policy is described rather than offered. The quoted word 'required' names a policy in docs/features/recording-audit.md; keep it quoted and translate it the same way wherever that policy is named.",
     "required": "هناك سياسة رابعة، «إلزامي» — سجّل، وارفض الاتصال إن تعذّر بدء التسجيل — وهي غير معروضة هنا. فملف الخزنة لا يحتوي على حقل لها، وبطاقة رابعة ستخزّن واحدة من الثلاث أعلاه وتعني شيئًا أضعف مما يوحي به اسمها.",
-
     "storage": "ستعيش التسجيلات خارج الخزنة، في دليل تختاره، وكل تسجيل مشفّر بمفتاح مشتق من المفتاح الرئيسي للخزنة، فلا يمكن قراءته إلا والخزنة مفتوحة. ولا يُرفع شيء إلى أي مكان.",
-
     "failed": "لم تُحفظ سياسة التسجيل."
   },
-
   "backups": {
     "title": "النسخ الاحتياطية",
     "_comment_description": "vault.rvault.bak.1 is a file name pattern and is never translated.",
     "description": "قبل الكتابة فوق الخزنة، يُدوَّر الملف السابق إلى نسخة احتياطية متعاقبة بجواره: من vault.rvault.bak.1 إلى ‎.bak.N.",
-
     "legend": "كم نسخة تُحفظ",
     "_comment_none": "The zero option on the ladder, in place of the numeral 0.",
     "none": "لا شيء",
-
     "_comment_onceASession": "Why the number means less than it looks like it means: backups rotate on the first save after the vault is opened, not on every save.",
     "onceASession": "يُدوَّر مرة واحدة في الجلسة، لا مرة عند كل حفظ",
     "onceASessionBody": "كل تعديل على عقدة هو عملية حفظ. ولو أُخذت نسخة احتياطية عند كل واحد منها، لصارت ثلاث نسخ احتياطية على بُعد أربع نقرات ولكان الملف الذي يسبق الخطأ قد ضاع بالفعل. أما التدوير عند أول حفظ في الجلسة فيجعل ‎.bak.1 هو الخزنة تمامًا كما كانت لحظة فتحك لها.",
-
     "_comment_zeroTitle": "Keeping no backups is a legitimate choice, not a mistake to be talked out of.",
     "zeroTitle": "عدم الاحتفاظ بأي نسخة اختيار حقيقي",
     "zeroBody": "إن كانت هذه الخزنة تعيش في مجلد متزامن، فالمزوّد يحتفظ أصلًا بنسخ تاريخية من النص المشفّر، وقد لا تريد نسخًا إضافية منه ملقاة على القرص أيضًا.",
-
     "_comment_present": "PLURAL, on how many backup files are beside the vault at this moment. The zero and one wordings are deliberately different from the general case rather than showing a numeral.",
     "present": "{count, plural, zero {لا توجد الآن نسخ احتياطية بجوار هذه الخزنة.} one {توجد الآن نسخة احتياطية واحدة بجوار هذه الخزنة.} two {توجد الآن نسختان احتياطيتان بجوار هذه الخزنة.} few {توجد الآن # نسخ احتياطية بجوار هذه الخزنة.} many {توجد الآن # نسخة احتياطية بجوار هذه الخزنة.} other {توجد الآن # نسخة احتياطية بجوار هذه الخزنة.}}",
     "_comment_presentPrune": "Follows the sentence above. Lowering the setting does not delete files that already exist.",
     "presentPrune": "خفض العدد لا يحذف الملفات المكتوبة بالفعل؛ بل يتوقف التدوير التالي عند الحد الجديد.",
-
     "failed": "لم يُحفظ عدد النسخ الاحتياطية."
   }
 }

@@ -39,7 +39,19 @@
     "_comment_dialogTitle": "The title bar of the operating system's file browser.",
     "dialogTitle": "Choisir le fichier-clé de cet emplacement",
     "_comment_dialogFailed": "Shown when the platform has no file browser to open. 'Remoter' is the product name and is never translated.",
-    "dialogFailed": "Ce système n'a pas ouvert de navigateur de fichiers. Saisissez le chemin dans le champ que la plateforme vous propose, ou lancez Remoter depuis une session qui en possède un."
+    "dialogFailed": "Ce système n'a pas ouvert de navigateur de fichiers. Saisissez le chemin dans le champ que la plateforme vous propose, ou lancez Remoter depuis une session qui en possède un.",
+    "_comment_generate": "A button beside Browse that writes a brand-new random key file and uses it for this slot. The ellipsis means a save dialog follows.",
+    "generate": "Générer…",
+    "_comment_generating": "The same button while the file is being written.",
+    "generating": "Écriture…",
+    "_comment_generateDialogTitle": "The title bar of the operating system's save dialog for the new key file.",
+    "generateDialogTitle": "Où écrire le nouveau fichier-clé",
+    "_comment_generateFailed": "A heading over the core's own message when the new key file could not be written — for example because a file already exists at that path, which is never overwritten.",
+    "generateFailed": "Le fichier-clé n’a pas pu être écrit",
+    "_comment_generated": "SECURITY-CRITICAL. Shown under the path once a new key file has been written. Losing that file loses this slot; keep both halves: where it is, and that a copy must be kept away from the vault.",
+    "generated": "Un nouveau fichier-clé a été écrit à cet endroit. Gardez-en une copie ailleurs qu’à côté du coffre-fort : sans elle, cet emplacement ne fonctionne plus.",
+    "_comment_besideTheVault": "SECURITY-CRITICAL. The new key file was written into the vault's own folder. It works, but stops being a second factor. Do not turn it into a refusal.",
+    "besideTheVault": "Il se trouve juste à côté du coffre-fort : quiconque copie l'un copie les deux. Cela fonctionnera ; simplement, ce n'est plus un second facteur."
   },
   "slot": {
     "_comment_": "How one key slot is described. A slot is one independent way of unwrapping the vault key: the same vault can have several, and any one of them opens it.",

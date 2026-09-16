@@ -26,3 +26,11 @@
   color: var(--danger-text);
   text-wrap: pretty;
 }
+
+.generated {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--fg-muted);
+  text-wrap: pretty;
+}

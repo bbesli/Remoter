@@ -1,6 +1,5 @@
 {
   "_comment_file": "The vault settings screen: which keys open this vault file, and the policies stored inside the file itself — auto-lock, recording and rolling backups. Loaded when the screen opens, not before. Read the SECURITY-CRITICAL comments before translating anything in this namespace: several of these strings are the last warning a person sees before an operation that can leave an encrypted file that nobody, including us, can ever open. A softened warning here is a real and foreseeable way to lose someone's data.",
-
   "screen": {
     "title": "Vault settings",
     "_comment_close": "Both the accessible name of the header's close control and the label of the button offered beside a failed read.",
@@ -23,17 +22,14 @@
     "locked": "No vault is open",
     "lockedBody": "These settings live inside the vault file, so they can only be read while it is unlocked."
   },
-
   "status": {
     "_comment_saving": "Shown beside a spinner while one setting is being written. Used by all three policy panels.",
     "saving": "Saving…"
   },
-
   "dialog": {
     "_comment_blockedFallback": "A noun phrase, not a sentence: it is interpolated into the window-close confirmation as the thing that would be lost — 'Closing now loses …'. Only reached if a dialog refuses to be dismissed without saying what is at stake, which no dialog on this screen does.",
     "blockedFallback": "something that cannot be shown again"
   },
-
   "keyfile": {
     "_comment_": "Choosing the file that acts as a second factor on a key slot. A key file is an ordinary file of the user's choosing; its contents are mixed into the key, so losing the file loses the slot.",
     "_comment_none": "Shown in place of a path when no key file has been chosen. Adjective-free noun: 'no file chosen'.",
@@ -43,9 +39,20 @@
     "_comment_dialogTitle": "The title bar of the operating system's file browser.",
     "dialogTitle": "Choose the key file for this slot",
     "_comment_dialogFailed": "Shown when the platform has no file browser to open. 'Remoter' is the product name and is never translated.",
-    "dialogFailed": "This system did not open a file browser. Type the path into the field the platform gives you, or start Remoter from a session that has one."
+    "dialogFailed": "This system did not open a file browser. Type the path into the field the platform gives you, or start Remoter from a session that has one.",
+    "_comment_generate": "A button beside Browse that writes a brand-new random key file and uses it for this slot. The ellipsis means a save dialog follows.",
+    "generate": "Generate…",
+    "_comment_generating": "The same button while the file is being written.",
+    "generating": "Writing…",
+    "_comment_generateDialogTitle": "The title bar of the operating system's save dialog for the new key file.",
+    "generateDialogTitle": "Where to write the new key file",
+    "_comment_generateFailed": "A heading over the core's own message when the new key file could not be written — for example because a file already exists at that path, which is never overwritten.",
+    "generateFailed": "The key file could not be written",
+    "_comment_generated": "SECURITY-CRITICAL. Shown under the path once a new key file has been written. Losing that file loses this slot; keep both halves: where it is, and that a copy must be kept away from the vault.",
+    "generated": "A new key file was written there. Keep a copy somewhere other than beside the vault — without it, this slot stops working.",
+    "_comment_besideTheVault": "SECURITY-CRITICAL. The new key file was written into the vault's own folder. It works, but stops being a second factor. Do not turn it into a refusal.",
+    "besideTheVault": "This sits next to the vault, so anyone who copies one copies both. It will work; it just stops being a second factor."
   },
-
   "slot": {
     "_comment_": "How one key slot is described. A slot is one independent way of unwrapping the vault key: the same vault can have several, and any one of them opens it.",
     "_comment_kind": "The four kinds of slot. 'Security key' is a hardware authenticator (FIDO2); 'Remember on this device' is the operating system's own credential store.",
@@ -66,39 +73,31 @@
     "withKeyfile": "Needs its key file too",
     "noKeyfile": "Password only"
   },
-
   "slots": {
     "title": "Key slots",
     "description": "Each slot independently unwraps the same vault key. Adding or removing one does not re-encrypt anything, so it is fast and safe to change your mind.",
-
     "_comment_openedWithBadge": "A badge on the slot that unlocked the vault in this session. Lower case, no full stop: it is a badge, not a sentence.",
     "openedWithBadge": "opened this session",
     "_comment_neverUsedBadge": "A badge on a recovery key that has never opened this vault — the slot most likely to have been lost. Lower case, no full stop.",
     "neverUsedBadge": "never used",
-
     "_comment_change": "Verb, on the button that changes this slot's password.",
     "change": "Change",
     "_comment_rotate": "Verb, on the button that replaces this recovery key with a new one.",
     "rotate": "Rotate",
     "_comment_remove": "Verb, on the button that deletes this slot from the vault.",
     "remove": "Remove",
-
     "_comment_add": "Verb phrase, on the row that opens the add-a-slot dialog.",
     "add": "Add a slot",
     "_comment_addHint": "The three kinds that can be added, as a hint under the button. The middots are separators.",
     "addHint": "another password · a recovery key · this device",
-
     "_comment_unusedRecoveryBody": "SECURITY-CRITICAL. Shown on a recovery key that has never been used. Do not soften 'there is no way into this vault without one of these slots' — it is literally true, and a reader who takes it as caution rather than fact is the reader who loses the vault.",
     "unusedRecoveryBody": "Generated and never used is exactly the slot most likely to be lost. If you cannot put your hands on it, rotate it now — there is no way into this vault without one of these slots.",
-
     "_comment_invariantTitle": "SECURITY-CRITICAL. The standing notice at the foot of the panel.",
     "invariantTitle": "A vault must keep at least one usable slot",
     "_comment_invariantBody": "SECURITY-CRITICAL. 'no escrow key and no support override' must survive translation as an absolute: there is no recovery path of any kind, and 'including us' means the people who wrote this program. 'Remoter' is the product name and is never translated.",
     "invariantBody": "Remoter will not let you delete the last one, and deleting the recovery slot needs a typed confirmation. There is no escrow key and no support override: if every slot is lost, the file cannot be opened by anyone, including us.",
-
     "_comment_removeFailed": "The title of the failure notice when a removal fails after its dialog has closed.",
     "removeFailed": "The slot was not removed.",
-
     "_comment_lastSlotRefusal": "SECURITY-CRITICAL. Why the last remaining slot cannot be removed, shown on the disabled control before anything is clicked. This refusal has no undo behind it: if it were bypassed the file would be unopenable forever.",
     "lastSlotRefusal": "This is the only way into this vault. Removing it would leave a file nobody can ever open — there is no escrow key and no support override.",
     "_comment_openedWithWarning": "A warning, not a refusal: this slot is the one that unlocked the vault in this session.",
@@ -106,7 +105,6 @@
     "_comment_lastRecoveryWarning": "SECURITY-CRITICAL. A warning, not a refusal. 'the end of the vault' means the vault can never be opened again; do not weaken it to 'a problem'.",
     "lastRecoveryWarning": "This is the last recovery key on this vault. Without one, a forgotten password is the end of the vault."
   },
-
   "rotateRecovery": {
     "_comment_": "Replacing one recovery key with a freshly generated one. The vault master key is untouched, so this is cheap — unlike the master key rotation further down the same screen.",
     "title": "Rotate this recovery key",
@@ -120,12 +118,10 @@
     "blocked": "The new key is being generated. Closing now would lose it: it is shown once and nothing can reissue it.",
     "failed": "The recovery key was not rotated."
   },
-
   "expensive": {
     "_comment_label": "A heading over the one operation on this screen that re-encrypts the whole vault and therefore takes real time.",
     "label": "Expensive operation"
   },
-
   "rotateMaster": {
     "_comment_": "Rotating the vault master key: a new master key, every slot re-wrapped around it, and every stored secret re-encrypted.",
     "cardTitle": "Rotate the vault master key",
@@ -135,22 +131,17 @@
     "cardButton": "Rotate the master key",
     "_comment_cardAside": "SECURITY-CRITICAL. Rotation does not reach copies of the file that already exist. 'Delete them' is an instruction, not a suggestion.",
     "cardAside": "Old copies of the file stay readable with the old keys. Delete them.",
-
     "title": "Rotate the vault master key",
     "lead": "A new master key is generated, every slot is re-wrapped around it, and every secret in the vault is resealed.",
-
     "whenTitle": "When this is the right answer",
     "whenBody": "A copy of this file may have leaked while one of your keys was compromised. Changing a password re-wraps one slot; this replaces the key the whole body is encrypted under.",
-
     "_comment_limitTitle": "SECURITY-CRITICAL. What rotation cannot do, shown both before and after the operation.",
     "limitTitle": "What it cannot do",
     "_comment_limitBody": "SECURITY-CRITICAL. Must not be softened into reassurance: a leaked copy stays readable with the old keys forever, and so do the backup files beside the vault. 'rotation protects what happens next, not what already left' is the whole point of the paragraph.",
     "limitBody": "The copy that leaked still opens with the old keys, and so do the rolling backups beside this vault, which this save rotates. Delete the copies you know about; rotation protects what happens next, not what already left.",
-
     "costTitle": "It takes real time",
     "_comment_costBody": "PLURAL, on the number of password slots being re-wrapped. Argon2id is a key derivation function and is never translated. The one-slot wording is deliberately different rather than showing the numeral 1.",
     "costBody": "{count, plural, one {Argon2id runs once, for the one password slot, and every stored secret is resealed.} other {Argon2id runs once per password slot — # here — and every stored secret is resealed.}}",
-
     "_comment_slotsLegend": "The legend over the per-slot form. Every slot must either be opened or explicitly discarded; there is no third option, which is what 'accounted for' means.",
     "slotsLegend": "Every slot has to be accounted for",
     "_comment_password": "The label of the password field for one slot.",
@@ -161,11 +152,9 @@
     "drop": "I do not have this one. Discard the slot.",
     "_comment_dropped": "Replaces the label above once the checkbox is ticked.",
     "dropped": "Will be discarded",
-
     "recoveryNote": "A new recovery key is issued for this slot, and shown once when the rotation ends.",
     "keychainNote": "Re-wrapped from the token in this machine's keyring. If the token is gone, discard the slot and enrol this machine again afterwards.",
     "fido2Note": "This version cannot re-wrap a security key slot.",
-
     "_comment_problemsTitle": "The heading over the list of reasons the rotation cannot start yet.",
     "problemsTitle": "Not ready to rotate",
     "_comment_problemNoCredential": "One entry in that list. {index} is the slot number, {label} the name the user gave the slot — never translated. The quoted phrase refers to the discard checkbox on that slot's card, so it should match the wording of rotateMaster.drop.",
@@ -174,7 +163,6 @@
     "problemFido2": "Slot {index, number} ({label}) is a security key, which this version cannot re-wrap. Discard it here and enrol it again afterwards, or cancel.",
     "_comment_problemEmpty": "SECURITY-CRITICAL. A rotation that discards every slot would produce a file with no way in at all.",
     "problemEmpty": "Every slot is marked to discard. A rotation that keeps nothing produces a file nobody can open.",
-
     "_comment_confirm": "Verb phrase, on the button that starts the rotation.",
     "confirm": "Rotate the master key",
     "busy": "Re-keying…",
@@ -185,7 +173,6 @@
     "_comment_unchanged": "Reassurance after a failure, and it is exact: a failed rotation is atomic, so nothing at all was written.",
     "unchanged": "Nothing changed: the vault is exactly as it was before you pressed the button."
   },
-
   "rotationSummary": {
     "_comment_": "What the rotation did, shown after the last new recovery key has been written down.",
     "title": "The vault has been re-keyed",
@@ -197,11 +184,9 @@
     "_comment_resealed": "PLURAL. Every password, key and passphrase stored in the vault, re-encrypted under the new master key.",
     "resealed": "{count, plural, one {# secret resealed} other {# secrets resealed}}"
   },
-
   "addSlot": {
     "title": "Add a key slot",
     "lead": "Each slot independently unwraps the same vault key. Adding one re-wraps that key under a new credential and re-encrypts nothing, so it is instant and it is safe to change your mind.",
-
     "_comment_kindLegend": "The legend over the three radio cards below.",
     "kindLegend": "What kind of slot",
     "kindPassword": "Another password",
@@ -210,31 +195,26 @@
     "kindRecoveryHelp": "A vault may hold more than one. A sealed envelope in a safe is a legitimate reason to want a second.",
     "kindKeychain": "Remember on this device",
     "kindKeychainHelp": "Enrols this machine's credential store, so the vault opens without a prompt while you are logged in. Anyone who can use your desktop session can then open the vault.",
-
     "label": "Name for this slot",
     "labelHelp": "Shown in this list and on the unlock screen, so a slot can be told from the others.",
     "_comment_labelPlaceholder": "An example name, in the empty field. Replace it with a plausible example in this locale rather than translating it word for word.",
     "labelPlaceholder": "Ops laptop",
     "_comment_labelBlocked": "Why the Add button is disabled. Shown as its tooltip.",
     "labelBlocked": "Give the slot a name first.",
-
     "password": "Password",
     "_comment_passwordHelp": "SECURITY-CRITICAL. A second password opens the whole vault; it is not a lesser credential.",
     "passwordHelp": "This opens the whole vault, exactly as the master password does. It should be as strong.",
     "confirm": "Repeat the password",
     "confirmMismatch": "The two passwords are not the same.",
     "passwordBlocked": "Type the password twice, the same way.",
-
     "keyfile": "Key file (optional)",
     "_comment_keyfileHelp": "SECURITY-CRITICAL. Losing the key file loses this slot, permanently.",
     "keyfileHelp": "Any file becomes a second factor for this slot. Lose it and this slot stops working; the other slots are unaffected.",
     "_comment_keyfileRefused": "Why the Add button is disabled: the chosen file cannot be a key file, and the field above already says which rule it broke.",
     "keyfileRefused": "Choose a different key file. The field above says why that one cannot be used.",
-
     "_comment_recoveryNotice": "SECURITY-CRITICAL. 'shown once, and then dropped' is literal: the key exists nowhere after this dialog closes. 'Add' is the button label, addSlot.add.",
     "recoveryNotice": "The key is generated when you press Add, shown once, and then dropped.",
     "keychainNotice": "The token lives in this machine's keyring. Another machine cannot use this slot, and removing it here erases the token.",
-
     "_comment_add": "Verb phrase, on the confirming button.",
     "add": "Add the slot",
     "adding": "Deriving the key…",
@@ -244,34 +224,27 @@
     "addingBlocked": "The slot is already being written. This closes when the core answers — and a recovery slot has a key to hand over first.",
     "failed": "The slot was not added."
   },
-
   "changePassword": {
     "title": "Change this slot's password",
     "lead": "The slot is re-wrapped around the new password. The master key does not change, so nothing is re-encrypted, every other slot keeps working and the recovery keys stay valid.",
-
     "_comment_notARotation": "SECURITY-CRITICAL. The distinction between changing a password and rotating the master key. A user who believes this repairs a leak will not then do the thing that does.",
     "notARotation": "This does not help if the file itself leaked",
     "notARotationBody": "A copy taken while the old password was in use still opens with the old password. Rotating the vault master key is the answer to that, and it is on this screen.",
-
     "current": "Current password",
     "currentHelp": "Verified before anything is replaced, so a typo here cannot lock the slot.",
     "currentKeyfile": "Current key file",
     "currentKeyfileHelp": "This slot requires one, so the change needs it as well.",
-
     "next": "New password",
     "confirm": "Repeat the new password",
     "confirmMismatch": "The two passwords are not the same.",
-
     "newKeyfile": "Key file from now on",
     "_comment_newKeyfileHelp": "SECURITY-CRITICAL. The current key file is NOT carried over; leaving the field empty removes it. A translation that implies otherwise is the difference between a slot that opens tomorrow and one that does not.",
     "newKeyfileHelp": "Chosen explicitly, including leaving it empty: the current key file is not carried over. Empty means this slot needs only a password.",
-
     "_comment_blockedCurrent": "The four reasons the confirming button is disabled, shown as its tooltip.",
     "blockedCurrent": "Type the slot's current password.",
     "blockedCurrentKeyfile": "Choose the key file this slot currently requires.",
     "blockedNew": "Type the new password twice, the same way.",
     "blockedKeyfile": "That file cannot be a key file.",
-
     "_comment_save": "Verb phrase, on the confirming button.",
     "save": "Change the password",
     "saving": "Deriving the key…",
@@ -279,15 +252,12 @@
     "savingStage": "Verifying the current password, then deriving the new key…",
     "failed": "The password was not changed."
   },
-
   "removeSlot": {
     "title": "Remove this slot",
     "lead": "The slot entry is deleted from the header. Nothing is re-encrypted and every other slot keeps working — this is not a rotation.",
-
     "refusedTitle": "This slot cannot be removed",
     "_comment_warningTitle": "The heading over a warning that does not block the removal.",
     "warningTitle": "Before you do",
-
     "_comment_phrase": "SECURITY-CRITICAL. The sentence the user must type out before the recovery slot can be deleted. It is compared against what they type, ignoring case and repeated spaces, so it MUST read naturally in this language and MUST be easy to retype — no unusual punctuation, no words that could be spelled two ways. Translate the meaning: the person is stating that they understand they are giving up their last way back into the vault. A tick box was rejected here deliberately; typing is what makes someone read it.",
     "phrase": "I understand this removes my last resort",
     "phrasePrompt": "Type this sentence to confirm:",
@@ -296,17 +266,14 @@
     "phraseHint": "The words as written above. Capitals do not matter.",
     "_comment_phraseBlocked": "Why the confirming button is disabled, shown as its tooltip.",
     "phraseBlocked": "Type the sentence above to remove this slot.",
-
     "_comment_lostKey": "Reassurance for the common case: a key you have lost can still be revoked, because revoking deletes the vault's record of it rather than the key itself.",
     "lostKey": "Revocation deletes the slot entry, so a key you have lost can still be revoked — you do not need it to hand.",
-
     "_comment_remove": "Verb phrase, on the confirming button.",
     "remove": "Remove the slot",
     "removing": "Removing…",
     "removingBlocked": "The removal is already with the core. This closes when it answers, so its result has somewhere to appear.",
     "failed": "The slot was not removed."
   },
-
   "recoveryKey": {
     "_comment_": "SECURITY-CRITICAL SECTION. A recovery key is shown here and nowhere else, ever. Nothing in the program can produce it again. Every string in this object must keep that finality.",
     "title": "Your new recovery key",
@@ -314,7 +281,6 @@
     "titleSequence": "Your new recovery key ({position, number} of {total, number})",
     "_comment_lead": "SECURITY-CRITICAL. {index} is the slot number. 'shown here and nowhere else' is literal.",
     "lead": "Slot {index, number}. The key that slot held before is now useless, and this one is shown here and nowhere else.",
-
     "_comment_done": "First person, on the button that dismisses the key. The user is asserting they have written it down.",
     "done": "I have saved it",
     "_comment_doneLast": "The same button on the last key of a sequence.",
@@ -324,11 +290,9 @@
     "_comment_escapeBlocked": "SECURITY-CRITICAL. The answer to pressing Escape, which everywhere else in the program closes a dialog. Here it does not, and this sentence says why.",
     "escapeBlocked": "This key is shown once. Closing without recording it leaves the slot holding a key you do not have."
   },
-
   "autoLock": {
     "title": "Auto-lock",
     "description": "Locking zeroizes every key and cached secret and drops the in-memory database. Reopening needs a full unlock.",
-
     "idleLegend": "Lock after idle for",
     "_comment_choiceNever": "The first choice on the idle ladder: the vault never locks on its own.",
     "choiceNever": "Never",
@@ -336,22 +300,18 @@
     "choiceMinutes": "{count, plural, one {# min} other {# min}}",
     "_comment_choiceHours": "PLURAL. The same ladder above an hour.",
     "choiceHours": "{count, plural, one {# hour} other {# hours}}",
-
     "_comment_idleHelp": "What 'idle' actually measures. This sentence was wrong once and cost people work: it claimed the desktop's input idle time was being read, so users believed typing in a terminal kept the vault open when it did not. Translate what is measured, not what would be nicer to measure.",
     "idleHelp": "Idle means nothing has touched the vault and no session has carried traffic. Keystrokes you send and output a host sends both count, so a session you are watching but not typing into does not go idle while output keeps arriving.",
     "_comment_idleScope": "The limitation of that measurement. 'Remoter' is the product name and is never translated.",
     "idleScope": "Remoter does not read the desktop's own input idle time, so time spent in another application counts as idle even though you are at the keyboard.",
     "_comment_idleNever": "Shown only when 'Never' is chosen. A judgement about a security decision, offered without scolding.",
     "idleNever": "Never means the vault stays open until you lock it or quit. That is a defensible choice on a machine only you can reach, and a bad one on a shared desk.",
-
     "screenLock": "When the screen locks",
     "suspend": "On suspend or hibernate",
     "minimise": "When the window is minimised",
     "minimiseHelp": "Off by default. Most people minimise far more often than they walk away.",
-
     "_comment_unavailable": "The state word on a switch this build cannot honour — neither on nor off in any sense the user cares about. An abbreviation of 'not applicable'; use this locale's equivalent or write it out.",
     "unavailable": "N/A",
-
     "_comment_noScreenLock": "One sentence per event this build cannot observe, naming what is missing rather than saying 'not supported', so a reader can tell whether it will ever change.",
     "noScreenLock": "This build cannot see the screen lock on this system, so this switch would not lock anything. Watching it means the desktop's screen-lock signal, which Remoter does not yet listen for.",
     "noSuspend": "This build cannot see this machine suspend, so this switch would not lock anything here.",
@@ -360,7 +320,6 @@
     "onResumeSuspend": "Remoter cannot ask this system for advance notice of a suspend, so it locks when the machine comes back rather than before it sleeps. The keys are in memory while it sleeps, and in the hibernation image if it hibernates.",
     "_comment_keptForOtherMachines": "Appended to whichever of the three sentences above applies. The setting travels inside the vault file, so it still works on a computer that can see the event.",
     "keptForOtherMachines": "The setting is kept in the vault, so it still applies on a computer where Remoter can see the event.",
-
     "sessionsLegend": "What happens to running sessions",
     "keepRunning": "Keep them running",
     "_comment_keepRunningHelp": "The default, with the reason for it, which comes from docs/security/key-management.md.",
@@ -371,19 +330,15 @@
     "_comment_disconnectAllHelp": "Warns about data loss: work in a session that has not been saved on the remote host is gone.",
     "disconnectAllHelp": "Strictest. Unsaved work in a session is lost, including transfers in progress.",
     "audited": "Changing this is written to the vault's audit log.",
-
     "failed": "That setting was not saved."
   },
-
   "recording": {
     "title": "Recording policy",
     "description": "Inherited by everything in this vault that does not set its own, so it is set once for the whole tree.",
-
     "_comment_notYetTitle": "SECURITY-CRITICAL. This build has no recorder at all. A user who believes they hold a compliance record they do not have is the one failure of this screen that costs something, so this notice must not be softened or made conditional.",
     "notYetTitle": "Nothing is recorded in this version",
     "_comment_notYetBody": "'Remoter' is the product name and is never translated.",
     "notYetBody": "Remoter has no recorder yet: whichever card is selected, every session in this vault opens unrecorded. The choice below is stored in the vault now and takes effect when session recording is built.",
-
     "_comment_": "Every sentence describing recording behaviour below is in the future tense on purpose: nothing on this screen may read as a claim about what happens today. Keep the future tense in translation wherever this language marks it.",
     "never": "Never",
     "neverHelp": "Nothing in this vault will be recorded, unless a folder or a connection below it sets its own policy.",
@@ -391,37 +346,28 @@
     "askHelp": "A prompt before the session opens. Declining will open the session unrecorded.",
     "always": "Always",
     "alwaysHelp": "Every session will be recorded, after a notice before it opens. If the recorder cannot start the session will still open — recording will be best-effort at this policy.",
-
     "_comment_required": "Why a fourth policy is described rather than offered. The quoted word 'required' names a policy in docs/features/recording-audit.md; keep it quoted and translate it the same way wherever that policy is named.",
     "required": "A fourth policy, \"required\" — record, and refuse to connect if recording cannot start — is not offered here. The vault file has no field for it, so a fourth card would store one of the three above and mean something weaker than its name.",
-
     "storage": "Recordings will live outside the vault, in a directory you choose, each encrypted with a key derived from the vault's master key and so readable only while the vault is unlocked. Nothing is uploaded anywhere.",
-
     "failed": "The recording policy was not saved."
   },
-
   "backups": {
     "title": "Backups",
     "_comment_description": "vault.rvault.bak.1 is a file name pattern and is never translated.",
     "description": "Before the vault is overwritten, the previous file is rotated into a rolling backup beside it: vault.rvault.bak.1 through .bak.N.",
-
     "legend": "How many to keep",
     "_comment_none": "The zero option on the ladder, in place of the numeral 0.",
     "none": "None",
-
     "_comment_onceASession": "Why the number means less than it looks like it means: backups rotate on the first save after the vault is opened, not on every save.",
     "onceASession": "Rotated once per session, not once per save",
     "onceASessionBody": "Every edit to a node is a save. If a backup were taken on each one, three backups would be four clicks deep and the file from before a mistake would already be gone. Rotating on the first save of a session makes .bak.1 the vault exactly as it stood when you opened it.",
-
     "_comment_zeroTitle": "Keeping no backups is a legitimate choice, not a mistake to be talked out of.",
     "zeroTitle": "Keeping none is a real choice",
     "zeroBody": "If this vault lives in a synced folder, the provider already keeps historical copies of the ciphertext, and you may not want extra copies of it lying around the disk as well.",
-
     "_comment_present": "PLURAL, on how many backup files are beside the vault at this moment. The zero and one wordings are deliberately different from the general case rather than showing a numeral.",
     "present": "{count, plural, =0 {There are no backups beside this vault right now.} one {One backup sits beside this vault right now.} other {# backups sit beside this vault right now.}}",
     "_comment_presentPrune": "Follows the sentence above. Lowering the setting does not delete files that already exist.",
     "presentPrune": "Lowering the number does not delete the files already written; the next rotation stops at the new limit.",
-
     "failed": "The backup count was not saved."
   }
 }
