@@ -34,6 +34,11 @@ ctr.workspace = true
 pbkdf2.workspace = true
 scrypt.workspace = true
 bcrypt-pbkdf.workspace = true
+# HMAC-SHA-1 for the PBKDF2 an encrypted PKCS#8 declares by default (RFC 8018
+# §A.2), so a passphrase for a key `ssh-keygen -m PKCS8` wrote on Windows can be
+# tried at import. The workspace's `sha1`, already a dependency of
+# `remoter-import` and `remoter-proto-ssh`; RustCrypto, MIT OR Apache-2.0.
+sha1.workspace = true
 blake3.workspace = true
 zeroize.workspace = true
 subtle.workspace = true

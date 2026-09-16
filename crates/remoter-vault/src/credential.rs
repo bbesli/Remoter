@@ -334,7 +334,13 @@ impl ImportedKey {
             LegacyKind::Pkcs1Rsa => crate::pkcs8::from_pkcs1_rsa(&der),
             LegacyKind::Sec1Ec => crate::pkcs8::from_sec1_ec(&der),
         }
-        .map_err(|_| VaultError::KeyPassphraseRejected)?;
+        .map_err(|err| match err {
+            // The body parsed as the key its banner promised, on a curve this
+            // build does not know: the passphrase was right, and saying it was
+            // wrong would send the user round in circles retyping it.
+            VaultError::UnsupportedKeyFormat(_) => err,
+            _ => VaultError::KeyPassphraseRejected,
+        })?;
 
         Ok(Self {
             format: KeyFormat::Pkcs8,
@@ -1032,18 +1038,18 @@ mod tests {
         assert!(said.contains("des-ede3-cbc"), "{said}");
 
         // OpenSSL 1.x left the pseudorandom function out, which RFC 8018 §A.2
-        // defines as HMAC-SHA-1 — and the parser downstream refuses it, so the
-        // key is as unusable as one under a cipher nobody implements.
-        let said = refusal(ImportedKey::from_bytes(samples::pkcs8_pbes2(
-            None,
-            &samples::AES256_CBC,
-        )));
-        assert!(said.contains("HMAC-SHA-1"), "{said}");
-        let spelled_out = refusal(ImportedKey::from_bytes(samples::pkcs8_pbes2(
-            Some(&samples::HMAC_SHA1),
-            &samples::AES256_CBC,
-        )));
-        assert_eq!(said, spelled_out, "absent and explicit mean the same thing");
+        // defines as HMAC-SHA-1, and `ssh-keygen -m PKCS8` on Windows still
+        // does. It used to be refused here, which made every such key made on
+        // Windows unusable; the SSH parser now reads it, and so this accepts
+        // it, left out or spelled out.
+        for prf in [None, Some(samples::HMAC_SHA1.as_slice())] {
+            let accepted = ImportedKey::from_bytes(samples::pkcs8_pbes2(prf, &samples::AES256_CBC));
+            assert!(
+                accepted.is_ok_and(|key| key.is_encrypted() && key.format() == KeyFormat::Pkcs8),
+                "HMAC-SHA-1 {}: a key Windows' ssh-keygen writes must be accepted",
+                if prf.is_none() { "by default" } else { "named" }
+            );
+        }
 
         let said = refusal(ImportedKey::from_bytes(samples::pkcs8_scheme(
             &samples::PBE_MD5_DES,
@@ -1450,6 +1456,130 @@ mod real_keys {
             assert_eq!(key.format(), format, "for {name}");
             assert_eq!(key.is_encrypted(), encrypted, "for {name}");
         }
+    }
+
+    #[test]
+    fn a_passphrase_protected_ec_key_with_explicit_curve_parameters_opens() {
+        // The key macOS's own `ssh-keygen` writes. Linked against an older
+        // LibreSSL, it spells the curve out as explicit domain parameters
+        // instead of naming it, and the vault used to call the correct
+        // passphrase wrong. That `ssh-keygen` is not on this machine, so the
+        // shape is rebuilt from a real key: the named-curve `[0]` is replaced
+        // by the explicit form and the result enciphered exactly as a PEM with
+        // a `DEK-Info` header is.
+        let dir = tempfile::tempdir().unwrap();
+        let passphrase = "correct horse battery staple";
+
+        for (bits, name) in [
+            ("256", "p256.pem"),
+            ("384", "p384.pem"),
+            ("521", "p521.pem"),
+        ] {
+            let original = generate(
+                dir.path(),
+                name,
+                "",
+                &["-t", "ecdsa", "-b", bits, "-m", "PEM"],
+            );
+            let der = pem_der(&original);
+            let explicit_der = with_explicit_parameters(&der);
+            assert_ne!(
+                explicit_der, der,
+                "{name}: the parameters were not rewritten"
+            );
+
+            let iv = [0x3C; 16];
+            let body =
+                crate::legacy_pem::encipher_for_tests(&explicit_der, passphrase.as_bytes(), iv);
+            let pem = format!(
+                "-----BEGIN EC PRIVATE KEY-----\nProc-Type: 4,ENCRYPTED\nDEK-Info: AES-128-CBC,{}\n\n{}\n-----END EC PRIVATE KEY-----\n",
+                data_encoding::HEXUPPER.encode(&iv),
+                data_encoding::BASE64.encode(&body)
+            );
+
+            let locked = ImportedKey::from_bytes(pem.into_bytes()).unwrap();
+            assert!(
+                matches!(
+                    locked.unlock(b"hunter2"),
+                    Err(VaultError::KeyPassphraseRejected)
+                ),
+                "{name}: a wrong passphrase must still say so"
+            );
+            let opened = locked
+                .unlock(passphrase.as_bytes())
+                .unwrap_or_else(|err| panic!("{name}: the right passphrase was refused: {err}"));
+            assert_eq!(
+                public_half(
+                    dir.path(),
+                    &format!("{name}.stored"),
+                    opened.material().unwrap().expose_secret()
+                ),
+                public_half(dir.path(), &format!("{name}.original"), &original),
+                "{name}: the key that came out is not the key that went in"
+            );
+        }
+    }
+
+    /// The DER inside a single-block PEM.
+    fn pem_der(pem: &[u8]) -> Vec<u8> {
+        let text = String::from_utf8_lossy(pem);
+        let body: String = text
+            .lines()
+            .filter(|line| !line.starts_with("-----") && !line.contains(':') && !line.is_empty())
+            .collect();
+        data_encoding::BASE64.decode(body.as_bytes()).unwrap()
+    }
+
+    /// The same `ECPrivateKey` with its named curve spelled out explicitly.
+    fn with_explicit_parameters(der: &[u8]) -> Vec<u8> {
+        // SEQUENCE { INTEGER 1, OCTET STRING d, [0] { OID }, [1] { BIT STRING } }
+        let outer_len_octets = if der[1] & 0x80 == 0 {
+            0
+        } else {
+            usize::from(der[1] & 0x7F)
+        };
+        let mut at = 2 + outer_len_octets;
+        let mut parts: Vec<Vec<u8>> = Vec::new();
+        while at < der.len() {
+            let tag = der[at];
+            let (len, header) = if der[at + 1] & 0x80 == 0 {
+                (usize::from(der[at + 1]), 2)
+            } else {
+                let count = usize::from(der[at + 1] & 0x7F);
+                let len = der[at + 2..at + 2 + count]
+                    .iter()
+                    .fold(0usize, |acc, octet| acc * 256 + usize::from(*octet));
+                (len, 2 + count)
+            };
+            let whole = der[at..at + header + len].to_vec();
+            if tag == 0xA0 {
+                let oid = &der[at + header + 2..at + header + len];
+                let domain = crate::pkcs8::specified_domain_for_tests(oid, false).unwrap();
+                parts.push(der_tlv(0xA0, &domain));
+            } else {
+                parts.push(whole);
+            }
+            at += header + len;
+        }
+        der_tlv(0x30, &parts.concat())
+    }
+
+    fn der_tlv(tag: u8, value: &[u8]) -> Vec<u8> {
+        let mut out = vec![tag];
+        if value.len() < 0x80 {
+            out.push(u8::try_from(value.len()).unwrap());
+        } else {
+            let bytes: Vec<u8> = value
+                .len()
+                .to_be_bytes()
+                .into_iter()
+                .skip_while(|octet| *octet == 0)
+                .collect();
+            out.push(0x80 | u8::try_from(bytes.len()).unwrap());
+            out.extend(bytes);
+        }
+        out.extend_from_slice(value);
+        out
     }
 
     #[test]

@@ -7,7 +7,7 @@
 | Job | Runner | Does |
 |---|---|---|
 | `check` | ubuntu-latest | Each crate on its own without test targets, every feature-gated target, `fmt --check`, `clippy -D warnings` |
-| `test` | ubuntu-latest, windows-latest, macos-latest | `cargo test --locked --workspace` |
+| `test` | ubuntu-latest, windows-latest, macos-latest | `cargo test --locked --workspace --no-fail-fast` |
 | `frontend` | ubuntu-latest, windows-latest, macos-latest | `npm ci`, `npm run build`, `vitest`; `typecheck` and `lint` on Linux only |
 | `release-packaging` | ubuntu-latest | `.github/scripts/release-packaging-selftest.sh`: the release workflow's packaging path, against a fake bundle tree |
 | `security` | ubuntu-latest | `cargo deny`, `cargo audit`, advisory-exception expiry, wildcard scan, `gitleaks` |

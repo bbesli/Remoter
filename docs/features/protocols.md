@@ -99,12 +99,20 @@ key.
 
 An **encrypted PKCS#8** file is stored ciphertext and all, with its passphrase
 beside it, so the scheme inside it has to be one this build can open. Those are
-PBES2 (RFC 8018) with PBKDF2 under an HMAC-SHA-2 function, or scrypt, over
-AES-128, AES-192 or AES-256 in CBC mode — what `ssh-keygen -m PKCS8` and
-`openssl pkcs8 -topk8` write today. Anything else is refused **when the file is
-chosen**, naming the scheme, rather than accepted and left to fail at connect
-time: `openssl genrsa -des3` on OpenSSL 3 writes PBES2 over `des-ede3-cbc`, and
-OpenSSL 1 wrote PBKDF2 with HMAC-SHA-1 by default; neither can be opened here.
+PBES2 (RFC 8018) with PBKDF2 under HMAC-SHA-1 or an HMAC-SHA-2 function, or
+scrypt, over AES-128, AES-192 or AES-256 in CBC mode — what `ssh-keygen -m PKCS8`
+and `openssl pkcs8 -topk8` write today. HMAC-SHA-1 is the DEFAULT RFC 8018 §A.2
+gives, and the LibreSSL-linked `ssh-keygen` Windows ships writes it, so it is
+read. Anything else is refused **when the file is chosen**, naming the scheme,
+rather than accepted and left to fail at connect time: `openssl genrsa -des3` on
+OpenSSL 3 writes PBES2 over `des-ede3-cbc`, which cannot be opened here.
+
+An **encrypted SEC 1 elliptic-curve key** — `-----BEGIN EC PRIVATE KEY-----` with
+a `DEK-Info` header — may spell its curve out as explicit domain parameters
+rather than naming it; the `ssh-keygen` macOS ships writes it that way. Those are
+recognised as P-256, P-384 or P-521 when every parameter matches, and a private
+key an encoder shortened by dropping leading zero octets is padded back to the
+curve's length (RFC 5915 §3).
 `remoter-proto-ssh`'s `keyfmt` module carries the readable set and the test that
 establishes it; `remoter-vault`'s `pkcs8` module mirrors it for the refusal.
 

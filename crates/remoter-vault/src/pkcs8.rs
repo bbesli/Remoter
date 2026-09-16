@@ -119,9 +119,29 @@ pub(crate) fn from_pkcs1_rsa(der: &[u8]) -> Result<Vec<u8>, VaultError> {
 /// puts it, and the inner structure is rebuilt without its now-redundant
 /// `parameters [0]`.
 ///
-/// A key whose `parameters` are explicit domain parameters rather than a named
-/// curve OID is refused: RFC 5480 §2.1.1 does not allow them in this position,
-/// and inventing a curve name for them would be a guess.
+/// Two shapes real tools write are normalised on the way, both found because a
+/// correct passphrase for a key macOS's own `ssh-keygen` had just written was
+/// reported as wrong:
+///
+/// - **Explicit domain parameters.** `ssh-keygen` built against an older
+///   LibreSSL — the one macOS ships — writes the curve as its full
+///   `SpecifiedECDomain` (SEC 1 §C.2) instead of a named-curve OID. RFC 5480
+///   §2.1.1 does not allow that in PKCS#8, so it is matched against P-256,
+///   P-384 and P-521 and replaced by the curve's name — but only when *every*
+///   parameter is the named curve's own: prime, both coefficients, generator,
+///   order and cofactor. A curve that differs in any of them is a different
+///   curve, whatever its order, and is refused as
+///   [`VaultError::UnsupportedKeyFormat`].
+/// - **A short private key.** RFC 5915 §3 fixes `privateKey` at the curve's
+///   field length, and the same LibreSSL drops leading zero octets, so one key
+///   in 256 arrives an octet short. It is padded back to length.
+///
+/// # Errors
+///
+/// [`VaultError::NotAPrivateKey`] when `der` is not an `ECPrivateKey` at all —
+/// which is also what a wrongly deciphered body looks like;
+/// [`VaultError::UnsupportedKeyFormat`] when it is one, but on a curve given by
+/// explicit parameters this build does not recognise.
 pub(crate) fn from_sec1_ec(der: &[u8]) -> Result<Vec<u8>, VaultError> {
     let mut document = Tlvs::new(der);
     let (tag, body) = document.next()?;
@@ -142,24 +162,56 @@ pub(crate) fn from_sec1_ec(der: &[u8]) -> Result<Vec<u8>, VaultError> {
     // Both remaining fields are OPTIONAL and context-tagged, so they are read
     // by tag rather than by position.
     let mut curve: Option<&[u8]> = None;
+    let mut known: Option<&'static NamedCurve> = None;
     let mut public_key: Option<&[u8]> = None;
     while !fields.is_empty() {
         match fields.next()? {
             (TAG_CONTEXT_0, parameters) => {
                 // `[0]` is EXPLICIT, so its content is the `ECParameters`
-                // CHOICE — a bare OID for a named curve.
+                // CHOICE: a bare OID for a named curve, or the whole
+                // `SpecifiedECDomain` SEQUENCE.
                 let mut inner = Tlvs::new(parameters);
-                let (tag, oid) = inner.next()?;
-                if tag != TAG_OID || !inner.is_empty() {
+                let (tag, value) = inner.next()?;
+                if !inner.is_empty() {
                     return Err(VaultError::NotAPrivateKey);
                 }
-                curve = Some(oid);
+                match tag {
+                    TAG_OID => {
+                        curve = Some(value);
+                        known = CURVES.iter().copied().find(|named| named.oid == value);
+                    }
+                    TAG_SEQUENCE => {
+                        let named = named_curve_for(value)?;
+                        curve = Some(named.oid);
+                        known = Some(named);
+                    }
+                    _ => return Err(VaultError::NotAPrivateKey),
+                }
             }
             (TAG_CONTEXT_1, encoded_point) => public_key = Some(encoded_point),
             _ => return Err(VaultError::NotAPrivateKey),
         }
     }
     let curve = curve.ok_or(VaultError::NotAPrivateKey)?;
+
+    // RFC 5915 §3: exactly the field length. Longer is not a key on this
+    // curve; shorter is the leading zeros a non-conforming encoder dropped.
+    let padded;
+    let private_key = match known {
+        Some(named) if private_key.len() < named.field_bytes => {
+            let mut full = Zeroizing::new(vec![0u8; named.field_bytes]);
+            let offset = named.field_bytes - private_key.len();
+            full.get_mut(offset..)
+                .ok_or(VaultError::NotAPrivateKey)?
+                .copy_from_slice(private_key);
+            padded = full;
+            padded.as_slice()
+        }
+        Some(named) if private_key.len() > named.field_bytes => {
+            return Err(VaultError::NotAPrivateKey);
+        }
+        _ => private_key,
+    };
 
     let curve = tlv(TAG_OID, curve)?;
     let algorithm = tlv(TAG_SEQUENCE, &concat(&[&EC_PUBLIC_KEY_OID, &curve]))?;
@@ -177,6 +229,322 @@ pub(crate) fn from_sec1_ec(der: &[u8]) -> Result<Vec<u8>, VaultError> {
         &tlv(TAG_OCTET_STRING, &inner)?,
     ]);
     Ok(armour(&tlv(TAG_SEQUENCE, &body)?))
+}
+
+// ------------------------------------------------- explicit curve domains ---
+
+/// A curve explicit domain parameters can be recognised as.
+struct NamedCurve {
+    /// The content octets of the curve's OBJECT IDENTIFIER.
+    oid: &'static [u8],
+    /// The field length in octets: the length of `a`, `b`, a coordinate, and
+    /// the private key (RFC 5915 §3).
+    field_bytes: usize,
+    /// Integers, big-endian, without leading zero octets.
+    prime: &'static [u8],
+    order: &'static [u8],
+    /// Field elements, at `field_bytes` (SEC 1 §2.3.5).
+    a: &'static [u8],
+    b: &'static [u8],
+    /// The base point, uncompressed: `04 || x || y` (SEC 1 §2.3.3).
+    generator: &'static [u8],
+}
+
+/// `prime-field`, 1.2.840.10045.1.1 (SEC 1 §C.1, X9.62).
+const OID_PRIME_FIELD: [u8; 7] = [0x2A, 0x86, 0x48, 0xCE, 0x3D, 0x01, 0x01];
+
+/// P-256: SEC 2 §2.4.2 domain parameters, taken from OpenSSL's own
+/// `ecparam -name prime256v1 -param_enc explicit` encoding.
+const P256: NamedCurve = NamedCurve {
+    oid: &[0x2A, 0x86, 0x48, 0xCE, 0x3D, 0x03, 0x01, 0x07],
+    field_bytes: 32,
+    prime: &[
+        0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xFF, 0xFF,
+    ],
+    a: &[
+        0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xFF, 0xFC,
+    ],
+    b: &[
+        0x5A, 0xC6, 0x35, 0xD8, 0xAA, 0x3A, 0x93, 0xE7, 0xB3, 0xEB, 0xBD, 0x55, 0x76, 0x98, 0x86,
+        0xBC, 0x65, 0x1D, 0x06, 0xB0, 0xCC, 0x53, 0xB0, 0xF6, 0x3B, 0xCE, 0x3C, 0x3E, 0x27, 0xD2,
+        0x60, 0x4B,
+    ],
+    generator: &[
+        0x04, 0x6B, 0x17, 0xD1, 0xF2, 0xE1, 0x2C, 0x42, 0x47, 0xF8, 0xBC, 0xE6, 0xE5, 0x63, 0xA4,
+        0x40, 0xF2, 0x77, 0x03, 0x7D, 0x81, 0x2D, 0xEB, 0x33, 0xA0, 0xF4, 0xA1, 0x39, 0x45, 0xD8,
+        0x98, 0xC2, 0x96, 0x4F, 0xE3, 0x42, 0xE2, 0xFE, 0x1A, 0x7F, 0x9B, 0x8E, 0xE7, 0xEB, 0x4A,
+        0x7C, 0x0F, 0x9E, 0x16, 0x2B, 0xCE, 0x33, 0x57, 0x6B, 0x31, 0x5E, 0xCE, 0xCB, 0xB6, 0x40,
+        0x68, 0x37, 0xBF, 0x51, 0xF5,
+    ],
+    order: &[
+        0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xFF, 0xBC, 0xE6, 0xFA, 0xAD, 0xA7, 0x17, 0x9E, 0x84, 0xF3, 0xB9, 0xCA, 0xC2, 0xFC, 0x63,
+        0x25, 0x51,
+    ],
+};
+
+/// P-384: SEC 2 §2.5.1 domain parameters, taken from OpenSSL's own
+/// `ecparam -name secp384r1 -param_enc explicit` encoding.
+const P384: NamedCurve = NamedCurve {
+    oid: &[0x2B, 0x81, 0x04, 0x00, 0x22],
+    field_bytes: 48,
+    prime: &[
+        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xFF, 0xFE, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF,
+        0xFF, 0xFF, 0xFF,
+    ],
+    a: &[
+        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xFF, 0xFE, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF,
+        0xFF, 0xFF, 0xFC,
+    ],
+    b: &[
+        0xB3, 0x31, 0x2F, 0xA7, 0xE2, 0x3E, 0xE7, 0xE4, 0x98, 0x8E, 0x05, 0x6B, 0xE3, 0xF8, 0x2D,
+        0x19, 0x18, 0x1D, 0x9C, 0x6E, 0xFE, 0x81, 0x41, 0x12, 0x03, 0x14, 0x08, 0x8F, 0x50, 0x13,
+        0x87, 0x5A, 0xC6, 0x56, 0x39, 0x8D, 0x8A, 0x2E, 0xD1, 0x9D, 0x2A, 0x85, 0xC8, 0xED, 0xD3,
+        0xEC, 0x2A, 0xEF,
+    ],
+    generator: &[
+        0x04, 0xAA, 0x87, 0xCA, 0x22, 0xBE, 0x8B, 0x05, 0x37, 0x8E, 0xB1, 0xC7, 0x1E, 0xF3, 0x20,
+        0xAD, 0x74, 0x6E, 0x1D, 0x3B, 0x62, 0x8B, 0xA7, 0x9B, 0x98, 0x59, 0xF7, 0x41, 0xE0, 0x82,
+        0x54, 0x2A, 0x38, 0x55, 0x02, 0xF2, 0x5D, 0xBF, 0x55, 0x29, 0x6C, 0x3A, 0x54, 0x5E, 0x38,
+        0x72, 0x76, 0x0A, 0xB7, 0x36, 0x17, 0xDE, 0x4A, 0x96, 0x26, 0x2C, 0x6F, 0x5D, 0x9E, 0x98,
+        0xBF, 0x92, 0x92, 0xDC, 0x29, 0xF8, 0xF4, 0x1D, 0xBD, 0x28, 0x9A, 0x14, 0x7C, 0xE9, 0xDA,
+        0x31, 0x13, 0xB5, 0xF0, 0xB8, 0xC0, 0x0A, 0x60, 0xB1, 0xCE, 0x1D, 0x7E, 0x81, 0x9D, 0x7A,
+        0x43, 0x1D, 0x7C, 0x90, 0xEA, 0x0E, 0x5F,
+    ],
+    order: &[
+        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xC7, 0x63, 0x4D, 0x81, 0xF4, 0x37,
+        0x2D, 0xDF, 0x58, 0x1A, 0x0D, 0xB2, 0x48, 0xB0, 0xA7, 0x7A, 0xEC, 0xEC, 0x19, 0x6A, 0xCC,
+        0xC5, 0x29, 0x73,
+    ],
+};
+
+/// P-521: SEC 2 §2.6.1 domain parameters, taken from OpenSSL's own
+/// `ecparam -name secp521r1 -param_enc explicit` encoding.
+const P521: NamedCurve = NamedCurve {
+    oid: &[0x2B, 0x81, 0x04, 0x00, 0x23],
+    field_bytes: 66,
+    prime: &[
+        0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    ],
+    a: &[
+        0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFC,
+    ],
+    b: &[
+        0x00, 0x51, 0x95, 0x3E, 0xB9, 0x61, 0x8E, 0x1C, 0x9A, 0x1F, 0x92, 0x9A, 0x21, 0xA0, 0xB6,
+        0x85, 0x40, 0xEE, 0xA2, 0xDA, 0x72, 0x5B, 0x99, 0xB3, 0x15, 0xF3, 0xB8, 0xB4, 0x89, 0x91,
+        0x8E, 0xF1, 0x09, 0xE1, 0x56, 0x19, 0x39, 0x51, 0xEC, 0x7E, 0x93, 0x7B, 0x16, 0x52, 0xC0,
+        0xBD, 0x3B, 0xB1, 0xBF, 0x07, 0x35, 0x73, 0xDF, 0x88, 0x3D, 0x2C, 0x34, 0xF1, 0xEF, 0x45,
+        0x1F, 0xD4, 0x6B, 0x50, 0x3F, 0x00,
+    ],
+    generator: &[
+        0x04, 0x00, 0xC6, 0x85, 0x8E, 0x06, 0xB7, 0x04, 0x04, 0xE9, 0xCD, 0x9E, 0x3E, 0xCB, 0x66,
+        0x23, 0x95, 0xB4, 0x42, 0x9C, 0x64, 0x81, 0x39, 0x05, 0x3F, 0xB5, 0x21, 0xF8, 0x28, 0xAF,
+        0x60, 0x6B, 0x4D, 0x3D, 0xBA, 0xA1, 0x4B, 0x5E, 0x77, 0xEF, 0xE7, 0x59, 0x28, 0xFE, 0x1D,
+        0xC1, 0x27, 0xA2, 0xFF, 0xA8, 0xDE, 0x33, 0x48, 0xB3, 0xC1, 0x85, 0x6A, 0x42, 0x9B, 0xF9,
+        0x7E, 0x7E, 0x31, 0xC2, 0xE5, 0xBD, 0x66, 0x01, 0x18, 0x39, 0x29, 0x6A, 0x78, 0x9A, 0x3B,
+        0xC0, 0x04, 0x5C, 0x8A, 0x5F, 0xB4, 0x2C, 0x7D, 0x1B, 0xD9, 0x98, 0xF5, 0x44, 0x49, 0x57,
+        0x9B, 0x44, 0x68, 0x17, 0xAF, 0xBD, 0x17, 0x27, 0x3E, 0x66, 0x2C, 0x97, 0xEE, 0x72, 0x99,
+        0x5E, 0xF4, 0x26, 0x40, 0xC5, 0x50, 0xB9, 0x01, 0x3F, 0xAD, 0x07, 0x61, 0x35, 0x3C, 0x70,
+        0x86, 0xA2, 0x72, 0xC2, 0x40, 0x88, 0xBE, 0x94, 0x76, 0x9F, 0xD1, 0x66, 0x50,
+    ],
+    order: &[
+        0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xFF, 0xFF, 0xFF, 0xFA, 0x51, 0x86, 0x87, 0x83, 0xBF, 0x2F, 0x96, 0x6B, 0x7F, 0xCC, 0x01,
+        0x48, 0xF7, 0x09, 0xA5, 0xD0, 0x3B, 0xB5, 0xC9, 0xB8, 0x89, 0x9C, 0x47, 0xAE, 0xBB, 0x6F,
+        0xB7, 0x1E, 0x91, 0x38, 0x64, 0x09,
+    ],
+};
+
+const CURVES: [&NamedCurve; 3] = [&P256, &P384, &P521];
+
+/// Which named curve a `SpecifiedECDomain` (SEC 1 §C.2) is, if it is exactly
+/// one of them.
+///
+/// ```text
+/// SpecifiedECDomain ::= SEQUENCE {
+///     version   INTEGER { ecdpVer1(1), ... },
+///     fieldID   FieldID {{FieldTypes}},     -- prime-field, p
+///     curve     Curve,                      -- a, b, seed OPTIONAL
+///     base      ECPoint,
+///     order     INTEGER,
+///     cofactor  INTEGER OPTIONAL,
+///     ... }
+/// ```
+///
+/// The seed is ignored: it records how the coefficients were chosen and plays
+/// no part in the arithmetic. Everything that does is compared.
+fn named_curve_for(domain: &[u8]) -> Result<&'static NamedCurve, VaultError> {
+    let unsupported = VaultError::UnsupportedKeyFormat(
+        "SEC 1 elliptic-curve key on a curve other than P-256, P-384 or P-521",
+    );
+
+    let mut fields = Tlvs::new(domain);
+    let (tag, version) = fields.next()?;
+    if tag != TAG_INTEGER || version != [0x01] {
+        return Err(VaultError::NotAPrivateKey);
+    }
+
+    let (tag, field_id) = fields.next()?;
+    if tag != TAG_SEQUENCE {
+        return Err(VaultError::NotAPrivateKey);
+    }
+    let mut field_id = Tlvs::new(field_id);
+    let (tag, field_type) = field_id.next()?;
+    if tag != TAG_OID {
+        return Err(VaultError::NotAPrivateKey);
+    }
+    if field_type != OID_PRIME_FIELD.as_slice() {
+        // A characteristic-two field. Nothing this build can use.
+        return Err(unsupported);
+    }
+    let (tag, prime) = field_id.next()?;
+    if tag != TAG_INTEGER || !field_id.is_empty() {
+        return Err(VaultError::NotAPrivateKey);
+    }
+
+    let (tag, curve) = fields.next()?;
+    if tag != TAG_SEQUENCE {
+        return Err(VaultError::NotAPrivateKey);
+    }
+    let mut curve = Tlvs::new(curve);
+    let (tag_a, a) = curve.next()?;
+    let (tag_b, b) = curve.next()?;
+    if tag_a != TAG_OCTET_STRING || tag_b != TAG_OCTET_STRING {
+        return Err(VaultError::NotAPrivateKey);
+    }
+
+    let (tag, base) = fields.next()?;
+    if tag != TAG_OCTET_STRING {
+        return Err(VaultError::NotAPrivateKey);
+    }
+    let (tag, order) = fields.next()?;
+    if tag != TAG_INTEGER {
+        return Err(VaultError::NotAPrivateKey);
+    }
+    if !fields.is_empty() {
+        let (tag, cofactor) = fields.next()?;
+        if tag != TAG_INTEGER {
+            return Err(VaultError::NotAPrivateKey);
+        }
+        // All three curves have cofactor 1.
+        if unsigned(cofactor) != [0x01] {
+            return Err(unsupported);
+        }
+    }
+
+    CURVES
+        .iter()
+        .copied()
+        .find(|named| {
+            unsigned(prime) == named.prime
+                && unsigned(order) == named.order
+                && unsigned(a) == unsigned(named.a)
+                && unsigned(b) == unsigned(named.b)
+                && same_point(base, named.generator, named.field_bytes)
+        })
+        .ok_or(unsupported)
+}
+
+/// The `SpecifiedECDomain` for a named curve, as a complete SEQUENCE TLV, in
+/// the shape OpenSSL and LibreSSL write it: version 1, a seed, a cofactor.
+///
+/// For tests here and in `credential.rs`, which rebuild real `ssh-keygen` keys
+/// into the explicit form macOS's `ssh-keygen` writes.
+#[cfg(test)]
+pub(crate) fn specified_domain_for_tests(
+    oid: &[u8],
+    compressed_generator: bool,
+) -> Option<Vec<u8>> {
+    let named = CURVES.iter().copied().find(|named| named.oid == oid)?;
+    let integer = |magnitude: &[u8]| {
+        // A leading zero keeps a high-bit magnitude positive (X.690 §8.3.2).
+        let needs_zero = magnitude.first().is_some_and(|first| first & 0x80 != 0);
+        let content = if needs_zero {
+            concat(&[&[0x00], magnitude]).to_vec()
+        } else {
+            magnitude.to_vec()
+        };
+        tlv(TAG_INTEGER, &content).ok()
+    };
+    let generator = if compressed_generator {
+        let odd = named.generator.last().is_some_and(|last| last & 1 == 1);
+        let x = named.generator.get(1..=named.field_bytes)?;
+        concat(&[&[if odd { 0x03 } else { 0x02 }], x]).to_vec()
+    } else {
+        named.generator.to_vec()
+    };
+    let field_id = tlv(
+        TAG_SEQUENCE,
+        &concat(&[
+            &tlv(TAG_OID, &OID_PRIME_FIELD).ok()?,
+            &integer(named.prime)?,
+        ]),
+    )
+    .ok()?;
+    // BIT STRING, no unused bits, twenty octets of seed.
+    let seed = concat(&[&[0x03, 0x15, 0x00], &[0xC4; 20]]);
+    let curve = tlv(
+        TAG_SEQUENCE,
+        &concat(&[
+            &tlv(TAG_OCTET_STRING, named.a).ok()?,
+            &tlv(TAG_OCTET_STRING, named.b).ok()?,
+            &seed,
+        ]),
+    )
+    .ok()?;
+    let domain = concat(&[
+        &[TAG_INTEGER, 0x01, 0x01],
+        &field_id,
+        &curve,
+        &tlv(TAG_OCTET_STRING, &generator).ok()?,
+        &integer(named.order)?,
+        &[TAG_INTEGER, 0x01, 0x01],
+    ]);
+    tlv(TAG_SEQUENCE, &domain).ok().map(|out| out.to_vec())
+}
+
+/// An integer's magnitude without its leading zero octets.
+fn unsigned(value: &[u8]) -> &[u8] {
+    let first = value
+        .iter()
+        .position(|octet| *octet != 0)
+        .unwrap_or(value.len());
+    value.get(first..).unwrap_or_default()
+}
+
+/// Whether `encoded` is `generator`, in either point form SEC 1 §2.3.3 allows.
+///
+/// The compressed form carries `x` and the parity of `y`; it names the
+/// generator when both match. Deriving `y` would need field arithmetic, and
+/// checking the parity against the known point is the same test.
+fn same_point(encoded: &[u8], generator: &[u8], field_bytes: usize) -> bool {
+    match encoded.split_first() {
+        Some((0x04, _)) => encoded == generator,
+        Some((prefix @ (0x02 | 0x03), x)) => {
+            let known_x = generator.get(1..=field_bytes);
+            let y_is_odd = generator.last().is_some_and(|last| last & 1 == 1);
+            known_x == Some(x) && (*prefix == 0x03) == y_is_odd
+        }
+        _ => false,
+    }
 }
 
 // ------------------------------------------- inspecting an encrypted one ---
@@ -213,13 +581,17 @@ const OID_RC2_CBC: [u8; 8] = [0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x03, 0x02];
 /// RFC 8018 §A.3 and `12` for the PKCS#12 ones.
 const OID_PKCS_PREFIX: [u8; 6] = [0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D];
 
-/// `hmacWithSHA224`, 1.2.840.113549.2.8, and its SHA-256, SHA-384 and SHA-512
-/// siblings at `.9`, `.10` and `.11` (RFC 8018 §B.1.2).
+/// `hmacWithSHA1`, 1.2.840.113549.2.7, `hmacWithSHA224` at `.8`, and its
+/// SHA-256, SHA-384 and SHA-512 siblings at `.9`, `.10` and `.11`
+/// (RFC 8018 §B.1.2).
 ///
-/// `hmacWithSHA1` at `.7` is deliberately absent: the parser this build reads
-/// keys with refuses it, and OpenSSL writes it by omitting the field
-/// altogether, since RFC 8018 §A.2 makes it the DEFAULT.
-const PBKDF2_PRFS_READ_HERE: [[u8; 8]; 4] = [
+/// HMAC-SHA-1 is RFC 8018 §A.2's DEFAULT, so it is usually written by leaving
+/// the field out; that absence is read as `.7`. It used to be excluded because
+/// the SSH parser downstream refused it, which made every passphrase-protected
+/// PKCS#8 key `ssh-keygen` writes on Windows unusable. `remoter-proto-ssh` now
+/// enables `pkcs5`'s `sha1-insecure` feature, and this list follows it.
+const PBKDF2_PRFS_READ_HERE: [[u8; 8]; 5] = [
+    [0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x02, 0x07],
     [0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x02, 0x08],
     [0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x02, 0x09],
     [0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x02, 0x0A],
@@ -350,15 +722,10 @@ fn unreadable_derivation(algorithm: &[u8]) -> Option<&'static str> {
         }
     }
 
-    // Absent means `hmacWithSHA1`, which is how OpenSSL 1.x wrote every
-    // `-v2` document it produced, and which the parser downstream refuses.
-    // This is not the undecided case: the fields above all walked, and none of
-    // them was the pseudorandom function — RFC 8018 §A.2 says what that means.
-    // Refusing it here is the difference between a sentence naming the
-    // derivation and a rejected authentication months later.
-    let Some(prf) = prf else {
-        return Some(PBKDF2_SHA1);
-    };
+    // Absent means `hmacWithSHA1` (RFC 8018 §A.2), which is how OpenSSL 1.x
+    // wrote every `-v2` document and how Windows' `ssh-keygen` writes them
+    // still. It is in the readable set, so there is nothing to refuse.
+    let prf = prf?;
     let mut prf = Tlvs::new(prf);
     let (tag, oid) = prf.next().ok()?;
     if tag != TAG_OID {
@@ -370,7 +737,7 @@ fn unreadable_derivation(algorithm: &[u8]) -> Option<&'static str> {
     {
         return None;
     }
-    Some(PBKDF2_SHA1)
+    Some(PBKDF2_PRF_UNKNOWN)
 }
 
 /// The `encryptionScheme` half of a `PBES2-params`.
@@ -389,10 +756,10 @@ fn unreadable_encryption(algorithm: &[u8]) -> Option<&'static str> {
     Some(cipher_name(oid))
 }
 
-/// The clause naming a PBKDF2 that derives with HMAC-SHA-1, written once
-/// because both the absent field and the explicit OID mean the same thing.
-const PBKDF2_SHA1: &str = "it is a PKCS#8 container whose PBKDF2 derives its key with HMAC-SHA-1, \
-                           which the key parser in this build refuses";
+/// The clause for a PBKDF2 whose pseudorandom function is none of the five
+/// this build derives with.
+const PBKDF2_PRF_UNKNOWN: &str = "it is a PKCS#8 container whose PBKDF2 derives its key with a \
+                                  pseudorandom function this build does not recognise";
 
 /// Names the scheme an `EncryptedPrivateKeyInfo` declares, when it is not
 /// PBES2.
@@ -596,6 +963,7 @@ enum Derivation<'a> {
 /// The PBKDF2 pseudorandom functions this build derives with.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Prf {
+    Sha1,
     Sha224,
     Sha256,
     Sha384,
@@ -686,16 +1054,18 @@ fn read_derivation(algorithm: &[u8]) -> Result<Derivation<'_>, VaultError> {
         }
     }
 
-    // Absent means `hmacWithSHA1` (RFC 8018 §A.2), which `check_encrypted_readable`
-    // has already refused with a clause naming it, so reaching here with no
-    // pseudorandom function means the document did not walk the same way twice.
-    let prf = prf.ok_or_else(uncheckable)?;
-    let mut prf = Tlvs::new(prf);
-    let (tag, oid) = prf.next().map_err(|_| uncheckable())?;
-    if tag != TAG_OID {
-        return Err(uncheckable());
-    }
-    let prf = prf_for(oid).ok_or_else(uncheckable)?;
+    // Absent means `hmacWithSHA1` (RFC 8018 §A.2).
+    let prf = match prf {
+        None => Prf::Sha1,
+        Some(prf) => {
+            let mut prf = Tlvs::new(prf);
+            let (tag, oid) = prf.next().map_err(|_| uncheckable())?;
+            if tag != TAG_OID {
+                return Err(uncheckable());
+            }
+            prf_for(oid).ok_or_else(uncheckable)?
+        }
+    };
 
     Ok(Derivation::Pbkdf2 {
         salt,
@@ -713,9 +1083,10 @@ fn read_derivation(algorithm: &[u8]) -> Result<Derivation<'_>, VaultError> {
 /// because someone sorted it would refuse every correct passphrase under that
 /// scheme, silently and in a way no reader of either place would suspect.
 fn prf_for(oid: &[u8]) -> Option<Prf> {
-    // RFC 8018 §B.1.2: `hmacWithSHA224` at 1.2.840.113549.2.8, and its SHA-256,
-    // SHA-384 and SHA-512 siblings at .9, .10 and .11.
+    // RFC 8018 §B.1.2: `hmacWithSHA1` at 1.2.840.113549.2.7, `hmacWithSHA224`
+    // at .8, and its SHA-256, SHA-384 and SHA-512 siblings at .9, .10 and .11.
     match oid {
+        [0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x02, 0x07] => Some(Prf::Sha1),
         [0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x02, 0x08] => Some(Prf::Sha224),
         [0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x02, 0x09] => Some(Prf::Sha256),
         [0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x02, 0x0A] => Some(Prf::Sha384),
@@ -801,6 +1172,9 @@ fn derive(
             prf,
             ..
         } => match prf {
+            Prf::Sha1 => {
+                pbkdf2::pbkdf2_hmac::<sha1::Sha1>(passphrase, salt, iterations, &mut key);
+            }
             Prf::Sha224 => {
                 pbkdf2::pbkdf2_hmac::<sha2::Sha224>(passphrase, salt, iterations, &mut key);
             }
@@ -1130,6 +1504,10 @@ pub(crate) mod fixtures {
     ) -> Option<Vec<u8>> {
         let mut key = [0u8; 32];
         let oid: [u8; 8] = match prf {
+            "sha1" => {
+                pbkdf2::pbkdf2_hmac::<sha1::Sha1>(passphrase, &SALT, ITERATIONS, &mut key);
+                [0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x02, 0x07]
+            }
             "sha224" => {
                 pbkdf2::pbkdf2_hmac::<sha2::Sha224>(passphrase, &SALT, ITERATIONS, &mut key);
                 [0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x02, 0x08]
@@ -1149,6 +1527,16 @@ pub(crate) mod fixtures {
             _ => return None,
         };
         Some(assemble(plaintext, &key, &oid, ITERATIONS))
+    }
+
+    /// A document that leaves the pseudorandom function out, as Windows'
+    /// `ssh-keygen -m PKCS8` and OpenSSL 1.x write it, enciphered under the
+    /// HMAC-SHA-1 that absence means (RFC 8018 §A.2).
+    #[cfg(test)]
+    pub(crate) fn encrypted_with_default_prf(plaintext: &[u8], passphrase: &[u8]) -> Vec<u8> {
+        let mut key = [0u8; 32];
+        pbkdf2::pbkdf2_hmac::<sha1::Sha1>(passphrase, &SALT, ITERATIONS, &mut key);
+        assemble(plaintext, &key, &[], ITERATIONS)
     }
 
     /// The same, with the iteration count the document *declares* separated
@@ -1182,8 +1570,13 @@ pub(crate) mod fixtures {
             .to_vec();
 
         // PBKDF2-params: the salt, the iteration count, and the pseudorandom
-        // function named explicitly rather than left to its DEFAULT.
-        let prf = seq(&[&oid(prf_oid), &[0x05, 0x00]]);
+        // function — named explicitly, or left out when `prf_oid` is empty,
+        // which is how writers declare the DEFAULT.
+        let prf = if prf_oid.is_empty() {
+            Vec::new()
+        } else {
+            seq(&[&oid(prf_oid), &[0x05, 0x00]])
+        };
         let pbkdf2 = seq(&[
             &oid(&OID_PBKDF2),
             &seq(&[&der(TAG_OCTET_STRING, &SALT), &integer(declared), &prf]),
@@ -1240,7 +1633,9 @@ pub(crate) mod fixtures {
     reason = "test code"
 )]
 mod tests {
-    use super::fixtures::{encrypted, encrypted_declaring, encrypted_under_prf, seq};
+    use super::fixtures::{
+        encrypted, encrypted_declaring, encrypted_under_prf, encrypted_with_default_prf, seq,
+    };
     use super::*;
 
     /// `SEQUENCE { INTEGER 0 }`, the smallest well-formed body the wrapper
@@ -1312,7 +1707,7 @@ mod tests {
     #[test]
     fn every_pseudorandom_function_this_build_accepts_is_one_it_derives_with() {
         let mut checked = 0usize;
-        for name in ["sha224", "sha256", "sha384", "sha512"] {
+        for name in ["sha1", "sha224", "sha256", "sha384", "sha512"] {
             let Some(document) = encrypted_under_prf(&TINY_SEQUENCE, b"open sesame", name) else {
                 panic!("the fixture could not write {name}");
             };
@@ -1328,7 +1723,23 @@ mod tests {
                 "for {name}"
             );
         }
-        assert_eq!(checked, 4, "every function in the list has to be exercised");
+        assert_eq!(checked, 5, "every function in the list has to be exercised");
+    }
+
+    /// A pseudorandom function left out means HMAC-SHA-1, and is read as that.
+    ///
+    /// The shape every passphrase-protected PKCS#8 key made by `ssh-keygen` on
+    /// Windows has. It used to be refused outright, so none of those keys could
+    /// be imported.
+    #[test]
+    fn a_document_that_leaves_the_pseudorandom_function_out_derives_with_hmac_sha1() {
+        let document = encrypted_with_default_prf(&TINY_SEQUENCE, b"open sesame");
+        assert_eq!(check_encrypted_readable(&document).ok(), Some(()));
+        assert_eq!(
+            opened(check_passphrase(&document, b"open sesame")),
+            "<accepted>"
+        );
+        assert_eq!(opened(check_passphrase(&document, b"not it")), "rejected");
     }
 
     /// scrypt is bounded by the memory it will actually ask for.
@@ -1480,6 +1891,128 @@ mod tests {
         assert!(matches!(
             from_sec1_ec(&der),
             Err(VaultError::NotAPrivateKey)
+        ));
+    }
+
+    /// An `ECPrivateKey` with this scalar, these `parameters [0]` contents and
+    /// a public key. The arithmetic is not checked by the code under test, so
+    /// the point need not match the scalar.
+    fn sec1(scalar: &[u8], parameters: &[u8]) -> Vec<u8> {
+        let body = concat(&[
+            &EC_VERSION_V1,
+            &tlv(TAG_OCTET_STRING, scalar).unwrap(),
+            &tlv(TAG_CONTEXT_0, parameters).unwrap(),
+            &tlv(TAG_CONTEXT_1, &[0x03, 0x03, 0x00, 0x04, 0x01]).unwrap(),
+        ]);
+        tlv(TAG_SEQUENCE, &body).unwrap().to_vec()
+    }
+
+    fn named(oid: &[u8]) -> Vec<u8> {
+        tlv(TAG_OID, oid).unwrap().to_vec()
+    }
+
+    #[test]
+    fn explicit_parameters_for_a_known_curve_become_that_curve() {
+        // What `ssh-keygen` linked against macOS's LibreSSL writes. The result
+        // must be byte-for-byte what the named form produces: same key, same
+        // container, nothing downstream able to tell the two apart.
+        for curve in CURVES {
+            let scalar = vec![0x5A; curve.field_bytes];
+            let explicit = specified_domain_for_tests(curve.oid, false).unwrap();
+            assert_eq!(
+                from_sec1_ec(&sec1(&scalar, &explicit)).unwrap(),
+                from_sec1_ec(&sec1(&scalar, &named(curve.oid))).unwrap(),
+                "field of {} octets",
+                curve.field_bytes
+            );
+        }
+    }
+
+    #[test]
+    fn a_compressed_generator_names_the_curve_only_with_the_right_parity() {
+        for curve in CURVES {
+            let scalar = vec![0x5A; curve.field_bytes];
+            let compressed = specified_domain_for_tests(curve.oid, true).unwrap();
+            assert_eq!(
+                from_sec1_ec(&sec1(&scalar, &compressed)).unwrap(),
+                from_sec1_ec(&sec1(&scalar, &named(curve.oid))).unwrap()
+            );
+
+            // The other `y` for the same `x` is a different point.
+            let mut flipped = compressed.clone();
+            let prefix = flipped
+                .windows(2)
+                .position(|pair| matches!(pair, [0x02 | 0x03, _]) && pair[1] == curve.generator[1])
+                .unwrap();
+            flipped[prefix] ^= 0x01;
+            assert!(matches!(
+                from_sec1_ec(&sec1(&scalar, &flipped)),
+                Err(VaultError::UnsupportedKeyFormat(_))
+            ));
+        }
+    }
+
+    #[test]
+    fn a_curve_that_differs_in_any_parameter_is_not_the_named_one() {
+        // Same order, same prime, one coefficient off: a different curve, and
+        // naming it P-256 would hand the key to arithmetic it does not belong to.
+        let explicit = specified_domain_for_tests(P256.oid, false).unwrap();
+        let b_at = explicit
+            .windows(P256.b.len())
+            .position(|window| window == P256.b)
+            .unwrap();
+        let mut other_b = explicit.clone();
+        other_b[b_at + P256.b.len() - 1] ^= 0x01;
+        assert!(matches!(
+            from_sec1_ec(&sec1(&[0x5A; 32], &other_b)),
+            Err(VaultError::UnsupportedKeyFormat(_))
+        ));
+
+        let g_at = explicit
+            .windows(P256.generator.len())
+            .position(|window| window == P256.generator)
+            .unwrap();
+        let mut other_g = explicit;
+        other_g[g_at + 10] ^= 0x01;
+        assert!(matches!(
+            from_sec1_ec(&sec1(&[0x5A; 32], &other_g)),
+            Err(VaultError::UnsupportedKeyFormat(_))
+        ));
+    }
+
+    #[test]
+    fn a_short_private_key_is_padded_to_the_field_length() {
+        // RFC 5915 §3 fixes the length; the older LibreSSL drops leading zero
+        // octets, so one key in 256 arrives short.
+        let mut full = vec![0x00];
+        full.extend_from_slice(&[0x77; 31]);
+        let short = vec![0x77; 31];
+        let curve = named(P256.oid);
+        assert_eq!(
+            from_sec1_ec(&sec1(&short, &curve)).unwrap(),
+            from_sec1_ec(&sec1(&full, &curve)).unwrap()
+        );
+
+        // Longer than the field is not a key on this curve at all.
+        assert!(matches!(
+            from_sec1_ec(&sec1(&[0x77; 33], &curve)),
+            Err(VaultError::NotAPrivateKey)
+        ));
+    }
+
+    #[test]
+    fn a_binary_field_curve_is_named_as_unsupported_rather_than_as_a_bad_file() {
+        // characteristic-two-field, 1.2.840.10045.1.2.
+        let explicit = specified_domain_for_tests(P256.oid, false).unwrap();
+        let mut binary = explicit;
+        let at = binary
+            .windows(OID_PRIME_FIELD.len())
+            .position(|window| window == OID_PRIME_FIELD)
+            .unwrap();
+        binary[at + OID_PRIME_FIELD.len() - 1] = 0x02;
+        assert!(matches!(
+            from_sec1_ec(&sec1(&[0x5A; 32], &binary)),
+            Err(VaultError::UnsupportedKeyFormat(_))
         ));
     }
 

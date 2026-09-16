@@ -167,7 +167,11 @@ jobs:
       # statement separator before PowerShell 7 and a trailing backslash is not
       # a line continuation — so a step that must run on all three either says
       # one thing, or is split by `if: runner.os == ...`.
-      - run: cargo test --locked --workspace
+      # `--no-fail-fast`: without it `cargo test` stops at the first test binary
+      # that fails, and every crate after it is never run. On macOS that hid the
+      # whole of `remoter-vault` behind one `remoter-ipc` failure, so a result
+      # that read "the vault's own test passes there" was a test that never ran.
+      - run: cargo test --locked --workspace --no-fail-fast
 
   frontend:
     name: Frontend (${{ matrix.os }})

@@ -32,7 +32,7 @@
 //! |---|---|
 //! | PBES2, PBKDF2 with HMAC-SHA-224/256/384/512, AES-128/192/256-CBC | yes |
 //! | PBES2, scrypt, AES-CBC | yes |
-//! | PBES2, PBKDF2 with HMAC-SHA-1 — which RFC 8018 §A.2 makes the DEFAULT, so OpenSSL writes it by omitting the field | **no** |
+//! | PBES2, PBKDF2 with HMAC-SHA-1 — RFC 8018 §A.2's DEFAULT, written by OpenSSL 1.x and by `ssh-keygen -m PKCS8` on Windows | yes, through `pkcs5`'s `sha1-insecure` feature this crate enables |
 //! | PBES2 over `des-ede3-cbc` — what `openssl genrsa -des3` writes on OpenSSL 3.x | **no** |
 //! | PBES1 and the PKCS#12 schemes — `openssl pkcs8 -v1` | **no** |
 //!
@@ -730,7 +730,7 @@ mod tests {
             (
                 "sha1prf",
                 vec!["-v2", "aes-256-cbc", "-v2prf", "hmacWithSHA1"],
-                false,
+                true,
             ),
             ("pbes1", vec!["-v1", "PBE-SHA1-3DES"], false),
         ];

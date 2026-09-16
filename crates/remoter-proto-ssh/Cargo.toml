@@ -30,6 +30,17 @@ russh = { version = "0.63", default-features = false, features = [
     "flate2",
 ] }
 russh-sftp = "3"
+# Encrypted PKCS#8 whose PBKDF2 derives with HMAC-SHA-1, read by `russh` through
+# `pkcs8` → `pkcs5`. This crate is named here for its feature alone: Cargo
+# unifies features, so `russh`'s own `pkcs5` gains it. HMAC-SHA-1 is RFC 8018
+# §A.2's DEFAULT pseudorandom function; OpenSSL 1.x wrote it for every `-v2`
+# document, and the LibreSSL-linked `ssh-keygen -m PKCS8` Windows ships writes
+# it today, so without it no passphrase-protected PKCS#8 key made on Windows
+# could be used. The collision attacks on SHA-1 do not reach HMAC-SHA-1 as a
+# PRF, and NIST SP 800-132 still admits it for key derivation; the crate calls
+# the feature "insecure" about SHA-1 in general. Already in the graph:
+# `pkcs5` 0.8 through `pkcs8`, `sha1` through this crate.
+pkcs5 = { version = "0.8", default-features = false, features = ["sha1-insecure"] }
 async-trait = "0.1"
 bytes = "1"
 tokio = { workspace = true, features = [

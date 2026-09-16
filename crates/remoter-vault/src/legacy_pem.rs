@@ -283,6 +283,28 @@ pub(crate) fn decipher(
     Ok(buffer)
 }
 
+/// Enciphers a body the way `openssl` and `ssh-keygen` do for a PEM with a
+/// `DEK-Info: AES-128-CBC` header: the key from [`derive_key`] with the first
+/// eight octets of the IV as salt, CBC, PKCS#7 padding.
+///
+/// Tests only. Remoter reads these containers and never writes one; this
+/// exists so a test can build the exact file another platform's tools write.
+#[cfg(test)]
+pub(crate) fn encipher_for_tests(body: &[u8], passphrase: &[u8], iv: [u8; IV_LEN]) -> Vec<u8> {
+    use cbc::cipher::BlockModeEncrypt as _;
+    let salt = iv.get(..SALT_LEN).unwrap_or_default();
+    let key = derive_key::<16>(passphrase, salt);
+    // PKCS#7 always adds between one and a whole block of padding.
+    let mut buffer = vec![0u8; (body.len() / IV_LEN + 1) * IV_LEN];
+    if let Some(start) = buffer.get_mut(..body.len()) {
+        start.copy_from_slice(body);
+    }
+    cbc::Encryptor::<Aes128>::new(&(*key).into(), &iv.into())
+        .encrypt_padded::<Pkcs7>(&mut buffer, body.len())
+        .map(<[u8]>::to_vec)
+        .unwrap_or_default()
+}
+
 #[cfg(test)]
 #[expect(
     clippy::indexing_slicing,
