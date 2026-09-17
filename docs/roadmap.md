@@ -46,7 +46,7 @@ today* table in [README.md](../README.md#what-works-today).
 - ✅ Every cryptographic known-answer test passes
 - ✅ Recovery unlock works after the password slot is deliberately destroyed
 - ◐ Truncation fuzzing produces no panic at any byte offset — the fuzz targets
-  that exist cover the eight importers, the `.rmtr` archive among them, not the
+  that exist cover the eight importers and `known_hosts`, the `.rmtr` archive among them, not the
   vault container
 - ⏳ No secret appears in a `trace`-level log capture — **nothing runs this
   check.** `tracing-subscriber` is a dependency of `apps/desktop/src-tauri`
@@ -151,8 +151,8 @@ after all.
 - ◐ Importers: ✅ Remoter's own `.rmtr` archive, with its secrets, ✅ Remoter's JSON export, ✅ mRemoteNG (GCM and legacy CBC, including the well-known
   default password), ✅ `~/.ssh/config` (including `Include`, `Match`, wildcards
   and `ProxyJump`), ✅ CSV, ✅ PuTTY and KiTTY sessions (registry, `reg export`,
-  `~/.putty/sessions`), and ✅ RDCMan and `.rdp` from v1.0. ⏳ Royal TS is not
-  written
+  `~/.putty/sessions`), and ✅ RDCMan and `.rdp` from v1.0; ✅ `known_hosts`
+  into the trust store. ⏳ Royal TS is not written
 - ◐ Import preview, report and conflict resolution ship — keep both, skip or
   replace for the whole import, with existing folders merged into. ⏳ A choice
   per item does not
@@ -171,8 +171,8 @@ after all.
   another vault, a JSON export reads back as the same tree less its secrets,
   and CSV and `ssh_config` exports read back as the same connections, under test, with a property test on CSV field contents. ⏳ A
   property test over arbitrary trees
-- ◐ Every fuzz target has run 24 hours with no crash — eight targets exist, for
-  the eight importers; none has had a 24-hour run recorded
+- ◐ Every fuzz target has run 24 hours with no crash — nine targets exist, for
+  the eight importers and `known_hosts`; none has had a 24-hour run recorded
 - ⏳ WCAG 2.2 AA verified across all four themes — the four themes exist; nothing has audited them
 - ⏳ Screen readers verified on all three platforms
 

@@ -654,6 +654,12 @@
       "actions": [
         "Mettre Remoter à jour"
       ]
+    },
+    "trust-write-failed": {
+      "message": "Remoter n'a pas pu enregistrer une clé d'hôte dans ce coffre-fort ; l'importation s'est donc arrêtée.",
+      "actions": [
+        "Réessayer"
+      ]
     }
   },
   "validation": {

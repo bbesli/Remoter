@@ -654,6 +654,12 @@
       "actions": [
         "更新 Remoter"
       ]
+    },
+    "trust-write-failed": {
+      "message": "Remoter 无法在此保险库中记录主机密钥，因此导入已停止。",
+      "actions": [
+        "重试"
+      ]
     }
   },
   "validation": {

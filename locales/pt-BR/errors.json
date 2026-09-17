@@ -654,6 +654,12 @@
       "actions": [
         "Atualizar o Remoter"
       ]
+    },
+    "trust-write-failed": {
+      "message": "O Remoter não conseguiu gravar uma chave de host neste cofre, então a importação parou.",
+      "actions": [
+        "Tentar novamente"
+      ]
     }
   },
   "validation": {

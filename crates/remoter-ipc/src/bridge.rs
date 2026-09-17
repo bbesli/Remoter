@@ -35,7 +35,7 @@ use remoter_proto_rdp::RDP_ID;
 use remoter_proto_ssh::SSH_ID;
 use remoter_proto_ssh::sftp::SFTP_ID;
 use remoter_proto_vnc::VNC_ID;
-use remoter_vault::{ExposeSecret as _, Purpose, Secret, VaultError};
+use remoter_vault::{ExposeSecret as _, Purpose, Secret, Vault, VaultError};
 use serde::{Deserialize, Serialize};
 
 use crate::error::IpcError;
@@ -49,6 +49,10 @@ const TRUST_KIND: &str = "ssh_hostkey";
 /// name: the vault has one operator, and what matters for the audit trail is
 /// whether a person was shown the fingerprint or an importer supplied it.
 const ACCEPTED_BY_PROMPT: &str = "prompted";
+
+/// The same column for a key an importer supplied — one read out of
+/// `known_hosts`, which nobody was shown in Remoter.
+const ACCEPTED_BY_IMPORT: &str = "import";
 
 // ============================================================= credentials ==
 
@@ -445,6 +449,62 @@ impl std::fmt::Debug for VaultTrustStore {
     }
 }
 
+/// The fingerprint the vault's trust store row holds for a host and key type.
+///
+/// The row is the decision: this is what an import compares a key with before
+/// it writes anything, because a cache that went missing is not a reason to
+/// replace a key somebody accepted.
+pub(crate) fn trusted_fingerprint(
+    vault: &Vault,
+    host: &HostPort,
+    algorithm: &str,
+) -> Option<Vec<u8>> {
+    vault
+        .trust_lookup(&host.canonical_host(), host.port(), TRUST_KIND, algorithm)
+        .ok()
+        .flatten()
+}
+
+/// Records `key` as trusted for `host`: the `trust_store` row and the cached
+/// blob beside it. The caller saves the vault.
+///
+/// # Errors
+///
+/// A short, fixed description of which write failed. Nothing from the key.
+pub(crate) fn pin_key(
+    vault: &mut Vault,
+    host: &HostPort,
+    key: &KnownKey,
+) -> Result<(), &'static str> {
+    let accepted_by = match key.source {
+        TrustSource::ImportedKnownHosts => ACCEPTED_BY_IMPORT,
+        _ => ACCEPTED_BY_PROMPT,
+    };
+    let fingerprint = key.fingerprint();
+    vault
+        .trust_pin(
+            &host.canonical_host(),
+            host.port(),
+            TRUST_KIND,
+            &key.algorithm,
+            fingerprint.digest(),
+            &key.blob,
+            accepted_by,
+        )
+        .map_err(|_| "the vault refused the write")?;
+
+    let cached = CachedKey {
+        algorithm: key.algorithm.clone(),
+        blob: key.blob.clone(),
+        added_at_ms: key.added_at_ms,
+        source: key.source,
+    };
+    let encoded = serde_json::to_vec(&cached).map_err(|_| "the key could not be encoded")?;
+    vault
+        .set_setting(&cache_key(host, &key.algorithm), &encoded)
+        .map_err(|_| "the vault refused the write")
+}
+
 impl TrustStore for VaultTrustStore {
     fn lookup(&self, host: &HostPort, algorithm: &str) -> Option<KnownKey> {
         let mut guard = self.inner.lock();
@@ -452,10 +512,7 @@ impl TrustStore for VaultTrustStore {
 
         // The row is the decision. No row means nothing is trusted for this
         // host and algorithm — "unknown", which is a prompt, not a failure.
-        let fingerprint = vault
-            .trust_lookup(&host.canonical_host(), host.port(), TRUST_KIND, algorithm)
-            .ok()
-            .flatten()?;
+        let fingerprint = trusted_fingerprint(vault, host, algorithm)?;
 
         let cached = vault.setting(&cache_key(host, algorithm)).ok().flatten()?;
         let cached: CachedKey = serde_json::from_slice(&cached).ok()?;
@@ -488,38 +545,10 @@ impl TrustStore for VaultTrustStore {
             detail: "no vault is open",
         })?;
 
-        let fingerprint = key.fingerprint();
-        vault
-            .trust_pin(
-                &host.canonical_host(),
-                host.port(),
-                TRUST_KIND,
-                &key.algorithm,
-                fingerprint.digest(),
-                &key.blob,
-                ACCEPTED_BY_PROMPT,
-            )
-            .map_err(|_| ProtocolError::TrustStore {
-                operation: "record a host key",
-                detail: "the vault refused the write",
-            })?;
-
-        let cached = CachedKey {
-            algorithm: key.algorithm.clone(),
-            blob: key.blob.clone(),
-            added_at_ms: key.added_at_ms,
-            source: key.source,
-        };
-        let encoded = serde_json::to_vec(&cached).map_err(|_| ProtocolError::TrustStore {
+        pin_key(vault, host, key).map_err(|detail| ProtocolError::TrustStore {
             operation: "record a host key",
-            detail: "the key could not be encoded",
+            detail,
         })?;
-        vault
-            .set_setting(&cache_key(host, &key.algorithm), &encoded)
-            .map_err(|_| ProtocolError::TrustStore {
-                operation: "record a host key",
-                detail: "the vault refused the write",
-            })?;
 
         // Written through to disk here rather than at the next mutation. A user
         // who accepted a key and is asked again after a crash will start

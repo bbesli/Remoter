@@ -1277,6 +1277,47 @@ export type ImportFinding =
   /** What ran out: `custom_fields`, `findings` or `nodes`. */
   | { severity: FindingSeverity; kind: "limit_reached"; limit: string };
 
+/** One host key a `known_hosts` file vouches for, and where it stands. */
+export interface KnownHostKey {
+  host: string;
+  port: number;
+  algorithm: string;
+  /** `SHA256:…`, as `ssh-keygen -l` prints it. */
+  fingerprint: string;
+  /**
+   * `new` — nothing is trusted for this host and key type yet; `trusted` — this
+   * key already is; `differs` — another key is, and it stays; `unsupported` —
+   * a key type the SSH adapter never asks about.
+   */
+  state: "new" | "trusted" | "differs" | "unsupported";
+}
+
+/** What importing a `known_hosts` file would do. Nothing is written for it. */
+export interface KnownHostsPreview {
+  path: string;
+  entries: number;
+  /** Differing keys first; at most a few hundred. */
+  keys: KnownHostKey[];
+  total: number;
+  new: number;
+  alreadyTrusted: number;
+  differs: number;
+  unsupported: number;
+  hashedUnmatched: number;
+  hashedUnchecked: number;
+  patternsUnmatched: number;
+  revoked: number;
+  certificateAuthorities: number;
+  conflicting: number;
+  malformed: number;
+}
+
+export interface KnownHostsResult {
+  trusted: number;
+  alreadyTrusted: number;
+  differs: number;
+}
+
 /**
  * What an import does with an item the vault already has where it would land:
  * add a second one, leave the one that is there, or give the one that is there
@@ -2358,6 +2399,15 @@ export const ipc = {
    * What comes back is a path the other import commands accept.
    */
   importPuttyLocation: () => invoke<string | null>("import_putty_location"),
+
+  // --- known_hosts ---
+  /** This account's own `~/.ssh/known_hosts`, or `null` when it has none. */
+  knownHostsLocation: () => invoke<string | null>("known_hosts_location"),
+  /** What importing the file would trust and keep. Writes nothing. */
+  knownHostsPreview: (path: string) =>
+    invoke<KnownHostsPreview>("known_hosts_preview", { path }),
+  /** Trusts every key in the file nothing is trusted for yet. Never replaces one. */
+  knownHostsImport: (path: string) => invoke<KnownHostsResult>("known_hosts_import", { path }),
   importConflicts: (req: {
     importId: string;
     destinationId: string | null;

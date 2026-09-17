@@ -249,6 +249,7 @@
     "actionVaultSettings": "Tresor-Einstellungen",
     "actionAudit": "Audit-Log",
     "actionImport": "Verbindungen importieren",
+    "actionImportKnownHosts": "SSH-Hostschlüssel importieren",
     "actionExport": "Verbindungen exportieren",
     "lockFailed": "Der Tresor wurde nicht gesperrt"
   },

@@ -249,6 +249,7 @@
     "actionVaultSettings": "保险库设置",
     "actionAudit": "审计日志",
     "actionImport": "导入连接",
+    "actionImportKnownHosts": "导入 SSH 主机密钥",
     "actionExport": "导出连接",
     "lockFailed": "保险库没有被锁定"
   },

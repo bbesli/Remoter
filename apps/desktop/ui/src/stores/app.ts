@@ -86,6 +86,15 @@ interface AppStore {
   closeExport: () => void;
 
   /**
+   * Whether the dialog that imports OpenSSH's `known_hosts` into the trust
+   * store is open. Asked from the palette and from the import wizard, which
+   * is a screen of its own, so it is mounted on both of the shell's branches.
+   */
+  knownHostsOpen: boolean;
+  openKnownHosts: () => void;
+  closeKnownHosts: () => void;
+
+  /**
    * The session tabs that have a file pane docked under them.
    *
    * A set rather than a single id, because a docked pane is not a view of the
@@ -172,6 +181,9 @@ export const useApp = create<AppStore>((set) => ({
   exportRequest: null,
   openExport: (rootId) => set({ exportRequest: { rootId } }),
   closeExport: () => set({ exportRequest: null }),
+  knownHostsOpen: false,
+  openKnownHosts: () => set({ knownHostsOpen: true }),
+  closeKnownHosts: () => set({ knownHostsOpen: false }),
 
   filePaneTabs: new Set<string>(),
   toggleFilePane: (tabId) =>

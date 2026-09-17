@@ -265,6 +265,13 @@ this project adheres to [Semantic Versioning](https://semver.org/).
   instead of being dropped quietly
 
 #### Import
+- **SSH host keys import from `known_hosts`.** *Import SSH host keys* in the
+  command palette, or the link on the import wizard's first step, reads the
+  account's own `~/.ssh/known_hosts` — hashed and wildcard entries matched
+  against the vault's connections — and trusts what it vouches for, so servers
+  already checked with `ssh` do not prompt again. A key Remoter already trusts
+  is never replaced, and the preview lists those hosts first; revoked keys are
+  never trusted; imported keys are recorded as imported, not as accepted
 - **PuTTY and KiTTY sessions import**, from wherever they are: *Use this
   computer's PuTTY sessions* reads the Windows registry or `~/.putty/sessions`
   directly, and a `reg export` from another machine works too. Host, account,

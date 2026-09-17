@@ -1127,6 +1127,56 @@ pub struct ImportConflictsRequestDto {
     pub excluded_ids: Option<Vec<String>>,
 }
 
+/// One key a `known_hosts` file vouches for, and where it stands with the vault.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KnownHostKeyDto {
+    pub host: String,
+    pub port: u16,
+    pub algorithm: String,
+    /// `SHA256:…`, as `ssh-keygen -l` prints it.
+    pub fingerprint: String,
+    /// `"new"` — nothing is trusted for this host and key type; `"trusted"` —
+    /// this very key already is; `"differs"` — another key is, and stays;
+    /// `"unsupported"` — a key type the SSH adapter never asks about.
+    pub state: String,
+}
+
+/// What importing a `known_hosts` file would do. Nothing is written for it.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KnownHostsPreviewDto {
+    pub path: String,
+    /// Lines that are entries.
+    pub entries: usize,
+    /// The keys, differing ones first, at most a few hundred of them.
+    pub keys: Vec<KnownHostKeyDto>,
+    /// Every key the file vouches for, listed or not.
+    pub total: usize,
+    pub new: usize,
+    pub already_trusted: usize,
+    pub differs: usize,
+    pub unsupported: usize,
+    pub hashed_unmatched: usize,
+    pub hashed_unchecked: usize,
+    pub patterns_unmatched: usize,
+    pub revoked: usize,
+    pub certificate_authorities: usize,
+    pub conflicting: usize,
+    pub malformed: usize,
+}
+
+/// What importing a `known_hosts` file did.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KnownHostsResultDto {
+    /// Keys trusted by this import.
+    pub trusted: usize,
+    pub already_trusted: usize,
+    /// Hosts whose trusted key is not the file's, and was kept.
+    pub differs: usize,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ImportConflictsDto {

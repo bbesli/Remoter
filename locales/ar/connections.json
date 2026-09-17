@@ -249,6 +249,7 @@
     "actionVaultSettings": "إعدادات الخزنة",
     "actionAudit": "سجل التدقيق",
     "actionImport": "استيراد الاتصالات",
+    "actionImportKnownHosts": "استيراد مفاتيح مضيفي SSH",
     "actionExport": "تصدير الاتصالات",
     "lockFailed": "لم تُقفل الخزنة"
   },

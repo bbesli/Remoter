@@ -8,9 +8,10 @@
 > a findings report; every one parses boundedly under a `cargo-fuzz` target.
 > ✅ Export writes the encrypted `.rmtr` archive, secrets included, for another
 > Remoter, and CSV, an OpenSSH config and JSON — never with a secret in them —
-> for other tools; all four are read back by their importers under test. ⏳ Not
-> built: the structure-only archive, plaintext secret export, a conflict choice
-> per item rather than per import, `known_hosts` into the trust store, and every
+> for other tools; all four are read back by their importers under test. ✅
+> OpenSSH's `known_hosts` is imported into the trust store, never replacing a
+> key already trusted. ⏳ Not built: the structure-only archive, plaintext
+> secret export, a conflict choice per item rather than per import, and every
 > source in the table marked ⏳. Each is marked in place below.
 
 Migration is the highest-leverage feature for adoption: an administrator with
@@ -234,10 +235,31 @@ satisfying part of this importer — an existing bastion setup arrives fully
 configured. `ProxyCommand` cannot always be mapped; where it cannot, the command
 is preserved in a custom field and flagged in the report rather than dropped.
 
-⏳ `known_hosts` is **not** imported into the trust store. The design — each
-entry marked `accepted_by: import`, so it is distinguishable from a key the user
-personally verified — still stands; the importer reads the config file and
-nothing beside it, so every host is trusted on first use as though it were new.
+✅ **`known_hosts` is imported into the trust store**, from its own dialog —
+*Import SSH host keys* in the command palette, or the link on the import
+wizard's first step — because host keys are not connections and have no place
+in the tree's preview. The account's own `~/.ssh/known_hosts` is offered, and
+the dialog warns before anything is read that every key in a file is trusted as
+though it had been checked by hand: a `known_hosts` somebody else sent can make
+Remoter trust an impostor.
+
+The file is read the way sshd(8) documents it. A plain name is a host, or
+`[host]:port`; a pattern with `*`, `?` and `!`, and a hashed `|1|salt|hash`
+name, name no host by themselves, so they are compared with the vault's SSH and
+SFTP connections — the question `ssh` asks of them, one host at a time — and
+the ones that match nothing are counted. A key marked `@revoked` is never
+trusted, whatever other line vouches for it; `@cert-authority` lines are
+skipped, as Remoter does not trust host certificates; a key whose bytes name a
+different type than its line does is a line that could not be read.
+
+The preview lists what the file would add, what is trusted already, and — first
+— every host the vault already trusts a **different** key for. Those keep the
+key they have: an import never replaces a trusted key, and a server whose key
+really changed is confirmed at its own prompt. What is written is recorded as
+`accepted_by = "import"` with the source `imported_known_hosts`, so a key nobody
+was shown in Remoter can be told apart from one a person accepted, and the
+import writes a `data_imported` row beside the `trust_pinned` row for each key.
+See `remoter_import::known_hosts` and `remoter_ipc::known_hosts`.
 
 ## The import flow
 
@@ -293,7 +315,7 @@ deliberately crafted.
 |---|---|---|
 | XXE / entity expansion | A `<!DOCTYPE` declaration is a hard error, not a skipped one, and there is no entity table for a document to add to — an unknown entity is a named failure rather than an empty string | ✅ |
 | Memory exhaustion | Bounded parse with an explicit `Limits` struct: input bytes, depth, item count, attribute count, value bytes, node count, findings, custom fields, included files and include depth | ✅ |
-| Malformed input | `cargo-fuzz` targets for all eight shipped importers — `import_archive`, `import_csv`, `import_json`, `import_mremoteng`, `import_putty`, `import_rdcman`, `import_rdp_file`, `import_sshconfig` | ✅ |
+| Malformed input | `cargo-fuzz` targets for all eight shipped importers and `known_hosts` — `import_archive`, `import_csv`, `import_json`, `import_known_hosts`, `import_mremoteng`, `import_putty`, `import_rdcman`, `import_rdp_file`, `import_sshconfig` | ✅ |
 | Credential misuse | Imported credentials carry a `Purpose` restriction matching their source protocol | ✅ |
 | Zip slip | Archive entries with absolute paths, `..` segments or symlinks rejected | ⏳ — no importer reads an archive yet; this is for Royal TS |
 | Decompression bombs | Hard cap on decompressed size and entry count | ⏳ — same |

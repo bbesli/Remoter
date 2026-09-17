@@ -17,7 +17,7 @@ in practice a checkbox becomes the default.
 | Unknown host, first connection | Prompt showing the full fingerprint (SHA-256, base64) and the key type, plus an ASCII randomart rendering. Requires explicit acceptance |
 | Known host, key matches | Connect silently |
 | Known host, **key changed** | Hard failure. A red, blocking dialog explaining that this may be a man-in-the-middle attack, showing both fingerprints. Accepting requires typing the word shown on screen |
-| Host key found in `~/.ssh/known_hosts` | Imported on first use, with a note in the audit log |
+| Host key found in `~/.ssh/known_hosts` | Not consulted at connect time. An explicit import — *Import SSH host keys* — trusts what the file vouches for, recorded as imported rather than accepted, and never replaces a key already trusted. Recorded in the audit log |
 
 Algorithms, in preference order, following current OpenSSH defaults:
 

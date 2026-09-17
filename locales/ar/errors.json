@@ -654,6 +654,12 @@
       "actions": [
         "تحديث Remoter"
       ]
+    },
+    "trust-write-failed": {
+      "message": "تعذّر على Remoter تسجيل مفتاح مضيف في هذه الخزنة، لذا توقف الاستيراد.",
+      "actions": [
+        "إعادة المحاولة"
+      ]
     }
   },
   "validation": {

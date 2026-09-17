@@ -654,6 +654,12 @@
       "actions": [
         "Обновить Remoter"
       ]
+    },
+    "trust-write-failed": {
+      "message": "Remoter не смог записать ключ узла в это хранилище, поэтому импорт остановлен.",
+      "actions": [
+        "Повторить"
+      ]
     }
   },
   "validation": {

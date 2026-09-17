@@ -63,6 +63,7 @@ pub mod conflicts;
 pub mod csv;
 mod error;
 pub mod export;
+pub mod known_hosts;
 mod limits;
 mod mapping;
 pub mod mremoteng;

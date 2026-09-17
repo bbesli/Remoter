@@ -114,7 +114,7 @@ crates/
   remoter-proto-rdp/    RDP (IronRDP), CredSSP/NTLMv2
   remoter-proto-vnc/    VNC / RFB (vnc-rs), with the handshake owned here
   remoter-import/       mRemoteNG confCons.xml, RDCMan .rdg, .rdp, PuTTY
-                        sessions, ssh_config, CSV, Remoter JSON;
+                        sessions, ssh_config, CSV, Remoter JSON, known_hosts;
                         grafting an archive, conflict resolution, and the
                         CSV / ssh_config / JSON exporters
   remoter-plugin-abi/   Plugin ABI types and wire format   (Apache-2.0 OR MIT)

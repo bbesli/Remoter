@@ -1,7 +1,7 @@
 # Testing Strategy
 
 > **What ships.** Unit tests and property tests are real, and CI runs them on
-> every pull request and every push to `main`. The eight fuzz targets are real
+> every pull request and every push to `main`. The nine fuzz targets are real
 > and build, but ⏳ **nothing runs them**: there is no fuzzing job in
 > `.github/workflows/`, no schedule, and no corpus in the repository.
 > ⏳ **The "no secret in a log" test does not exist** — see *Security testing*
@@ -101,6 +101,7 @@ fuzz/fuzz_targets/
   import_archive.rs        a .rmtr archive's framing, and its body after the password
   import_csv.rs
   import_json.rs           a Remoter JSON export
+  import_known_hosts.rs    OpenSSH's known_hosts, hashed and pattern names included
   import_mremoteng.rs
   import_putty.rs          a reg export or a Unix session file, and its name
   import_rdcman.rs         a Remote Desktop Connection Manager document

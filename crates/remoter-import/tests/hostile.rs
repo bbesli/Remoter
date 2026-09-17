@@ -20,8 +20,8 @@ use std::path::Path;
 
 use remoter_import::ssh_config::{MemoryConfigFiles, OsConfigFiles};
 use remoter_import::{
-    ImportError, ImportedSecret, Limits, XmlProblem, csv, mremoteng, putty, rdcman, rdp_file,
-    ssh_config,
+    ImportError, ImportedSecret, Limits, XmlProblem, csv, known_hosts, mremoteng, putty, rdcman,
+    rdp_file, ssh_config,
 };
 
 /// Every parser, behind one signature, so a hostile input can be pointed at
@@ -37,6 +37,7 @@ fn parse_everything(bytes: &[u8], limits: &Limits) -> Vec<Result<(), ImportError
         rdp_file::parse(bytes, "hostile", limits).map(|_| ()),
         putty::parse_reg(bytes, limits).map(|_| ()),
         putty::parse_file(bytes, "hostile", limits).map(|_| ()),
+        known_hosts::parse(bytes, &[(String::from("web.example.com"), 22)], limits).map(|_| ()),
     ]
 }
 

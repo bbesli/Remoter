@@ -12,12 +12,14 @@ import { useCallback, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 
 import { BusyButton, BusyStatus } from "@/components/Busy";
+import { Button } from "@/components/Button";
 import { Callout } from "@/components/Callout";
 import { FailureNotice } from "@/components/FailureNotice";
 import { Icon } from "@/components/Icon";
 import { TextInput } from "@/components/TextInput";
 import { formatBytes, isolateLtr, useLocale, useT } from "@/i18n";
 import { ipc, type ImportDetection, type ImportSource, type IpcFailure } from "@/lib/ipc";
+import { useApp } from "@/stores/app";
 
 import s from "./ImportWizard.module.css";
 
@@ -105,6 +107,7 @@ export function SourceStep({
   const { code: locale } = useLocale();
   const [browsing, setBrowsing] = useState(false);
   const [dialogError, setDialogError] = useState<string | null>(null);
+  const openKnownHosts = useApp((state) => state.openKnownHosts);
   const [lookingForPutty, setLookingForPutty] = useState(false);
   /** Set when this computer was asked and has no PuTTY sessions to give. */
   const [noPutty, setNoPutty] = useState(false);
@@ -209,6 +212,13 @@ export function SourceStep({
             {t("source.puttyLocal")}
           </BusyButton>
           {noPutty && <span className={s.stepLead}>{t("source.puttyNone")}</span>}
+          <div className={s.spacer} />
+          {/* Host keys are not connections, so they are not a source here;
+              they have a dialog of their own, and this is where someone
+              importing from OpenSSH would look for it. */}
+          <Button variant="ghost" onClick={openKnownHosts}>
+            {t("source.knownHosts")}
+          </Button>
         </div>
 
         {dialogError !== null && <p className={s.stepLead}>{dialogError}</p>}

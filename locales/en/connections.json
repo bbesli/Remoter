@@ -250,6 +250,7 @@
     "actionVaultSettings": "Vault settings",
     "actionAudit": "Audit log",
     "actionImport": "Import connections",
+    "actionImportKnownHosts": "Import SSH host keys",
     "actionExport": "Export connections",
     "lockFailed": "The vault was not locked"
   },

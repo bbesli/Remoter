@@ -65,7 +65,7 @@ pub const REPLACEMENT_CHALLENGE_LEN: usize = 8;
 /// The list is deliberately wider than [`crate::algorithms`] offers, because
 /// what matters here is what may already be *trusted*: a key imported from
 /// `~/.ssh/known_hosts` predates this build's preference list.
-const KEY_ALGORITHMS: &[&str] = &[
+pub const KEY_ALGORITHMS: &[&str] = &[
     "ssh-ed25519",
     "sk-ssh-ed25519@openssh.com",
     "ecdsa-sha2-nistp256",

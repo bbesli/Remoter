@@ -654,6 +654,12 @@
       "actions": [
         "Remoter अपडेट करें"
       ]
+    },
+    "trust-write-failed": {
+      "message": "Remoter इस वॉल्ट में एक होस्ट की दर्ज नहीं कर सका, इसलिए आयात रुक गया।",
+      "actions": [
+        "फिर कोशिश करें"
+      ]
     }
   },
   "validation": {

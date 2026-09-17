@@ -21,6 +21,7 @@ mod dto;
 mod error;
 mod export;
 mod import;
+mod known_hosts;
 #[cfg(all(test, feature = "integration-tests"))]
 mod live_tests;
 mod lock_watch;
@@ -129,6 +130,9 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         import::import_commit,
         import::import_conflicts,
         import::import_putty_location,
+        known_hosts::known_hosts_location,
+        known_hosts::known_hosts_preview,
+        known_hosts::known_hosts_import,
         // --- settings ---
         commands::settings_get,
         commands::settings_set,

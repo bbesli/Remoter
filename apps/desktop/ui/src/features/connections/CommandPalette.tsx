@@ -177,6 +177,7 @@ function PaletteSheet({ onClose }: { onClose: () => void }) {
   const select = useApp((st) => st.select);
   const go = useApp((st) => st.go);
   const openExport = useApp((st) => st.openExport);
+  const openKnownHosts = useApp((st) => st.openKnownHosts);
   const openEditor = useConnectionEditor((st) => st.open);
   const queryClient = useQueryClient();
 
@@ -269,6 +270,15 @@ function PaletteSheet({ onClose }: { onClose: () => void }) {
         },
       },
       {
+        id: "known-hosts",
+        label: t("palette.actionImportKnownHosts"),
+        glyph: "shield",
+        run: () => {
+          onClose();
+          openKnownHosts();
+        },
+      },
+      {
         id: "export",
         label: t("palette.actionExport"),
         glyph: "upload",
@@ -317,7 +327,19 @@ function PaletteSheet({ onClose }: { onClose: () => void }) {
     // there was no such action.
     const needle = foldForSearch(typed, locale);
     return all.filter((a) => foldForSearch(a.label, locale).includes(needle));
-  }, [query, locale, lock, locking, lockShortcut, onClose, openEditor, go, openExport, t]);
+  }, [
+    query,
+    locale,
+    lock,
+    locking,
+    lockShortcut,
+    onClose,
+    openEditor,
+    go,
+    openExport,
+    openKnownHosts,
+    t,
+  ]);
 
   const items = useMemo<Item[]>(
     () => [

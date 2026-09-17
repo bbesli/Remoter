@@ -22,6 +22,9 @@ cbc.workspace = true
 pbkdf2.workspace = true
 sha1.workspace = true
 md-5.workspace = true
+# HMAC-SHA1 over a host name, which is how `known_hosts` hashes one. MIT OR
+# Apache-2.0, and already in the graph through `remoter-proto-rdp`.
+hmac = "0.13"
 # AES-GCM is not in the workspace dependency table because nothing else in the
 # tree uses it — Remoter's own envelope is XChaCha20-Poly1305. It is here for
 # reading `BlockCipherMode="GCM"` files and for nothing else.

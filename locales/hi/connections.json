@@ -249,6 +249,7 @@
     "actionVaultSettings": "वॉल्ट सेटिंग्स",
     "actionAudit": "ऑडिट लॉग",
     "actionImport": "कनेक्शन इम्पोर्ट करें",
+    "actionImportKnownHosts": "SSH होस्ट कीज़ आयात करें",
     "actionExport": "कनेक्शन एक्सपोर्ट करें",
     "lockFailed": "वॉल्ट लॉक नहीं हुआ"
   },

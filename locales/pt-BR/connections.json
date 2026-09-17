@@ -249,6 +249,7 @@
     "actionVaultSettings": "Configurações do cofre",
     "actionAudit": "Log de auditoria",
     "actionImport": "Importar conexões",
+    "actionImportKnownHosts": "Importar chaves de host SSH",
     "actionExport": "Exportar conexões",
     "lockFailed": "O cofre não foi bloqueado"
   },

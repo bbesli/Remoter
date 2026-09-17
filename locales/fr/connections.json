@@ -249,6 +249,7 @@
     "actionVaultSettings": "Paramètres du coffre-fort",
     "actionAudit": "Journal d'audit",
     "actionImport": "Importer des connexions",
+    "actionImportKnownHosts": "Importer des clés d'hôte SSH",
     "actionExport": "Exporter des connexions",
     "lockFailed": "Le coffre-fort n'a pas été verrouillé"
   },

@@ -654,6 +654,12 @@
       "actions": [
         "Remoter aktualisieren"
       ]
+    },
+    "trust-write-failed": {
+      "message": "Remoter konnte einen Hostschlüssel nicht in diesem Tresor speichern, daher wurde der Import angehalten.",
+      "actions": [
+        "Erneut versuchen"
+      ]
     }
   },
   "validation": {

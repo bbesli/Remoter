@@ -136,6 +136,11 @@ entity expansion, zip files with traversal paths, INI files with unbounded keys.
 - Every parser has a `cargo-fuzz` target and a corpus of real-world files
 - Imports run in a transaction and are previewed before commit; nothing touches
   the vault until the user confirms what was found
+- A `known_hosts` file is trust, not data: importing a hostile one would pin an
+  attacker's key for a real host. The import warns about exactly that before it
+  reads, never replaces a key the vault already trusts, never trusts a key the
+  file marks `@revoked`, and records every key it writes as imported rather
+  than accepted
 
 ### T7 — Unattended screen
 

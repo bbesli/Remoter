@@ -25,7 +25,7 @@ Remoter/
 ├── locales/                   Translation catalogs, one directory per language
 ├── docs/                      Specifications
 ├── ui_parts/                  The interface designs the frontend was built from
-├── fuzz/                      cargo-fuzz targets (the eight importers)
+├── fuzz/                      cargo-fuzz targets (the importers and known_hosts)
 ├── scripts/                   install-local, uninstall-local, dev-sshd,
 │                              check-source-is-text
 ├── .github/workflows/         ci.yml and release.yml

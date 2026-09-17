@@ -654,6 +654,12 @@
       "actions": [
         "Actualizar Remoter"
       ]
+    },
+    "trust-write-failed": {
+      "message": "Remoter no pudo guardar una clave de host en esta bóveda, así que la importación se detuvo.",
+      "actions": [
+        "Reintentar"
+      ]
     }
   },
   "validation": {

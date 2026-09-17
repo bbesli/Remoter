@@ -41,7 +41,7 @@
 
 mod files;
 mod lexer;
-mod pattern;
+pub(crate) mod pattern;
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::Path;

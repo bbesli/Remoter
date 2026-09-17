@@ -249,6 +249,7 @@
     "actionVaultSettings": "Настройки хранилища",
     "actionAudit": "Журнал аудита",
     "actionImport": "Импорт подключений",
+    "actionImportKnownHosts": "Импорт ключей узлов SSH",
     "actionExport": "Экспорт подключений",
     "lockFailed": "Хранилище не заблокировано"
   },

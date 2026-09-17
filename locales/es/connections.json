@@ -249,6 +249,7 @@
     "actionVaultSettings": "Configuración de la bóveda",
     "actionAudit": "Registro de auditoría",
     "actionImport": "Importar conexiones",
+    "actionImportKnownHosts": "Importar claves de host SSH",
     "actionExport": "Exportar conexiones",
     "lockFailed": "La bóveda no se bloqueó"
   },

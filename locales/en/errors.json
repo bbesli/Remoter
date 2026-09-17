@@ -654,6 +654,12 @@
       "actions": [
         "Update Remoter"
       ]
+    },
+    "trust-write-failed": {
+      "message": "Remoter could not record a host key in this vault, so the import stopped.",
+      "actions": [
+        "Try again"
+      ]
     }
   },
   "validation": {

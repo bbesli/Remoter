@@ -914,7 +914,7 @@ fn holds_field(node: &Node, field: &str) -> bool {
 /// The size is checked against the metadata before the read, so a file chosen
 /// by mistake — a disk image, a video — is refused rather than loaded into
 /// memory and then refused.
-fn read_source(path: &Path, limits: &Limits) -> Result<Zeroizing<Vec<u8>>, IpcError> {
+pub(crate) fn read_source(path: &Path, limits: &Limits) -> Result<Zeroizing<Vec<u8>>, IpcError> {
     let metadata =
         fs::metadata(path).map_err(|err| IpcError::io("reading the file", path, &err))?;
     if !metadata.is_file() {

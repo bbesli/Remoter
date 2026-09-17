@@ -66,7 +66,9 @@ confidence-threshold = 0.9
 #   rustls-pki-types 1   MIT OR Apache-2.0    already present
 #   webpki-roots 1       CDLA-Permissive-2.0  already present, noted above
 #   x509-cert 0.2        Apache-2.0 OR MIT    already present via ironrdp-pdu
-#   hmac 0.13            MIT OR Apache-2.0    already present
+#   hmac 0.13            MIT OR Apache-2.0    already present; also used by
+#                                             remoter-import to read hashed
+#                                             `known_hosts` names
 #
 # Every one offers a permissive arm GPL-3.0 permits incorporating, and none
 # carries an additional restriction, a non-commercial clause or a

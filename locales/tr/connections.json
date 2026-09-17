@@ -249,6 +249,7 @@
     "actionVaultSettings": "Kasa ayarları",
     "actionAudit": "Denetim günlüğü",
     "actionImport": "Bağlantıları içe aktar",
+    "actionImportKnownHosts": "SSH ana makine anahtarlarını içe aktar",
     "actionExport": "Bağlantıları dışa aktar",
     "lockFailed": "Kasa kilitlenmedi"
   },

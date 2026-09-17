@@ -654,6 +654,12 @@
       "actions": [
         "Remoter'ı güncelle"
       ]
+    },
+    "trust-write-failed": {
+      "message": "Remoter bu kasaya bir ana makine anahtarı kaydedemedi, bu yüzden içe aktarma durdu.",
+      "actions": [
+        "Yeniden dene"
+      ]
     }
   },
   "validation": {

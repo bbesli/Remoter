@@ -11,6 +11,7 @@
 #   cargo +nightly fuzz run import_rdp_file
 #   cargo +nightly fuzz run import_rdcman
 #   cargo +nightly fuzz run import_putty
+#   cargo +nightly fuzz run import_known_hosts
 #
 # `docs/development/testing-strategy.md`: fuzzing runs nightly and on any pull
 # request touching a parser, and a crash is a release blocker.
@@ -87,6 +88,13 @@ bench = false
 [[bin]]
 name = "import_putty"
 path = "fuzz_targets/import_putty.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "import_known_hosts"
+path = "fuzz_targets/import_known_hosts.rs"
 test = false
 doc = false
 bench = false

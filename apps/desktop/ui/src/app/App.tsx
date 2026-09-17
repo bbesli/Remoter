@@ -23,6 +23,7 @@ import { VaultSettings } from "@/features/vaultsettings/VaultSettings";
 import { AuditViewer } from "@/features/audit/AuditViewer";
 import { ImportWizard } from "@/features/import/ImportWizard";
 import { TreeExportDialog } from "@/features/export";
+import { KnownHostsDialog } from "@/features/knownHosts";
 
 import { useAppliedTheme } from "./theme";
 
@@ -30,6 +31,8 @@ export function App() {
   const screen = useApp((state) => state.screen);
   const exportRequest = useApp((state) => state.exportRequest);
   const closeExport = useApp((state) => state.closeExport);
+  const knownHostsOpen = useApp((state) => state.knownHostsOpen);
+  const closeKnownHosts = useApp((state) => state.closeKnownHosts);
   // The stored theme, applied from the first frame rather than when Settings
   // is first opened. See `app/theme.ts`.
   useAppliedTheme();
@@ -53,6 +56,7 @@ export function App() {
         {exportRequest !== null && (
           <TreeExportDialog rootId={exportRequest.rootId} onClose={closeExport} />
         )}
+        {knownHostsOpen && <KnownHostsDialog onClose={closeKnownHosts} />}
       </>
     );
   }
@@ -76,6 +80,7 @@ export function App() {
       {screen.name === "vault-settings" && <VaultSettings />}
       {screen.name === "audit" && <AuditViewer />}
       {screen.name === "import" && <ImportWizard />}
+      {knownHostsOpen && <KnownHostsDialog onClose={closeKnownHosts} />}
       <DisconnectDialog />
     </>
   );
