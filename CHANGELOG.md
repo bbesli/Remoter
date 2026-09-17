@@ -397,6 +397,13 @@ this project adheres to [Semantic Versioning](https://semver.org/).
   to Fit — while still showing the warning that explains why
 
 ### Fixed
+- **An import could preview an account name the vault then refused.** A PuTTY
+  `HostName` of `user@host`, an mRemoteNG `Username` or an RDCMan `<userName>`
+  is as long as the file makes it, and nothing bounded it below the 64 KiB any
+  value may reach — so a 256-character account name produced a preview that
+  failed only at commit. Every importer now refuses it when the file is read,
+  the same way a control character already was. Found by the importers'
+  property test
 - **Reordering a connection by dragging it was refused half the time, by
   construction.** Every row divided its height into three bands — above,
   inside, below — including rows that cannot hold anything. Aiming at the

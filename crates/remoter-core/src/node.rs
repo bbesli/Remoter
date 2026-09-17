@@ -31,7 +31,11 @@ pub(crate) const MAX_PROTOCOL_ID_LEN: usize = 64;
 pub(crate) const MAX_KEY_LEN: usize = 128;
 
 /// Maximum length of a username, in characters.
-pub(crate) const MAX_USERNAME_LEN: usize = 255;
+///
+/// Public because an importer has to refuse an account name this long before
+/// it builds a preview on it: a preview the vault would reject at commit time
+/// is a preview that lied to the user.
+pub const MAX_USERNAME_LEN: usize = 255;
 
 /// Maximum length of a node description, in characters.
 pub(crate) const MAX_DESCRIPTION_LEN: usize = 4096;

@@ -6,3 +6,4 @@
 # everyone who runs the test benefits from these saved cases.
 cc bb2eddbfd88fcba8ad7201c189dfb20ca69c110a365c7c3ad27b2e31b849f3ad # shrinks to names = ["a-"]
 cc 9843ed0a105f02b1b6e34faab3e8278c5ebb45a18db34d5c5b7d3b6d9d9b2ae6 # shrinks to hosts = [("b", "", "", "-@a,a,")]
+cc 7e063c760f53b7cfed244054f70bb482460deaa3ce303e186f1634ae01f03735 # shrinks to parts = [" Password=\"QQ==\"", "]\n", "HostName=", "ProxyCommand ", "[HKEY_CURRENT_USER\\Software\\SimonTatham\\PuTTY\\Sessions\\", "\"ProxyMethod\"=dword:00000006", "<Connections", "  ", "\"HostName\"=\"", "<Connections", "  ", "  ", "<Connections", "<logonCredentials inherit=\"None\"><userName>u</userName><password>AQ==</password>", "<Connections", "\"HostName\"=\"", "  ", "<Connections", "@", "Host "]

@@ -20,8 +20,9 @@ pub use error::{CoreError, ValidationError};
 pub use inherit::{Inherited, Provenance, Resolved};
 pub use node::{
     ConnectionProps, CredentialProps, CredentialRef, EffectiveConnection, FolderProps,
-    GatewayChain, GatewayHop, GroupLayout, GroupProps, KeyFormat, Node, NodeId, NodeKind, NodeRef,
-    ProtocolId, ProtocolSettings, ReconnectPolicy, RecordingPolicy, SecretKind, Tag,
+    GatewayChain, GatewayHop, GroupLayout, GroupProps, KeyFormat, MAX_USERNAME_LEN, Node, NodeId,
+    NodeKind, NodeRef, ProtocolId, ProtocolSettings, ReconnectPolicy, RecordingPolicy, SecretKind,
+    Tag,
 };
 pub use tree::{Tree, TreePatch, rekey, remap};
 pub use validate::{validate_host, validate_node, validate_port};

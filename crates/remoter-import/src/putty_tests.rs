@@ -513,3 +513,28 @@ fn truncation_anywhere_is_never_a_panic() {
         }
     }
 }
+
+#[test]
+fn an_account_name_longer_than_the_vault_accepts_is_refused_before_the_preview() {
+    // Found by the property test: `HostName` is `user@host`, and nothing
+    // bounded the part before the `@` below the 64 KiB any value may reach.
+    // The vault refuses an account name over 255 characters only at commit, so
+    // a preview built on one would have been shown and then failed.
+    let text = format!("HostName={}@web.example.com\nUserName=\n", "u".repeat(256));
+    let Err(error) = parse_file(text.as_bytes(), "long", &Limits::new()) else {
+        panic!("a 256-character account name was accepted");
+    };
+    assert!(
+        matches!(
+            error,
+            ImportError::Validation(remoter_core::ValidationError::UsernameTooLong {
+                len: 256,
+                max: 255
+            })
+        ),
+        "{error:?}"
+    );
+
+    let fits = format!("HostName={}@web.example.com\n", "u".repeat(255));
+    assert!(parse_file(fits.as_bytes(), "fits", &Limits::new()).is_ok());
+}

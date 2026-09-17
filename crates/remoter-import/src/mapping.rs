@@ -165,6 +165,20 @@ impl CredentialPool {
         secret: PreviewSecret,
         allowed_protocols: Vec<ProtocolId>,
     ) -> Result<CredentialRef, ImportError> {
+        // Checked here, once, for every importer. A `user@host` in PuTTY's
+        // `HostName`, an mRemoteNG `Username` attribute and an RDCMan
+        // `<userName>` are all as long as the file says, and the vault refuses
+        // an account name over the limit only when the preview is committed —
+        // by which point the user has been shown a preview that cannot be
+        // imported. The whole parse fails, as a control character already does:
+        // no real account is named with 256 characters.
+        let length = username.chars().count();
+        if length > remoter_core::MAX_USERNAME_LEN {
+            return Err(ImportError::Validation(ValidationError::UsernameTooLong {
+                len: length,
+                max: remoter_core::MAX_USERNAME_LEN,
+            }));
+        }
         if username.chars().any(char::is_control)
             || domain
                 .as_ref()
