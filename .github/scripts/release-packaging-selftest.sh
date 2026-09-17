@@ -102,17 +102,25 @@ for line in text.splitlines():
         current = {"os": m.group(1)}
         entries.append(current)
         continue
-    m = re.match(r"^\s+(bundles|expected|target):\s*(.+?)\s*$", line)
+    m = re.match(r"^\s+(name|bundles|expected|target):\s*(.+?)\s*$", line)
     if m and current is not None:
-        current[m.group(1)] = m.group(2)
+        # The first of each key only. Later jobs and steps have `name:` lines
+        # of their own, and the last matrix row would otherwise take one.
+        current.setdefault(m.group(1), m.group(2))
 
-if len(entries) != 3:
-    sys.exit(f"::error::expected 3 matrix entries in release.yml, parsed {len(entries)}")
+if len(entries) != 4:
+    sys.exit(f"::error::expected 4 matrix entries in release.yml, parsed {len(entries)}")
+names = [e.get("name") for e in entries]
+if len(set(names)) != len(names):
+    sys.exit("::error::two matrix entries in release.yml share a name, so their artifacts would collide")
 for e in entries:
-    for key in ("bundles", "expected"):
+    for key in ("name", "bundles", "expected"):
         if key not in e:
             sys.exit(f"::error::matrix entry {e['os']} has no '{key}'")
-    print("\t".join([e["os"], e["bundles"], e["expected"], e.get("target", "")]))
+    # The target last: it is the one column that may be empty, and `read`
+    # collapses runs of a whitespace IFS, so an empty column in the middle
+    # would shift every one after it.
+    print("\t".join([e["os"], e["bundles"], e["expected"], e["name"], e.get("target", "")]))
 PY
 }
 
@@ -191,6 +199,7 @@ for key, val in {
     "collect_expected": value(collect, "EXPECTED", "installer check"),
     "stage": value(collect, "STAGE", "installer check"),
     "upload_path": value(upload, "path", "upload"),
+    "upload_name": value(upload, "name", "upload"),
     "upload_if_no_files": value(upload, "if-no-files-found", "upload"),
     "dist": value(prepare, "DIST", "checksum"),
     "download_path": value(download, "path", "download"),
@@ -292,10 +301,15 @@ fake_bundles() {
       echo "rpm payload" > "$dir/rpm/remoter-0.1.0-1.x86_64.rpm"
       echo "appimage payload" > "$dir/appimage/remoter_0.1.0_amd64.AppImage"
       ;;
-    windows)
+    windows-x64)
       mkdir -p "$dir/msi" "$dir/nsis"
       echo "msi payload" > "$dir/msi/Remoter_0.1.0_x64_en-US.msi"
       echo "nsis payload" > "$dir/nsis/Remoter_0.1.0_x64-setup.exe"
+      ;;
+    windows-x86)
+      mkdir -p "$dir/msi" "$dir/nsis"
+      echo "msi x86 payload" > "$dir/msi/Remoter_0.1.0_x86_en-US.msi"
+      echo "nsis x86 payload" > "$dir/nsis/Remoter_0.1.0_x86-setup.exe"
       ;;
     macos)
       mkdir -p "$dir/dmg" "$dir/macos/Remoter.app/Contents/MacOS"
@@ -306,11 +320,11 @@ fake_bundles() {
 }
 
 platform_of() {
+  # By the matrix row's name, not its runner label: two rows share
+  # windows-latest and build different installers.
   case "$1" in
-    ubuntu*) echo linux ;;
-    windows*) echo windows ;;
-    macos*) echo macos ;;
-    *) echo "unknown runner label: $1" >&2; exit 1 ;;
+    linux|windows-x64|windows-x86|macos) echo "$1" ;;
+    *) echo "unknown matrix name: $1" >&2; exit 1 ;;
   esac
 }
 
@@ -319,7 +333,7 @@ section "The matrix release.yml actually carries"
 MATRIX="$(read_matrix)"
 echo "$MATRIX" | sed 's/^/  /'
 matrix_rows="$(echo "$MATRIX" | wc -l | tr -d ' ')"
-check "release.yml describes three platforms" "3" "$matrix_rows"
+check "release.yml describes four builds" "4" "$matrix_rows"
 
 # ===========================================================================
 section "0. release.yml still invokes these scripts, and hands each to the next"
@@ -353,6 +367,8 @@ check "what the bundle job stages is the path it uploads" \
   "$(field stage)" "$(field upload_path)"
 check "an empty staging directory fails the upload rather than passing" \
   "error" "$(field upload_if_no_files)"
+contains "each row uploads under its own name, so two rows on one runner do not collide" \
+  "matrix.name" "$(field upload_name)"
 check "what download-artifact writes is what the checksum step is pointed at" \
   "$(field download_path)" "$(field dist)"
 check "the draft release attaches the directory the checksum step prepared" \
@@ -365,10 +381,18 @@ check "a glob matching nothing fails the release rather than publishing an empty
 contains "the build command passes --target" "--target" "$(field build_run)"
 contains "...taken from the matrix row, not a hard-coded triple" \
   "matrix.target" "$(field build_run)"
-while IFS="$(printf '\t')" read -r os bundles expected target; do
+while IFS="$(printf '\t')" read -r os bundles expected name target; do
   [ -n "$os" ] || continue
-  : "$expected"
+  : "$expected" "$name"
   if [ -n "$target" ]; then
+    # A triple the runner does not have installed builds nothing, and says so
+    # only on the tag.
+    case "$target" in
+      universal-apple-darwin) wanted="aarch64-apple-darwin" ;;
+      *) wanted="$target" ;;
+    esac
+    contains "$os: the workflow installs the $wanted toolchain" \
+      "rustup target add" "$(grep -E "rustup target add .*$wanted" "$REPO/.github/workflows/release.yml" || true)"
     check "$os: --target $target, so the bundle is under that triple" \
       "target/$target/release/bundle" "$bundles"
   else
@@ -455,21 +479,21 @@ contains "it points at the --target flag, which is what makes that path wrong" \
 section "6. Every platform stages its installers flat"
 WS6="$WORK/ws6"
 entries_all=""
-while IFS="$(printf '\t')" read -r os bundles expected target; do
+while IFS="$(printf '\t')" read -r os bundles expected name target; do
   [ -n "$os" ] || continue
-  platform="$(platform_of "$os")"
+  platform="$(platform_of "$name")"
   fake_bundles "$WS6" "$bundles" "$platform"
   stage="$WORK/stage-$platform"
   collect_rc=0
   BUNDLES="$WS6/$bundles" EXPECTED="$expected" STAGE="$stage" RUNNER_OS="$platform" \
     bash "$COLLECT" > "$WORK/collect-$platform.log" 2>&1 || collect_rc=$?
   if [ "$collect_rc" -ne 0 ]; then
-    bad "$os: collect-installers.sh failed on a complete bundle tree"
+    bad "$name: collect-installers.sh failed on a complete bundle tree"
     sed 's/^/          /' "$WORK/collect-$platform.log"
     continue
   fi
   flat="$(find "$stage" -mindepth 1 ! -type f | wc -l | tr -d ' ')"
-  check "$os: the staging directory holds nothing but plain files" "0" "$flat"
+  check "$name: the staging directory holds nothing but plain files" "0" "$flat"
   entries_all="$entries_all $(cd "$stage" && ls -1 | tr '\n' ' ')"
   : "$target"
 done <<EOF
@@ -510,10 +534,10 @@ check "and the workflow's upload path finds exactly those three, unprefixed" \
   "$(printf '%s\n' $wired_entries | LC_ALL=C sort | tr '\n' ' ')"
 
 # ===========================================================================
-section "8. End to end: three artifacts merged, checksummed, verified"
+section "8. End to end: four artifacts merged, checksummed, verified"
 DIST="$WORK/dist"
 mkdir -p "$DIST"
-for platform in linux windows macos; do
+for platform in linux windows-x64 windows-x86 macos; do
   cp -p "$WORK/stage-$platform"/* "$DIST/"
 done
 DIST="$DIST" bash "$PREPARE" > "$WORK/prepare.log" 2>&1 || {
@@ -521,12 +545,12 @@ DIST="$DIST" bash "$PREPARE" > "$WORK/prepare.log" 2>&1 || {
   bad "prepare-release-files.sh failed on the flat layout"
 }
 sums="$DIST/SHA256SUMS.txt"
-check "six installers are attached" "6" "$(find "$DIST" -maxdepth 1 -type f ! -name SHA256SUMS.txt | wc -l | tr -d ' ')"
-check "SHA256SUMS.txt has a line for each of them" "6" "$(wc -l < "$sums" | tr -d ' ')"
+check "eight installers are attached" "8" "$(find "$DIST" -maxdepth 1 -type f ! -name SHA256SUMS.txt | wc -l | tr -d ' ')"
+check "SHA256SUMS.txt has a line for each of them" "8" "$(wc -l < "$sums" | tr -d ' ')"
 check "no name in it carries a directory prefix" "0" "$(grep -c '/' "$sums" || true)"
 verify_rc=0
 (cd "$DIST" && sha256sum -c SHA256SUMS.txt > "$WORK/verify.log" 2>&1) || verify_rc=$?
-check "sha256sum -c verifies all six where they are published" "0" "$verify_rc"
+check "sha256sum -c verifies all eight where they are published" "0" "$verify_rc"
 
 # ===========================================================================
 section "9. ...and it copes if the artifacts ever arrive nested again"
@@ -535,8 +559,8 @@ mkdir -p "$NESTED/deb" "$NESTED/rpm" "$NESTED/appimage" "$NESTED/msi" "$NESTED/n
 cp -p "$WORK/stage-linux/"*.deb "$NESTED/deb/"
 cp -p "$WORK/stage-linux/"*.rpm "$NESTED/rpm/"
 cp -p "$WORK/stage-linux/"*.AppImage "$NESTED/appimage/"
-cp -p "$WORK/stage-windows/"*.msi "$NESTED/msi/"
-cp -p "$WORK/stage-windows/"*.exe "$NESTED/nsis/"
+cp -p "$WORK/stage-windows-x64/"*.msi "$WORK/stage-windows-x86/"*.msi "$NESTED/msi/"
+cp -p "$WORK/stage-windows-x64/"*.exe "$WORK/stage-windows-x86/"*.exe "$NESTED/nsis/"
 cp -p "$WORK/stage-macos/"*.dmg "$NESTED/dmg/"
 nested_rc=0
 DIST="$NESTED" bash "$PREPARE" > "$WORK/nested.log" 2>&1 || nested_rc=$?

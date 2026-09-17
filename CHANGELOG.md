@@ -367,8 +367,9 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 #### Packaging and release
 - Installers for Windows and macOS beside the Linux ones that already existed:
-  an NSIS `-setup.exe` and an `.msi` on Windows, and a universal `.dmg` on
-  macOS covering both Apple silicon and Intel. Running Remoter no longer
+  an NSIS `-setup.exe` and an `.msi` on Windows — for 64-bit and, as a row of
+  its own, 32-bit Windows — and a universal `.dmg` on macOS covering both Apple
+  silicon and Intel. Running Remoter no longer
   requires a Rust toolchain and an afternoon with linker errors
 - A release workflow on a `vX.Y.Z` tag. It refuses to start if the tag and the
   two version fields disagree, builds on all three platforms, checks that each

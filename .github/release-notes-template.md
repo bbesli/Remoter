@@ -23,7 +23,8 @@ _Fill this in from CHANGELOG.md before publishing._
 
 | You are on | Download |
 |---|---|
-| Windows 10 or 11 | `…-setup.exe` — the ordinary installer. `…_x64_en-US.msi` is the same application for people who deploy by MSI. |
+| Windows 10 or 11 | `…_x64-setup.exe` — the ordinary installer. `…_x64_en-US.msi` is the same application for people who deploy by MSI. |
+| 32-bit Windows 10 | `…_x86-setup.exe`, or `…_x86_en-US.msi`. Only for a 32-bit Windows; on a 64-bit one, take the `x64` files above. |
 | macOS 12 or newer | `…_universal.dmg` — one file for both Apple silicon and Intel |
 | Debian, Ubuntu, Mint | `…_amd64.deb` |
 | Fedora, RHEL, openSUSE | `….x86_64.rpm` |

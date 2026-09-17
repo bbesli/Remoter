@@ -46,7 +46,23 @@ What the release workflow actually produces, one job per row:
 |---|---|---|---|
 | Linux | ubuntu-22.04 | `x86_64-unknown-linux-gnu` | `.AppImage`, `.deb`, `.rpm` |
 | Windows | windows-latest | `x86_64-pc-windows-msvc` | `.msi`, NSIS `-setup.exe` |
+| Windows, 32-bit | windows-latest | `i686-pc-windows-msvc` | `.msi`, NSIS `-setup.exe` |
 | macOS | macos-latest | `universal-apple-darwin` | `.dmg` |
+
+Every row carries a `name` — `linux`, `windows-x64`, `windows-x86`, `macos` —
+because two of them share a runner. The name is the job's title and the name of
+the artifact it uploads; under the runner label the two Windows rows would
+upload one artifact over the other. `release-packaging` refuses a matrix whose
+names are not distinct and a workflow that uploads under anything but
+`matrix.name`.
+
+The 32-bit row is the same pattern as macOS: `target: i686-pc-windows-msvc`
+becomes `--target i686-pc-windows-msvc`, the job installs that toolchain first,
+and the bundle lands under `target/i686-pc-windows-msvc/release/bundle`.
+tauri-bundler names its installers `_x86_` where the 64-bit row's are `_x64_`, so
+the two sets flatten into one release without colliding. It runs on 64-bit
+Windows as well, but the 64-bit installer is the one to offer anybody who can
+use it.
 
 The Linux job is pinned to `ubuntu-22.04` rather than `ubuntu-latest`. The build
 host sets the glibc floor for everyone who downloads the result, and
@@ -92,7 +108,8 @@ and a bundle is a directory, which is not something a release asset can be
 without being zipped first.
 
 **Not built:** `aarch64-unknown-linux-gnu`, `aarch64-pc-windows-msvc`, and the
-portable Windows `.zip`. Flatpak and a Windows Store package are still planned
+portable Windows `.zip` — the `.msi` and the NSIS installer cover both Windows
+architectures. Flatpak and a Windows Store package are still planned
 once the release process has been through a few real runs.
 
 Minimum supported platforms: glibc 2.35 with WebKitGTK 2.38 (Ubuntu 22.04 and

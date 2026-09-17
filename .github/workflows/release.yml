@@ -47,7 +47,7 @@ jobs:
           fi
 
   bundle:
-    name: Bundle (${{ matrix.os }})
+    name: Bundle (${{ matrix.name }})
     needs: preflight
     runs-on: ${{ matrix.os }}
     strategy:
@@ -62,11 +62,27 @@ jobs:
           # release docs/development/build-release.md promises to support. The
           # build host sets the floor for everyone who downloads the result, so
           # the floor is pinned rather than inherited.
+          #
+          # `name` is what tells two rows on the same runner apart — the job
+          # title, and the artifact each uploads. Two Windows rows uploading
+          # under the runner label would be one artifact overwriting the other.
           - os: ubuntu-22.04
+            name: linux
             bundles: target/release/bundle
             expected: deb/*.deb rpm/*.rpm appimage/*.AppImage
           - os: windows-latest
+            name: windows-x64
             bundles: target/release/bundle
+            expected: msi/*.msi nsis/*.exe
+          # 32-bit Windows, for the machines that still run it. The runner is
+          # 64-bit and builds the `i686-pc-windows-msvc` triple beside its own;
+          # tauri-bundler names the installers `_x86_`, so they cannot collide
+          # with the row above when the release job flattens them together.
+          # The bundle path follows from `--target`, as the macOS row's does.
+          - os: windows-latest
+            name: windows-x86
+            target: i686-pc-windows-msvc
+            bundles: target/i686-pc-windows-msvc/release/bundle
             expected: msi/*.msi nsis/*.exe
           # macos-latest is Apple silicon, so an ordinary build there serves
           # Apple silicon and nobody else. `universal-apple-darwin` fuses an
@@ -88,6 +104,7 @@ jobs:
           # bundle check fails naming this path rather than the upload silently
           # attaching nothing.
           - os: macos-latest
+            name: macos
             target: universal-apple-darwin
             bundles: target/universal-apple-darwin/release/bundle
             expected: dmg/*.dmg macos/*.app
@@ -116,6 +133,9 @@ jobs:
       - name: Both halves of the universal macOS binary
         if: matrix.target == 'universal-apple-darwin'
         run: rustup target add x86_64-apple-darwin aarch64-apple-darwin
+      - name: The 32-bit Windows target
+        if: matrix.target == 'i686-pc-windows-msvc'
+        run: rustup target add i686-pc-windows-msvc
       - name: Frontend dependencies
         working-directory: apps/desktop/ui
         run: npm ci
@@ -174,7 +194,7 @@ jobs:
       # entries are the bare filenames a person downloads.
       - uses: actions/upload-artifact@v4
         with:
-          name: bundles-${{ matrix.os }}
+          name: bundles-${{ matrix.name }}
           if-no-files-found: error
           retention-days: 7
           path: target/release-installers
