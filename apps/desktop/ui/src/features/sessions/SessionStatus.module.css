@@ -46,11 +46,20 @@
   flex: none;
 }
 
+/* The one item here allowed to give way when the bar is short: a route can be
+   several hosts long. It clips, and its names end in an ellipsis. Without
+   `overflow: hidden` the box shrank and its text did not, and "bastion" was
+   drawn straight through the echo figure beside it. */
 .hops {
   display: flex;
   align-items: center;
   gap: var(--space-1);
   min-width: 0;
+  overflow: hidden;
+}
+
+.hops > .mono {
+  flex: 0 1 auto;
 }
 
 .spacer {
