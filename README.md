@@ -46,6 +46,33 @@ three commitments:
    behind stable interfaces. *The plugin ABI crates exist; the WebAssembly host
    that would load a plugin does not.*
 
+## Screenshots
+
+<p align="center">
+  <img src="docs/images/main.png" alt="The main window: the connection tree with favourites and folders, an SSH session to web-01 routed through a bastion, and the inspector showing which values the connection inherits from its folder" width="100%">
+</p>
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/export.png" alt="The export dialog asking who the file is for: another Remoter, as an encrypted archive with passwords, or another application, without them"></td>
+    <td width="50%"><img src="docs/images/editor.png" alt="The connection editor in the light theme, showing a username inherited from the Production folder and a jump host"></td>
+  </tr>
+  <tr>
+    <td align="center">Export for another Remoter, secrets encrypted — or for other tools, without them</td>
+    <td align="center">The connection editor: every inherited value says where it comes from</td>
+  </tr>
+  <tr>
+    <td colspan="2"><img src="docs/images/audit.png" alt="The audit log in the light theme: sessions, secret use, a file download, a refused host key and an export, each with the account and computer that wrote it"></td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center">The audit log names the account and computer behind every entry</td>
+  </tr>
+</table>
+
+The pictures are taken from the real interface running on invented data — every
+address is from the ranges reserved for documentation — by
+[`scripts/readme-screenshots.cjs`](scripts/readme-screenshots.cjs).
+
 ## What works today
 
 The left column is what a user can do in a running build. The right column is
