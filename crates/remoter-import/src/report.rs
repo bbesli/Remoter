@@ -26,6 +26,8 @@ pub enum SourceFormat {
     Csv,
     /// A `.rmtr` archive written by Remoter itself.
     RemoterArchive,
+    /// The JSON document Remoter's export writes: the tree, without secrets.
+    RemoterJson,
 }
 
 impl SourceFormat {
@@ -37,6 +39,7 @@ impl SourceFormat {
             Self::OpenSshConfig => "ssh_config",
             Self::Csv => "csv",
             Self::RemoterArchive => "remoter_archive",
+            Self::RemoterJson => "remoter_json",
         }
     }
 }
@@ -197,6 +200,15 @@ pub enum Finding {
         column: String,
     },
 
+    /// Credentials that arrive without the secret they hold — a Remoter JSON
+    /// export carries which kind of secret each one has and never the secret.
+    /// They are imported as they are, and each asks for its password or key
+    /// the first time it is used.
+    SecretsNotCarried {
+        /// How many credentials.
+        count: usize,
+    },
+
     /// A limit was reached and the rest of something was not read. The preview
     /// is a partial one.
     LimitReached {
@@ -219,6 +231,7 @@ impl Finding {
             | Self::SecretNotMapped { .. }
             | Self::MatchBlockNotApplied { .. }
             | Self::UnknownColumn { .. }
+            | Self::SecretsNotCarried { .. }
             | Self::LimitReached { .. } => Severity::Warning,
             Self::FullFileEncryption
             | Self::SecretsRecovered { .. }

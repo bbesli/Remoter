@@ -599,7 +599,7 @@
       ]
     },
     "unknown-format": {
-      "message": "Esse arquivo não está em um formato que o Remoter importa: não é um documento do mRemoteNG, nem uma configuração do OpenSSH, nem uma exportação CSV.",
+      "message": "Esse arquivo não está em um formato que o Remoter importa: não é um arquivo ou exportação JSON do Remoter, nem um documento do mRemoteNG, nem uma configuração do OpenSSH, nem uma exportação CSV.",
       "actions": [
         "Escolher o formato de origem você mesmo",
         "Exportar as conexões novamente como CSV"
@@ -641,6 +641,18 @@
       "actions": [
         "Copiar o arquivo de novo de onde ele veio",
         "Exportar o arquivo de novo"
+      ]
+    },
+    "malformed-json": {
+      "message": "Esse arquivo não é um JSON válido: ele se interrompe ou se corrompe em algum ponto.",
+      "actions": [
+        "Exportar de novo pelo Remoter"
+      ]
+    },
+    "unsupported-export": {
+      "message": "Esse arquivo foi exportado por uma versão mais nova do Remoter, que esta versão não consegue ler.",
+      "actions": [
+        "Atualizar o Remoter"
       ]
     }
   },

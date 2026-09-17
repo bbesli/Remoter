@@ -46,7 +46,7 @@ today* table in [README.md](../README.md#what-works-today).
 - ✅ Every cryptographic known-answer test passes
 - ✅ Recovery unlock works after the password slot is deliberately destroyed
 - ◐ Truncation fuzzing produces no panic at any byte offset — the fuzz targets
-  that exist cover the four importers, the `.rmtr` archive among them, not the
+  that exist cover the five importers, the `.rmtr` archive among them, not the
   vault container
 - ⏳ No secret appears in a `trace`-level log capture — **nothing runs this
   check.** `tracing-subscriber` is a dependency of `apps/desktop/src-tauri`
@@ -148,10 +148,12 @@ after all.
 
 ## v0.5 — Migration and languages
 
-- ◐ Importers: ✅ Remoter's own `.rmtr` archive, with its secrets, ✅ mRemoteNG (GCM and legacy CBC, including the well-known
+- ◐ Importers: ✅ Remoter's own `.rmtr` archive, with its secrets, ✅ Remoter's JSON export, ✅ mRemoteNG (GCM and legacy CBC, including the well-known
   default password), ✅ `~/.ssh/config` (including `Include`, `Match`, wildcards
   and `ProxyJump`), ✅ CSV. ⏳ Royal TS and PuTTY are not written
-- ◐ Import preview and report ship. ⏳ Per-item conflict resolution does not
+- ◐ Import preview, report and conflict resolution ship — keep both, skip or
+  replace for the whole import, with existing folders merged into. ⏳ A choice
+  per item does not
 - ◐ Export: ✅ the encrypted `.rmtr` archive with secrets, for another Remoter,
   and ✅ CSV, `ssh_config` and JSON with none, for other tools — each for the
   whole vault or a folder. ⏳ The structure-only archive and plaintext secret
@@ -164,11 +166,11 @@ after all.
 
 - ⏳ A 500-connection mRemoteNG file imports with inheritance preserved
 - ◐ Export/import round trip: ✅ an archive moves a folder and its passwords into
-  another vault, and CSV and `ssh_config` exports read back as the same
-  connections, under test, with a property test on CSV field contents. ⏳ A
-  property test over arbitrary trees, and the JSON — which needs an importer
-- ◐ Every fuzz target has run 24 hours with no crash — four targets exist, for
-  the four importers; none has had a 24-hour run recorded
+  another vault, a JSON export reads back as the same tree less its secrets,
+  and CSV and `ssh_config` exports read back as the same connections, under test, with a property test on CSV field contents. ⏳ A
+  property test over arbitrary trees
+- ◐ Every fuzz target has run 24 hours with no crash — five targets exist, for
+  the five importers; none has had a 24-hour run recorded
 - ⏳ WCAG 2.2 AA verified across all four themes — the four themes exist; nothing has audited them
 - ⏳ Screen readers verified on all three platforms
 

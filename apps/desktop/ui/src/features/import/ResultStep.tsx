@@ -114,6 +114,14 @@ export function ResultStep({
         />
       </div>
 
+      {(result.replaced > 0 || result.unchanged > 0 || result.merged > 0) && (
+        <Callout tone="neutral" title={t("result.conflictsTitle")}>
+          {result.replaced > 0 && <p>{t("result.replaced", { count: result.replaced })}</p>}
+          {result.unchanged > 0 && <p>{t("result.unchanged", { count: result.unchanged })}</p>}
+          {result.merged > 0 && <p>{t("result.merged", { count: result.merged })}</p>}
+        </Callout>
+      )}
+
       {exposed && (
         <Callout tone="danger" title={t("result.rotateTitle")}>
           {/* One sentence, not a count glued to a clause: how many passwords

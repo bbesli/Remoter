@@ -29,7 +29,8 @@
 //! shared credential a folder uses from elsewhere in the vault, a jump host in
 //! another folder.
 //!
-//! Nothing reads this format back yet.
+//! [`crate::native::parse_json`] reads it back, and a round-trip test holds the
+//! two to each other: every node comes back as it was, less its secrets.
 
 use std::collections::{BTreeMap, BTreeSet};
 

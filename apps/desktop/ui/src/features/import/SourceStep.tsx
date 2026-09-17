@@ -30,11 +30,13 @@ const SOURCES: readonly {
   id: ImportSource;
   labelKey:
     | "source.format.archiveLabel"
+    | "source.format.jsonLabel"
     | "source.format.mremotengLabel"
     | "source.format.sshConfigLabel"
     | "source.format.csvLabel";
   hintKey:
     | "source.format.archiveHint"
+    | "source.format.jsonHint"
     | "source.format.mremotengHint"
     | "source.format.sshConfigHint"
     | "source.format.csvHint";
@@ -44,6 +46,7 @@ const SOURCES: readonly {
     labelKey: "source.format.archiveLabel",
     hintKey: "source.format.archiveHint",
   },
+  { id: "remoter-json", labelKey: "source.format.jsonLabel", hintKey: "source.format.jsonHint" },
   {
     id: "mremoteng",
     labelKey: "source.format.mremotengLabel",

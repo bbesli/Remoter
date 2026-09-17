@@ -324,6 +324,23 @@ pub enum ImportError {
     #[error("the imported data is not valid: {0}")]
     Validation(#[from] ValidationError),
 
+    /// A JSON document that does not parse.
+    #[error("the document is not valid JSON at line {line}, column {column}")]
+    MalformedJson {
+        /// 1-based line.
+        line: usize,
+        /// 1-based column.
+        column: usize,
+    },
+
+    /// A Remoter export written in a version of its format this build does
+    /// not read.
+    #[error("the export is format version {version}, which this build does not read")]
+    UnsupportedExport {
+        /// The version the document declares.
+        version: u32,
+    },
+
     /// Exported nodes whose parent links do not form a tree: a parent that is
     /// neither among them nor their top level, or a cycle. Remoter does not
     /// write such an export, so this is a damaged or hand-edited file.

@@ -7,6 +7,7 @@
 #   cargo +nightly fuzz run import_sshconfig
 #   cargo +nightly fuzz run import_csv
 #   cargo +nightly fuzz run import_archive
+#   cargo +nightly fuzz run import_json
 #
 # `docs/development/testing-strategy.md`: fuzzing runs nightly and on any pull
 # request touching a parser, and a crash is a release blocker.
@@ -55,6 +56,13 @@ bench = false
 [[bin]]
 name = "import_archive"
 path = "fuzz_targets/import_archive.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "import_json"
+path = "fuzz_targets/import_json.rs"
 test = false
 doc = false
 bench = false

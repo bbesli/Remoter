@@ -264,6 +264,20 @@ this project adheres to [Semantic Versioning](https://semver.org/).
   connection, a folder name with a `/` in it — is listed after the export
   instead of being dropped quietly
 
+#### Import
+- **Remoter's JSON export imports back.** The tree returns with its
+  inheritance, settings, custom fields, tags, icons and colours; credentials
+  keep the kind of secret they held and ask for it the first time they are
+  used, because the JSON never carried one. A JSON file that is not a Remoter
+  export is refused by what it is, and a fuzz target reads hostile ones
+- **An import no longer duplicates what the vault already has without asking.**
+  The destination step lists the items that already exist there — same kind,
+  same name, same place — and asks once what to do: keep both, skip them, or
+  replace them with the imported copies, passwords included. Folders that
+  exist are merged into rather than made again, so importing the same file
+  twice with *skip* changes nothing the second time. The result screen and the
+  audit entry say how many items were replaced, left as they were and merged
+
 #### Audit
 - Imports, exports and file transfers are recorded. An import writes one row
   naming its source and counts beside the rows for the entries it created; an

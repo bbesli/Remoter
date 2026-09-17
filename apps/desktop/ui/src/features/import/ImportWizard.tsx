@@ -56,6 +56,7 @@ import { useStagedSecret } from "@/hooks/useStagedSecret";
 import { useLocale, useT } from "@/i18n";
 import { asFailure, ipc } from "@/lib/ipc";
 import type {
+  ConflictPolicy,
   ImportDetection,
   ImportPreview,
   ImportReport,
@@ -154,6 +155,7 @@ export function ImportWizard() {
   const [filter, setFilter] = useState("");
 
   const [destinationId, setDestinationId] = useState<string | null>(null);
+  const [conflictPolicy, setConflictPolicy] = useState<ConflictPolicy>("keep-both");
   const [result, setResult] = useState<ImportResult | null>(null);
   /** Kept past the commit: the result page explains itself from the findings. */
   const [committedReport, setCommittedReport] = useState<ImportReport | null>(null);
@@ -256,11 +258,17 @@ export function ImportWizard() {
   });
 
   const commit = useMutation({
-    mutationFn: (vars: { importId: string; destinationId: string | null; excludedIds: string[] }) =>
+    mutationFn: (vars: {
+      importId: string;
+      destinationId: string | null;
+      excludedIds: string[];
+      conflictPolicy: ConflictPolicy;
+    }) =>
       ipc.commitImport({
         importId: vars.importId,
         destinationId: vars.destinationId,
         excludedIds: vars.excludedIds,
+        conflictPolicy: vars.conflictPolicy,
       }),
     onSuccess: async (data) => {
       // The handle is spent: the core dropped the preview when it committed it.
@@ -298,6 +306,21 @@ export function ImportWizard() {
     () => indexNodes(livePreview?.nodes ?? [], locale),
     [livePreview, locale],
   );
+
+  // What the import would collide with where it is about to land. Asked on the
+  // destination step, and again whenever the destination or the ticked items
+  // change, because both change the answer.
+  const conflictExcluded = useMemo(() => excludedRoots(index, excluded), [index, excluded]);
+  const conflicts = useQuery({
+    queryKey: qk.importConflicts(livePreview?.importId ?? "", destinationId, conflictExcluded),
+    queryFn: () =>
+      ipc.importConflicts({
+        importId: livePreview?.importId ?? "",
+        destinationId,
+        excludedIds: conflictExcluded,
+      }),
+    enabled: step === 6 && livePreview !== null,
+  });
   const counts = useMemo(() => includedCounts(index, excluded), [index, excluded]);
   // The filter folds under the reader's casing rules, so the language has to
   // reach it. See `matchingIds`.
@@ -397,11 +420,13 @@ export function ImportWizard() {
       importId: livePreview.importId,
       destinationId,
       excludedIds: excludedRoots(index, excluded),
+      conflictPolicy,
     });
-  }, [commit, destinationId, excluded, index, livePreview]);
+  }, [commit, conflictPolicy, destinationId, excluded, index, livePreview]);
 
   const reset = useCallback(() => {
     setStep(1);
+    setConflictPolicy("keep-both");
     setPath("");
     pathRef.current = "";
     setDetection(null);
@@ -613,6 +638,10 @@ export function ImportWizard() {
             pending={nodes.isPending}
             failure={nodes.isError ? asFailure(nodes.error) : null}
             onRetry={() => void nodes.refetch()}
+            conflicts={conflicts.data ?? null}
+            conflictsFailure={conflicts.isError ? asFailure(conflicts.error) : null}
+            policy={conflictPolicy}
+            onPolicy={setConflictPolicy}
           />
         )}
 

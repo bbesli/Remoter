@@ -1,17 +1,16 @@
 # Import and Export
 
-> **What ships: four importers and four of the five export formats.** Remoter's
-> own `.rmtr` archive, mRemoteNG `confCons.xml`, `~/.ssh/config` and CSV are
-> imported, each with format detection, a preview the user selects from, an
-> all-or-nothing commit and a findings report; the three foreign ones parse
-> boundedly under a `cargo-fuzz` target. ✅ Export writes the encrypted `.rmtr`
-> archive, secrets included, for another Remoter, and CSV, an OpenSSH config and
-> JSON — never with a secret in them — for other tools; the archive, the CSV and
-> the OpenSSH config are read back by their importers under test. ⏳ Not built:
-> the structure-only archive, plaintext secret export, anything that reads the
-> JSON back, per-item conflict resolution against what the vault already holds
-> (step 5 of the flow), `known_hosts` into the trust store, and every source in
-> the table marked ⏳. Each is marked in place below.
+> **What ships: five importers and four of the five export formats.** Remoter's
+> own `.rmtr` archive and JSON export, mRemoteNG `confCons.xml`, `~/.ssh/config`
+> and CSV are imported, each with format detection, a preview the user selects
+> from, a choice about what the vault already has, an all-or-nothing commit and
+> a findings report; every one parses boundedly under a `cargo-fuzz` target.
+> ✅ Export writes the encrypted `.rmtr` archive, secrets included, for another
+> Remoter, and CSV, an OpenSSH config and JSON — never with a secret in them —
+> for other tools; all four are read back by their importers under test. ⏳ Not
+> built: the structure-only archive, plaintext secret export, a conflict choice
+> per item rather than per import, `known_hosts` into the trust store, and every
+> source in the table marked ⏳. Each is marked in place below.
 
 Migration is the highest-leverage feature for adoption: an administrator with
 four hundred connections in mRemoteNG will not retype them, and no amount of
@@ -23,19 +22,19 @@ none of them touches the vault until the user confirms a preview.
 
 ## Supported sources
 
-Three of these are built. The parser for anything marked ⏳ does not exist, and
+Five of these are built. The parser for anything marked ⏳ does not exist, and
 `import_parse` refuses its name — asking for `royalts` is answered with
-"`royalts` is not an importer; expected mremoteng, ssh-config or csv".
+"`royalts` is not an importer" and the names of the ones that are.
 
 | Source | Format | Secrets | Status |
 |---|---|---|---|
 | **Remoter** | `.rmtr` archive | ✅ with the archive password | ✅ shipped |
+| **Remoter** | JSON export | — the export never carries one | ✅ shipped |
 | **mRemoteNG** | `confCons.xml` | ✅ with the file password | ✅ shipped |
 | **OpenSSH** | `~/.ssh/config` | Key references | ✅ shipped |
 | **Generic** | CSV | Depends | ✅ shipped |
 | **Royal TS / Royal TSX** | `.rtsz`, `.rtsx` | ✅ with the document password | ⏳ v0.5 |
 | **PuTTY** | Registry (Windows), `~/.putty/sessions` (Unix) | Keys only | ⏳ v0.5 — though `.ppk` key *files* are read today, by the SSH adapter |
-| **Generic** | JSON | Depends | ⏳ v0.5 |
 | **Remote Desktop Connection Manager** | `.rdg` | ✅ where not DPAPI-bound | ⏳ v1.0 |
 | **Windows RDP** | `.rdp` files | — | ⏳ v1.0 |
 | **Termius** | JSON export | ✅ | ⏳ v1.1 |
@@ -171,8 +170,8 @@ nothing beside it, so every host is trusted on first use as though it were new.
 2  Supply secrets       file password, key passphrases                 ✅
 3  Parse                in a bounded parser; nothing written yet       ✅
 4  Preview              the full tree as it will be created            ✅  per-item selection
-5  Resolve conflicts    per-item: skip, replace, keep both, merge      ⏳
-6  Choose destination   the vault folder to import into                ✅
+5  Choose destination   the vault folder to import into                ✅
+6  Resolve conflicts    skip, replace or keep both; folders merge      ◐  one choice for the whole import
 7  Commit               one transaction; all or nothing                ✅
 8  Report               what came in, what was dropped, what needs attention  ✅
 ```
@@ -181,9 +180,28 @@ Nothing touches the vault before step 7. The preview is the whole point: a user
 importing four hundred connections needs to see what they are about to get, and
 they can deselect any of it before committing.
 
-⏳ Step 5 is the gap. There is no conflict resolution against what is already in
-the vault: an import creates nodes under the chosen folder, and a name that
-already exists there is simply created again.
+◐ **What the vault already has** is compared on the destination step, because
+where the import lands decides what it collides with. An item "already exists"
+when a live node of the same kind and the same name sits where the imported one
+would land; a credential attached to a connection is matched through its
+connection. The step lists them and asks once, for the whole import:
+
+- **Keep both** — the default, and what every import did before: everything
+  arrives as new nodes beside what is there.
+- **Skip** — a folder that exists is not made again; what the import has for it
+  goes into the one that is there. Anything else that exists is left alone and
+  the imported copy dropped, and whatever the import pointed at it now points at
+  the vault's.
+- **Replace** — folders merge the same way, and anything else that exists takes
+  the imported properties — and its passwords, for a credential — while keeping
+  its identity, so every connection, route and group that pointed at it still
+  does.
+
+The commit makes the same comparison the step showed, reports how many items
+were replaced, left as they were and merged, and records those numbers in the
+audit entry. Importing the same file twice with **Skip** changes nothing the
+second time. ⏳ Choosing per item — skip this one, replace that one — is not
+built. See `remoter_import::conflicts`.
 
 The report names what could not be mapped rather than silently discarding it.
 Unmappable settings are preserved verbatim in `custom_fields`, so nothing is
@@ -199,7 +217,7 @@ deliberately crafted.
 |---|---|---|
 | XXE / entity expansion | A `<!DOCTYPE` declaration is a hard error, not a skipped one, and there is no entity table for a document to add to — an unknown entity is a named failure rather than an empty string | ✅ |
 | Memory exhaustion | Bounded parse with an explicit `Limits` struct: input bytes, depth, item count, attribute count, value bytes, node count, findings, custom fields, included files and include depth | ✅ |
-| Malformed input | `cargo-fuzz` targets for all four shipped importers — `import_archive`, `import_csv`, `import_mremoteng`, `import_sshconfig` | ✅ |
+| Malformed input | `cargo-fuzz` targets for all five shipped importers — `import_archive`, `import_csv`, `import_json`, `import_mremoteng`, `import_sshconfig` | ✅ |
 | Credential misuse | Imported credentials carry a `Purpose` restriction matching their source protocol | ✅ |
 | Zip slip | Archive entries with absolute paths, `..` segments or symlinks rejected | ⏳ — no importer reads an archive yet; this is for Royal TS |
 | Decompression bombs | Hard cap on decompressed size and entry count | ⏳ — same |
@@ -221,7 +239,7 @@ archive's secrets are each recorded as `secret_exported` too.
 | Format | Secrets | Use | |
 |---|---|---|---|
 | **Remoter archive** (`.rmtr`) | Encrypted with a password you set | Moving connections to another Remoter, backup, sharing a folder with a colleague | ✅ |
-| **Remoter archive, structure only** | Excluded | Sharing a topology without credentials | ⏳ — the JSON carries the structure; nothing imports it yet |
+| **Remoter archive, structure only** | Excluded | Sharing a topology without credentials | ⏳ — the JSON carries the structure, and Remoter imports it |
 | **JSON** | Excluded — always, not by default | Scripting, version control, review | ✅ |
 | **CSV** | Excluded — always, not by default | Spreadsheets, inventory | ✅ |
 | **`~/.ssh/config` fragment** | References only | Using the same hosts from the command line | ✅ |
@@ -288,7 +306,15 @@ tombstone naming what is missing. Each secret is then sealed under the
 destination vault's key, and only into a field its node's kind holds. See
 `remoter_import::native`.
 
-## Round-tripping — ◐ archive, CSV and OpenSSH config
+✅ **Importing a JSON export** takes the same path with no password: the tree
+comes back with its inheritance states, settings, custom fields, tags, icons and
+colours, and each credential keeps the kind of secret it held — without the
+secret, which the export never wrote. The report says how many credentials came
+without one, and each asks for its password or key the first time it is used.
+A JSON file that is not a Remoter export, or one from a newer format version, is
+refused by what it is rather than read as something else.
+
+## Round-tripping — ◐ archive, JSON, CSV and OpenSSH config
 
 Export followed by import must reproduce the original exactly, including
 inheritance states, custom fields, tags and protocol settings that the running
@@ -313,8 +339,14 @@ in `crates/remoter-ipc/src/import.rs`), and a selection put down on its own
 resolves every connection the way it resolved in place
 (`crates/remoter-import/src/export/tests.rs`, `crates/remoter-core/tests/transplant.rs`).
 
-⏳ A property test over arbitrary trees for the archive is not written, and the
-lossless round trip for the JSON needs something to read the JSON back. The three property tests
+✅ The JSON comes back as the same tree less its secrets: every node's kind,
+name, place, order, inheritance states, settings and references, compared node
+by node once the new identities are mapped back to the old
+(`the_json_comes_back_as_the_same_tree_less_its_secrets` in
+`crates/remoter-import/src/export/tests.rs`).
+
+⏳ A property test over arbitrary trees, for the archive and for the JSON, is
+not written. The three property tests
 of the kind this section asks for cover inheritance resolution, moves and the
 importers — see
 [testing-strategy.md](../development/testing-strategy.md#property-tests).

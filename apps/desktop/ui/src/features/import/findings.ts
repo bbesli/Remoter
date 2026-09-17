@@ -80,6 +80,13 @@ export function describeFinding(t: TFunction<"import">, finding: ImportFinding):
         body: t("finding.secretsRecoveredBody"),
         code: null,
       };
+    case "secrets_not_carried":
+      return {
+        severity,
+        title: t("finding.secretsNotCarriedTitle", { count: finding.count }),
+        body: t("finding.secretsNotCarriedBody"),
+        code: null,
+      };
     case "credentials_deduplicated":
       return {
         severity,

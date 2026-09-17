@@ -632,15 +632,17 @@ pub(crate) struct PendingImport {
     pub(crate) source: remoter_import::SourceFormat,
     pub(crate) nodes: Vec<remoter_import::PreviewNode>,
     pub(crate) report: remoter_import::ImportReport,
-    /// A `.rmtr` archive's nodes and their plaintext secrets, in place of
-    /// `nodes`. The secrets are `Secret` buffers, so dropping this wipes them
-    /// exactly as dropping a preview wipes its recovered passwords.
-    pub(crate) archive: Option<PendingArchive>,
+    /// Remoter's own export — an archive's nodes and their plaintext secrets,
+    /// or a JSON document's nodes and none — in place of `nodes`. The secrets
+    /// are `Secret` buffers, so dropping this wipes them exactly as dropping a
+    /// preview wipes its recovered passwords.
+    pub(crate) native: Option<PendingNative>,
 }
 
-/// What an opened archive holds, waiting for the user to commit it.
+/// What an opened archive or a Remoter JSON export holds, waiting for the user
+/// to commit it.
 #[derive(Debug)]
-pub(crate) struct PendingArchive {
+pub(crate) struct PendingNative {
     pub(crate) nodes: Vec<remoter_core::Node>,
     pub(crate) secrets: Vec<remoter_vault::archive::ArchiveSecret>,
 }
@@ -1199,6 +1201,14 @@ impl Inner {
         self.pending_import = Some(pending);
     }
 
+    /// Borrows the preview, checking it is the one the caller means.
+    pub(crate) fn pending_import(&self, id: &str) -> Result<&PendingImport, IpcError> {
+        match &self.pending_import {
+            Some(pending) if pending.id == id => Ok(pending),
+            _ => Err(no_such_preview()),
+        }
+    }
+
     /// Takes the preview back out, checking it is the one the caller means.
     pub(crate) fn take_pending_import(&mut self, id: &str) -> Result<PendingImport, IpcError> {
         match self.pending_import.take() {
@@ -1207,12 +1217,7 @@ impl Inner {
                 // Put back a preview that belongs to a different wizard run
                 // rather than dropping someone else's work on a stale click.
                 self.pending_import = other;
-                Err(IpcError::new(
-                    "import.no-such-preview",
-                    "That import preview is no longer held: it was committed, cancelled, or \
-                     dropped when the vault locked. Nothing was written.",
-                )
-                .with_actions(["Choose the file again"]))
+                Err(no_such_preview())
             }
         }
     }
@@ -1592,6 +1597,16 @@ pub(crate) fn now_seconds() -> i64 {
         .ok()
         .and_then(|d| i64::try_from(d.as_secs()).ok())
         .unwrap_or_default()
+}
+
+/// The refusal for a preview that is no longer held.
+fn no_such_preview() -> IpcError {
+    IpcError::new(
+        "import.no-such-preview",
+        "That import preview is no longer held: it was committed, cancelled, or dropped when \
+         the vault locked. Nothing was written.",
+    )
+    .with_actions(["Choose the file again"])
 }
 
 #[cfg(test)]

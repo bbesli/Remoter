@@ -127,6 +127,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         import::import_parse,
         import::import_cancel,
         import::import_commit,
+        import::import_conflicts,
         // --- settings ---
         commands::settings_get,
         commands::settings_set,

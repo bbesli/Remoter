@@ -57,6 +57,14 @@ export const qk = {
   tunnels: () => ["tunnels"] as const,
 
   /**
+   * What a held import preview collides with at one destination, with one set
+   * of unticked items. Under `nodes`, so a change to the tree invalidates it:
+   * what collides is a question about what the vault holds.
+   */
+  importConflicts: (importId: string, destinationId: string | null, excluded: readonly string[]) =>
+    ["nodes", "import-conflicts", importId, destinationId, [...excluded]] as const,
+
+  /**
    * Everything one SFTP file pane owns.
    *
    * A prefix of the two below, so closing a pane or acting on it invalidates

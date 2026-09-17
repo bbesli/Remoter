@@ -66,7 +66,7 @@ export type AuditOutcome = "success" | "failure" | "denied";
 export type AuditExportFormat = "json" | "csv";
 
 /** The importers this build has. */
-export type ImportSource = "remoter-archive" | "mremoteng" | "ssh-config" | "csv";
+export type ImportSource = "remoter-archive" | "remoter-json" | "mremoteng" | "ssh-config" | "csv";
 
 /** How much attention an import finding needs. */
 export type FindingSeverity = "info" | "warning" | "alert";
@@ -1206,6 +1206,7 @@ export type ImportFinding =
   | { severity: FindingSeverity; kind: "legacy_cbc_encryption" }
   | { severity: FindingSeverity; kind: "full_file_encryption" }
   | { severity: FindingSeverity; kind: "secrets_recovered"; count: number }
+  | { severity: FindingSeverity; kind: "secrets_not_carried"; count: number }
   | {
       severity: FindingSeverity;
       kind: "credentials_deduplicated";
@@ -1243,10 +1244,34 @@ export type ImportFinding =
   /** What ran out: `custom_fields`, `findings` or `nodes`. */
   | { severity: FindingSeverity; kind: "limit_reached"; limit: string };
 
+/**
+ * What an import does with an item the vault already has where it would land:
+ * add a second one, leave the one that is there, or give the one that is there
+ * the imported properties. Folders merge under `skip` and `replace`.
+ */
+export type ConflictPolicy = "keep-both" | "skip" | "replace";
+
+/** An imported item that already exists where it would land. */
+export interface ImportConflict {
+  name: string;
+  kind: NodeKind;
+  /** The breadcrumb of the folder the existing item is in; empty at the top. */
+  path: string;
+}
+
+export interface ImportConflicts {
+  /** How many imported items already exist; exact. */
+  total: number;
+  /** The first of them, by name. */
+  items: ImportConflict[];
+}
+
 export interface ImportCommit {
   importId: string;
   /** The folder to import into. Absent means the top level of the vault. */
   destinationId?: string | null;
+  /** Absent keeps both. */
+  conflictPolicy?: ConflictPolicy | null;
   /**
    * Nodes the user unticked. Excluding a folder excludes everything under it;
    * nothing is written for any of them.
@@ -1267,6 +1292,12 @@ export interface ImportResult {
   credentials: number;
   /** How many passwords were sealed into the vault. */
   secretsStored: number;
+  /** Items the vault already had that took the imported properties. */
+  replaced: number;
+  /** Items the vault already had that were left as they were. */
+  unchanged: number;
+  /** Imported folders that went into one the vault already had. */
+  merged: number;
   /**
    * Findings the report rates warning or alert — the "needs a look" count on
    * the final step.
@@ -2284,6 +2315,15 @@ export const ipc = {
   cancelImport: (importId: string) => invoke<void>("import_cancel", { importId }),
   /** Writes a previewed import into the vault, in one transaction. */
   commitImport: (req: ImportCommit) => invoke<ImportResult>("import_commit", { req }),
+  /**
+   * What the held preview would collide with at a destination. Read-only; the
+   * commit makes the same comparison.
+   */
+  importConflicts: (req: {
+    importId: string;
+    destinationId: string | null;
+    excludedIds: string[];
+  }) => invoke<ImportConflicts>("import_conflicts", { req }),
 
   // --- settings ---
   getSettings: () => invoke<AppSettings>("settings_get"),

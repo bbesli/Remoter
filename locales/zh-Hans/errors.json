@@ -599,7 +599,7 @@
       ]
     },
     "unknown-format": {
-      "message": "该文件不是 Remoter 可导入的格式：它既不是 mRemoteNG 文档，也不是 OpenSSH 配置或 CSV 导出文件。",
+      "message": "该文件不是 Remoter 可导入的格式：它既不是 Remoter 归档或 JSON 导出，也不是 mRemoteNG 文档、OpenSSH 配置或 CSV 导出文件。",
       "actions": [
         "自行选择来源格式",
         "将连接重新导出为 CSV"
@@ -641,6 +641,18 @@
       "actions": [
         "从原处重新复制该文件",
         "重新导出归档"
+      ]
+    },
+    "malformed-json": {
+      "message": "该文件不是有效的 JSON：它在中途中断或出错。",
+      "actions": [
+        "从 Remoter 重新导出"
+      ]
+    },
+    "unsupported-export": {
+      "message": "该文件由更新版本的 Remoter 导出，当前版本无法读取。",
+      "actions": [
+        "更新 Remoter"
       ]
     }
   },

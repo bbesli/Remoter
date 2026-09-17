@@ -599,7 +599,7 @@
       ]
     },
     "unknown-format": {
-      "message": "That file is not in a format Remoter imports: it is not an mRemoteNG document, an OpenSSH config or a CSV export.",
+      "message": "That file is not in a format Remoter imports: it is not a Remoter archive or JSON export, an mRemoteNG document, an OpenSSH config or a CSV export.",
       "actions": [
         "Choose the source format yourself",
         "Export the connections again as CSV"
@@ -641,6 +641,18 @@
       "actions": [
         "Copy the file again from where it came from",
         "Export the archive again"
+      ]
+    },
+    "malformed-json": {
+      "message": "That file is not valid JSON: it breaks off or goes wrong part of the way through.",
+      "actions": [
+        "Export it again from Remoter"
+      ]
+    },
+    "unsupported-export": {
+      "message": "That file was exported by a newer version of Remoter, which this build does not read.",
+      "actions": [
+        "Update Remoter"
       ]
     }
   },

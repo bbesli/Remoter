@@ -34,6 +34,7 @@ vi.mock("@/lib/ipc", async (importOriginal) => {
       parseImport: vi.fn(),
       commitImport: vi.fn(),
       cancelImport: vi.fn(),
+      importConflicts: vi.fn(),
       listNodes: vi.fn(),
     },
   };
@@ -48,6 +49,7 @@ const mocked = ipc as unknown as {
   parseImport: ReturnType<typeof vi.fn>;
   commitImport: ReturnType<typeof vi.fn>;
   cancelImport: ReturnType<typeof vi.fn>;
+  importConflicts: ReturnType<typeof vi.fn>;
   listNodes: ReturnType<typeof vi.fn>;
 };
 
@@ -124,6 +126,9 @@ function result(): ImportResult {
     connections: 1,
     credentials: 0,
     secretsStored: 1,
+    replaced: 0,
+    unchanged: 0,
+    merged: 0,
     needsAttention: 1,
     rootIds: ["prod"],
   };
@@ -140,6 +145,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocked.listNodes.mockResolvedValue([] as TreeNode[]);
   mocked.cancelImport.mockResolvedValue(undefined);
+  mocked.importConflicts.mockResolvedValue({ total: 0, items: [] });
 });
 
 /** Path typed, detected, and on to the secrets step. */
@@ -422,11 +428,70 @@ describe("the preview", () => {
       destinationId: null,
       // "old-01" is not named: excluding its folder already excludes it.
       excludedIds: ["archive"],
+      conflictPolicy: "keep-both",
     });
 
     expect(await screen.findByText("2 items are in your vault")).toBeInTheDocument();
     expect(screen.getByText("There is no undo")).toBeInTheDocument();
     expect(screen.getByText("Rotate these credentials")).toBeInTheDocument();
+  });
+
+  it("says what is already in the vault, and commits the choice made about it", async () => {
+    const user = userEvent.setup();
+    mocked.importConflicts.mockResolvedValue({
+      total: 7,
+      items: [
+        { name: "Production", kind: "folder", path: "" },
+        { name: "web-01", kind: "connection", path: "Production" },
+        { name: "web-02", kind: "connection", path: "Production" },
+        { name: "web-03", kind: "connection", path: "Production" },
+        { name: "web-04", kind: "connection", path: "Production" },
+        { name: "web-05", kind: "connection", path: "Production" },
+        { name: "web-06", kind: "connection", path: "Production" },
+      ],
+    });
+    mocked.commitImport.mockResolvedValue({ ...result(), replaced: 0, unchanged: 5, merged: 1 });
+    draw(<ImportWizard />);
+    await reachPreview(user);
+
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.click(screen.getByRole("button", { name: "Choose the destination" }));
+
+    expect(await screen.findByText("7 items are already there")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(mocked.importConflicts).toHaveBeenCalledWith({
+        importId: "import-1",
+        destinationId: null,
+        excludedIds: [],
+      }),
+    );
+    expect(screen.getByText(/Production.*at the top level/)).toBeInTheDocument();
+    // Five by name, and the rest as a number.
+    expect(screen.getByText(/web-04.*in.*Production/)).toBeInTheDocument();
+    expect(screen.queryByText(/web-05/)).not.toBeInTheDocument();
+    expect(screen.getByText("and 2 more")).toBeInTheDocument();
+
+    const policies = screen.getByRole("radiogroup", {
+      name: "What to do with items that are already there",
+    });
+    expect(within(policies).getByRole("radio", { name: /Keep both/ })).toBeChecked();
+    await user.click(within(policies).getByRole("radio", { name: /Skip them/ }));
+    expect(within(policies).getByRole("radio", { name: /Skip them/ })).toBeChecked();
+
+    await user.click(screen.getByRole("button", { name: "Review and commit" }));
+    await user.click(screen.getByRole("button", { name: "Import 4 items" }));
+
+    await waitFor(() =>
+      expect(mocked.commitImport).toHaveBeenCalledWith(
+        expect.objectContaining({ conflictPolicy: "skip" }),
+      ),
+    );
+    expect(await screen.findByText("Items the vault already had")).toBeInTheDocument();
+    expect(screen.getByText("5 items were left as they were.")).toBeInTheDocument();
+    expect(
+      screen.getByText("1 imported folder went into a folder the vault already had."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/took the imported settings/)).not.toBeInTheDocument();
   });
 
   /**

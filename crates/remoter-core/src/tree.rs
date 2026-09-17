@@ -1172,6 +1172,19 @@ fn merge_ancestor_settings(
 /// Returns the map from each old id to its new one.
 pub fn rekey(nodes: &mut [Node]) -> HashMap<NodeId, NodeId> {
     let map: HashMap<NodeId, NodeId> = nodes.iter().map(|node| (node.id, NodeId::new())).collect();
+    remap(nodes, &map);
+    map
+}
+
+/// Rewrites every id `map` names, wherever it appears in `nodes`: a node's own
+/// id, its parent, its credential, its gateway hops and their credentials, a
+/// group's members, an attached credential's owner. Ids `map` does not name
+/// are left alone.
+///
+/// [`rekey`] is this with a map of fresh ids. An import that finds a node it
+/// is bringing already in the vault is this with a map to the node that is
+/// there, so everything that pointed at the one points at the other.
+pub fn remap(nodes: &mut [Node], map: &HashMap<NodeId, NodeId>) {
     for node in nodes.iter_mut() {
         if let Some(new) = map.get(&node.id) {
             node.id = *new;
@@ -1180,7 +1193,7 @@ pub fn rekey(nodes: &mut [Node]) -> HashMap<NodeId, NodeId> {
             node.parent_id = Some(*new);
         }
         for reference in node.references_mut() {
-            reference.retarget(&map);
+            reference.retarget(map);
         }
         if let NodeKind::Credential(credential) = &mut node.kind {
             if let Some(new) = credential.attached_to.and_then(|owner| map.get(&owner)) {
@@ -1188,7 +1201,6 @@ pub fn rekey(nodes: &mut [Node]) -> HashMap<NodeId, NodeId> {
             }
         }
     }
-    map
 }
 
 fn merge_settings(node: &Node, ancestors: &[&Node]) -> BTreeMap<String, Resolved<String>> {

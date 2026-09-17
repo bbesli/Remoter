@@ -1112,6 +1112,38 @@ pub struct ImportCommitDto {
     /// Nodes the user unticked. Excluding a folder excludes everything under
     /// it; nothing is written for any of them.
     pub excluded_ids: Option<Vec<String>>,
+    /// `"keep-both" | "skip" | "replace"`: what to do with an item the vault
+    /// already has where the import would put it. Absent keeps both.
+    #[serde(default)]
+    pub conflict_policy: Option<String>,
+}
+
+/// What an import would collide with, at a destination.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportConflictsRequestDto {
+    pub import_id: String,
+    pub destination_id: Option<String>,
+    pub excluded_ids: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportConflictsDto {
+    /// How many imported items already exist where they would land.
+    pub total: usize,
+    /// The first of them, for the list on screen.
+    pub items: Vec<ImportConflictDto>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportConflictDto {
+    pub name: String,
+    /// `"folder" | "connection" | "credential" | "group" | "separator"`
+    pub kind: String,
+    /// The breadcrumb of the folder the existing item is in; empty at the top.
+    pub path: String,
 }
 
 /// What a committed import wrote. One transaction: either all of this reached
@@ -1128,6 +1160,12 @@ pub struct ImportResultDto {
     pub credentials: usize,
     /// How many passwords were sealed into the vault.
     pub secrets_stored: usize,
+    /// Items the vault already had that took the imported one's properties.
+    pub replaced: usize,
+    /// Items the vault already had that were left as they were.
+    pub unchanged: usize,
+    /// Imported folders that went into one the vault already had.
+    pub merged: usize,
     /// Findings the report rates warning or alert — the "needs a look" count
     /// on the final step.
     pub needs_attention: usize,

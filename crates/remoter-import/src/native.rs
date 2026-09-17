@@ -13,13 +13,237 @@
 //! This module reads no file and opens no archive. The `.rmtr` envelope is
 //! `remoter_vault::archive`'s; what reaches here is the nodes it held.
 
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
-use remoter_core::{Node, NodeId, NodeKind, Tree, rekey, validate_node};
+use remoter_core::{
+    ConnectionProps, CredentialProps, FolderProps, GroupProps, KeyFormat, Node, NodeId, NodeKind,
+    ProtocolId, SecretKind, Tag, Tree, rekey, validate_node,
+};
+use serde::Deserialize;
 
 use crate::error::ImportError;
+use crate::limits::Limits;
 use crate::preview::NodeSummary;
-use crate::report::{ImportReport, SourceFormat};
+use crate::report::{Finding, ImportReport, SourceFormat};
+use crate::xml::as_text;
+
+/// The `format` a Remoter JSON export declares.
+const JSON_FORMAT: &str = "remoter-tree";
+
+/// The newest JSON export version this build reads.
+const JSON_VERSION: u32 = 1;
+
+#[derive(Deserialize)]
+struct JsonDocument {
+    format: String,
+    version: u32,
+    #[serde(default)]
+    nodes: Vec<JsonEntry>,
+}
+
+#[derive(Deserialize)]
+struct JsonEntry {
+    id: NodeId,
+    #[serde(default)]
+    parent_id: Option<NodeId>,
+    #[serde(default)]
+    sort_order: i64,
+    kind: JsonKind,
+    name: String,
+    #[serde(default)]
+    description: String,
+    #[serde(default)]
+    tags: Vec<Tag>,
+    #[serde(default)]
+    icon: Option<String>,
+    #[serde(default)]
+    colour: Option<String>,
+    #[serde(default)]
+    custom_fields: BTreeMap<String, String>,
+}
+
+#[derive(Deserialize)]
+enum JsonKind {
+    Folder(FolderProps),
+    Connection(ConnectionProps),
+    Credential(JsonCredential),
+    Group(GroupProps),
+    Separator,
+}
+
+#[derive(Deserialize)]
+struct JsonCredential {
+    #[serde(default)]
+    attached_to: Option<NodeId>,
+    username: String,
+    #[serde(default)]
+    domain: Option<String>,
+    secret: JsonSecret,
+    #[serde(default)]
+    expires_at: Option<i64>,
+    #[serde(default)]
+    allowed_protocols: Vec<ProtocolId>,
+}
+
+#[derive(Deserialize)]
+enum JsonSecret {
+    Password,
+    PrivateKey {
+        format: KeyFormat,
+        #[serde(default)]
+        has_passphrase: bool,
+    },
+    Agent {
+        #[serde(default)]
+        comment_filter: Option<String>,
+    },
+    External {
+        provider: String,
+        reference: String,
+    },
+    Certificate,
+}
+
+/// Reads the JSON document Remoter's export writes back into nodes.
+///
+/// The document says which kind of secret each credential holds and never the
+/// secret, so a credential that held one comes back holding `placeholder` —
+/// the vault's own marker for material not yet sealed — and no material. It
+/// keeps its kind, its account and its restrictions, and asks for its password
+/// or key the first time it is used; the report counts how many will. A TOTP
+/// configuration is sealed material too and does not come back at all.
+///
+/// Bounded like every importer: the input size, the node count, and
+/// `serde_json`'s own nesting limit. Nothing here is validated against the
+/// domain model — [`graft`] does that for every node on its way in.
+///
+/// # Errors
+///
+/// [`ImportError::TooLarge`], [`ImportError::NotUtf8`],
+/// [`ImportError::MalformedJson`], [`ImportError::WrongFormat`] for JSON that
+/// is not a Remoter export, [`ImportError::UnsupportedExport`] for a newer
+/// one, and [`ImportError::TooManyNodes`].
+pub fn parse_json(
+    bytes: &[u8],
+    limits: &Limits,
+    placeholder: &[u8],
+) -> Result<(Vec<Node>, ImportReport), ImportError> {
+    let text = as_text(bytes, limits)?;
+    let document: JsonDocument = serde_json::from_str(&text).map_err(|err| {
+        if err.is_data() {
+            ImportError::WrongFormat {
+                expected: "a Remoter JSON export",
+            }
+        } else {
+            ImportError::MalformedJson {
+                line: err.line(),
+                column: err.column(),
+            }
+        }
+    })?;
+    if document.format != JSON_FORMAT {
+        return Err(ImportError::WrongFormat {
+            expected: "a Remoter JSON export",
+        });
+    }
+    if document.version > JSON_VERSION {
+        return Err(ImportError::UnsupportedExport {
+            version: document.version,
+        });
+    }
+    if document.nodes.len() > limits.max_nodes {
+        return Err(ImportError::TooManyNodes {
+            limit: limits.max_nodes,
+        });
+    }
+
+    let mut without_secret = 0usize;
+    let nodes: Vec<Node> = document
+        .nodes
+        .into_iter()
+        .map(|entry| {
+            let kind = match entry.kind {
+                JsonKind::Folder(props) => NodeKind::Folder(props),
+                JsonKind::Connection(props) => NodeKind::Connection(props),
+                JsonKind::Group(props) => NodeKind::Group(props),
+                JsonKind::Separator => NodeKind::Separator,
+                JsonKind::Credential(credential) => {
+                    let sealed = || placeholder.to_vec();
+                    let secret = match credential.secret {
+                        JsonSecret::Password => {
+                            without_secret += 1;
+                            SecretKind::Password { sealed: sealed() }
+                        }
+                        JsonSecret::PrivateKey {
+                            format,
+                            has_passphrase,
+                        } => {
+                            without_secret += 1;
+                            SecretKind::PrivateKey {
+                                sealed_key: sealed(),
+                                sealed_passphrase: has_passphrase.then(sealed),
+                                format,
+                            }
+                        }
+                        JsonSecret::Certificate => {
+                            without_secret += 1;
+                            SecretKind::Certificate {
+                                sealed_cert: sealed(),
+                                sealed_key: sealed(),
+                            }
+                        }
+                        JsonSecret::Agent { comment_filter } => {
+                            SecretKind::Agent { comment_filter }
+                        }
+                        JsonSecret::External {
+                            provider,
+                            reference,
+                        } => SecretKind::External {
+                            provider,
+                            reference,
+                        },
+                    };
+                    NodeKind::Credential(CredentialProps {
+                        attached_to: credential.attached_to,
+                        username: credential.username,
+                        domain: credential.domain,
+                        secret,
+                        totp: None,
+                        expires_at: credential.expires_at,
+                        allowed_protocols: credential.allowed_protocols,
+                    })
+                }
+            };
+            Node {
+                id: entry.id,
+                parent_id: entry.parent_id,
+                sort_order: entry.sort_order,
+                kind,
+                name: entry.name,
+                description: entry.description,
+                tags: entry.tags,
+                icon: entry.icon,
+                colour: entry.colour,
+                created_at: 0,
+                updated_at: 0,
+                revision: 1,
+                custom_fields: entry.custom_fields,
+                deleted_at: None,
+            }
+        })
+        .collect();
+
+    let mut report = report(SourceFormat::RemoterJson, &nodes, 0);
+    if without_secret > 0 {
+        report.push(
+            limits,
+            Finding::SecretsNotCarried {
+                count: without_secret,
+            },
+        );
+    }
+    Ok((nodes, report))
+}
 
 /// Nodes ready to be inserted into a tree, parents before children.
 #[derive(Debug)]

@@ -59,6 +59,7 @@
 
 #![doc(html_no_source)]
 
+pub mod conflicts;
 pub mod csv;
 mod error;
 pub mod export;
@@ -137,6 +138,12 @@ pub fn detect(bytes: &[u8]) -> Option<SourceFormat> {
     // nothing about what the file is — so these read the head only.
     let head = xml::sniff_head(&bytes[..bytes.len().min(SNIFF_BYTES)]);
     let text: &str = &head;
+    // Remoter's own JSON export names itself in its first key. Asked before
+    // the line tests, because a description inside it can hold a line that
+    // opens `Host `.
+    if is_remoter_json(text) {
+        return Some(SourceFormat::RemoterJson);
+    }
     // A header row naming both required columns is a CSV, whatever its rows
     // say. Asked before the line test below because a quoted description can
     // hold a line that opens `host is behind the NAT`, and the exporter writes
@@ -158,6 +165,13 @@ pub fn detect(bytes: &[u8]) -> Option<SourceFormat> {
         return Some(SourceFormat::Csv);
     }
     None
+}
+
+/// Whether a document is Remoter's JSON export: an object whose head declares
+/// the export's `format`.
+fn is_remoter_json(text: &str) -> bool {
+    let body = text.trim_start_matches('\u{feff}').trim_start();
+    body.starts_with('{') && body.contains("\"format\": \"remoter-tree\"")
 }
 
 /// Whether a line is a CSV header with the two columns [`csv`] requires, each

@@ -21,6 +21,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use remoter_core::{Node, NodeId, NodeKind, SecretKind, Tree, TreePatch};
+use remoter_import::conflicts::{self, Candidate, ConflictPolicy};
 use remoter_import::{
     ImportPreview, ImportReport, ImportedSecret, Limits, NodeSummary, PreviewNode, Severity,
     SourceFormat, csv, mremoteng, native, ssh_config,
@@ -33,11 +34,12 @@ use zeroize::Zeroizing;
 
 use crate::commands::{next_sort_order, read_tree, save};
 use crate::dto::{
-    ImportCommitDto, ImportCountsDto, ImportDetectionDto, ImportDocumentDto, ImportFindingDto,
-    ImportNodeDto, ImportPreviewDto, ImportReportDto, ImportResultDto,
+    ImportCommitDto, ImportConflictDto, ImportConflictsDto, ImportConflictsRequestDto,
+    ImportCountsDto, ImportDetectionDto, ImportDocumentDto, ImportFindingDto, ImportNodeDto,
+    ImportPreviewDto, ImportReportDto, ImportResultDto,
 };
 use crate::error::IpcError;
-use crate::state::{AppState, PendingArchive, PendingImport, now_millis};
+use crate::state::{AppState, PendingImport, PendingNative, now_millis};
 
 /// The field an imported password is stored under, matching the domain model's
 /// `SecretKind::Password`.
@@ -145,6 +147,10 @@ fn import_parse_impl(
     if format == SourceFormat::RemoterArchive {
         return archive_parse(state, &bytes, password, &subject);
     }
+    if format == SourceFormat::RemoterJson {
+        drop(password);
+        return json_parse(state, &bytes, &limits, &subject);
+    }
 
     let preview = match format {
         SourceFormat::MRemoteNg => mremoteng::parse(&bytes, password.as_ref(), &limits),
@@ -176,13 +182,16 @@ fn import_parse_impl(
         source: format,
         nodes,
         report,
-        archive: None,
+        native: None,
     });
     Ok(dto)
 }
 
 /// The wire spelling of Remoter's own archive.
 const ARCHIVE_WIRE: &str = "remoter-archive";
+
+/// The wire spelling of Remoter's own JSON export.
+const JSON_WIRE: &str = "remoter-json";
 
 /// Opens a `.rmtr` archive with its password and holds what it carries.
 ///
@@ -240,9 +249,44 @@ fn archive_parse(
         source: SourceFormat::RemoterArchive,
         nodes: Vec::new(),
         report,
-        archive: Some(PendingArchive {
+        native: Some(PendingNative {
             nodes: contents.nodes,
             secrets: contents.secrets,
+        }),
+    });
+    Ok(dto)
+}
+
+/// Reads Remoter's own JSON export and holds its nodes.
+fn json_parse(
+    state: &AppState,
+    bytes: &[u8],
+    limits: &Limits,
+    subject: &str,
+) -> Result<ImportPreviewDto, IpcError> {
+    let (nodes, report) = native::parse_json(bytes, limits, &Vault::sealed_placeholder())
+        .map_err(|err| IpcError::from_import(&err, subject))?;
+    let dto = ImportPreviewDto {
+        import_id: Uuid::now_v7().to_string(),
+        source: JSON_WIRE.to_owned(),
+        source_label: SourceFormat::RemoterJson.label().to_owned(),
+        nodes: native::summaries(&nodes, &HashSet::new())
+            .iter()
+            .map(node_dto)
+            .collect(),
+        report: report_dto(&report),
+    };
+
+    let mut guard = state.lock();
+    guard.vault_ref()?;
+    guard.set_pending_import(PendingImport {
+        id: dto.import_id.clone(),
+        source: SourceFormat::RemoterJson,
+        nodes: Vec::new(),
+        report,
+        native: Some(PendingNative {
+            nodes,
+            secrets: Vec::new(),
         }),
     });
     Ok(dto)
@@ -322,7 +366,9 @@ fn import_commit_impl(state: &AppState, req: ImportCommitDto) -> Result<ImportRe
         import_id,
         destination_id,
         excluded_ids,
+        conflict_policy,
     } = req;
+    let policy = parse_policy(conflict_policy.as_deref())?;
 
     let destination = match destination_id.as_deref() {
         Some(id) => Some(crate::commands::parse_node_id(id, "destinationId")?),
@@ -343,7 +389,7 @@ fn import_commit_impl(state: &AppState, req: ImportCommitDto) -> Result<ImportRe
     // how many items still want a human look at them.
     let needs_attention = pending.report.at_least(Severity::Warning).count();
     let vault = guard.vault_mut()?;
-    let mut tree = read_tree(vault)?;
+    let tree = read_tree(vault)?;
 
     if let Some(id) = destination {
         let Some(folder) = tree.get(id) else {
@@ -358,13 +404,15 @@ fn import_commit_impl(state: &AppState, req: ImportCommitDto) -> Result<ImportRe
         }
     }
 
-    if let Some(archive) = pending.archive {
-        return archive_commit(
+    if let Some(native) = pending.native {
+        let incoming = native_incoming(&tree, destination, &excluded, native)?;
+        return commit_incoming(
             vault,
             tree,
+            pending_source,
             destination,
-            &excluded,
-            archive,
+            incoming,
+            policy,
             needs_attention,
         );
     }
@@ -381,38 +429,31 @@ fn import_commit_impl(state: &AppState, req: ImportCommitDto) -> Result<ImportRe
         .into_iter()
         .filter(|node| !excluded.contains(&node.id))
         .collect();
-    let skipped = excluded.len();
 
     // Parents before children, whatever order the parser produced. A preview
     // whose parents cannot all be reached is a bug in the importer rather than
     // a problem with the file, so it is reported as one.
     let ordered = order_by_parent(&mut included, destination)?;
 
-    let mut patch = TreePatch::default();
-    let mut secrets: Vec<(Uuid, Secret<Vec<u8>>)> = Vec::new();
-    let mut counts = ImportCountsDto::default();
-    let mut root_ids: Vec<String> = Vec::new();
-
+    let mut incoming = Incoming {
+        nodes: Vec::with_capacity(ordered.len()),
+        secrets: Vec::new(),
+        excluded: excluded.len(),
+    };
     for mut node in ordered {
-        let at_top = node.parent_id.is_none();
-        if at_top {
+        if node.parent_id.is_none() {
             node.parent_id = destination;
             node.sort_order = base_sort_order.saturating_add(node.sort_order);
         }
 
-        match node.kind {
-            remoter_import::PreviewKind::Folder(_) => counts.folders += 1,
-            remoter_import::PreviewKind::Connection(_) => counts.connections += 1,
-            remoter_import::PreviewKind::Credential(_) => counts.credentials += 1,
-        }
-
         // Copied out before `into_node` consumes the preview and drops the
         // plaintext. Both buffers wipe themselves; neither is written anywhere
-        // but into the vault's sealing call below.
+        // but into the vault's sealing call.
         let sealed = if node.needs_sealing() {
             if let Some(secret) = node.secret() {
-                secrets.push((
-                    *node.id.as_uuid(),
+                incoming.secrets.push((
+                    node.id,
+                    PASSWORD_FIELD.to_owned(),
                     Secret::new(secret.expose().as_bytes().to_vec()),
                 ));
             }
@@ -422,93 +463,100 @@ fn import_commit_impl(state: &AppState, req: ImportCommitDto) -> Result<ImportRe
         } else {
             None
         };
-
-        let id = node.id;
-        let node = node
-            .into_node(now, sealed)
-            .map_err(|err| IpcError::from_import(&err, "that file"))?;
-        let inserted = tree.insert(node).map_err(|err| IpcError::from_core(&err))?;
-        patch.inserted.extend(inserted.inserted);
-        patch.updated.extend(inserted.updated);
-        patch.tombstoned.extend(inserted.tombstoned);
-
-        if at_top {
-            root_ids.push(id.to_string());
-        }
+        incoming.nodes.push(
+            node.into_node(now, sealed)
+                .map_err(|err| IpcError::from_import(&err, "that file"))?,
+        );
     }
 
-    // Nothing above this line touched the vault. One row-writing pass, one
-    // sealing pass, one atomic save.
-    let imported = patch.inserted.len();
-    vault
-        .apply(&tree, &patch)
-        .map_err(|err| IpcError::from_vault(&err, "this vault"))?;
-
-    let secrets_stored = secrets.len();
-    for (node, secret) in secrets {
-        vault
-            .set_secret(node, PASSWORD_FIELD, secret)
-            .map_err(|err| IpcError::from_vault(&err, "this vault"))?;
-    }
-
-    // One row for the import as a whole, beside the row per node `apply` wrote:
-    // four hundred "entry created" rows explain themselves only if something
-    // says where they came from.
-    let detail = format!(
-        "imported from {}: folders {}, connections {}, credentials {}, passwords {secrets_stored}",
-        pending_source.label(),
-        counts.folders,
-        counts.connections,
-        counts.credentials,
-    );
-    vault
-        .audit(
-            remoter_vault::AuditEvent::DataImported,
-            remoter_vault::AuditOutcome::Success,
-            Some(&detail),
-        )
-        .map_err(|err| IpcError::from_vault(&err, "this vault"))?;
-    save(vault)?;
-
-    Ok(ImportResultDto {
-        source: source_wire(pending_source).to_owned(),
-        imported,
-        skipped,
-        folders: counts.folders,
-        connections: counts.connections,
-        credentials: counts.credentials,
-        secrets_stored,
+    commit_incoming(
+        vault,
+        tree,
+        pending_source,
+        destination,
+        incoming,
+        policy,
         needs_attention,
-        root_ids,
-    })
+    )
 }
 
-/// Writes an opened archive into the vault: its nodes under new ids, then its
-/// secrets sealed under this vault's key, then one save.
-fn archive_commit(
-    vault: &mut Vault,
-    mut tree: Tree,
+/// Nodes on their way into the vault, whatever they were read from.
+struct Incoming {
+    /// Parents before children, the import's top level parented at the
+    /// destination, each with the id it has if it is inserted.
+    nodes: Vec<Node>,
+    /// Each secret, by the id of the node it belongs to and its field.
+    secrets: Vec<(NodeId, String, Secret<Vec<u8>>)>,
+    /// How many items the user left out.
+    excluded: usize,
+}
+
+/// Remoter's own export, under new ids at the destination.
+fn native_incoming(
+    tree: &Tree,
     destination: Option<NodeId>,
     excluded: &BTreeSet<NodeId>,
-    archive: PendingArchive,
-    needs_attention: usize,
-) -> Result<ImportResultDto, IpcError> {
-    let PendingArchive { nodes, secrets } = archive;
-    let base_sort_order = next_sort_order(&tree, destination);
+    native: PendingNative,
+) -> Result<Incoming, IpcError> {
+    let PendingNative { nodes, secrets } = native;
     let grafted = native::graft(
         nodes,
         excluded,
-        &tree,
+        tree,
         destination,
-        base_sort_order,
+        next_sort_order(tree, destination),
         now_millis(),
     )
-    .map_err(|err| IpcError::from_import(&err, "that archive"))?;
+    .map_err(|err| IpcError::from_import(&err, "that file"))?;
+    // Each secret follows its node to the node's new id; a secret whose node
+    // was left out goes nowhere.
+    let secrets = secrets
+        .into_iter()
+        .filter_map(|secret| {
+            let id = grafted.ids.get(&NodeId::from_uuid(secret.node))?;
+            Some((*id, secret.field, secret.value))
+        })
+        .collect();
+    Ok(Incoming {
+        nodes: grafted.nodes,
+        secrets,
+        excluded: grafted.excluded,
+    })
+}
+
+/// Writes nodes into the vault under a conflict policy: what is new inserted,
+/// what the vault already has skipped or replaced, then the secrets sealed
+/// under this vault's key, then one audit row and one save.
+#[allow(clippy::too_many_lines)] // one linear transaction; splitting it hides the order
+fn commit_incoming(
+    vault: &mut Vault,
+    mut tree: Tree,
+    source: SourceFormat,
+    destination: Option<NodeId>,
+    incoming: Incoming,
+    policy: ConflictPolicy,
+    needs_attention: usize,
+) -> Result<ImportResultDto, IpcError> {
+    let Incoming {
+        nodes,
+        secrets,
+        excluded,
+    } = incoming;
+    let resolution = conflicts::resolve(nodes, &tree, destination, policy);
 
     let mut patch = TreePatch::default();
     let mut counts = ImportCountsDto::default();
     let mut root_ids = Vec::new();
-    for node in grafted.nodes {
+    let mut replaced_credentials = Vec::new();
+    for node in resolution.updates {
+        if node.kind.as_credential().is_some() {
+            replaced_credentials.push(node.id);
+        }
+        let updated = tree.update(node).map_err(|err| IpcError::from_core(&err))?;
+        patch.updated.extend(updated.updated);
+    }
+    let replaced = patch.updated.len();
+    for node in resolution.inserts {
         match node.kind {
             NodeKind::Folder(_) => counts.folders += 1,
             NodeKind::Connection(_) => counts.connections += 1,
@@ -522,37 +570,66 @@ fn archive_commit(
         patch.inserted.extend(inserted.inserted);
     }
     let imported = patch.inserted.len();
+
+    // Nothing above this line touched the vault. One row-writing pass, one
+    // sealing pass, one atomic save.
     vault
         .apply(&tree, &patch)
         .map_err(|err| IpcError::from_vault(&err, "this vault"))?;
 
-    // Each secret follows its node to the node's new id, and is stored only if
-    // the node is one that holds a secret in that field. An archive is a file
-    // that came from somewhere; a field its node has no use for is not sealed
-    // into the vault on its say-so.
-    let mut secrets_stored = 0usize;
-    for secret in secrets {
-        let Some(id) = grafted.ids.get(&NodeId::from_uuid(secret.node)) else {
+    // A replaced credential that now holds another kind of secret — a key where
+    // there was a password — must not keep the old one.
+    for id in replaced_credentials {
+        let Some(node) = tree.get(id) else {
             continue;
         };
+        let fields = vault
+            .secret_fields(*id.as_uuid())
+            .map_err(|err| IpcError::from_vault(&err, "this vault"))?;
+        for field in fields {
+            if !holds_field(node, &field) {
+                vault
+                    .remove_secret(*id.as_uuid(), &field)
+                    .map_err(|err| IpcError::from_vault(&err, "this vault"))?;
+            }
+        }
+    }
+
+    // Each secret follows its node to where it ended up, and is stored only if
+    // that node holds a secret in that field. A file that came from somewhere
+    // does not get a field sealed into the vault on its say-so, and an item
+    // the vault kept as it was keeps its own secrets.
+    let mut secrets_stored = 0usize;
+    for (id, field, value) in secrets {
+        if resolution.skipped.contains(&id) {
+            continue;
+        }
+        let target = resolution.ids.get(&id).copied().unwrap_or(id);
         if !tree
-            .get(*id)
-            .is_some_and(|node| holds_field(node, &secret.field))
+            .get(target)
+            .is_some_and(|node| holds_field(node, &field))
         {
             continue;
         }
         vault
-            .set_secret(*id.as_uuid(), &secret.field, secret.value)
+            .set_secret(*target.as_uuid(), &field, value)
             .map_err(|err| IpcError::from_vault(&err, "this vault"))?;
         secrets_stored += 1;
     }
 
+    // One row for the import as a whole, beside the row per node `apply` wrote:
+    // four hundred "entry created" rows explain themselves only if something
+    // says where they came from.
     let detail = format!(
-        "imported from {}: folders {}, connections {}, credentials {}, passwords {secrets_stored}",
-        SourceFormat::RemoterArchive.label(),
+        "imported from {}: folders {}, connections {}, credentials {}, passwords {secrets_stored}; \
+         {} replaced, {} left as they were, {} folders merged",
+        source.label(),
         counts.folders,
         counts.connections,
         counts.credentials,
+        replaced,
+        resolution.skipped.len(),
+        resolution.merged,
     );
     vault
         .audit(
@@ -564,15 +641,126 @@ fn archive_commit(
     save(vault)?;
 
     Ok(ImportResultDto {
-        source: ARCHIVE_WIRE.to_owned(),
+        source: source_wire(source).to_owned(),
         imported,
-        skipped: grafted.excluded,
+        skipped: excluded,
         folders: counts.folders,
         connections: counts.connections,
         credentials: counts.credentials,
         secrets_stored,
+        replaced,
+        unchanged: resolution.skipped.len(),
+        merged: resolution.merged,
         needs_attention,
         root_ids,
+    })
+}
+
+/// Reads a conflict policy's wire spelling.
+fn parse_policy(name: Option<&str>) -> Result<ConflictPolicy, IpcError> {
+    match name {
+        None | Some("keep-both") => Ok(ConflictPolicy::KeepBoth),
+        Some("skip") => Ok(ConflictPolicy::Skip),
+        Some("replace") => Ok(ConflictPolicy::Replace),
+        Some(other) => Err(IpcError::invalid_request(
+            "conflictPolicy",
+            format!("`{other}` is not a conflict policy; expected keep-both, skip or replace"),
+        )),
+    }
+}
+
+/// What an import would collide with at a destination, before it is committed.
+///
+/// Read-only: the preview stays held, nothing is written, and the answer is
+/// the same comparison the commit makes.
+#[tauri::command]
+pub(crate) fn import_conflicts(
+    state: State<'_, AppState>,
+    req: ImportConflictsRequestDto,
+) -> Result<ImportConflictsDto, IpcError> {
+    import_conflicts_impl(&state, req)
+}
+
+/// How many conflicts the interface lists by name. The total is always exact.
+const MAX_LISTED_CONFLICTS: usize = 200;
+
+fn import_conflicts_impl(
+    state: &AppState,
+    req: ImportConflictsRequestDto,
+) -> Result<ImportConflictsDto, IpcError> {
+    let ImportConflictsRequestDto {
+        import_id,
+        destination_id,
+        excluded_ids,
+    } = req;
+    let destination = destination_id
+        .as_deref()
+        .map(|id| crate::commands::parse_node_id(id, "destinationId"))
+        .transpose()?;
+    let mut excluded: BTreeSet<NodeId> = BTreeSet::new();
+    for id in excluded_ids.iter().flatten() {
+        excluded.insert(crate::commands::parse_node_id(id, "excludedIds")?);
+    }
+
+    let mut guard = state.lock();
+    let vault = guard.vault_ref()?;
+    let tree = read_tree(vault)?;
+    let pending = guard.pending_import(&import_id)?;
+
+    let candidates: Vec<Candidate> = match &pending.native {
+        Some(native) => {
+            let grafted = native::graft(native.nodes.clone(), &excluded, &tree, destination, 0, 0)
+                .map_err(|err| IpcError::from_import(&err, "that file"))?;
+            grafted
+                .nodes
+                .iter()
+                .map(|node| {
+                    let mut candidate = Candidate::of(node);
+                    if candidate.parent_id == destination {
+                        candidate.parent_id = None;
+                    }
+                    candidate
+                })
+                .collect()
+        }
+        None => {
+            let excluded = closure_of(&pending.nodes, &excluded);
+            pending
+                .nodes
+                .iter()
+                .filter(|node| !excluded.contains(&node.id))
+                .map(|node| Candidate {
+                    id: node.id,
+                    parent_id: node.parent_id,
+                    kind: node.kind.label(),
+                    name: node.name.clone(),
+                    attached_to: None,
+                })
+                .collect()
+        }
+    };
+
+    let found = conflicts::find(&candidates, &tree, destination);
+    Ok(ImportConflictsDto {
+        total: found.len(),
+        items: found
+            .into_iter()
+            .take(MAX_LISTED_CONFLICTS)
+            .map(|conflict| ImportConflictDto {
+                path: tree
+                    .get(conflict.existing)
+                    .and_then(|node| tree.ancestors(node.id).ok())
+                    .map(|ancestors| {
+                        let mut names: Vec<&str> =
+                            ancestors.iter().map(|a| a.name.as_str()).collect();
+                        names.reverse();
+                        names.join(" / ")
+                    })
+                    .unwrap_or_default(),
+                name: conflict.name,
+                kind: conflict.kind,
+            })
+            .collect(),
     })
 }
 
@@ -637,6 +825,7 @@ const fn source_wire(format: SourceFormat) -> &'static str {
         SourceFormat::OpenSshConfig => "ssh-config",
         SourceFormat::Csv => "csv",
         SourceFormat::RemoterArchive => ARCHIVE_WIRE,
+        SourceFormat::RemoterJson => JSON_WIRE,
         // `SourceFormat` is `#[non_exhaustive]`: a format added upstream is
         // named rather than mistaken for one of these three.
         _ => "unknown",
@@ -649,11 +838,12 @@ fn parse_source(name: &str) -> Result<SourceFormat, IpcError> {
         "ssh-config" => Ok(SourceFormat::OpenSshConfig),
         "csv" => Ok(SourceFormat::Csv),
         ARCHIVE_WIRE => Ok(SourceFormat::RemoterArchive),
+        JSON_WIRE => Ok(SourceFormat::RemoterJson),
         other => Err(IpcError::invalid_request(
             "source",
             format!(
-                "`{other}` is not an importer; expected mremoteng, ssh-config, csv or \
-                 remoter-archive"
+                "`{other}` is not an importer; expected mremoteng, ssh-config, csv, \
+                 remoter-archive or remoter-json"
             ),
         )),
     }
@@ -662,8 +852,8 @@ fn parse_source(name: &str) -> Result<SourceFormat, IpcError> {
 fn unknown_format() -> IpcError {
     IpcError::new(
         "import.unknown-format",
-        "That file is not in a format Remoter imports: it is not an mRemoteNG document, an \
-         OpenSSH config or a CSV export.",
+        "That file is not in a format Remoter imports: it is not a Remoter archive or JSON \
+         export, an mRemoteNG document, an OpenSSH config or a CSV export.",
     )
     .with_actions([
         "Choose the source format yourself",
@@ -829,6 +1019,7 @@ mod tests {
             SourceFormat::OpenSshConfig,
             SourceFormat::Csv,
             SourceFormat::RemoterArchive,
+            SourceFormat::RemoterJson,
         ] {
             let wire = source_wire(format);
             assert_eq!(parse_source(wire).ok(), Some(format), "wire: {wire}");
@@ -898,6 +1089,7 @@ mod vault_tests {
                 import_id: preview.import_id.clone(),
                 destination_id: None,
                 excluded_ids: None,
+                conflict_policy: None,
             },
         );
         assert!(committed.is_ok(), "committing failed: {}", why(&committed));
@@ -942,7 +1134,9 @@ mod vault_tests {
         assert_eq!(imported.len(), 1, "one row per import: {:?}", log.entries);
         let detail = imported[0].detail.as_deref().unwrap_or_default();
         assert!(
-            detail == "imported from csv: folders 2, connections 2, credentials 1, passwords 1",
+            detail
+                == "imported from csv: folders 2, connections 2, credentials 1, passwords 1; \
+                    0 replaced, 0 left as they were, 0 folders merged",
             "{detail}"
         );
         assert!(!imported[0].warning, "bringing data in is not a warning");
@@ -959,6 +1153,7 @@ mod vault_tests {
                 import_id: preview.import_id,
                 destination_id: None,
                 excluded_ids: None,
+                conflict_policy: None,
             },
         );
         assert!(again.is_err_and(|err| err.code == "import.no-such-preview"));
@@ -1068,6 +1263,7 @@ mod vault_tests {
                 import_id: preview.import_id,
                 destination_id: None,
                 excluded_ids: None,
+                conflict_policy: None,
             },
         )
         .unwrap_or_else(|err| panic!("committing failed: {}", err.message));
@@ -1105,6 +1301,193 @@ mod vault_tests {
         clippy::panic,
         reason = "an import test without a vault has nothing left to assert"
     )]
+    fn a_json_export_comes_back_with_its_credentials_asking_for_their_passwords() {
+        let scratch = Scratch::new();
+        let Some(state) = open_vault(&scratch) else {
+            panic!("the vault could not be created");
+        };
+        let mut web = crate::dto::CreateNodeDto {
+            parent_id: None,
+            kind: String::from("connection"),
+            name: String::from("web-01"),
+            protocol: Some(String::from("ssh")),
+            host: Some(String::from("203.0.113.10")),
+            port: Some(2222),
+            username: Some(String::from("root")),
+            password: Some(String::from("server-password")),
+            credential: None,
+            credential_id: None,
+            gateway: None,
+        };
+        let original = crate::commands::node_create_impl(&state, &mut web)
+            .unwrap_or_else(|err| panic!("creating the connection failed: {}", err.message));
+
+        let file = scratch.join("vault.json");
+        crate::export::tree_export_for_tests(
+            &state,
+            crate::dto::TreeExportDto {
+                path: file.display().to_string(),
+                format: String::from("json"),
+                root_id: None,
+                password: None,
+            },
+        )
+        .unwrap_or_else(|err| panic!("exporting failed: {}", err.message));
+
+        // Back into the same vault: every id in the file is already taken.
+        let path = file.display().to_string();
+        let detected = import_detect_impl(path.clone())
+            .unwrap_or_else(|err| panic!("detecting failed: {}", err.message));
+        assert_eq!(detected.format.as_deref(), Some("remoter-json"));
+        assert!(!detected.password_required);
+        let preview = import_parse_impl(&state, path, None, None)
+            .unwrap_or_else(|err| panic!("parsing failed: {}", err.message));
+        let rendered = serde_json::to_string(&preview.report).unwrap_or_default();
+        assert!(rendered.contains("secrets_not_carried"), "{rendered}");
+
+        let committed = import_commit_impl(
+            &state,
+            ImportCommitDto {
+                import_id: preview.import_id,
+                destination_id: None,
+                excluded_ids: None,
+                conflict_policy: None,
+            },
+        )
+        .unwrap_or_else(|err| panic!("committing failed: {}", err.message));
+        assert_eq!(committed.source, "remoter-json");
+        assert_eq!(committed.connections, 1);
+        assert_eq!(committed.secrets_stored, 0);
+
+        let tree = tree_list_impl(&state).unwrap_or_default();
+        let copies: Vec<_> = tree
+            .iter()
+            .filter(|node| node.name == "web-01" && node.kind == "connection")
+            .collect();
+        assert_eq!(copies.len(), 2, "the original and the import: {tree:?}");
+        let imported = copies
+            .iter()
+            .find(|node| node.id != original.id)
+            .copied()
+            .unwrap_or_else(|| panic!("no imported copy: {copies:?}"));
+        assert_eq!(imported.port, Some(2222));
+        // The connection's own credential came with it, as the credential it
+        // was: a password one, for root.
+        assert_eq!(imported.username.as_deref(), Some("root"));
+        assert_eq!(imported.secret_kind.as_deref(), Some("password"));
+        let credential = imported
+            .attached_credential_id
+            .clone()
+            .unwrap_or_else(|| panic!("the credential did not come with it: {imported:?}"));
+        assert_ne!(Some(credential.clone()), original.attached_credential_id);
+
+        // It is a password credential with no password: using it asks for one.
+        let mut guard = state.lock();
+        let Ok(vault) = guard.vault_mut() else {
+            panic!("the vault closed");
+        };
+        let uuid = uuid::Uuid::parse_str(&credential).unwrap_or_default();
+        assert!(matches!(
+            vault.borrow_secret(uuid, "password", remoter_vault::Purpose::SshPassword),
+            Err(remoter_vault::VaultError::NoSuchSecret { .. })
+        ));
+    }
+
+    #[test]
+    #[expect(
+        clippy::panic,
+        reason = "an import test without a vault has nothing left to assert"
+    )]
+    fn importing_the_same_file_again_skips_or_replaces_what_is_already_there() {
+        let scratch = Scratch::new();
+        let Some(state) = open_vault(&scratch) else {
+            panic!("the vault could not be created");
+        };
+        let commit = |path: String, policy: Option<&str>| {
+            let preview = import_parse_impl(&state, path, None, None)
+                .unwrap_or_else(|err| panic!("parsing failed: {}", err.message));
+            let conflicts = import_conflicts_impl(
+                &state,
+                ImportConflictsRequestDto {
+                    import_id: preview.import_id.clone(),
+                    destination_id: None,
+                    excluded_ids: None,
+                },
+            )
+            .unwrap_or_else(|err| panic!("reading conflicts failed: {}", err.message));
+            let committed = import_commit_impl(
+                &state,
+                ImportCommitDto {
+                    import_id: preview.import_id,
+                    destination_id: None,
+                    excluded_ids: None,
+                    conflict_policy: policy.map(ToOwned::to_owned),
+                },
+            )
+            .unwrap_or_else(|err| panic!("committing failed: {}", err.message));
+            (conflicts, committed)
+        };
+
+        let first = scratch.write("export.csv", CSV);
+        let (conflicts, committed) = commit(first.display().to_string(), None);
+        assert_eq!(
+            conflicts.total, 0,
+            "an empty vault has nothing to collide with"
+        );
+        let size = tree_list_impl(&state).unwrap_or_default().len();
+        assert_eq!(committed.imported, size);
+
+        // The same file again, told to skip: nothing new, nothing changed.
+        let (conflicts, committed) = commit(first.display().to_string(), Some("skip"));
+        assert!(
+            conflicts.items.iter().any(|item| item.name == "web-01"
+                && item.kind == "connection"
+                && item.path == "Production"),
+            "{conflicts:?}"
+        );
+        assert_eq!(committed.imported, 0, "{committed:?}");
+        assert!(
+            committed.merged >= 1 && committed.unchanged >= 2,
+            "{committed:?}"
+        );
+        assert_eq!(tree_list_impl(&state).unwrap_or_default().len(), size);
+
+        // A changed file, told to replace: web-01 moves host, and stays one node.
+        let changed = scratch.write(
+            "changed.csv",
+            &CSV.replace("web-01.example.com", "web-01.new.example.com"),
+        );
+        let (_, committed) = commit(changed.display().to_string(), Some("replace"));
+        assert_eq!(committed.imported, 0, "{committed:?}");
+        assert!(committed.replaced >= 2, "{committed:?}");
+        let tree = tree_list_impl(&state).unwrap_or_default();
+        assert_eq!(tree.len(), size);
+        let web: Vec<_> = tree.iter().filter(|node| node.name == "web-01").collect();
+        assert_eq!(web.len(), 1);
+        assert_eq!(web[0].host.as_deref(), Some("web-01.new.example.com"));
+
+        // And keeping both is still what it always was: a second copy.
+        let (_, committed) = commit(first.display().to_string(), Some("keep-both"));
+        assert_eq!(committed.imported, size);
+        assert_eq!(tree_list_impl(&state).unwrap_or_default().len(), size * 2);
+
+        let refused = import_commit_impl(
+            &state,
+            ImportCommitDto {
+                import_id: String::from("nothing"),
+                destination_id: None,
+                excluded_ids: None,
+                conflict_policy: Some(String::from("merge-everything")),
+            },
+        );
+        assert!(refused.is_err_and(|err| err.code == "request.invalid"));
+    }
+
+    #[test]
+    #[expect(
+        clippy::panic,
+        reason = "an import test without a vault has nothing left to assert"
+    )]
     fn unticking_a_folder_leaves_out_everything_under_it() {
         let scratch = Scratch::new();
         let Some(state) = open_vault(&scratch) else {
@@ -1125,6 +1508,7 @@ mod vault_tests {
                 import_id: preview.import_id,
                 destination_id: None,
                 excluded_ids: Some(vec![folder.id.clone()]),
+                conflict_policy: None,
             },
         );
         assert!(committed.is_ok(), "committing failed: {}", why(&committed));
@@ -1176,6 +1560,7 @@ mod vault_tests {
                 import_id: preview.import_id,
                 destination_id: None,
                 excluded_ids: None,
+                conflict_policy: None,
             },
         );
         assert!(committed.is_err(), "a preview must not survive the lock");
@@ -1205,6 +1590,7 @@ mod vault_tests {
                 import_id: preview.import_id,
                 destination_id: None,
                 excluded_ids: None,
+                conflict_policy: None,
             },
         );
         assert!(committed.is_err_and(|err| err.code == "import.no-such-preview"));
@@ -1446,6 +1832,7 @@ mod mremoteng_tests {
                 import_id: preview.import_id,
                 destination_id: None,
                 excluded_ids: None,
+                conflict_policy: None,
             },
         );
         assert!(committed.is_ok(), "committing failed: {}", why(&committed));

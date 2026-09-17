@@ -599,7 +599,7 @@
       ]
     },
     "unknown-format": {
-      "message": "Diese Datei liegt in keinem Format vor, das Remoter importiert: weder ein mRemoteNG-Dokument noch eine OpenSSH-Konfiguration noch ein CSV-Export.",
+      "message": "Diese Datei liegt in keinem Format vor, das Remoter importiert: weder ein Remoter-Archiv oder -JSON-Export noch ein mRemoteNG-Dokument, eine OpenSSH-Konfiguration oder ein CSV-Export.",
       "actions": [
         "Das Quellformat selbst wählen",
         "Die Verbindungen erneut als CSV exportieren"
@@ -641,6 +641,18 @@
       "actions": [
         "Die Datei erneut von dort kopieren, wo sie herkam",
         "Das Archiv erneut exportieren"
+      ]
+    },
+    "malformed-json": {
+      "message": "Diese Datei ist kein gültiges JSON: Sie bricht ab oder wird unterwegs fehlerhaft.",
+      "actions": [
+        "Erneut aus Remoter exportieren"
+      ]
+    },
+    "unsupported-export": {
+      "message": "Diese Datei wurde von einer neueren Remoter-Version exportiert, die dieser Build nicht lesen kann.",
+      "actions": [
+        "Remoter aktualisieren"
       ]
     }
   },

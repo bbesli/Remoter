@@ -23,7 +23,7 @@ pub use node::{
     GatewayChain, GatewayHop, GroupLayout, GroupProps, KeyFormat, Node, NodeId, NodeKind, NodeRef,
     ProtocolId, ProtocolSettings, ReconnectPolicy, RecordingPolicy, SecretKind, Tag,
 };
-pub use tree::{Tree, TreePatch, rekey};
+pub use tree::{Tree, TreePatch, rekey, remap};
 pub use validate::{validate_host, validate_node, validate_port};
 
 /// Maximum depth of the node tree. Deeper trees are rejected at validation.

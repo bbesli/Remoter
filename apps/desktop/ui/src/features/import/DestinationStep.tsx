@@ -13,10 +13,11 @@
  */
 
 import { BusyStatus, SkeletonRows } from "@/components/Busy";
+import { Callout } from "@/components/Callout";
 import { FailureNotice } from "@/components/FailureNotice";
 import { Icon } from "@/components/Icon";
 import { compareInLocale, isolate, useT } from "@/i18n";
-import type { IpcFailure, TreeNode } from "@/lib/ipc";
+import type { ConflictPolicy, ImportConflicts, IpcFailure, TreeNode } from "@/lib/ipc";
 
 import s from "./ImportWizard.module.css";
 
@@ -43,7 +44,39 @@ interface DestinationStepProps {
   pending: boolean;
   failure: IpcFailure | null;
   onRetry: () => void;
+  /** What the import collides with at the chosen destination; `null` while asked. */
+  conflicts: ImportConflicts | null;
+  conflictsFailure: IpcFailure | null;
+  policy: ConflictPolicy;
+  onPolicy: (policy: ConflictPolicy) => void;
 }
+
+/** How many colliding items are named on screen; the count says the rest. */
+const LISTED_CONFLICTS = 5;
+
+const POLICIES: readonly {
+  id: ConflictPolicy;
+  labelKey:
+    | "destination.conflicts.keepBoth"
+    | "destination.conflicts.skip"
+    | "destination.conflicts.replace";
+  hintKey:
+    | "destination.conflicts.keepBothHint"
+    | "destination.conflicts.skipHint"
+    | "destination.conflicts.replaceHint";
+}[] = [
+  {
+    id: "keep-both",
+    labelKey: "destination.conflicts.keepBoth",
+    hintKey: "destination.conflicts.keepBothHint",
+  },
+  { id: "skip", labelKey: "destination.conflicts.skip", hintKey: "destination.conflicts.skipHint" },
+  {
+    id: "replace",
+    labelKey: "destination.conflicts.replace",
+    hintKey: "destination.conflicts.replaceHint",
+  },
+];
 
 export function DestinationStep({
   destinationId,
@@ -52,6 +85,10 @@ export function DestinationStep({
   pending,
   failure,
   onRetry,
+  conflicts,
+  conflictsFailure,
+  policy,
+  onPolicy,
 }: DestinationStepProps) {
   const t = useT("import");
 
@@ -116,6 +153,53 @@ export function DestinationStep({
 
       {folders !== null && folders.length === 0 && (
         <p className={s.stepLead}>{t("destination.noFolders")}</p>
+      )}
+
+      {conflictsFailure !== null && (
+        <FailureNotice failure={conflictsFailure} title={t("destination.conflicts.failed")} />
+      )}
+
+      {conflicts !== null && conflicts.total > 0 && (
+        <div className={s.card}>
+          <Callout tone="warning" title={t("destination.conflicts.title", { count: conflicts.total })}>
+            <ul className={s.conflictList}>
+              {conflicts.items.slice(0, LISTED_CONFLICTS).map((item, index) => (
+                // Two items can share a name and a folder; the position is the identity.
+                <li key={index}>
+                  {item.path === ""
+                    ? t("destination.conflicts.itemAtTop", { name: isolate(item.name) })
+                    : t("destination.conflicts.item", {
+                        name: isolate(item.name),
+                        path: isolate(item.path),
+                      })}
+                </li>
+              ))}
+            </ul>
+            {conflicts.total > LISTED_CONFLICTS && (
+              <p>{t("destination.conflicts.more", { count: conflicts.total - LISTED_CONFLICTS })}</p>
+            )}
+          </Callout>
+          <div
+            className={s.formatList}
+            role="radiogroup"
+            aria-label={t("destination.conflicts.policyLabel")}
+          >
+            {POLICIES.map((entry) => (
+              <button
+                key={entry.id}
+                type="button"
+                role="radio"
+                aria-checked={policy === entry.id}
+                className={s.formatOption}
+                data-selected={policy === entry.id}
+                onClick={() => onPolicy(entry.id)}
+              >
+                <span>{t(entry.labelKey)}</span>
+                <span className={s.formatHint}>{t(entry.hintKey)}</span>
+              </button>
+            ))}
+          </div>
+        </div>
       )}
 
       <p className={s.stepLead}>{t("destination.advice")}</p>

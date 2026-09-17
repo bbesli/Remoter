@@ -684,6 +684,21 @@ impl IpcError {
                 format!("{subject} includes files more than {limit} levels deep."),
             )
             .with_actions(["Flatten the Include chain and import again"]),
+            ImportError::MalformedJson { line, column } => Self::new(
+                "import.malformed-json",
+                format!(
+                    "{subject} is not valid JSON: it goes wrong at line {line}, column {column}."
+                ),
+            )
+            .with_actions(["Export it again from Remoter"]),
+            ImportError::UnsupportedExport { version } => Self::new(
+                "import.unsupported-export",
+                format!(
+                    "{subject} was exported by a newer version of Remoter, in format version \
+                     {version}, which this build does not read."
+                ),
+            )
+            .with_actions(["Update Remoter"]),
             ImportError::Validation(inner) => Self::from_validation(inner),
             // `ImportError` is `#[non_exhaustive]`: a variant added upstream
             // must not stop this crate compiling, and it must not arrive

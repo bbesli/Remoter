@@ -21,7 +21,7 @@ use remoter_core::{
 };
 
 use super::*;
-use crate::{ImportPreview, Limits, SourceFormat};
+use crate::{ImportError, ImportPreview, Limits, SourceFormat};
 
 /// The sealed bytes every secret in these trees holds. Searched for in every
 /// export: none may carry them, in any encoding.
@@ -728,6 +728,117 @@ fn a_json_export_of_a_folder_names_what_it_points_at_outside_itself() {
                 target: "svc".into(),
             })
     );
+}
+
+/// A node as text, with its sealed material, timestamps and revision taken out
+/// — everything a JSON export is meant to carry and nothing it is not — and
+/// every id rewritten through `ids`, so two trees whose nodes were given new
+/// identities compare by what the ids point at.
+fn shape(node: &Node, ids: &std::collections::HashMap<String, String>) -> String {
+    let mut node = node.clone();
+    if let NodeKind::Credential(credential) = &mut node.kind {
+        credential.secret = match &credential.secret {
+            SecretKind::Password { .. } => SecretKind::Password { sealed: vec![0] },
+            SecretKind::PrivateKey {
+                sealed_passphrase,
+                format,
+                ..
+            } => SecretKind::PrivateKey {
+                sealed_key: vec![0],
+                sealed_passphrase: sealed_passphrase.as_ref().map(|_| vec![0]),
+                format: *format,
+            },
+            other => other.clone(),
+        };
+        credential.totp = None;
+    }
+    node.created_at = 0;
+    node.updated_at = 0;
+    node.revision = 1;
+    // An import places its top level after what the destination already
+    // holds, so a root's position is the destination's to decide.
+    if node.parent_id.is_none() {
+        node.sort_order = 0;
+    }
+    let mut text = format!("{node:?}");
+    for (from, to) in ids {
+        text = text.replace(from.as_str(), to.as_str());
+    }
+    text
+}
+
+#[test]
+fn the_json_comes_back_as_the_same_tree_less_its_secrets() {
+    let (tree, _) = estate();
+    let exported = export(&tree, None, ExportFormat::Json, NOW).unwrap();
+    assert_eq!(
+        crate::detect(&exported.bytes),
+        Some(SourceFormat::RemoterJson)
+    );
+
+    let (nodes, report) = crate::native::parse_json(&exported.bytes, &Limits::new(), &[0]).unwrap();
+    assert_eq!(nodes.len(), tree.len());
+    assert!(
+        report
+            .findings()
+            .contains(&crate::Finding::SecretsNotCarried { count: 2 })
+    );
+
+    let grafted = crate::native::graft(
+        nodes,
+        &std::collections::BTreeSet::new(),
+        &Tree::new(),
+        None,
+        0,
+        NOW,
+    )
+    .unwrap();
+    let back = Tree::from_nodes(grafted.nodes).unwrap();
+    assert!(back.validate_all().is_empty(), "{:?}", back.validate_all());
+
+    // Inheritance states, settings, tags, routes, the tree's shape: every node
+    // is what it was, under a new id, with every reference following it.
+    let none = std::collections::HashMap::new();
+    let back_to_old: std::collections::HashMap<String, String> = grafted
+        .ids
+        .iter()
+        .map(|(old, new)| (new.to_string(), old.to_string()))
+        .collect();
+    let mut before: Vec<String> = tree.nodes().map(|node| shape(node, &none)).collect();
+    let mut after: Vec<String> = back.nodes().map(|node| shape(node, &back_to_old)).collect();
+    before.sort();
+    after.sort();
+    assert_eq!(before, after);
+    assert_eq!(behaviour(&tree), behaviour(&back));
+}
+
+#[test]
+fn json_that_is_not_a_remoter_export_is_refused_by_what_it_is() {
+    let limits = Limits::new();
+    assert!(matches!(
+        crate::native::parse_json(b"{\"format\": \"remoter-tree\", \"version\"", &limits, &[0]),
+        Err(ImportError::MalformedJson { .. })
+    ));
+    assert!(matches!(
+        crate::native::parse_json(
+            br#"{"format": "something-else", "version": 1}"#,
+            &limits,
+            &[0]
+        ),
+        Err(ImportError::WrongFormat { .. })
+    ));
+    assert!(matches!(
+        crate::native::parse_json(
+            br#"{"format": "remoter-tree", "version": 9, "nodes": []}"#,
+            &limits,
+            &[0]
+        ),
+        Err(ImportError::UnsupportedExport { version: 9 })
+    ));
+    assert!(matches!(
+        crate::native::parse_json(br#"{"hosts": [1, 2, 3]}"#, &limits, &[0]),
+        Err(ImportError::WrongFormat { .. })
+    ));
 }
 
 // ================================================================ archive
