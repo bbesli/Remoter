@@ -632,6 +632,17 @@ pub(crate) struct PendingImport {
     pub(crate) source: remoter_import::SourceFormat,
     pub(crate) nodes: Vec<remoter_import::PreviewNode>,
     pub(crate) report: remoter_import::ImportReport,
+    /// A `.rmtr` archive's nodes and their plaintext secrets, in place of
+    /// `nodes`. The secrets are `Secret` buffers, so dropping this wipes them
+    /// exactly as dropping a preview wipes its recovered passwords.
+    pub(crate) archive: Option<PendingArchive>,
+}
+
+/// What an opened archive holds, waiting for the user to commit it.
+#[derive(Debug)]
+pub(crate) struct PendingArchive {
+    pub(crate) nodes: Vec<remoter_core::Node>,
+    pub(crate) secrets: Vec<remoter_vault::archive::ArchiveSecret>,
 }
 
 /// The failed-unlock record for one vault.

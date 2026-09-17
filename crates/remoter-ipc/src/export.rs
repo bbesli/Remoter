@@ -13,15 +13,22 @@
 
 use std::path::PathBuf;
 
+use remoter_core::NodeKind;
 use remoter_import::export::{self, ExportError, ExportFormat};
-use remoter_vault::{AuditEvent, AuditOutcome};
+use remoter_vault::archive::{ArchiveContents, ArchiveSecret, seal_archive};
+use remoter_vault::{AuditEvent, AuditOutcome, ExposeSecret, Purpose, Secret, Vault};
 use tauri::State;
 
-use crate::commands::{parse_node_id, read_tree, save};
-use crate::dto::{TreeExportDto, TreeExportResultDto};
+use crate::commands::{estimate_strength, parse_node_id, read_tree, save};
+use crate::dto::{ArchiveExportDto, TreeExportDto, TreeExportResultDto};
 use crate::error::IpcError;
 use crate::recents::write_atomic;
 use crate::state::{AppState, now_millis};
+
+/// The wire name of the `.rmtr` archive. Not an [`ExportFormat`]: the flat
+/// formats are `remoter-import`'s and never touch a secret, and the archive is
+/// the one export that does.
+const ARCHIVE: &str = "remoter-archive";
 
 /// Writes the tree, or the part of it under one node, to a file.
 #[tauri::command]
@@ -37,12 +44,26 @@ fn tree_export_impl(state: &AppState, req: TreeExportDto) -> Result<TreeExportRe
         path,
         format,
         root_id,
+        password,
     } = req;
+    // Into a wiping buffer before anything that can fail, as every other
+    // secret arriving from the interface is.
+    let password = password.map(Secret::new);
+
+    if format == ARCHIVE {
+        return archive_export(state, path, root_id, password);
+    }
+    // A flat format has no use for a password, and holding one it will not use
+    // is holding it for nothing.
+    drop(password);
 
     let Some(format) = ExportFormat::parse(&format) else {
         return Err(IpcError::invalid_request(
             "format",
-            format!("`{format}` is not an export format; expected csv, ssh-config or json"),
+            format!(
+                "`{format}` is not an export format; expected remoter-archive, csv, ssh-config \
+                 or json"
+            ),
         ));
     };
     let root = root_id
@@ -102,7 +123,178 @@ fn tree_export_impl(state: &AppState, req: TreeExportDto) -> Result<TreeExportRe
     Ok(TreeExportResultDto {
         path: path.display().to_string(),
         bytes,
-        report: exported.report,
+        format: format.as_str().to_owned(),
+        report: Some(exported.report),
+        archive: None,
+    })
+}
+
+/// [`tree_export_impl`], for the other modules' tests.
+#[cfg(test)]
+pub(crate) fn tree_export_for_tests(
+    state: &AppState,
+    req: TreeExportDto,
+) -> Result<TreeExportResultDto, IpcError> {
+    tree_export_impl(state, req)
+}
+
+/// Writes a `.rmtr` archive: the chosen nodes, what they depend on, and their
+/// secrets, sealed under a password of the user's.
+///
+/// The vault lock is held to choose the nodes and read their secrets, and let
+/// go for the second or two of key derivation, so that the rest of the
+/// application is not waiting on Argon2id. What is read in that window is in
+/// `Secret` buffers and is wiped when this returns, however it returns.
+fn archive_export(
+    state: &AppState,
+    path: String,
+    root_id: Option<String>,
+    password: Option<Secret<String>>,
+) -> Result<TreeExportResultDto, IpcError> {
+    let Some(password) = password.filter(|password| !password.expose_secret().is_empty()) else {
+        return Err(IpcError::new(
+            "export.password-required",
+            "An archive is sealed with a password of its own, and none was given.",
+        )
+        .with_actions(["Type a password", "Generate a passphrase"]));
+    };
+    // The same gate a vault's master password passes, for the same reason:
+    // the archive is a file that leaves the machine carrying server passwords,
+    // and an offline attacker with a copy guesses at leisure.
+    let strength = estimate_strength(password.expose_secret());
+    if !strength.acceptable {
+        return Err(IpcError::new(
+            "export.password-too-weak",
+            format!(
+                "That password is too easy to guess for a file that carries server passwords. \
+                 {}",
+                strength.explanation
+            ),
+        )
+        .with_actions([
+            "Generate a passphrase",
+            "Use a longer, less predictable password",
+        ]));
+    }
+    let root = root_id
+        .as_deref()
+        .map(|id| parse_node_id(id, "rootId"))
+        .transpose()?;
+    let path = PathBuf::from(path);
+    if path.is_dir() {
+        return Err(IpcError::bad_path(
+            &path,
+            "it is a folder, and an export is written as one file",
+        ));
+    }
+
+    let (contents, dependencies) = {
+        let mut guard = state.lock();
+        let vault = guard.vault_mut()?;
+        let tree = read_tree(vault)?;
+        let selection = export::archive_selection(&tree, root).map_err(|err| match err {
+            ExportError::Tree(err) => IpcError::from_core(&err),
+            other => IpcError::new(
+                "export.encode",
+                "The connections could not be encoded, so nothing was written.",
+            )
+            .with_detail(other.to_string()),
+        })?;
+        let mut secrets = Vec::new();
+        for node in &selection.nodes {
+            let id = *node.id.as_uuid();
+            let fields = vault
+                .secret_fields(id)
+                .map_err(|err| IpcError::from_vault(&err, "this vault"))?;
+            for field in fields {
+                // Borrowed for export, which the vault records against the node:
+                // each secret that leaves is on the log, not only the file.
+                let value = vault
+                    .borrow_secret(id, &field, Purpose::Export)
+                    .map_err(|err| IpcError::from_vault(&err, "this vault"))?;
+                secrets.push(ArchiveSecret {
+                    node: id,
+                    field,
+                    value,
+                });
+            }
+        }
+        (
+            ArchiveContents {
+                nodes: selection.nodes,
+                secrets,
+            },
+            selection.dependencies,
+        )
+    };
+
+    let params =
+        Vault::calibrate_kdf().map_err(|err| IpcError::from_vault(&err, "this archive"))?;
+    let image = seal_archive(&contents, &password, params)
+        .map_err(|err| IpcError::from_vault(&err, "this archive"))?;
+    drop(password);
+
+    let mut summary = ArchiveExportDto {
+        folders: 0,
+        connections: 0,
+        credentials: 0,
+        secrets: contents.secrets.len(),
+        dependencies,
+    };
+    for node in &contents.nodes {
+        match node.kind {
+            NodeKind::Folder(_) => summary.folders += 1,
+            NodeKind::Connection(_) => summary.connections += 1,
+            NodeKind::Credential(_) => summary.credentials += 1,
+            _ => {}
+        }
+    }
+    drop(contents);
+
+    let bytes = u64::try_from(image.len()).unwrap_or(u64::MAX);
+    write_atomic(&path, &image)?;
+
+    let detail = format!(
+        "connections exported: {} connections, {} secrets, remoter-archive, encrypted, to {}",
+        summary.connections,
+        summary.secrets,
+        path.display()
+    );
+    {
+        let mut guard = state.lock();
+        // The file is written. A vault locked while the key was being derived
+        // has nowhere to put the row, and the export has still happened; the
+        // secret rows written above reached the log before it locked.
+        match guard.vault_mut() {
+            Ok(vault) => {
+                let recorded = match root {
+                    Some(root) => vault.audit_for_node(
+                        AuditEvent::DataExported,
+                        AuditOutcome::Success,
+                        *root.as_uuid(),
+                        Some(&detail),
+                    ),
+                    None => vault.audit(
+                        AuditEvent::DataExported,
+                        AuditOutcome::Success,
+                        Some(&detail),
+                    ),
+                };
+                recorded.map_err(|err| IpcError::from_vault(&err, "this vault"))?;
+                save(vault)?;
+            }
+            Err(_) => {
+                tracing::warn!("the vault locked during an export; its audit row was not written")
+            }
+        }
+    }
+
+    Ok(TreeExportResultDto {
+        path: path.display().to_string(),
+        bytes,
+        format: ARCHIVE.to_owned(),
+        report: None,
+        archive: Some(summary),
     })
 }
 
@@ -180,17 +372,18 @@ mod tests {
                 path: target.display().to_string(),
                 format: String::from("ssh-config"),
                 root_id: Some(production.id.clone()),
+                password: None,
             },
         );
         assert!(exported.is_ok(), "exporting failed: {}", why(&exported));
         let Ok(exported) = exported else {
             panic!("exporting failed");
         };
-        assert_eq!(exported.report.connections, 2);
-        assert_eq!(
-            exported.report.skipped, 1,
-            "RDP has no place in an ssh_config"
-        );
+        let Some(report) = exported.report.as_ref() else {
+            panic!("a flat export has a report");
+        };
+        assert_eq!(report.connections, 2);
+        assert_eq!(report.skipped, 1, "RDP has no place in an ssh_config");
 
         let written = std::fs::read_to_string(&target).unwrap_or_default();
         assert_eq!(u64::try_from(written.len()).ok(), Some(exported.bytes));
@@ -251,6 +444,7 @@ mod tests {
                     path: target.display().to_string(),
                     format: format.to_owned(),
                     root_id: None,
+                    password: None,
                 },
             );
             assert!(exported.is_ok(), "{format}: {}", why(&exported));
@@ -271,6 +465,7 @@ mod tests {
                 path: target.display().to_string(),
                 format: String::from("csv"),
                 root_id: None,
+                password: None,
             },
         );
         assert!(refused.is_err_and(|err| err.code == "vault.locked"));
@@ -284,6 +479,7 @@ mod tests {
                 path: target.display().to_string(),
                 format: String::from("xlsx"),
                 root_id: None,
+                password: None,
             },
         );
         assert!(refused.is_err_and(|err| err.code == "request.invalid"));
@@ -294,6 +490,7 @@ mod tests {
                 path: target.display().to_string(),
                 format: String::from("csv"),
                 root_id: Some(uuid::Uuid::now_v7().to_string()),
+                password: None,
             },
         );
         assert!(refused.is_err_and(|err| err.code.starts_with("node.")));

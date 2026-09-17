@@ -446,6 +446,20 @@
     "encode": {
       "message": "Bağlantılar kodlanamadı; bu yüzden hiçbir şey yazılmadı.",
       "actions": []
+    },
+    "password-required": {
+      "message": "Arşiv kendine ait bir parolayla mühürlenir ve parola verilmedi.",
+      "actions": [
+        "Bir parola yaz",
+        "Bir parola cümlesi üret"
+      ]
+    },
+    "password-too-weak": {
+      "message": "Sunucu parolalarını taşıyan bir dosya için bu parolayı tahmin etmek fazla kolay.",
+      "actions": [
+        "Bir parola cümlesi üret",
+        "Daha uzun, daha az tahmin edilebilir bir parola kullan"
+      ]
     }
   },
   "import": {
@@ -602,6 +616,31 @@
       "message": "O içe aktarma önizlemesi artık tutulmuyor: uygulandı, iptal edildi ya da kasa kilitlenince düştü. Hiçbir şey yazılmadı.",
       "actions": [
         "Dosyayı yeniden seç"
+      ]
+    },
+    "archive-password-required": {
+      "message": "Bu dosya parolayla mühürlenmiş bir Remoter arşivi. Dışa aktarılırken belirlenen parolayı gir.",
+      "actions": [
+        "Arşiv parolasını gir"
+      ]
+    },
+    "archive-wrong-password": {
+      "message": "Bu parola arşivi açmıyor.",
+      "actions": [
+        "Parolayı yeniden dene"
+      ]
+    },
+    "archive-unsupported": {
+      "message": "Bu arşiv Remoter'ın daha yeni bir sürümüyle yazılmış; bu sürüm onu okuyamıyor.",
+      "actions": [
+        "Remoter'ı güncelle"
+      ]
+    },
+    "archive-damaged": {
+      "message": "Bu arşiv bozuk: içindekiler mühürlenen içerikle aynı değil, bu yüzden hiçbir şey okunmadı.",
+      "actions": [
+        "Dosyayı geldiği yerden yeniden kopyala",
+        "Arşivi yeniden dışa aktar"
       ]
     }
   },

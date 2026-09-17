@@ -66,7 +66,7 @@ export type AuditOutcome = "success" | "failure" | "denied";
 export type AuditExportFormat = "json" | "csv";
 
 /** The importers this build has. */
-export type ImportSource = "mremoteng" | "ssh-config" | "csv";
+export type ImportSource = "remoter-archive" | "mremoteng" | "ssh-config" | "csv";
 
 /** How much attention an import finding needs. */
 export type FindingSeverity = "info" | "warning" | "alert";
@@ -1012,8 +1012,11 @@ export interface AuditExportResult {
 
 // --------------------------------------------------------------- export ----
 
-/** The formats the connection tree can be written as. */
-export type TreeExportFormat = "csv" | "ssh-config" | "json";
+/**
+ * The formats the connection tree can be written as. `remoter-archive` is the
+ * encrypted `.rmtr` with secrets; the rest carry none.
+ */
+export type TreeExportFormat = "remoter-archive" | "csv" | "ssh-config" | "json";
 
 /** Which part of the tree to write, where, and as what. */
 export interface TreeExport {
@@ -1021,6 +1024,11 @@ export interface TreeExport {
   format: TreeExportFormat;
   /** The folder or connection to export with everything under it; null is the whole vault. */
   rootId: string | null;
+  /**
+   * The archive's password, for `remoter-archive` only. Sent inward once and
+   * never returned.
+   */
+  password: string | null;
 }
 
 /** Why a jump host route did not make it into a file whole. */
@@ -1059,10 +1067,25 @@ export interface ExportReport {
   notesDropped: number;
 }
 
+/** What a `.rmtr` archive carries. Counts and names, never a secret. */
+export interface ArchiveExport {
+  folders: number;
+  connections: number;
+  credentials: number;
+  /** Secret fields sealed into the archive: passwords, keys, passphrases. */
+  secrets: number;
+  /** Nodes from outside the chosen folder that came along because it needs them. */
+  dependencies: string[];
+}
+
 export interface TreeExportResult {
   path: string;
   bytes: number;
-  report: ExportReport;
+  format: TreeExportFormat;
+  /** For the flat formats. */
+  report: ExportReport | null;
+  /** For an archive. */
+  archive: ArchiveExport | null;
 }
 
 // --------------------------------------------------------------- import ----

@@ -29,9 +29,12 @@
 //! A loss is never silent. Whatever a format could not express is named in the
 //! [`ExportReport`], the way an import names what it could not map.
 
+mod archive;
 mod csv;
 mod json;
 mod ssh_config;
+
+pub use archive::{ArchiveSelection, archive_selection};
 
 #[cfg(test)]
 mod tests;

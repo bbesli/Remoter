@@ -272,6 +272,53 @@ impl PreviewNode {
     }
 }
 
+impl NodeSummary {
+    /// The summary of a node that is already in the domain model's shape — one
+    /// from Remoter's own export — with whether a secret came with it.
+    #[must_use]
+    pub fn of_node(node: &Node, has_secret: bool) -> Self {
+        let mut summary = Self {
+            id: node.id,
+            parent_id: node.parent_id,
+            sort_order: node.sort_order,
+            name: node.name.clone(),
+            kind: node.kind.label().to_owned(),
+            protocol: None,
+            host: None,
+            port: None,
+            port_inherited: false,
+            username: None,
+            domain: None,
+            has_secret,
+            credential_inherited: false,
+            gateway_hops: 0,
+            custom_fields: node.custom_fields.len(),
+        };
+        if let Some(port) = node.port_field() {
+            summary.port = port.explicit().copied();
+            summary.port_inherited = port.is_inherit();
+        }
+        if let Some(credential) = node.credential_field() {
+            summary.credential_inherited = credential.is_inherit();
+        }
+        if let Some(gateway) = node.gateway_field() {
+            summary.gateway_hops = gateway.explicit().map_or(0, |g| g.hops.len());
+        }
+        match &node.kind {
+            NodeKind::Connection(props) => {
+                summary.protocol = Some(props.protocol.to_string());
+                summary.host = Some(props.host.clone());
+            }
+            NodeKind::Credential(props) => {
+                summary.username = Some(props.username.clone());
+                summary.domain.clone_from(&props.domain);
+            }
+            _ => {}
+        }
+        summary
+    }
+}
+
 /// A previewed node with everything secret removed.
 ///
 /// This is what crosses the IPC boundary and what the preview screen renders.

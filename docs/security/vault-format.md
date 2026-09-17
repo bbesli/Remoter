@@ -1,14 +1,15 @@
 # Vault Format
 
 The `.rvault` container: how it is laid out on disk, how it is encrypted, and
-how the key slots work.
+how the key slots work — and the `.rmtr` archive, which is the same envelope
+carrying part of a vault from one machine to another.
 
 > **What ships.** Everything in this document except the `fido2` slot, which is
 > reserved in the format and refused by every code path — see that section. The
 > container, the KDF floor and its upgrade, the AEAD and its associated data, the
-> `password`, `recovery` and `keychain` slots, atomic saves, rolling backups and
-> migrations are all implemented and covered by known-answer and round-trip
-> tests.
+> `password`, `recovery` and `keychain` slots, atomic saves, rolling backups,
+> migrations and the `.rmtr` archive are all implemented and covered by
+> known-answer and round-trip tests.
 
 > **A note on wording.** People often ask for passwords to be "hashed and
 > irreversible". For a connection manager that is impossible by definition:
@@ -407,6 +408,66 @@ crate is considered complete:
 - Rolled-back ciphertext from an earlier revision → decryption fails
 - Truncated file at every byte offset → clean error, no panic, no partial read
 - Nonce uniqueness across 10⁶ simulated saves
+
+## The `.rmtr` archive
+
+What moves connections, with their secrets, from one vault into another. It is
+not a second cryptographic design: it is this document's envelope with fewer
+parts. `crates/remoter-vault/src/archive.rs` is the implementation.
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│ MAGIC          8 B   "RMTRARC\x01"                                  │
+│ FORMAT_VER     2 B   u16 LE — currently 1                           │
+│ HEADER_LEN     4 B   u32 LE                                         │
+├─────────────────────────────────────────────────────────────────────┤
+│ HEADER         CBOR, PLAINTEXT but AUTHENTICATED                    │
+│   ├ archive_id               UUIDv7                                 │
+│   ├ created_at                                                      │
+│   ├ content_cipher           "xchacha20poly1305"                    │
+│   ├ kdf                      "argon2id"                             │
+│   └ slot                     one `password` slot, index 0           │
+├─────────────────────────────────────────────────────────────────────┤
+│ HEADER_MAC    32 B   BLAKE3 keyed MAC over MAGIC‖VER‖LEN‖HEADER     │
+│                      key = HKDF(AMK,                                │
+│                                 "remoter:archive:header-mac:v1")    │
+├─────────────────────────────────────────────────────────────────────┤
+│ BODY_NONCE    24 B   random                                         │
+│ BODY          variable   XChaCha20-Poly1305(CEK, nonce, cbor_body)  │
+│                          CEK = HKDF(AMK, "remoter:archive:cek:v1")  │
+│                          AAD = MAGIC ‖ FORMAT_VER ‖ HEADER          │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+The archive master key (AMK) is 256 random bits, wrapped by the single password
+slot exactly as a vault's master key is wrapped by a `password` slot: Argon2id
+over the NFKC-normalised password at no less than the floor — calibrated on the
+exporting machine, like a vault — and XChaCha20-Poly1305 with the slot's
+associated data. There is no recovery slot. An archive is a thing sent, not a
+thing kept, and a recovery key would be a second secret to send alongside it.
+
+The body is a CBOR document: the exported nodes as the domain model serialises
+them, and beside them each secret as `{ node, field, value }`. The nodes'
+sealed fields carry the placeholder marker and nothing else — the source vault's
+ciphertext is bound to the source vault's key and would be one more copy of
+every secret for no use. The secrets are plaintext *inside the body's AEAD*.
+The second tier a vault keeps is there because a vault's database stays open
+for hours; an archive's body is decrypted for the length of one import, into
+wiping buffers, and every secret is sealed under the destination vault's SEK
+before the import is committed.
+
+What an archive does not hold, deliberately: the audit log, settings, the trust
+store and the source vault's identity. It carries the connections it was asked
+for — and what they depend on, so that a folder whose credential lives
+elsewhere still connects on the other side — and nothing about where they came
+from.
+
+Opening one follows the unlock sequence: framing, the KDF ceiling on the
+unauthenticated slot parameters, one unwrap attempt, and only then the MAC and
+the body. A wrong password and a damaged slot are the same answer; a changed
+header or body is reported only after the password has been shown to be right.
+The archive's magic differs from the vault's, so neither kind of file is
+mistaken for the other before any key is derived.
 
 ## Format version history
 

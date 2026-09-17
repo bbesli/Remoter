@@ -136,3 +136,78 @@
   font-size: var(--text-sm);
   color: var(--fg-muted);
 }
+
+.purposes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.purpose {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-inset);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  color: var(--fg-default);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.purpose:hover,
+.purpose:focus-visible {
+  border-color: var(--accent);
+}
+
+.purposeGlyph {
+  flex: none;
+  margin-block-start: 2px;
+  color: var(--accent);
+}
+
+.purposeText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.purposeTitle {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.purposeBody {
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--fg-muted);
+}
+
+.strengthRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-block-start: calc(-1 * var(--space-2));
+}
+
+.strength {
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+}
+
+.strength[data-acceptable="false"] {
+  color: var(--danger-text);
+}
+
+.note {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+}
+
+.spacer {
+  flex: 1 1 auto;
+}

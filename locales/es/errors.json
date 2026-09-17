@@ -446,6 +446,20 @@
     "encode": {
       "message": "Las conexiones no se han podido codificar, así que no se ha escrito nada.",
       "actions": []
+    },
+    "password-required": {
+      "message": "Un archivo de Remoter se sella con una contraseña propia, y no se ha indicado ninguna.",
+      "actions": [
+        "Escribir una contraseña",
+        "Generar una frase de contraseña"
+      ]
+    },
+    "password-too-weak": {
+      "message": "Esa contraseña es demasiado fácil de adivinar para un archivo que lleva contraseñas de servidores.",
+      "actions": [
+        "Generar una frase de contraseña",
+        "Usar una contraseña más larga y menos predecible"
+      ]
     }
   },
   "import": {
@@ -602,6 +616,31 @@
       "message": "Esa vista previa de importación ya no se conserva: se confirmó, se canceló o se descartó al bloquearse la bóveda. No se ha escrito nada.",
       "actions": [
         "Elegir el archivo de nuevo"
+      ]
+    },
+    "archive-password-required": {
+      "message": "Ese archivo es un archivo de Remoter sellado con contraseña. Escribe la contraseña con la que se exportó.",
+      "actions": [
+        "Escribir la contraseña del archivo"
+      ]
+    },
+    "archive-wrong-password": {
+      "message": "Esa contraseña no abre el archivo.",
+      "actions": [
+        "Probar la contraseña otra vez"
+      ]
+    },
+    "archive-unsupported": {
+      "message": "Ese archivo lo escribió una versión más reciente de Remoter, que esta compilación no sabe leer.",
+      "actions": [
+        "Actualizar Remoter"
+      ]
+    },
+    "archive-damaged": {
+      "message": "Ese archivo está dañado: lo que contiene no es lo que se selló, así que no se ha leído nada de él.",
+      "actions": [
+        "Copiar el archivo otra vez desde donde vino",
+        "Exportar el archivo otra vez"
       ]
     }
   },

@@ -48,8 +48,8 @@ port forwarding, three importers, the audit log and ten localisations are
 implemented and have been used against real servers.
 
 What is **not** implemented, so that you do not go looking for it: session
-recording of any kind, the FIDO2 key slot, FTP, the plugin host, the encrypted
-`.rmtr` archive, the clipboard, and tab detach or split view. `docs/` is a specification
+recording of any kind, the FIDO2 key slot, FTP, the plugin host, the clipboard,
+and tab detach or split view. `docs/` is a specification
 that describes the finished product, so it describes more than exists —
 [README.md](README.md#what-works-today) carries the shipped-versus-planned
 table, and §3 below is the tree as it actually is.
@@ -105,7 +105,8 @@ lives instead is noted below.
 ```
 crates/
   remoter-core/         Domain model: tree, nodes, inheritance resolution
-  remoter-vault/        Envelope crypto, key slots, storage, migrations, audit log
+  remoter-vault/        Envelope crypto, key slots, storage, migrations, audit
+                        log, the `.rmtr` archive
   remoter-proto/        `Protocol` trait, session supervisor, event bus,
                         framebuffer contract, gateway chain builder
   remoter-proto-ssh/    SSH + PTY (russh), SFTP (russh-sftp), local/remote/

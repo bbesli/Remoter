@@ -446,6 +446,20 @@
     "encode": {
       "message": "连接无法编码，因此未写入任何内容。",
       "actions": []
+    },
+    "password-required": {
+      "message": "归档文件用它自己的密码封存，但没有提供密码。",
+      "actions": [
+        "输入密码",
+        "生成口令短语"
+      ]
+    },
+    "password-too-weak": {
+      "message": "对于一个装着服务器密码的文件来说，这个密码太容易被猜到了。",
+      "actions": [
+        "生成口令短语",
+        "使用更长、更难预测的密码"
+      ]
     }
   },
   "import": {
@@ -602,6 +616,31 @@
       "message": "该导入预览已不再保留：它可能已提交、已取消，或在保险库锁定时被丢弃。未写入任何内容。",
       "actions": [
         "重新选择该文件"
+      ]
+    },
+    "archive-password-required": {
+      "message": "这个文件是用密码封存的 Remoter 归档。请输入导出时设置的密码。",
+      "actions": [
+        "输入归档密码"
+      ]
+    },
+    "archive-wrong-password": {
+      "message": "这个密码打不开该归档。",
+      "actions": [
+        "再试一次密码"
+      ]
+    },
+    "archive-unsupported": {
+      "message": "这个归档由更新版本的 Remoter 写入，当前版本无法读取。",
+      "actions": [
+        "更新 Remoter"
+      ]
+    },
+    "archive-damaged": {
+      "message": "这个归档已损坏：其中的内容与封存时不一致，因此没有读取任何内容。",
+      "actions": [
+        "从原处重新复制该文件",
+        "重新导出归档"
       ]
     }
   },

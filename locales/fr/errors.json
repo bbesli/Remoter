@@ -446,6 +446,20 @@
     "encode": {
       "message": "Les connexions n'ont pas pu être encodées ; rien n'a donc été écrit.",
       "actions": []
+    },
+    "password-required": {
+      "message": "Une archive est scellée avec un mot de passe qui lui est propre, et aucun n'a été donné.",
+      "actions": [
+        "Saisir un mot de passe",
+        "Générer une phrase secrète"
+      ]
+    },
+    "password-too-weak": {
+      "message": "Ce mot de passe est trop facile à deviner pour un fichier qui contient des mots de passe de serveurs.",
+      "actions": [
+        "Générer une phrase secrète",
+        "Utiliser un mot de passe plus long et moins prévisible"
+      ]
     }
   },
   "import": {
@@ -602,6 +616,31 @@
       "message": "Cet aperçu d'import n'est plus conservé : il a été validé, annulé, ou abandonné au verrouillage du coffre-fort. Rien n'a été écrit.",
       "actions": [
         "Choisir à nouveau le fichier"
+      ]
+    },
+    "archive-password-required": {
+      "message": "Ce fichier est une archive Remoter scellée par un mot de passe. Saisissez le mot de passe choisi lors de l'export.",
+      "actions": [
+        "Saisir le mot de passe de l'archive"
+      ]
+    },
+    "archive-wrong-password": {
+      "message": "Ce mot de passe n'ouvre pas l'archive.",
+      "actions": [
+        "Réessayer le mot de passe"
+      ]
+    },
+    "archive-unsupported": {
+      "message": "Cette archive a été écrite par une version plus récente de Remoter, que cette version ne sait pas lire.",
+      "actions": [
+        "Mettre Remoter à jour"
+      ]
+    },
+    "archive-damaged": {
+      "message": "Cette archive est endommagée : son contenu n'est pas celui qui a été scellé, rien n'en a donc été lu.",
+      "actions": [
+        "Recopier le fichier depuis son origine",
+        "Exporter l'archive à nouveau"
       ]
     }
   },

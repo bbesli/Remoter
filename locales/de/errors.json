@@ -446,6 +446,20 @@
     "encode": {
       "message": "Die Verbindungen konnten nicht kodiert werden, daher wurde nichts geschrieben.",
       "actions": []
+    },
+    "password-required": {
+      "message": "Ein Archiv wird mit einem eigenen Passwort versiegelt, und es wurde keines angegeben.",
+      "actions": [
+        "Ein Passwort eingeben",
+        "Eine Passphrase erzeugen"
+      ]
+    },
+    "password-too-weak": {
+      "message": "Dieses Passwort ist zu leicht zu erraten für eine Datei, die Server-Passwörter enthält.",
+      "actions": [
+        "Eine Passphrase erzeugen",
+        "Ein längeres, weniger vorhersehbares Passwort verwenden"
+      ]
     }
   },
   "import": {
@@ -602,6 +616,31 @@
       "message": "Diese Importvorschau wird nicht mehr vorgehalten: Sie wurde übernommen, abgebrochen oder beim Sperren des Tresors verworfen. Es wurde nichts geschrieben.",
       "actions": [
         "Die Datei erneut wählen"
+      ]
+    },
+    "archive-password-required": {
+      "message": "Diese Datei ist ein mit einem Passwort versiegeltes Remoter-Archiv. Geben Sie das Passwort ein, mit dem es exportiert wurde.",
+      "actions": [
+        "Das Archiv-Passwort eingeben"
+      ]
+    },
+    "archive-wrong-password": {
+      "message": "Dieses Passwort öffnet das Archiv nicht.",
+      "actions": [
+        "Das Passwort erneut versuchen"
+      ]
+    },
+    "archive-unsupported": {
+      "message": "Dieses Archiv wurde von einer neueren Remoter-Version geschrieben, die dieser Build nicht lesen kann.",
+      "actions": [
+        "Remoter aktualisieren"
+      ]
+    },
+    "archive-damaged": {
+      "message": "Dieses Archiv ist beschädigt: Sein Inhalt entspricht nicht dem, was versiegelt wurde, daher wurde nichts daraus gelesen.",
+      "actions": [
+        "Die Datei erneut von dort kopieren, wo sie herkam",
+        "Das Archiv erneut exportieren"
       ]
     }
   },

@@ -323,6 +323,12 @@ pub enum ImportError {
     /// problems are reported, not raised.
     #[error("the imported data is not valid: {0}")]
     Validation(#[from] ValidationError),
+
+    /// Exported nodes whose parent links do not form a tree: a parent that is
+    /// neither among them nor their top level, or a cycle. Remoter does not
+    /// write such an export, so this is a damaged or hand-edited file.
+    #[error("the exported entries do not form a tree")]
+    Graft,
 }
 
 /// Why a file could not be read, reduced to the cases a user can act on.

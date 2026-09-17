@@ -22,14 +22,28 @@ import type { ImportDetection, ImportSource, IpcFailure } from "@/lib/ipc";
 import s from "./ImportWizard.module.css";
 
 /**
- * The three importers this build has, each with the two catalogue keys that
- * name it. The wire values are the core's; the labels and hints are copy.
+ * The importers this build has, each with the two catalogue keys that name it.
+ * The wire values are the core's; the labels and hints are copy. Remoter's own
+ * archive is first: it is the one that brings passwords from another Remoter.
  */
 const SOURCES: readonly {
   id: ImportSource;
-  labelKey: "source.format.mremotengLabel" | "source.format.sshConfigLabel" | "source.format.csvLabel";
-  hintKey: "source.format.mremotengHint" | "source.format.sshConfigHint" | "source.format.csvHint";
+  labelKey:
+    | "source.format.archiveLabel"
+    | "source.format.mremotengLabel"
+    | "source.format.sshConfigLabel"
+    | "source.format.csvLabel";
+  hintKey:
+    | "source.format.archiveHint"
+    | "source.format.mremotengHint"
+    | "source.format.sshConfigHint"
+    | "source.format.csvHint";
 }[] = [
+  {
+    id: "remoter-archive",
+    labelKey: "source.format.archiveLabel",
+    hintKey: "source.format.archiveHint",
+  },
   {
     id: "mremoteng",
     labelKey: "source.format.mremotengLabel",

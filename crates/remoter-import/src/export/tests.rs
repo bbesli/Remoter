@@ -730,6 +730,128 @@ fn a_json_export_of_a_folder_names_what_it_points_at_outside_itself() {
     );
 }
 
+// ================================================================ archive
+
+#[test]
+fn an_archive_of_a_folder_brings_what_the_folder_depends_on() {
+    let mut b = Build::default();
+    let shared = b.folder(None, "Shared");
+    let svc = b.add(
+        Some(shared),
+        "svc",
+        NodeKind::Credential(CredentialProps::new("svc-deploy", password())),
+    );
+    let hop_key = b.add(
+        Some(shared),
+        "hop key",
+        NodeKind::Credential(CredentialProps::new("ops", private_key())),
+    );
+    let bastion = b.connection(Some(shared), "bastion", "ssh", "bastion.example.com");
+    b.connection_mut(bastion).credential = Inherited::Explicit(CredentialRef::live(hop_key));
+    b.connection(Some(shared), "unrelated", "ssh", "unrelated.example.com");
+
+    let estate = b.folder(None, "Estate");
+    b.folder_mut(estate).port = Inherited::Explicit(2222);
+    let team = b.folder(Some(estate), "Team");
+    b.folder_mut(team).credential = Inherited::Explicit(CredentialRef::live(svc));
+    let web = b.connection(Some(team), "web", "ssh", "web.example.com");
+    b.connection_mut(web).gateway = hops(&[bastion]);
+    let tree = b.tree();
+
+    let selection = archive_selection(&tree, Some(team)).unwrap();
+    let names: Vec<&str> = selection
+        .nodes
+        .iter()
+        .map(|node| node.name.as_str())
+        .collect();
+    // The folder's own credential is found first, then the route of the
+    // connection under it, then what that route needs in turn.
+    assert_eq!(names, ["Team", "web", "svc", "bastion", "hop key"]);
+    assert_eq!(selection.dependencies, ["svc", "bastion", "hop key"]);
+
+    let by_name = |name: &str| {
+        selection
+            .nodes
+            .iter()
+            .find(|node| node.name == name)
+            .unwrap()
+    };
+    // The root keeps the port its own folder gave it, and loses the parent it
+    // will not have.
+    assert_eq!(by_name("Team").parent_id, None);
+    assert_eq!(
+        by_name("Team").kind.as_folder().unwrap().port,
+        Inherited::Explicit(2222)
+    );
+    assert_eq!(by_name("web").parent_id, Some(team));
+    for dependency in ["bastion", "svc", "hop key"] {
+        assert_eq!(by_name(dependency).parent_id, None, "{dependency}");
+    }
+
+    // Put down on their own, the nodes resolve as they did in place.
+    let alone = Tree::from_nodes(selection.nodes.clone()).unwrap();
+    assert!(
+        alone.validate_all().is_empty(),
+        "{:?}",
+        alone.validate_all()
+    );
+    let before = tree.effective_connection(web).unwrap();
+    let after = alone.effective_connection(web).unwrap();
+    assert_eq!(after.port.value, before.port.value);
+    assert_eq!(after.credential.value, before.credential.value);
+    assert_eq!(after.gateway.value, before.gateway.value);
+    assert_eq!(
+        alone
+            .effective_connection(bastion)
+            .unwrap()
+            .credential
+            .value,
+        Some(CredentialRef::live(hop_key))
+    );
+}
+
+#[test]
+fn an_archive_of_one_connection_brings_the_credential_it_owns() {
+    let mut b = Build::default();
+    let folder = b.folder(None, "Estate");
+    let web = b.connection(Some(folder), "web", "ssh", "web.example.com");
+    let mut own = CredentialProps::attached(web, "root", password());
+    own.domain = None;
+    let own = b.add(Some(folder), "web", NodeKind::Credential(own));
+    b.connection_mut(web).credential = Inherited::Explicit(CredentialRef::live(own));
+    let tree = b.tree();
+
+    let selection = archive_selection(&tree, Some(web)).unwrap();
+    assert_eq!(selection.nodes.len(), 2);
+    assert_eq!(selection.nodes[1].id, own);
+    assert_eq!(
+        selection.nodes[1].kind.as_credential().unwrap().attached_to,
+        Some(web),
+        "it still belongs to the connection it came with"
+    );
+    assert!(
+        Tree::from_nodes(selection.nodes)
+            .unwrap()
+            .validate_all()
+            .is_empty()
+    );
+}
+
+#[test]
+fn an_archive_of_the_vault_is_every_live_node_and_nothing_pulled() {
+    let (tree, _) = estate();
+    let selection = archive_selection(&tree, None).unwrap();
+    assert_eq!(selection.nodes.len(), tree.len());
+    assert!(selection.dependencies.is_empty());
+    let roots: Vec<&str> = selection
+        .nodes
+        .iter()
+        .filter(|node| node.parent_id.is_none())
+        .map(|node| node.name.as_str())
+        .collect();
+    assert_eq!(roots, ["Credentials", "Production", "Windows"]);
+}
+
 // ============================================================ everything
 
 #[test]

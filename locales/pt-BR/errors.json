@@ -446,6 +446,20 @@
     "encode": {
       "message": "As conexões não puderam ser codificadas, então nada foi gravado.",
       "actions": []
+    },
+    "password-required": {
+      "message": "Um arquivo do Remoter é selado com uma senha própria, e nenhuma foi informada.",
+      "actions": [
+        "Digitar uma senha",
+        "Gerar uma frase-senha"
+      ]
+    },
+    "password-too-weak": {
+      "message": "Essa senha é fácil demais de adivinhar para um arquivo que carrega senhas de servidores.",
+      "actions": [
+        "Gerar uma frase-senha",
+        "Usar uma senha mais longa e menos previsível"
+      ]
     }
   },
   "import": {
@@ -602,6 +616,31 @@
       "message": "Essa prévia de importação não está mais guardada: foi confirmada, cancelada ou descartada quando o cofre bloqueou. Nada foi gravado.",
       "actions": [
         "Escolher o arquivo novamente"
+      ]
+    },
+    "archive-password-required": {
+      "message": "Esse arquivo é um arquivo do Remoter selado com senha. Digite a senha usada na exportação.",
+      "actions": [
+        "Digitar a senha do arquivo"
+      ]
+    },
+    "archive-wrong-password": {
+      "message": "Essa senha não abre o arquivo.",
+      "actions": [
+        "Tentar a senha de novo"
+      ]
+    },
+    "archive-unsupported": {
+      "message": "Esse arquivo foi gravado por uma versão mais nova do Remoter, que esta versão não consegue ler.",
+      "actions": [
+        "Atualizar o Remoter"
+      ]
+    },
+    "archive-damaged": {
+      "message": "Esse arquivo está danificado: o conteúdo não é o que foi selado nele, então nada foi lido.",
+      "actions": [
+        "Copiar o arquivo de novo de onde ele veio",
+        "Exportar o arquivo de novo"
       ]
     }
   },

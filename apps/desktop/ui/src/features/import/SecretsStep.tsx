@@ -27,13 +27,15 @@ import { Button } from "@/components/Button";
 import { Icon } from "@/components/Icon";
 import { TextInput } from "@/components/TextInput";
 import { formatBytes, isolateLtr, useLocale, useT } from "@/i18n";
-import type { ImportDetection, IpcFailure } from "@/lib/ipc";
+import type { ImportDetection, ImportSource, IpcFailure } from "@/lib/ipc";
 
 import { wantsDocumentPassword } from "./steps";
 import s from "./ImportWizard.module.css";
 
 interface SecretsStepProps {
   detection: ImportDetection | null;
+  /** What the file will be parsed as: detected, or chosen by the user. */
+  source: ImportSource | null;
   path: string;
   password: string;
   onPassword: (value: string) => void;
@@ -46,6 +48,7 @@ interface SecretsStepProps {
 
 export function SecretsStep({
   detection,
+  source,
   path,
   password,
   onPassword,
@@ -58,6 +61,12 @@ export function SecretsStep({
   const { code: locale } = useLocale();
   const needsPassword =
     (detection?.passwordRequired ?? false) || wantsDocumentPassword(failure);
+  // Remoter's own archive asks for the password it was exported with, not a
+  // document password another application set, and says so.
+  const archive =
+    source === "remoter-archive" ||
+    failure?.code === "import.archive-password-required" ||
+    failure?.code === "import.archive-wrong-password";
   const doc = detection?.document ?? null;
   // mRemoteNG writes a file that asks for no password by encrypting it with a
   // password published in its own source. "No password" and "the default
@@ -68,10 +77,18 @@ export function SecretsStep({
     <div className={`${s.step} ${s.narrow}`}>
       <div className={s.stepHead}>
         <h2 className={s.stepTitle}>
-          {needsPassword ? t("secrets.encryptedTitle") : t("secrets.plainTitle")}
+          {archive
+            ? t("secrets.archiveTitle")
+            : needsPassword
+              ? t("secrets.encryptedTitle")
+              : t("secrets.plainTitle")}
         </h2>
         <p className={s.stepLead}>
-          {needsPassword ? t("secrets.encryptedLead") : t("secrets.plainLead")}
+          {archive
+            ? t("secrets.archiveLead")
+            : needsPassword
+              ? t("secrets.encryptedLead")
+              : t("secrets.plainLead")}
         </p>
       </div>
 
@@ -101,7 +118,10 @@ export function SecretsStep({
         </div>
 
         {needsPassword && (
-          <Field label={t("secrets.passwordLabel")} help={t("secrets.passwordHelp")}>
+          <Field
+            label={archive ? t("secrets.archivePasswordLabel") : t("secrets.passwordLabel")}
+            help={archive ? t("secrets.archivePasswordHelp") : t("secrets.passwordHelp")}
+          >
             <div className={s.passwordField}>
               <span className={s.passwordInput}>
                 <TextInput
@@ -109,7 +129,9 @@ export function SecretsStep({
                   onChange={onPassword}
                   type={reveal ? "text" : "password"}
                   autoFocus
-                  ariaLabel={t("secrets.passwordLabel")}
+                  ariaLabel={
+                    archive ? t("secrets.archivePasswordLabel") : t("secrets.passwordLabel")
+                  }
                 />
               </span>
               <Button variant="ghost" size="sm" onClick={() => onReveal(!reveal)}>

@@ -569,6 +569,7 @@ export function ImportWizard() {
         {step === 2 && (
           <SecretsStep
             detection={detection}
+            source={source}
             path={path}
             password={password}
             onPassword={setPassword}

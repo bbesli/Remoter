@@ -143,6 +143,18 @@ print_stderr = "deny"
 # actually needed.
 debug = "line-tables-only"
 
+# Argon2id at the vault's floor is 256 MiB and three passes, and unoptimised it
+# takes seconds a run. Every test that creates or opens a vault or an archive
+# runs it at least once, so the unoptimised build spent most of its test time
+# here. Optimising the KDF and its hash changes no behaviour and no output —
+# the same bytes come out faster — and leaves the rest of the debug build as
+# it was.
+[profile.dev.package.argon2]
+opt-level = 3
+
+[profile.dev.package.blake2]
+opt-level = 3
+
 [profile.release]
 opt-level = 3
 lto = "fat"

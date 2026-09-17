@@ -237,6 +237,14 @@ this project adheres to [Semantic Versioning](https://semver.org/).
   `remoter-ipc`
 
 #### Export
+- **Remoter to Remoter, passwords included.** Exporting now asks first who the
+  file is for. For another Remoter it writes a `.rmtr` archive: the chosen
+  folder, the shared credentials and jump hosts it uses from elsewhere, and
+  every password, private key and passphrase among them, sealed under a
+  password you set with the vault's own encryption. Importing it asks for that
+  password and puts the connections — secrets resealed under the new vault's
+  key — wherever you choose, including back into the vault they came from. The
+  archive password passes the same strength check a master password does
 - The connection tree, or one folder of it, exports as **CSV**, an **OpenSSH
   config** or **JSON**, from the title bar, the command palette or the tree's
   menu. No password, private key or passphrase is written in any of the three,

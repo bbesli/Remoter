@@ -244,6 +244,18 @@ impl NodeRef {
         matches!(self, Self::Deleted { .. })
     }
 
+    /// Points the reference at a node's new id, if `map` gives it one. A
+    /// tombstone keeps its name; only the id it remembers changes.
+    pub(crate) fn retarget(&mut self, map: &std::collections::HashMap<NodeId, NodeId>) {
+        match self {
+            Self::Live(id) | Self::Deleted { id, .. } => {
+                if let Some(new) = map.get(id) {
+                    *id = *new;
+                }
+            }
+        }
+    }
+
     /// Converts a live reference into a tombstone. Returns whether anything
     /// changed.
     pub(crate) fn tombstone(&mut self, name: &str) -> bool {
@@ -305,6 +317,10 @@ impl CredentialRef {
 
     pub(crate) fn tombstone(&mut self, name: &str) -> bool {
         self.0.tombstone(name)
+    }
+
+    pub(crate) const fn as_node_ref_mut(&mut self) -> &mut NodeRef {
+        &mut self.0
     }
 }
 
@@ -1141,6 +1157,82 @@ impl Node {
     #[must_use]
     pub const fn colour_field(&self) -> Option<&String> {
         self.colour.as_ref()
+    }
+
+    /// Every reference this node holds to another: its credential, the hops
+    /// of its gateway chain and their credentials, a group's members.
+    ///
+    /// Live and tombstoned alike. What is not a reference is not here: a
+    /// credential's `attached_to` names its owner, which is a relationship the
+    /// owner does not hold, and `parent_id` is the tree's.
+    #[must_use]
+    pub fn references(&self) -> Vec<&NodeRef> {
+        let mut out = Vec::new();
+        if let Some(Inherited::Explicit(credential)) = self.credential_field() {
+            out.push(credential.as_node_ref());
+        }
+        if let Some(Inherited::Explicit(chain)) = self.gateway_field() {
+            for hop in &chain.hops {
+                out.push(&hop.node);
+                if let Some(credential) = &hop.credential {
+                    out.push(credential.as_node_ref());
+                }
+            }
+        }
+        if let NodeKind::Group(group) = &self.kind {
+            out.extend(group.members.iter());
+        }
+        out
+    }
+
+    /// Turns every live reference whose target `keep` refuses into a
+    /// tombstone, named by `name`. Returns how many it turned.
+    ///
+    /// For nodes arriving from somewhere else: a reference to a node that did
+    /// not come with them, and is not in the tree they are joining, would
+    /// otherwise be a dangling id that resolves to nothing and says nothing.
+    /// A tombstone says what is missing.
+    pub fn tombstone_references(
+        &mut self,
+        mut keep: impl FnMut(NodeId) -> bool,
+        mut name: impl FnMut(NodeId) -> String,
+    ) -> usize {
+        let mut turned = 0;
+        for reference in self.references_mut() {
+            if !reference.is_deleted() && !keep(reference.id()) {
+                let id = reference.id();
+                if reference.tombstone(&name(id)) {
+                    turned += 1;
+                }
+            }
+        }
+        turned
+    }
+
+    /// [`Node::references`], mutably.
+    pub(crate) fn references_mut(&mut self) -> Vec<&mut NodeRef> {
+        let mut out = Vec::new();
+        let (credential, gateway) = match &mut self.kind {
+            NodeKind::Folder(f) => (&mut f.credential, &mut f.gateway),
+            NodeKind::Connection(c) => (&mut c.credential, &mut c.gateway),
+            NodeKind::Group(group) => {
+                out.extend(group.members.iter_mut());
+                return out;
+            }
+            NodeKind::Credential(_) | NodeKind::Separator => return out,
+        };
+        if let Inherited::Explicit(credential) = credential {
+            out.push(credential.as_node_ref_mut());
+        }
+        if let Inherited::Explicit(chain) = gateway {
+            for hop in &mut chain.hops {
+                out.push(&mut hop.node);
+                if let Some(credential) = &mut hop.credential {
+                    out.push(credential.as_node_ref_mut());
+                }
+            }
+        }
+        out
     }
 
     /// Whether two nodes differ in any field a descendant could inherit.

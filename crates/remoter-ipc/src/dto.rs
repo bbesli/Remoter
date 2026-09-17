@@ -942,15 +942,22 @@ pub struct AuditExportResultDto {
 // --------------------------------------------------------------- export ----
 
 /// Which part of the tree to write, where, and as what.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+///
+/// **Review note (CLAUDE.md §5).** Carries the password a `.rmtr` archive is
+/// sealed with; see [`UnlockRequestDto`] for why the derives are what they are.
+#[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TreeExportDto {
     pub path: String,
-    /// `"csv" | "ssh-config" | "json"`
+    /// `"remoter-archive" | "csv" | "ssh-config" | "json"`
     pub format: String,
     /// The folder or connection to export with everything under it. Absent
     /// exports the whole vault.
     pub root_id: Option<String>,
+    /// The archive's password. Only ever travels frontend → core, and only for
+    /// `remoter-archive`.
+    #[serde(default)]
+    pub password: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -958,8 +965,27 @@ pub struct TreeExportDto {
 pub struct TreeExportResultDto {
     pub path: String,
     pub bytes: u64,
-    /// What went into the file and what could not. Names and hosts only.
-    pub report: remoter_import::export::ExportReport,
+    /// The format written.
+    pub format: String,
+    /// For the flat formats: what went into the file and what could not.
+    /// Names and hosts only.
+    pub report: Option<remoter_import::export::ExportReport>,
+    /// For an archive: what it carries.
+    pub archive: Option<ArchiveExportDto>,
+}
+
+/// What a `.rmtr` archive carries. Counts and names, never a secret.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArchiveExportDto {
+    pub folders: usize,
+    pub connections: usize,
+    pub credentials: usize,
+    /// Secret fields sealed into the archive: passwords, keys, passphrases.
+    pub secrets: usize,
+    /// Nodes from outside the chosen folder that came along because something
+    /// in it depends on them.
+    pub dependencies: Vec<String>,
 }
 
 // --------------------------------------------------------------- import ----

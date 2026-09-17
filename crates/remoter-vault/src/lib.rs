@@ -23,6 +23,7 @@
 #![doc(html_no_source)]
 
 mod actor;
+pub mod archive;
 mod audit;
 mod credential;
 mod crypto;

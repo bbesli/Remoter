@@ -28,7 +28,12 @@ export type StepNumber = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
  */
 export function wantsDocumentPassword(failure: IpcFailure | null): boolean {
   if (failure === null) return false;
-  return failure.code === "import.password-required" || failure.code === "import.wrong-password";
+  return (
+    failure.code === "import.password-required" ||
+    failure.code === "import.wrong-password" ||
+    failure.code === "import.archive-password-required" ||
+    failure.code === "import.archive-wrong-password"
+  );
 }
 
 /**

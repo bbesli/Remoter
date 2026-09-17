@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 use crate::MAX_TREE_DEPTH;
 use crate::error::CoreError;
 use crate::error::ValidationError;
-use crate::inherit::{self, Inherited, Resolved};
+use crate::inherit::{self, Inherited, Provenance, Resolved};
 use crate::node::{
     ConnectionProps, CredentialProps, CredentialRef, EffectiveConnection, GatewayChain, Node,
     NodeId, NodeKind, ProtocolId,
@@ -752,6 +752,164 @@ impl Tree {
         })
     }
 
+    /// A copy of a node that behaves the same with no folder above it.
+    ///
+    /// Every inheritable field the node leaves to an ancestor is pinned to what
+    /// that ancestor gives it: a port or a credential a folder sets becomes the
+    /// node's own, a folder's "no jump hosts, deliberately" becomes the node's
+    /// own `Default`, and protocol settings, icon and colour are merged in the
+    /// way resolution merges them. A field nothing above sets stays `Inherit`.
+    /// The copy has no parent.
+    ///
+    /// This is what an export needs for the nodes it takes out of their place
+    /// in the tree — the folder at its root, a shared credential or a jump host
+    /// that lives elsewhere — so that they connect the same way wherever they
+    /// are put down.
+    ///
+    /// # Errors
+    ///
+    /// [`CoreError::NodeNotFound`], or as [`Tree::ancestors`].
+    pub fn detached(&self, id: NodeId) -> Result<Node, CoreError> {
+        fn pin<T: Clone>(
+            field: &mut Inherited<T>,
+            original: &Node,
+            ancestors: &[&Node],
+            get: impl for<'a> Fn(&'a Node) -> Option<&'a Inherited<T>>,
+        ) {
+            if !field.is_inherit() {
+                return;
+            }
+            let resolved = inherit::resolve(original, ancestors, get);
+            match (resolved.provenance, resolved.value) {
+                (Provenance::Ancestor(_), Some(value)) => *field = Inherited::Explicit(value),
+                (Provenance::DefaultAt(_), _) => *field = Inherited::Default,
+                _ => {}
+            }
+        }
+
+        let original = self.nodes.get(&id).ok_or(CoreError::NodeNotFound(id))?;
+        let ancestors = self.ancestors(id)?;
+        let mut node = original.clone();
+        node.parent_id = None;
+
+        match &mut node.kind {
+            NodeKind::Folder(props) => {
+                pin(&mut props.port, original, &ancestors, Node::port_field);
+                pin(
+                    &mut props.credential,
+                    original,
+                    &ancestors,
+                    Node::credential_field,
+                );
+                pin(
+                    &mut props.gateway,
+                    original,
+                    &ancestors,
+                    Node::gateway_field,
+                );
+                pin(
+                    &mut props.connect_timeout_ms,
+                    original,
+                    &ancestors,
+                    Node::connect_timeout_field,
+                );
+                pin(
+                    &mut props.keepalive_secs,
+                    original,
+                    &ancestors,
+                    Node::keepalive_field,
+                );
+                pin(
+                    &mut props.on_connect,
+                    original,
+                    &ancestors,
+                    Node::on_connect_field,
+                );
+                pin(
+                    &mut props.on_disconnect,
+                    original,
+                    &ancestors,
+                    Node::on_disconnect_field,
+                );
+                pin(
+                    &mut props.recording,
+                    original,
+                    &ancestors,
+                    Node::recording_field,
+                );
+                pin(
+                    &mut props.auto_reconnect,
+                    original,
+                    &ancestors,
+                    Node::auto_reconnect_field,
+                );
+                merge_ancestor_settings(&mut props.settings, &ancestors)?;
+            }
+            NodeKind::Connection(props) => {
+                pin(&mut props.port, original, &ancestors, Node::port_field);
+                pin(
+                    &mut props.credential,
+                    original,
+                    &ancestors,
+                    Node::credential_field,
+                );
+                pin(
+                    &mut props.gateway,
+                    original,
+                    &ancestors,
+                    Node::gateway_field,
+                );
+                pin(
+                    &mut props.connect_timeout_ms,
+                    original,
+                    &ancestors,
+                    Node::connect_timeout_field,
+                );
+                pin(
+                    &mut props.keepalive_secs,
+                    original,
+                    &ancestors,
+                    Node::keepalive_field,
+                );
+                pin(
+                    &mut props.on_connect,
+                    original,
+                    &ancestors,
+                    Node::on_connect_field,
+                );
+                pin(
+                    &mut props.on_disconnect,
+                    original,
+                    &ancestors,
+                    Node::on_disconnect_field,
+                );
+                pin(
+                    &mut props.recording,
+                    original,
+                    &ancestors,
+                    Node::recording_field,
+                );
+                pin(
+                    &mut props.auto_reconnect,
+                    original,
+                    &ancestors,
+                    Node::auto_reconnect_field,
+                );
+                merge_ancestor_settings(&mut props.settings, &ancestors)?;
+            }
+            NodeKind::Credential(_) | NodeKind::Group(_) | NodeKind::Separator => {}
+        }
+        if node.icon.is_none() {
+            node.icon = ancestors.iter().find_map(|ancestor| ancestor.icon.clone());
+        }
+        if node.colour.is_none() {
+            node.colour = ancestors
+                .iter()
+                .find_map(|ancestor| ancestor.colour.clone());
+        }
+        Ok(node)
+    }
+
     /// Checks the rules that need the whole tree: that every reference points
     /// at something that exists and is the right kind, that no gateway chain
     /// loops, and that a credential restricted to a set of protocols is not
@@ -983,6 +1141,56 @@ impl Tree {
 /// Per-key rather than whole-map, so that a folder setting a terminal type and
 /// a connection setting a colour depth end up with both, each labelled with
 /// where it came from.
+/// Adds to `settings` every key an ancestor sets and it does not, nearest
+/// ancestor first — the precedence [`merge_settings`] resolves with.
+fn merge_ancestor_settings(
+    settings: &mut crate::node::ProtocolSettings,
+    ancestors: &[&Node],
+) -> Result<(), CoreError> {
+    for ancestor in ancestors {
+        if let Some(inherited) = ancestor.settings_field() {
+            for (key, value) in inherited.iter() {
+                if !settings.contains_key(key) {
+                    settings.insert(key, value)?;
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Gives a set of nodes new identities, rewriting every reference among them.
+///
+/// For nodes that come from somewhere else and are about to be put beside the
+/// ones already here — an archive of another vault, or a second import of the
+/// same one — whose ids may already be taken. Parents, credentials, gateway
+/// hops and their credentials, group members and the owner of an attached
+/// credential all follow their node to its new id. A reference to a node that
+/// is not in the set is left exactly as it is: whether it still means
+/// something where the nodes are going is the caller's to decide.
+///
+/// Returns the map from each old id to its new one.
+pub fn rekey(nodes: &mut [Node]) -> HashMap<NodeId, NodeId> {
+    let map: HashMap<NodeId, NodeId> = nodes.iter().map(|node| (node.id, NodeId::new())).collect();
+    for node in nodes.iter_mut() {
+        if let Some(new) = map.get(&node.id) {
+            node.id = *new;
+        }
+        if let Some(new) = node.parent_id.and_then(|parent| map.get(&parent)) {
+            node.parent_id = Some(*new);
+        }
+        for reference in node.references_mut() {
+            reference.retarget(&map);
+        }
+        if let NodeKind::Credential(credential) = &mut node.kind {
+            if let Some(new) = credential.attached_to.and_then(|owner| map.get(&owner)) {
+                credential.attached_to = Some(*new);
+            }
+        }
+    }
+    map
+}
+
 fn merge_settings(node: &Node, ancestors: &[&Node]) -> BTreeMap<String, Resolved<String>> {
     let mut merged = BTreeMap::new();
     for ancestor in ancestors.iter().rev() {

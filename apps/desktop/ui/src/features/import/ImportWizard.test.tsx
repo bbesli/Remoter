@@ -264,6 +264,47 @@ describe("step gating", () => {
     await screen.findByText("This is what you will get");
   });
 
+  it("asks for an archive's own password, not a document password", async () => {
+    const user = userEvent.setup();
+    mocked.parseImport
+      .mockRejectedValueOnce({
+        code: "import.archive-wrong-password",
+        message: "That password does not open the archive.",
+        detail: null,
+        actions: ["Try the password again"],
+      })
+      .mockResolvedValueOnce(preview());
+    draw(<ImportWizard />);
+
+    await reachSecrets(
+      user,
+      detection({
+        format: "remoter-archive",
+        formatLabel: "remoter_archive",
+        passwordRequired: true,
+      }),
+    );
+    expect(screen.getByText("The archive is sealed")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Document password")).not.toBeInTheDocument();
+    const field = screen.getByLabelText("Archive password");
+
+    await user.type(field, "not it");
+    await user.click(screen.getByRole("button", { name: "Read the file" }));
+    expect(await screen.findByText("That password does not open the archive.")).toBeInTheDocument();
+    // Still the archive's field, still on screen, for the second try.
+    await user.clear(screen.getByLabelText("Archive password"));
+    await user.type(screen.getByLabelText("Archive password"), "orbit-lantern-quarry-velvet");
+    await user.click(screen.getByRole("button", { name: "Read the file" }));
+    await waitFor(() =>
+      expect(mocked.parseImport).toHaveBeenLastCalledWith(
+        PATH,
+        "orbit-lantern-quarry-velvet",
+        null,
+      ),
+    );
+    await screen.findByText("This is what you will get");
+  });
+
   it("keeps the field on screen when the password typed was the wrong one", async () => {
     const user = userEvent.setup();
     mocked.parseImport.mockRejectedValue({

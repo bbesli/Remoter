@@ -6,6 +6,7 @@
 #   cargo +nightly fuzz run import_mremoteng
 #   cargo +nightly fuzz run import_sshconfig
 #   cargo +nightly fuzz run import_csv
+#   cargo +nightly fuzz run import_archive
 #
 # `docs/development/testing-strategy.md`: fuzzing runs nightly and on any pull
 # request touching a parser, and a crash is a release blocker.
@@ -25,6 +26,7 @@ cargo-fuzz = true
 libfuzzer-sys = "0.4"
 remoter-import = { path = "../crates/remoter-import" }
 remoter-core = { path = "../crates/remoter-core" }
+remoter-vault = { path = "../crates/remoter-vault" }
 
 [profile.release]
 debug = true
@@ -46,6 +48,13 @@ bench = false
 [[bin]]
 name = "import_csv"
 path = "fuzz_targets/import_csv.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "import_archive"
+path = "fuzz_targets/import_archive.rs"
 test = false
 doc = false
 bench = false

@@ -446,6 +446,20 @@
     "encode": {
       "message": "The connections could not be encoded, so nothing was written.",
       "actions": []
+    },
+    "password-required": {
+      "message": "An archive is sealed with a password of its own, and none was given.",
+      "actions": [
+        "Type a password",
+        "Generate a passphrase"
+      ]
+    },
+    "password-too-weak": {
+      "message": "That password is too easy to guess for a file that carries server passwords.",
+      "actions": [
+        "Generate a passphrase",
+        "Use a longer, less predictable password"
+      ]
     }
   },
   "import": {
@@ -602,6 +616,31 @@
       "message": "That import preview is no longer held: it was committed, cancelled, or dropped when the vault locked. Nothing was written.",
       "actions": [
         "Choose the file again"
+      ]
+    },
+    "archive-password-required": {
+      "message": "That file is a Remoter archive, sealed with a password. Enter the password it was exported with.",
+      "actions": [
+        "Enter the archive password"
+      ]
+    },
+    "archive-wrong-password": {
+      "message": "That password does not open the archive.",
+      "actions": [
+        "Try the password again"
+      ]
+    },
+    "archive-unsupported": {
+      "message": "That archive was written by a newer version of Remoter, which this build does not read.",
+      "actions": [
+        "Update Remoter"
+      ]
+    },
+    "archive-damaged": {
+      "message": "That archive is damaged: what it holds is not what was sealed into it, so nothing was read from it.",
+      "actions": [
+        "Copy the file again from where it came from",
+        "Export the archive again"
       ]
     }
   },

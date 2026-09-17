@@ -24,6 +24,8 @@ pub enum SourceFormat {
     OpenSshConfig,
     /// The documented CSV column set.
     Csv,
+    /// A `.rmtr` archive written by Remoter itself.
+    RemoterArchive,
 }
 
 impl SourceFormat {
@@ -34,6 +36,7 @@ impl SourceFormat {
             Self::MRemoteNg => "mremoteng",
             Self::OpenSshConfig => "ssh_config",
             Self::Csv => "csv",
+            Self::RemoterArchive => "remoter_archive",
         }
     }
 }

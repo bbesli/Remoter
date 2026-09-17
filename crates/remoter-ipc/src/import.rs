@@ -16,16 +16,17 @@
 //! from another manager carries its passwords in the clear, and the buffer they
 //! were parsed out of is as sensitive as they are.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use remoter_core::{NodeId, TreePatch};
+use remoter_core::{Node, NodeId, NodeKind, SecretKind, Tree, TreePatch};
 use remoter_import::{
     ImportPreview, ImportReport, ImportedSecret, Limits, NodeSummary, PreviewNode, Severity,
-    SourceFormat, csv, mremoteng, ssh_config,
+    SourceFormat, csv, mremoteng, native, ssh_config,
 };
-use remoter_vault::{Secret, Vault};
+use remoter_vault::archive::{self, ArchiveError};
+use remoter_vault::{AuditEvent, AuditOutcome, Secret, Vault};
 use tauri::State;
 use uuid::Uuid;
 use zeroize::Zeroizing;
@@ -36,7 +37,7 @@ use crate::dto::{
     ImportNodeDto, ImportPreviewDto, ImportReportDto, ImportResultDto,
 };
 use crate::error::IpcError;
-use crate::state::{AppState, PendingImport, now_millis};
+use crate::state::{AppState, PendingArchive, PendingImport, now_millis};
 
 /// The field an imported password is stored under, matching the domain model's
 /// `SecretKind::Password`.
@@ -57,6 +58,20 @@ fn import_detect_impl(path: String) -> Result<ImportDetectionDto, IpcError> {
     let limits = Limits::new();
     let bytes = read_source(&path, &limits)?;
     let size_bytes = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
+
+    // Remoter's own archive is recognised by its magic, before the text
+    // formats are sniffed: it is binary, and a sniffer reading it as text
+    // would be guessing.
+    if archive::is_archive(&bytes) {
+        return Ok(ImportDetectionDto {
+            path: path.display().to_string(),
+            size_bytes,
+            format: Some(ARCHIVE_WIRE.to_owned()),
+            format_label: Some(SourceFormat::RemoterArchive.label().to_owned()),
+            password_required: true,
+            document: None,
+        });
+    }
     let format = remoter_import::detect(&bytes);
 
     let document = match format {
@@ -124,8 +139,12 @@ fn import_parse_impl(
     let bytes = read_source(&path, &limits)?;
     let format = match source.as_deref() {
         Some(name) => parse_source(name)?,
+        None if archive::is_archive(&bytes) => SourceFormat::RemoterArchive,
         None => remoter_import::detect(&bytes).ok_or_else(unknown_format)?,
     };
+    if format == SourceFormat::RemoterArchive {
+        return archive_parse(state, &bytes, password, &subject);
+    }
 
     let preview = match format {
         SourceFormat::MRemoteNg => mremoteng::parse(&bytes, password.as_ref(), &limits),
@@ -157,8 +176,116 @@ fn import_parse_impl(
         source: format,
         nodes,
         report,
+        archive: None,
     });
     Ok(dto)
+}
+
+/// The wire spelling of Remoter's own archive.
+const ARCHIVE_WIRE: &str = "remoter-archive";
+
+/// Opens a `.rmtr` archive with its password and holds what it carries.
+///
+/// The key derivation runs before the state lock is taken: a second of
+/// Argon2id is not a reason for every other command to wait.
+fn archive_parse(
+    state: &AppState,
+    bytes: &[u8],
+    password: Option<ImportedSecret>,
+    subject: &str,
+) -> Result<ImportPreviewDto, IpcError> {
+    let Some(password) = password.filter(|password| !password.is_empty()) else {
+        return Err(IpcError::new(
+            "import.archive-password-required",
+            format!(
+                "{subject} is a Remoter archive, sealed with a password. Enter the password it \
+                 was exported with."
+            ),
+        )
+        .with_actions(["Enter the archive password"]));
+    };
+    let mut plaintext = password.into_zeroizing();
+    let password = Secret::new(std::mem::take(&mut *plaintext));
+    drop(plaintext);
+
+    let contents = archive::open_archive(bytes, &password)
+        .map_err(|err| archive_error(&err, subject, bytes.len()))?;
+    drop(password);
+
+    let with_secrets: HashSet<NodeId> = contents
+        .secrets
+        .iter()
+        .map(|secret| NodeId::from_uuid(secret.node))
+        .collect();
+    let report = native::report(
+        SourceFormat::RemoterArchive,
+        &contents.nodes,
+        contents.secrets.len(),
+    );
+    let dto = ImportPreviewDto {
+        import_id: Uuid::now_v7().to_string(),
+        source: ARCHIVE_WIRE.to_owned(),
+        source_label: SourceFormat::RemoterArchive.label().to_owned(),
+        nodes: native::summaries(&contents.nodes, &with_secrets)
+            .iter()
+            .map(node_dto)
+            .collect(),
+        report: report_dto(&report),
+    };
+
+    let mut guard = state.lock();
+    guard.vault_ref()?;
+    guard.set_pending_import(PendingImport {
+        id: dto.import_id.clone(),
+        source: SourceFormat::RemoterArchive,
+        nodes: Vec::new(),
+        report,
+        archive: Some(PendingArchive {
+            nodes: contents.nodes,
+            secrets: contents.secrets,
+        }),
+    });
+    Ok(dto)
+}
+
+/// What an archive that would not open means, in the user's terms.
+fn archive_error(err: &ArchiveError, subject: &str, size: usize) -> IpcError {
+    match err {
+        ArchiveError::NotAnArchive => unknown_format(),
+        ArchiveError::WrongPassword => IpcError::new(
+            "import.archive-wrong-password",
+            format!("That password does not open {subject}."),
+        )
+        .with_actions(["Try the password again"]),
+        ArchiveError::UnsupportedFormat(version) => IpcError::new(
+            "import.archive-unsupported",
+            format!(
+                "{subject} was written by a newer version of Remoter, in archive format \
+                 {version}, which this build does not read."
+            ),
+        )
+        .with_actions(["Update Remoter"]),
+        ArchiveError::Malformed | ArchiveError::Tampered | ArchiveError::Corrupt => IpcError::new(
+            "import.archive-damaged",
+            format!(
+                "{subject} is damaged: what it holds is not what was sealed into it, so nothing \
+                 was read from it."
+            ),
+        )
+        .with_detail(err.to_string())
+        .with_actions([
+            "Copy the file again from where it came from",
+            "Export the archive again",
+        ]),
+        ArchiveError::TooLarge { limit } => IpcError::from_import(
+            &remoter_import::ImportError::TooLarge {
+                size,
+                limit: *limit,
+            },
+            subject,
+        ),
+        ArchiveError::Vault(err) => IpcError::from_vault(err, subject),
+    }
 }
 
 /// Drops a preview without importing it, wiping the secrets it holds.
@@ -229,6 +356,17 @@ fn import_commit_impl(state: &AppState, req: ImportCommitDto) -> Result<ImportRe
                 &remoter_core::CoreError::NotAContainer(id),
             ));
         }
+    }
+
+    if let Some(archive) = pending.archive {
+        return archive_commit(
+            vault,
+            tree,
+            destination,
+            &excluded,
+            archive,
+            needs_attention,
+        );
     }
 
     // Excluding a folder excludes what is under it: a connection whose folder
@@ -345,6 +483,119 @@ fn import_commit_impl(state: &AppState, req: ImportCommitDto) -> Result<ImportRe
     })
 }
 
+/// Writes an opened archive into the vault: its nodes under new ids, then its
+/// secrets sealed under this vault's key, then one save.
+fn archive_commit(
+    vault: &mut Vault,
+    mut tree: Tree,
+    destination: Option<NodeId>,
+    excluded: &BTreeSet<NodeId>,
+    archive: PendingArchive,
+    needs_attention: usize,
+) -> Result<ImportResultDto, IpcError> {
+    let PendingArchive { nodes, secrets } = archive;
+    let base_sort_order = next_sort_order(&tree, destination);
+    let grafted = native::graft(
+        nodes,
+        excluded,
+        &tree,
+        destination,
+        base_sort_order,
+        now_millis(),
+    )
+    .map_err(|err| IpcError::from_import(&err, "that archive"))?;
+
+    let mut patch = TreePatch::default();
+    let mut counts = ImportCountsDto::default();
+    let mut root_ids = Vec::new();
+    for node in grafted.nodes {
+        match node.kind {
+            NodeKind::Folder(_) => counts.folders += 1,
+            NodeKind::Connection(_) => counts.connections += 1,
+            NodeKind::Credential(_) => counts.credentials += 1,
+            _ => {}
+        }
+        if node.parent_id == destination {
+            root_ids.push(node.id.to_string());
+        }
+        let inserted = tree.insert(node).map_err(|err| IpcError::from_core(&err))?;
+        patch.inserted.extend(inserted.inserted);
+    }
+    let imported = patch.inserted.len();
+    vault
+        .apply(&tree, &patch)
+        .map_err(|err| IpcError::from_vault(&err, "this vault"))?;
+
+    // Each secret follows its node to the node's new id, and is stored only if
+    // the node is one that holds a secret in that field. An archive is a file
+    // that came from somewhere; a field its node has no use for is not sealed
+    // into the vault on its say-so.
+    let mut secrets_stored = 0usize;
+    for secret in secrets {
+        let Some(id) = grafted.ids.get(&NodeId::from_uuid(secret.node)) else {
+            continue;
+        };
+        if !tree
+            .get(*id)
+            .is_some_and(|node| holds_field(node, &secret.field))
+        {
+            continue;
+        }
+        vault
+            .set_secret(*id.as_uuid(), &secret.field, secret.value)
+            .map_err(|err| IpcError::from_vault(&err, "this vault"))?;
+        secrets_stored += 1;
+    }
+
+    let detail = format!(
+        "imported from {}: folders {}, connections {}, credentials {}, passwords {secrets_stored}",
+        SourceFormat::RemoterArchive.label(),
+        counts.folders,
+        counts.connections,
+        counts.credentials,
+    );
+    vault
+        .audit(
+            AuditEvent::DataImported,
+            AuditOutcome::Success,
+            Some(&detail),
+        )
+        .map_err(|err| IpcError::from_vault(&err, "this vault"))?;
+    save(vault)?;
+
+    Ok(ImportResultDto {
+        source: ARCHIVE_WIRE.to_owned(),
+        imported,
+        skipped: grafted.excluded,
+        folders: counts.folders,
+        connections: counts.connections,
+        credentials: counts.credentials,
+        secrets_stored,
+        needs_attention,
+        root_ids,
+    })
+}
+
+/// Whether a node keeps a secret in `field`, by what its kind says it holds.
+fn holds_field(node: &Node, field: &str) -> bool {
+    let NodeKind::Credential(credential) = &node.kind else {
+        return false;
+    };
+    let by_kind = match (&credential.secret, field) {
+        (SecretKind::Password { .. }, "password")
+        | (SecretKind::PrivateKey { .. }, "private_key")
+        | (SecretKind::Certificate { .. }, "certificate" | "certificate_key") => true,
+        (
+            SecretKind::PrivateKey {
+                sealed_passphrase, ..
+            },
+            "passphrase",
+        ) => sealed_passphrase.is_some(),
+        _ => false,
+    };
+    by_kind || (field == "totp" && credential.totp.is_some())
+}
+
 // =================================================================== helpers
 
 /// Reads a source file, refusing one larger than the importer will parse.
@@ -362,12 +613,13 @@ fn read_source(path: &Path, limits: &Limits) -> Result<Zeroizing<Vec<u8>>, IpcEr
         ));
     }
     let size = usize::try_from(metadata.len()).unwrap_or(usize::MAX);
-    if size > limits.max_input_bytes {
+    // The larger of the two ceilings, because which one applies is not known
+    // until the bytes are: an archive may be bigger than a text file an
+    // importer parses, and a text file this size is refused by its parser.
+    let limit = limits.max_input_bytes.max(archive::MAX_ARCHIVE_BYTES);
+    if size > limit {
         return Err(IpcError::from_import(
-            &remoter_import::ImportError::TooLarge {
-                size,
-                limit: limits.max_input_bytes,
-            },
+            &remoter_import::ImportError::TooLarge { size, limit },
             &path.display().to_string(),
         ));
     }
@@ -384,6 +636,7 @@ const fn source_wire(format: SourceFormat) -> &'static str {
         SourceFormat::MRemoteNg => "mremoteng",
         SourceFormat::OpenSshConfig => "ssh-config",
         SourceFormat::Csv => "csv",
+        SourceFormat::RemoterArchive => ARCHIVE_WIRE,
         // `SourceFormat` is `#[non_exhaustive]`: a format added upstream is
         // named rather than mistaken for one of these three.
         _ => "unknown",
@@ -395,9 +648,13 @@ fn parse_source(name: &str) -> Result<SourceFormat, IpcError> {
         "mremoteng" => Ok(SourceFormat::MRemoteNg),
         "ssh-config" => Ok(SourceFormat::OpenSshConfig),
         "csv" => Ok(SourceFormat::Csv),
+        ARCHIVE_WIRE => Ok(SourceFormat::RemoterArchive),
         other => Err(IpcError::invalid_request(
             "source",
-            format!("`{other}` is not an importer; expected mremoteng, ssh-config or csv"),
+            format!(
+                "`{other}` is not an importer; expected mremoteng, ssh-config, csv or \
+                 remoter-archive"
+            ),
         )),
     }
 }
@@ -571,6 +828,7 @@ mod tests {
             SourceFormat::MRemoteNg,
             SourceFormat::OpenSshConfig,
             SourceFormat::Csv,
+            SourceFormat::RemoterArchive,
         ] {
             let wire = source_wire(format);
             assert_eq!(parse_source(wire).ok(), Some(format), "wire: {wire}");
@@ -704,6 +962,142 @@ mod vault_tests {
             },
         );
         assert!(again.is_err_and(|err| err.code == "import.no-such-preview"));
+    }
+
+    #[test]
+    #[expect(
+        clippy::panic,
+        reason = "an import test without a vault has nothing left to assert"
+    )]
+    fn an_archive_moves_a_folder_and_its_passwords_into_another_vault() {
+        const SERVER_PASSWORD: &str = "root-password-on-the-server";
+        const ARCHIVE_PASSWORD: &str = "orbit-lantern-quarry-velvet-78";
+
+        // The vault it leaves.
+        let from = Scratch::new();
+        let Some(source) = open_vault(&from) else {
+            panic!("the first vault could not be created");
+        };
+        let mut folder = crate::dto::CreateNodeDto {
+            parent_id: None,
+            kind: String::from("folder"),
+            name: String::from("Production"),
+            protocol: None,
+            host: None,
+            port: None,
+            username: None,
+            password: None,
+            credential: None,
+            credential_id: None,
+            gateway: None,
+        };
+        let folder = crate::commands::node_create_impl(&source, &mut folder)
+            .unwrap_or_else(|err| panic!("creating the folder failed: {}", err.message));
+        let mut web = crate::dto::CreateNodeDto {
+            parent_id: Some(folder.id.clone()),
+            kind: String::from("connection"),
+            name: String::from("web-01"),
+            protocol: Some(String::from("ssh")),
+            host: Some(String::from("203.0.113.10")),
+            port: None,
+            username: Some(String::from("root")),
+            password: Some(String::from(SERVER_PASSWORD)),
+            credential: None,
+            credential_id: None,
+            gateway: None,
+        };
+        crate::commands::node_create_impl(&source, &mut web)
+            .unwrap_or_else(|err| panic!("creating the connection failed: {}", err.message));
+
+        let archive = from.join("production.rmtr");
+        let exported = crate::export::tree_export_for_tests(
+            &source,
+            crate::dto::TreeExportDto {
+                path: archive.display().to_string(),
+                format: String::from("remoter-archive"),
+                root_id: Some(folder.id.clone()),
+                password: Some(String::from(ARCHIVE_PASSWORD)),
+            },
+        );
+        let Ok(exported) = exported else {
+            panic!("exporting failed: {}", why(&exported));
+        };
+        assert_eq!(exported.format, "remoter-archive");
+        let summary = exported
+            .archive
+            .unwrap_or_else(|| panic!("no archive summary"));
+        assert_eq!(summary.connections, 1);
+        assert_eq!(summary.secrets, 1);
+        let written = std::fs::read(&archive).unwrap_or_default();
+        assert!(
+            !written
+                .windows(SERVER_PASSWORD.len())
+                .any(|w| w == SERVER_PASSWORD.as_bytes()),
+            "the server password is in the archive in the clear"
+        );
+
+        // The vault it arrives in.
+        let to = Scratch::new();
+        let Some(target) = open_vault(&to) else {
+            panic!("the second vault could not be created");
+        };
+        let path = archive.display().to_string();
+        let detected = import_detect_impl(path.clone())
+            .unwrap_or_else(|err| panic!("detecting failed: {}", err.message));
+        assert_eq!(detected.format.as_deref(), Some("remoter-archive"));
+        assert!(detected.password_required);
+
+        let without = import_parse_impl(&target, path.clone(), None, None);
+        assert!(without.is_err_and(|err| err.code == "import.archive-password-required"));
+        let wrong = import_parse_impl(&target, path.clone(), Some(String::from("nope")), None);
+        assert!(wrong.is_err_and(|err| err.code == "import.archive-wrong-password"));
+
+        let preview = import_parse_impl(&target, path, Some(String::from(ARCHIVE_PASSWORD)), None)
+            .unwrap_or_else(|err| panic!("parsing failed: {}", err.message));
+        assert_eq!(preview.source, "remoter-archive");
+        assert!(preview.nodes.iter().any(|node| node.has_secret));
+        let rendered = serde_json::to_string(&preview).unwrap_or_default();
+        assert!(
+            !rendered.contains(SERVER_PASSWORD),
+            "the preview leaked a password"
+        );
+
+        let committed = import_commit_impl(
+            &target,
+            ImportCommitDto {
+                import_id: preview.import_id,
+                destination_id: None,
+                excluded_ids: None,
+            },
+        )
+        .unwrap_or_else(|err| panic!("committing failed: {}", err.message));
+        assert_eq!(committed.connections, 1);
+        assert_eq!(committed.folders, 1);
+        assert_eq!(committed.secrets_stored, 1);
+
+        // And the password is there, under this vault's key, for the
+        // connection that came with it.
+        let tree = tree_list_impl(&target).unwrap_or_default();
+        let web = tree
+            .iter()
+            .find(|node| node.name == "web-01" && node.kind == "connection")
+            .unwrap_or_else(|| panic!("web-01 did not arrive: {tree:?}"));
+        let credential_id = web
+            .attached_credential_id
+            .clone()
+            .unwrap_or_else(|| panic!("web-01 lost its credential: {web:?}"));
+        let mut guard = target.lock();
+        let Ok(vault) = guard.vault_mut() else {
+            panic!("the vault closed");
+        };
+        let uuid = uuid::Uuid::parse_str(&credential_id).unwrap_or_default();
+        let borrowed = vault
+            .borrow_secret(uuid, "password", remoter_vault::Purpose::SshPassword)
+            .unwrap_or_else(|err| panic!("the password did not arrive: {err}"));
+        assert_eq!(
+            remoter_vault::ExposeSecret::expose_secret(&borrowed).as_slice(),
+            SERVER_PASSWORD.as_bytes()
+        );
     }
 
     #[test]

@@ -27,6 +27,8 @@ vi.mock("@/lib/ipc", async (importOriginal) => {
     ipc: {
       exportTree: vi.fn(),
       listNodes: vi.fn(),
+      passwordStrength: vi.fn(),
+      generatePassphrase: vi.fn(),
     },
   };
 });
@@ -39,6 +41,8 @@ import { fileStem, TreeExportDialog } from "./TreeExportDialog";
 
 const exportTree = vi.mocked(ipc.exportTree);
 const listNodes = vi.mocked(ipc.listNodes);
+const passwordStrength = vi.mocked(ipc.passwordStrength);
+const generatePassphrase = vi.mocked(ipc.generatePassphrase);
 const saveDialog = vi.mocked(save);
 
 function node(over: Partial<TreeNode> & Pick<TreeNode, "id" | "name" | "kind">): TreeNode {
@@ -62,6 +66,8 @@ function result(notes: ExportNote[], notesDropped = 0): TreeExportResult {
   return {
     path: "/home/you/Üretim.config",
     bytes: 2048,
+    format: "ssh-config",
+    archive: null,
     report: {
       format: "ssh-config",
       folders: 1,
@@ -86,15 +92,41 @@ beforeEach(() => {
   listNodes.mockResolvedValue([PRODUCTION]);
   exportTree.mockResolvedValue(result([]));
   saveDialog.mockResolvedValue(null);
+  passwordStrength.mockImplementation(async (password: string) => ({
+    score: password.length > 16 ? 4 : 1,
+    entropyBits: password.length > 16 ? 90 : 20,
+    label: password.length > 16 ? "Strong" : "Weak",
+    explanation: "",
+    acceptable: password.length > 16,
+  }));
 });
+
+/** Answers the first question: the file is for another application. */
+async function forAnotherApplication(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole("radio", { name: /Another application/ }));
+}
 
 afterEach(() => {
   vi.clearAllMocks();
 });
 
 describe("TreeExportDialog", () => {
-  it("says no secret is written and that the file is not encrypted, before anything else", () => {
+  it("asks first who the file is for, and says what each answer puts in it", () => {
     render(<TreeExportDialog rootId={null} onClose={() => {}} />, { wrapper });
+    const choices = screen.getByRole("radiogroup", { name: "Who is the file for?" });
+    expect(
+      within(choices).getByRole("radio", { name: /Another Remoter.*passwords and keys, encrypted/ }),
+    ).toBeInTheDocument();
+    expect(
+      within(choices).getByRole("radio", { name: /Another application.*No passwords or keys/ }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Export" })).toBeNull();
+  });
+
+  it("says no secret is written and that the file is not encrypted, before anything else", async () => {
+    const user = userEvent.setup();
+    render(<TreeExportDialog rootId={null} onClose={() => {}} />, { wrapper });
+    await forAnotherApplication(user);
     const dialog = screen.getByRole("dialog", { name: "Export connections" });
     expect(
       within(dialog).getByText("No password, private key or passphrase is written."),
@@ -108,6 +140,7 @@ describe("TreeExportDialog", () => {
   it("refuses to export without a destination, and says so", async () => {
     const user = userEvent.setup();
     render(<TreeExportDialog rootId={null} onClose={() => {}} />, { wrapper });
+    await forAnotherApplication(user);
 
     await user.click(screen.getByRole("button", { name: "Export" }));
 
@@ -118,6 +151,7 @@ describe("TreeExportDialog", () => {
   it("exports the folder it was opened on, or the vault when the user says so", async () => {
     const user = userEvent.setup();
     render(<TreeExportDialog rootId={PRODUCTION.id} onClose={() => {}} />, { wrapper });
+    await forAnotherApplication(user);
 
     const scope = screen.getByRole("radiogroup", { name: "What to export" });
     const folder = await within(scope).findByRole("radio", {
@@ -132,12 +166,14 @@ describe("TreeExportDialog", () => {
       path: "/home/you/prod.csv",
       format: "csv",
       rootId: PRODUCTION.id,
+      password: null,
     });
   });
 
   it("sends no root once the whole vault is chosen", async () => {
     const user = userEvent.setup();
     render(<TreeExportDialog rootId={PRODUCTION.id} onClose={() => {}} />, { wrapper });
+    await forAnotherApplication(user);
 
     await user.click(screen.getByRole("radio", { name: "The whole vault" }));
     await user.type(screen.getByLabelText("Write to"), "/home/you/all.json");
@@ -149,12 +185,14 @@ describe("TreeExportDialog", () => {
       path: "/home/you/all.json",
       format: "json",
       rootId: null,
+      password: null,
     });
   });
 
   it("changes the file's extension with the format, and leaves a typed one alone", async () => {
     const user = userEvent.setup();
     render(<TreeExportDialog rootId={null} onClose={() => {}} />, { wrapper });
+    await forAnotherApplication(user);
     const pathField = screen.getByLabelText("Write to");
 
     await user.type(pathField, "/home/you/estate.csv");
@@ -172,6 +210,7 @@ describe("TreeExportDialog", () => {
     const user = userEvent.setup();
     saveDialog.mockResolvedValue("/home/you/Üretim.csv");
     render(<TreeExportDialog rootId={PRODUCTION.id} onClose={() => {}} />, { wrapper });
+    await forAnotherApplication(user);
     await screen.findByRole("radio", { name: `${isolate("Üretim")} and everything in it` });
 
     await user.click(screen.getByRole("button", { name: "Choose…" }));
@@ -193,6 +232,7 @@ describe("TreeExportDialog", () => {
       ),
     );
     render(<TreeExportDialog rootId={null} onClose={() => {}} />, { wrapper });
+    await forAnotherApplication(user);
 
     await user.type(screen.getByLabelText("Write to"), "/home/you/Üretim.config");
     await user.click(screen.getByRole("button", { name: "Export" }));
@@ -210,6 +250,94 @@ describe("TreeExportDialog", () => {
     ).toBeInTheDocument();
     expect(within(notes).getByText(/another connection has the same name as its jump host/)).toBeInTheDocument();
     expect(within(notes).getByText("and 4 more")).toBeInTheDocument();
+  });
+
+  it("seals an archive for another Remoter only with a password it can check twice", async () => {
+    const user = userEvent.setup();
+    exportTree.mockResolvedValue({
+      path: "/home/you/Üretim.rmtr",
+      bytes: 4096,
+      format: "remoter-archive",
+      report: null,
+      archive: {
+        folders: 1,
+        connections: 4,
+        credentials: 2,
+        secrets: 3,
+        dependencies: ["svc-deploy", "bastion"],
+      },
+    });
+    render(<TreeExportDialog rootId={PRODUCTION.id} onClose={() => {}} />, { wrapper });
+    await user.click(screen.getByRole("radio", { name: /Another Remoter/ }));
+
+    expect(screen.getByText("Server passwords and keys are included.")).toBeInTheDocument();
+    expect(screen.queryByRole("radiogroup", { name: "Format" })).toBeNull();
+
+    await user.type(screen.getByLabelText("Write to"), "/home/you/Üretim.rmtr");
+    await user.click(screen.getByRole("button", { name: "Export" }));
+    expect(screen.getAllByText("Choose a password for the archive first.").length).toBeGreaterThan(0);
+
+    // Weak: the core's verdict, shown and enforced.
+    await user.type(screen.getByLabelText("Archive password"), "hunter2");
+    expect(await screen.findByText(/Too easy to guess/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Export" }));
+    expect(exportTree).not.toHaveBeenCalled();
+
+    // Strong, but typed differently the second time.
+    await user.clear(screen.getByLabelText("Archive password"));
+    await user.type(screen.getByLabelText("Archive password"), "orbit-lantern-quarry-velvet");
+    await user.type(screen.getByLabelText("Type it again"), "orbit-lantern-quarry-velvte");
+    await user.click(screen.getByRole("button", { name: "Export" }));
+    expect(screen.getAllByText("The two passwords are not the same.").length).toBeGreaterThan(0);
+    expect(exportTree).not.toHaveBeenCalled();
+
+    await user.clear(screen.getByLabelText("Type it again"));
+    await user.type(screen.getByLabelText("Type it again"), "orbit-lantern-quarry-velvet");
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Export" })).not.toHaveAttribute("title"),
+    );
+    await user.click(screen.getByRole("button", { name: "Export" }));
+
+    await waitFor(() => expect(exportTree).toHaveBeenCalledTimes(1));
+    expect(exportTree.mock.calls[0]?.[0]).toEqual({
+      path: "/home/you/Üretim.rmtr",
+      format: "remoter-archive",
+      rootId: PRODUCTION.id,
+      password: "orbit-lantern-quarry-velvet",
+    });
+    expect(
+      await screen.findByText(
+        `Wrote 4 connections and 3 passwords and keys to ${isolateLtr("/home/you/Üretim.rmtr")} (4.0 KiB).`,
+      ),
+    ).toBeInTheDocument();
+    const dependencies = screen.getByRole("region", {
+      name: "Also included, because the export uses them",
+    });
+    expect(within(dependencies).getByText(isolate("bastion"))).toBeInTheDocument();
+  });
+
+  it("fills both fields with a generated passphrase and shows it", async () => {
+    const user = userEvent.setup();
+    generatePassphrase.mockResolvedValue("acorn-basil-cedar-drift-ember-fjord");
+    render(<TreeExportDialog rootId={null} onClose={() => {}} />, { wrapper });
+    await user.click(screen.getByRole("radio", { name: /Another Remoter/ }));
+    await user.click(screen.getByRole("button", { name: "Generate a passphrase" }));
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Archive password")).toHaveValue(
+        "acorn-basil-cedar-drift-ember-fjord",
+      ),
+    );
+    expect(screen.getByLabelText("Type it again")).toHaveValue("acorn-basil-cedar-drift-ember-fjord");
+    expect(screen.getByLabelText("Archive password")).toHaveAttribute("type", "text");
+  });
+
+  it("goes back to the first question and keeps nothing it should not", async () => {
+    const user = userEvent.setup();
+    render(<TreeExportDialog rootId={null} onClose={() => {}} />, { wrapper });
+    await user.click(screen.getByRole("radio", { name: /Another Remoter/ }));
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByRole("radiogroup", { name: "Who is the file for?" })).toBeInTheDocument();
   });
 
   it("closes on Escape", async () => {

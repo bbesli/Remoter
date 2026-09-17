@@ -68,6 +68,14 @@ Argon2id raises the cost per guess by roughly six orders of magnitude versus a
 bare hash, but it cannot rescue `Password123`. Remoter therefore enforces a
 minimum entropy estimate at vault creation and offers a generated passphrase.
 
+The same applies to a **`.rmtr` archive**, which is T1's target by another
+route: it is made to leave the machine, carries the secrets of what it exports,
+and is protected by one password. It is the vault's envelope with a single
+password slot at the same Argon2id floor, and its password passes the same
+entropy gate a master password does, in the core, before anything is written.
+The archive password is not the vault's and should reach the recipient by a
+different channel than the file.
+
 ### T2/T3 — Network attackers
 
 - SSH: strict host key verification. Trust-on-first-use shows the full

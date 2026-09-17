@@ -50,6 +50,8 @@ describe("wantsDocumentPassword", () => {
   it("recognises the two refusals a document password answers", () => {
     expect(wantsDocumentPassword(failure("import.password-required"))).toBe(true);
     expect(wantsDocumentPassword(failure("import.wrong-password"))).toBe(true);
+    expect(wantsDocumentPassword(failure("import.archive-password-required"))).toBe(true);
+    expect(wantsDocumentPassword(failure("import.archive-wrong-password"))).toBe(true);
   });
 
   it("does not turn every failure into a password prompt", () => {
