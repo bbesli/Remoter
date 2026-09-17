@@ -1,0 +1,60 @@
+/* Files the remote desktop copied. In flow with the other notices above the
+   picture, never over it: a remote desktop uses all four of its edges. */
+.bar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--fg-default);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+.row > svg {
+  flex: none;
+  color: var(--fg-muted);
+}
+
+.failed {
+  background: var(--warning-tint);
+  border-color: var(--warning);
+}
+
+.failed > svg {
+  color: var(--warning);
+}
+
+.text {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-wrap: pretty;
+}
+
+/* The server's names, after the sentence and visibly apart from it. */
+.names {
+  margin-inline-start: var(--space-2);
+  color: var(--fg-muted);
+  overflow-wrap: anywhere;
+}
+
+.progress {
+  flex: 0 1 10rem;
+  min-width: 4rem;
+  height: 0.375rem;
+  accent-color: var(--accent);
+}
+
+.note {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+}

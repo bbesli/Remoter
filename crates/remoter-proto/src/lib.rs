@@ -77,9 +77,10 @@ pub use hostkey::{
     TrustSource, TrustStore, UnknownHostKey, verify_host_key,
 };
 pub use protocol::{
-    Capabilities, ClipboardData, ClipboardFormats, ClipboardOp, ClipboardPolicy, ClipboardSupport,
-    DefaultOrigin, InputEvent, Modifiers, OptionLabel, PointerButtons, Protocol, Session,
-    SessionKind, SettingField, SettingKind, SettingOption, SettingsSchema, connection_target,
+    Capabilities, ClipboardData, ClipboardFiles, ClipboardFormats, ClipboardOp, ClipboardPolicy,
+    ClipboardSupport, DefaultOrigin, InputEvent, Modifiers, OptionLabel, PointerButtons, Protocol,
+    RemoteFile, Session, SessionKind, SettingField, SettingKind, SettingOption, SettingsSchema,
+    connection_target,
 };
 pub use supervisor::{
     SessionCommand, SessionContext, SessionHandle, SessionId, SessionInfo, SessionSpec,

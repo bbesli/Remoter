@@ -175,6 +175,7 @@ function record(overrides: Partial<SessionRecord> = {}): SessionRecord {
     promptError: null,
     inputError: null,
     warnings: [],
+    clipboardFiles: { offer: null, transfer: null },
     metrics: { bytesIn: 0, bytesOut: 0, cols: 1920, rows: 1080, echoMs: null },
     renderer: null,
     scale: { mode: "fit", zoom: 2 },

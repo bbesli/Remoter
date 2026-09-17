@@ -19,9 +19,10 @@
 //! routinely holds a password the user copied from elsewhere.
 //!
 //! **A graphical session reaches the same clipboard.** An RDP tab offers the
-//! clipboard's text to the remote desktop through [`text_for_remote`] — the
-//! text goes from here to the session, and never through the frontend — and
-//! text copied on the remote desktop arrives through [`put_text_from_remote`].
+//! clipboard's text or copied files to the remote desktop through
+//! [`read_for_remote`] — what was copied goes from here to the session, and
+//! never through the frontend — and text copied on the remote desktop arrives
+//! through [`put_text_from_remote`].
 //! Both are the user's own clipboard moving where they pointed it; what may
 //! move is the connection's clipboard policy, enforced in the adapter.
 //!
@@ -96,12 +97,44 @@ pub(crate) fn clipboard_write_text(selection: Selection, text: String) -> Result
     with_clipboard(|clipboard| write(clipboard, selection, text))
 }
 
-/// The clipboard's text, for offering to a remote session.
+/// The most paths one offer of copied files carries from the clipboard.
 ///
-/// The same read, and the same bound, as a terminal paste: four megabytes is
-/// also what the RDP adapter will announce.
-pub(crate) fn text_for_remote() -> Result<Option<String>, IpcError> {
-    clipboard_read_text(Selection::Clipboard)
+/// The paths themselves; a folder among them is walked by the adapter, which
+/// bounds what it finds inside.
+const MAX_CLIPBOARD_PATHS: usize = 1_000;
+
+/// What the clipboard holds, for offering to a remote session: files if it
+/// holds files, text otherwise.
+///
+/// Files first, because a file manager puts both on the clipboard — the files,
+/// and their names as text for anything that only reads text — and a paste on
+/// the remote desktop means the files. Whether files may cross at all is the
+/// connection's setting, which the adapter enforces; a connection that does not
+/// allow them simply ignores the offer.
+///
+/// The text read is the same, with the same bound, as a terminal paste: four
+/// megabytes is also what the RDP adapter will announce.
+pub(crate) fn read_for_remote() -> Result<Option<remoter_proto::ClipboardData>, IpcError> {
+    let files = with_clipboard(|clipboard| match clipboard.get().file_list() {
+        Ok(files) => Ok(files),
+        // No files — the common case — or a platform that cannot say.
+        Err(arboard::Error::ContentNotAvailable | arboard::Error::ClipboardNotSupported) => {
+            Ok(Vec::new())
+        }
+        Err(err) => Err(err),
+    })
+    .unwrap_or_default();
+    let paths: Vec<String> = files
+        .into_iter()
+        .take(MAX_CLIPBOARD_PATHS)
+        // A path that is not UTF-8 cannot be named in a File Descriptor, and
+        // a lossy conversion would name a different file.
+        .filter_map(|path| path.into_os_string().into_string().ok())
+        .collect();
+    if !paths.is_empty() {
+        return Ok(Some(remoter_proto::ClipboardData::Files(paths)));
+    }
+    Ok(clipboard_read_text(Selection::Clipboard)?.map(remoter_proto::ClipboardData::Text))
 }
 
 /// Puts text a remote session copied onto the clipboard.

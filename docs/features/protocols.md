@@ -19,7 +19,7 @@ gaps are.
 | Status | ✅ shipped | ✅ shipped | ✅ shipped | ✅ shipped | ⏳ not started |
 | Resize | ✅ | — | ✅ where the server opens MS-RDPEDISP | ⏳ needs `SetDesktopSize` | — |
 | Clipboard, text | — | — | ✅ both ways, each a setting | ⏳ half on the wire, unreachable | — |
-| Clipboard, files | — | — | ⏳ v1.1 | — | — |
+| Clipboard, files | — | — | ✅ both ways, off by default | — | — |
 | File transfer | via SFTP on the same connection | ✅ | ⏳ drive redirect | — | ⏳ |
 | Audio | — | — | ⏳ v1.1 | — | — |
 | Printing | — | — | ⏳ v1.2 | — | — |
@@ -54,7 +54,21 @@ them. The four protocols differ underneath:
   16 MiB is dropped whole on its first chunk and the tab says so, rather than
   ending the session; an offer above 4 MiB is refused the same way, and a server
   that still has not opened the channel a minute into the session is reported
-  once. ⏳ Files, images and rich formats do not cross — text only.
+  once.
+
+  **Files** cross too, over the same channel's file streams (§2.2.5.3), where
+  the connection turns on *Copy files through the clipboard* — off by default,
+  as [transport-security.md](../security/transport-security.md) requires. The
+  same offer carries copied files instead of text when the local clipboard holds
+  files: they are walked into a File Descriptor list (folders included, links
+  inside them not followed, at most ten thousand entries) and each request the
+  server makes is answered from the file its index names. Files copied on the
+  server are *not* fetched when they are announced: only the list is, and the
+  tab shows it with a *Save to folder* button. A save asks for each file a
+  megabyte at a time, writes it under a temporary name, and renames it when it
+  is whole; it reports progress, can be stopped, and says where the files went
+  or why it stopped. Every file either way is an audit row. ⏳ Images and rich
+  formats do not cross.
 - **VNC** can write the remote clipboard — `ClipboardOp::Offer(Text)` becomes a
   `ClientCutText` (RFC 6143 §7.5.6), lossily, because `vnc-rs` writes UTF-8 where
   RFB wants Latin-1 and so the transcoder restricts to ASCII and reports what it
@@ -294,8 +308,8 @@ section, which covers most of the same need.
 
 **Known gaps versus FreeRDP** — stated plainly because users will hit them:
 audio and microphone redirection, printer redirection, smart card redirection,
-USB redirection, drive redirection, files and images over the clipboard, and
-multi-monitor are all absent. ⏳ The per-connection "open in external client" escape hatch is
+USB redirection, drive redirection, images and rich formats over the clipboard,
+and multi-monitor are all absent. ⏳ The per-connection "open in external client" escape hatch is
 specified and not built either, so where a gap blocks a user today the answer is
 `mstsc` or `xfreerdp` started by hand.
 

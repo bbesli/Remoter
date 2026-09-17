@@ -48,14 +48,17 @@ use ironrdp::pdu::x224::X224;
 use ironrdp::session::image::DecodedImage;
 use ironrdp::session::{ActiveStage, ActiveStageBuilder, ActiveStageOutput};
 use remoter_proto::{
-    Capabilities, ClipboardData, ClipboardOp, ClipboardSupport, CloseReason, EventSink,
-    FailureReport, HostPort, InputEvent, ProtocolError, SessionContext, SessionEvent, SessionId,
-    SessionKind, SessionWarning,
+    Capabilities, ClipboardData, ClipboardFiles, ClipboardOp, ClipboardSupport, CloseReason,
+    EventSink, FailureReport, HostPort, InputEvent, ProtocolError, SessionContext, SessionEvent,
+    SessionId, SessionKind, SessionWarning,
 };
 use tokio_util::sync::CancellationToken;
 use zeroize::Zeroizing;
 
 use crate::clipboard::{ClipboardSignals, ClipboardState, MAX_CLIPBOARD_PDU_BYTES, Step};
+use crate::clipboard_files::{
+    LocalFileSet, OpenFile, SAVE_BUSY, SAVE_NOTHING, SaveJob, SaveStep, WARNING_FILES_UNSUPPORTED,
+};
 use crate::connect::{Connected, ConnectionConfig, DesktopSize};
 use crate::display::FrameEncoder;
 use crate::error::{map_io, unsupported, violation};
@@ -104,6 +107,16 @@ pub const MAX_DESKTOP_PIXELS: u64 = 8192 * 8192;
 /// as one; five seconds is several times longer than any server takes to answer
 /// with a PDU it has already decided to send.
 pub const REACTIVATION_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// How often the clipboard channel's timers are driven while files are in play.
+///
+/// `ironrdp-cliprdr` releases a lock the server's clipboard has moved past, and
+/// gives up on a file request the server never answered, only when it is
+/// asked to look (`Cliprdr::drive_timeouts`). Its own timeouts are a minute, so
+/// looking every five seconds is more than often enough — and it happens only
+/// while files are on either clipboard or a save is running, so an idle session
+/// still wakes for nothing.
+pub const CLIPBOARD_TICK: Duration = Duration::from_secs(5);
 
 /// The catalogue key surfaced when the server will not resize its desktop.
 pub const WARNING_RESIZE_UNAVAILABLE: &str = "rdp.display_control_unavailable";
@@ -178,7 +191,7 @@ pub const fn capabilities() -> Capabilities {
         // section above for why this is the adapter's offer and not a promise
         // about any particular server.
         resizable: true,
-        clipboard: ClipboardSupport::Text,
+        clipboard: ClipboardSupport::TextAndFiles,
         file_transfer: false,
         audio: false,
         printing: false,
@@ -218,6 +231,12 @@ pub struct RdpSession {
     clipboard: Option<ClipboardState>,
     /// The id the server gave the clipboard channel, if it joined it.
     clipboard_channel: Option<u16>,
+    /// The save of the server's copied files, while one runs.
+    save: Option<SaveJob>,
+    /// The local file the server is reading, kept open between its requests.
+    open_file: Option<OpenFile>,
+    /// When the clipboard channel's timers were last driven.
+    clipboard_ticked: Instant,
 }
 
 impl core::fmt::Debug for RdpSession {
@@ -329,6 +348,9 @@ impl RdpSession {
             reassembly,
             clipboard,
             clipboard_channel,
+            save: None,
+            open_file: None,
+            clipboard_ticked: Instant::now(),
         })
     }
 
@@ -359,7 +381,7 @@ impl RdpSession {
         Capabilities {
             resizable: self.display_control_open(),
             clipboard: if self.clipboard_channel.is_some() {
-                ClipboardSupport::Text
+                ClipboardSupport::TextAndFiles
             } else {
                 ClipboardSupport::None
             },
@@ -540,6 +562,17 @@ impl RdpSession {
                     self.send_on_clipboard(|channel| channel.initiate_copy(&formats))
                         .await?;
                 }
+                Step::AnnounceFiles(files) => {
+                    // Refused by `ironrdp-cliprdr` when the server did not
+                    // agree to file streams (§2.2.2.1.1.1), which is the one
+                    // failure here the user can do something about.
+                    if !self
+                        .send_on_clipboard(move |channel| channel.initiate_file_copy(files))
+                        .await?
+                    {
+                        self.warn(WARNING_FILES_UNSUPPORTED).await;
+                    }
+                }
                 Step::Fetch(format) => {
                     self.send_on_clipboard(|channel| channel.initiate_paste(format))
                         .await?;
@@ -548,42 +581,67 @@ impl RdpSession {
                     self.send_on_clipboard(move |channel| answer(channel, response))
                         .await?;
                 }
+                Step::Serve { request, files } => {
+                    let (response, sent) = files.serve(&request, &mut self.open_file).await;
+                    self.send_on_clipboard(move |channel| channel.submit_file_contents(response))
+                        .await?;
+                    if let Some(sent) = sent {
+                        self.events.send(SessionEvent::ClipboardFiles(sent)).await?;
+                    }
+                }
+                Step::AnswerFile(response) => {
+                    self.send_on_clipboard(move |channel| channel.submit_file_contents(response))
+                        .await?;
+                }
+                Step::SaveData { stream_id, data } => {
+                    self.save_received(stream_id, data).await?;
+                }
                 Step::Deliver(text) => {
                     self.events
                         .send(SessionEvent::ClipboardContent(ClipboardData::Text(text)))
                         .await?;
                 }
-                Step::Warn(key) => {
-                    // Ignored deliberately, as for the resize refusal: a closed
-                    // event stream ends the session on the loop's own account.
-                    let _ = self
-                        .events
-                        .send(SessionEvent::Warning(SessionWarning::Other {
-                            detail: key.to_owned(),
-                        }))
-                        .await;
+                Step::Files(files) => {
+                    self.events
+                        .send(SessionEvent::ClipboardFiles(files))
+                        .await?;
                 }
+                Step::Warn(key) => self.warn(key).await,
             }
         }
         Ok(())
     }
 
-    /// Builds PDUs on the clipboard channel and writes them.
+    /// Says something on the event stream, by catalogue key.
+    ///
+    /// Ignored when it cannot be sent, as for the resize refusal: a closed
+    /// event stream ends the session on the loop's own account.
+    async fn warn(&mut self, key: &'static str) {
+        let _ = self
+            .events
+            .send(SessionEvent::Warning(SessionWarning::Other {
+                detail: key.to_owned(),
+            }))
+            .await;
+    }
+
+    /// Builds PDUs on the clipboard channel and writes them. Returns whether
+    /// anything was sent.
     async fn send_on_clipboard(
         &mut self,
         build: impl FnOnce(
             &mut CliprdrClient,
         )
             -> ironrdp::pdu::PduResult<CliprdrSvcMessages<ironrdp::cliprdr::Client>>,
-    ) -> Result<(), ProtocolError> {
+    ) -> Result<bool, ProtocolError> {
         let Some(channel) = self.stage.get_svc_processor_mut::<CliprdrClient>() else {
-            return Ok(());
+            return Ok(false);
         };
         let messages = match build(channel) {
             Ok(messages) => messages,
             Err(error) => {
                 tracing::debug!(%error, "a clipboard PDU could not be built");
-                return Ok(());
+                return Ok(false);
             }
         };
         // Fails only when the server never joined the channel, in which case
@@ -592,10 +650,153 @@ impl RdpSession {
             Ok(bytes) => bytes,
             Err(error) => {
                 tracing::debug!(%error, "a clipboard PDU could not be encoded");
-                return Ok(());
+                return Ok(false);
             }
         };
-        self.stream.write_all(&bytes).await
+        if !bytes.is_empty() {
+            self.stream.write_all(&bytes).await?;
+        }
+        Ok(true)
+    }
+
+    /// Starts saving the server's copied files into `directory`.
+    async fn start_save(&mut self, directory: String) -> Result<(), ProtocolError> {
+        if self.save.is_some() {
+            return self
+                .files_event(ClipboardFiles::Failed {
+                    reason: SAVE_BUSY.to_owned(),
+                })
+                .await;
+        }
+        let planned = match self
+            .clipboard
+            .as_ref()
+            .and_then(ClipboardState::remote_files)
+        {
+            Some((files, clip_data_id)) => {
+                SaveJob::plan(std::path::Path::new(&directory), files, clip_data_id).await
+            }
+            None => Err(SAVE_NOTHING),
+        };
+        match planned {
+            Ok(mut job) => {
+                let mut events = Vec::new();
+                let outcome = job.advance(&mut events).await;
+                self.save = Some(job);
+                self.clipboard_ticked = Instant::now();
+                self.step_save(outcome, events).await
+            }
+            Err(reason) => {
+                self.files_event(ClipboardFiles::Failed {
+                    reason: reason.to_owned(),
+                })
+                .await
+            }
+        }
+    }
+
+    /// Takes a piece of a file for the save in progress.
+    async fn save_received(
+        &mut self,
+        stream_id: u32,
+        data: Option<Zeroizing<Vec<u8>>>,
+    ) -> Result<(), ProtocolError> {
+        let Some(job) = self.save.as_mut() else {
+            return Ok(());
+        };
+        // A response to a request a cancelled or finished save made. Nothing is
+        // waiting for it.
+        if !job.expects(stream_id) {
+            return Ok(());
+        }
+        let mut events = Vec::new();
+        let outcome = job
+            .receive(data.as_deref().map(Vec::as_slice), &mut events)
+            .await;
+        self.step_save(outcome, events).await
+    }
+
+    /// Reports what a save did and asks for what it needs next.
+    async fn step_save(
+        &mut self,
+        outcome: Result<SaveStep, &'static str>,
+        events: Vec<ClipboardFiles>,
+    ) -> Result<(), ProtocolError> {
+        for event in events {
+            self.files_event(event).await?;
+        }
+        match outcome {
+            Ok(SaveStep::Request(request)) => {
+                let sent = self
+                    .send_on_clipboard(move |channel| channel.request_file_contents(request))
+                    .await?;
+                if !sent {
+                    self.fail_save(WARNING_FILES_UNSUPPORTED).await?;
+                }
+                Ok(())
+            }
+            Ok(SaveStep::Finished(done)) => {
+                self.save = None;
+                self.files_event(done).await
+            }
+            Err(reason) => self.fail_save(reason).await,
+        }
+    }
+
+    async fn fail_save(&mut self, reason: &'static str) -> Result<(), ProtocolError> {
+        if let Some(job) = self.save.take() {
+            job.abandon().await;
+        }
+        self.files_event(ClipboardFiles::Failed {
+            reason: reason.to_owned(),
+        })
+        .await
+    }
+
+    /// Stops the save in progress, if there is one.
+    async fn cancel_save(&mut self) -> Result<(), ProtocolError> {
+        let Some(job) = self.save.take() else {
+            return Ok(());
+        };
+        job.abandon().await;
+        self.files_event(ClipboardFiles::Cancelled).await
+    }
+
+    async fn files_event(&mut self, event: ClipboardFiles) -> Result<(), ProtocolError> {
+        self.events.send(SessionEvent::ClipboardFiles(event)).await
+    }
+
+    /// How long until the clipboard channel's timers are due, when anything
+    /// needs them. See [`CLIPBOARD_TICK`].
+    #[must_use]
+    pub fn clipboard_deadline(&self, now: Instant) -> Option<Duration> {
+        let busy = self.save.is_some()
+            || self
+                .clipboard
+                .as_ref()
+                .is_some_and(ClipboardState::holds_files);
+        busy.then(|| {
+            CLIPBOARD_TICK.saturating_sub(now.saturating_duration_since(self.clipboard_ticked))
+        })
+    }
+
+    /// Drives the clipboard channel's timers if they are due: locks the server
+    /// no longer needs are released, and a file request it never answered is
+    /// failed rather than waited on for ever.
+    ///
+    /// # Errors
+    ///
+    /// A transport failure.
+    pub async fn drive_clipboard(&mut self, now: Instant) -> Result<(), ProtocolError> {
+        match self.clipboard_deadline(now) {
+            Some(remaining) if remaining.is_zero() => {}
+            _ => return Ok(()),
+        }
+        self.clipboard_ticked = now;
+        self.send_on_clipboard(ironrdp::cliprdr::Cliprdr::drive_timeouts)
+            .await?;
+        // A request given up on reaches the backend as a failed response.
+        self.service_clipboard().await
     }
 
     /// Flushes any frame whose coalescing window has closed.
@@ -879,8 +1080,9 @@ impl remoter_proto::Session for RdpSession {
         Ok(())
     }
 
-    /// Offers local text to the server, asks again for the server's, or
-    /// withdraws an offer. MS-RDPECLIP; see [`crate::clipboard`].
+    /// The clipboard: offers local text or files to the server, asks again
+    /// for the server's text, saves the server's files, or withdraws an offer.
+    /// MS-RDPECLIP; see [`crate::clipboard`] and [`crate::clipboard_files`].
     ///
     /// An offer the server already holds, or one the connection's policy does
     /// not allow, does nothing and succeeds: the interface offers on every
@@ -888,9 +1090,10 @@ impl remoter_proto::Session for RdpSession {
     ///
     /// # Errors
     ///
-    /// [`ProtocolError::Unsupported`] for files, which are not carried yet, and
-    /// for any operation on a connection whose policy did not ask for the
-    /// channel. A transport failure otherwise.
+    /// [`ProtocolError::Unsupported`] for asking the server for its files by
+    /// request (they are offered, then saved), and for any operation on a
+    /// connection whose policy did not ask for the channel. A transport failure
+    /// otherwise.
     async fn clipboard(&mut self, op: ClipboardOp) -> Result<(), ProtocolError> {
         let Some(state) = self.clipboard.as_mut() else {
             return Err(unsupported("clipboard transfer"));
@@ -900,12 +1103,32 @@ impl remoter_proto::Session for RdpSession {
                 let text = Zeroizing::new(text);
                 state.offer(&text, Instant::now())
             }
-            ClipboardOp::Offer(ClipboardData::Files(_)) | ClipboardOp::Request { files: true } => {
-                return Err(unsupported("copying files over the clipboard"));
+            ClipboardOp::Offer(ClipboardData::Files(paths)) => {
+                if !state.policy().files {
+                    return Ok(());
+                }
+                match LocalFileSet::collect(&paths).await {
+                    Ok(files) => match self.clipboard.as_mut() {
+                        Some(state) => state.offer_files(files, Instant::now()),
+                        None => Vec::new(),
+                    },
+                    Err(key) => vec![Step::Warn(key)],
+                }
+            }
+            ClipboardOp::Request { files: true } => {
+                return Err(unsupported("requesting files over the clipboard"));
             }
             ClipboardOp::Request { files: false } => state.request(),
             ClipboardOp::Clear => state.clear(),
+            ClipboardOp::SaveFiles { directory } => {
+                if !state.policy().files {
+                    return Err(unsupported("saving files over the clipboard"));
+                }
+                return self.start_save(directory).await;
+            }
+            ClipboardOp::CancelSave => return self.cancel_save().await,
         };
+        self.clipboard_ticked = Instant::now();
         self.carry_out(steps).await
     }
 
@@ -1066,7 +1289,10 @@ pub async fn run_rdp_session(
         let now = Instant::now();
         // Armed only when something is pending, so an idle session — a login
         // screen nobody is touching — wakes for nothing.
-        let deadline = session.frame_deadline(now);
+        let deadline = match (session.frame_deadline(now), session.clipboard_deadline(now)) {
+            (Some(frame), Some(clipboard)) => Some(frame.min(clipboard)),
+            (frame, clipboard) => frame.or(clipboard),
+        };
 
         let woken = tokio::select! {
             // Biased so a closed tab wins a race with an arriving frame: the
@@ -1096,6 +1322,11 @@ pub async fn run_rdp_session(
                 if session.flush_frames(Instant::now()).await.is_err() {
                     // The presenter is gone; there is nobody left to render.
                     break CloseReason::ClosedByUser;
+                }
+                // The same timer serves the clipboard's, which fire only while
+                // files are in play. Each checks whether it is actually due.
+                if let Err(error) = session.drive_clipboard(Instant::now()).await {
+                    break close_reason_for(&error);
                 }
             }
 
@@ -1434,6 +1665,28 @@ mod tests {
         ),
         ProtocolError,
     > {
+        attached_with_policy(
+            transport,
+            desktop,
+            static_channels,
+            remoter_proto::ClipboardPolicy::default(),
+        )
+    }
+
+    fn attached_with_policy(
+        transport: DripTransport,
+        desktop: DesktopSize,
+        static_channels: StaticChannelSet,
+        clipboard: remoter_proto::ClipboardPolicy,
+    ) -> Result<
+        (
+            RdpSession,
+            SessionContext,
+            tokio::sync::mpsc::Sender<SessionCommand>,
+            tokio::sync::mpsc::Receiver<SessionEvent>,
+        ),
+        ProtocolError,
+    > {
         let connected = Connected {
             stream: Framed::new(Box::new(transport), target()),
             io_channel_id: IO_CHANNEL,
@@ -1442,7 +1695,7 @@ mod tests {
             share_id: SHARE_ID,
             static_channels,
             desktop,
-            clipboard: remoter_proto::ClipboardPolicy::default(),
+            clipboard,
         };
         let (events, event_rx) = event_channel(32);
         let session =
@@ -1614,8 +1867,9 @@ mod tests {
         let caps = capabilities();
         assert_eq!(caps.kind, SessionKind::Framebuffer);
         assert!(caps.resizable);
-        // Text both ways over MS-RDPECLIP. Files are not carried yet.
-        assert_eq!(caps.clipboard, ClipboardSupport::Text);
+        // Text and files both ways over MS-RDPECLIP; files only where the
+        // connection turns them on.
+        assert_eq!(caps.clipboard, ClipboardSupport::TextAndFiles);
         // Claiming a redirection that is not implemented puts a dead control
         // on the tab, so these stay false until the channel exists.
         assert!(!caps.file_transfer);
@@ -2088,19 +2342,49 @@ mod tests {
         tokio::sync::mpsc::Sender<SessionCommand>,
         tokio::sync::mpsc::Receiver<SessionEvent>,
     ) {
+        attached_with_clipboard_policy(transport, remoter_proto::ClipboardPolicy::default())
+    }
+
+    /// The same, for a connection that lets files cross as well.
+    fn attached_with_files(
+        transport: DripTransport,
+    ) -> (
+        RdpSession,
+        SessionContext,
+        tokio::sync::mpsc::Sender<SessionCommand>,
+        tokio::sync::mpsc::Receiver<SessionEvent>,
+    ) {
+        attached_with_clipboard_policy(
+            transport,
+            remoter_proto::ClipboardPolicy {
+                files: true,
+                ..remoter_proto::ClipboardPolicy::default()
+            },
+        )
+    }
+
+    fn attached_with_clipboard_policy(
+        transport: DripTransport,
+        policy: remoter_proto::ClipboardPolicy,
+    ) -> (
+        RdpSession,
+        SessionContext,
+        tokio::sync::mpsc::Sender<SessionCommand>,
+        tokio::sync::mpsc::Receiver<SessionEvent>,
+    ) {
         use core::any::TypeId;
 
-        let mut channels =
-            crate::connect::static_channels(remoter_proto::ClipboardPolicy::default());
+        let mut channels = crate::connect::static_channels(policy);
         channels.attach_channel_id(TypeId::of::<ironrdp::dvc::DrdynvcClient>(), SVC_CHANNEL);
         channels.attach_channel_id(TypeId::of::<CliprdrClient>(), CLIPBOARD_CHANNEL);
-        attached_at(
+        attached_with_policy(
             transport,
             DesktopSize {
                 width: 64,
                 height: 64,
             },
             channels,
+            policy,
         )
         .expect("64x64 is inside every bound this module has")
     }
@@ -2146,8 +2430,15 @@ mod tests {
             let pdu: ClipboardPdu<'_> = ironrdp::core::decode(cursor.remaining()).unwrap();
             let text = match &pdu {
                 ClipboardPdu::FormatDataResponse(response) if !response.is_error() => {
-                    Some(response.to_unicode_string().unwrap())
+                    response.to_unicode_string().ok()
                 }
+                ClipboardPdu::FileContentsResponse(response) if !response.is_error() => {
+                    Some(String::from_utf8_lossy(response.data()).into_owned())
+                }
+                ClipboardPdu::FileContentsRequest(request) => Some(format!(
+                    "stream={} index={} position={} size={}",
+                    request.stream_id, request.index, request.position, request.requested_size
+                )),
                 _ => None,
             };
             pdus.push((pdu.message_name(), text));
@@ -2161,15 +2452,26 @@ mod tests {
         session: &mut RdpSession,
         written: &Mutex<Vec<u8>>,
     ) -> Vec<(&'static str, Option<String>)> {
+        initialise_clipboard_with(
+            session,
+            written,
+            ironrdp::cliprdr::pdu::ClipboardGeneralCapabilityFlags::USE_LONG_FORMAT_NAMES,
+        )
+        .await
+    }
+
+    /// The same, with the server offering the capabilities given.
+    async fn initialise_clipboard_with(
+        session: &mut RdpSession,
+        written: &Mutex<Vec<u8>>,
+        server: ironrdp::cliprdr::pdu::ClipboardGeneralCapabilityFlags,
+    ) -> Vec<(&'static str, Option<String>)> {
         use ironrdp::cliprdr::pdu::{
-            Capabilities, ClipboardGeneralCapabilityFlags, ClipboardPdu, ClipboardProtocolVersion,
-            FormatListResponse,
+            Capabilities, ClipboardPdu, ClipboardProtocolVersion, FormatListResponse,
         };
 
-        let capabilities = ClipboardPdu::Capabilities(Capabilities::new(
-            ClipboardProtocolVersion::V2,
-            ClipboardGeneralCapabilityFlags::USE_LONG_FORMAT_NAMES,
-        ));
+        let capabilities =
+            ClipboardPdu::Capabilities(Capabilities::new(ClipboardProtocolVersion::V2, server));
         session
             .process_frame(&from_server(&capabilities))
             .await
@@ -2357,6 +2659,274 @@ mod tests {
                 "CLIPRDR_FORMAT_DATA_REQUEST"
             ]
         );
+    }
+
+    /// Everything a file-capable server offers (MS-RDPECLIP §2.2.2.1.1.1).
+    fn file_capable() -> ironrdp::cliprdr::pdu::ClipboardGeneralCapabilityFlags {
+        use ironrdp::cliprdr::pdu::ClipboardGeneralCapabilityFlags as Flags;
+        Flags::USE_LONG_FORMAT_NAMES
+            | Flags::STREAM_FILECLIP_ENABLED
+            | Flags::FILECLIP_NO_FILE_PATHS
+            | Flags::CAN_LOCK_CLIPDATA
+            | Flags::HUGE_FILE_SUPPORT_ENABLED
+    }
+
+    fn names(pdus: &[(&'static str, Option<String>)]) -> Vec<&'static str> {
+        pdus.iter().map(|(name, _)| *name).collect()
+    }
+
+    #[tokio::test]
+    async fn a_local_file_is_offered_and_read_by_the_server_piece_by_piece() {
+        use ironrdp::cliprdr::pdu::{
+            ClipboardFormatId, ClipboardPdu, FileContentsFlags, FileContentsRequest,
+            FormatDataRequest,
+        };
+        use remoter_proto::Session as _;
+
+        let scratch = tempfile::tempdir().unwrap();
+        let file = scratch.path().join("deploy.ps1");
+        std::fs::write(&file, b"Write-Host 'hello from the laptop'").unwrap();
+
+        let transport = DripTransport::new(Vec::new());
+        let written = transport.written();
+        let (mut session, _ctx, _commands, mut events) = attached_with_files(transport);
+        let _ = initialise_clipboard_with(&mut session, &written, file_capable()).await;
+
+        session
+            .clipboard(ClipboardOp::Offer(ClipboardData::Files(vec![
+                file.display().to_string(),
+            ])))
+            .await
+            .unwrap();
+        assert_eq!(
+            names(&clipboard_pdus_written(&written)),
+            ["CLIPRDR_FORMAT_LIST"]
+        );
+
+        // Explorer pastes: first the list, which `ironrdp-cliprdr` answers
+        // from what it was given, then the bytes.
+        let list = ClipboardPdu::FormatDataRequest(FormatDataRequest {
+            format: ClipboardFormatId::new(0xC0FE),
+        });
+        session.process_frame(&from_server(&list)).await.unwrap();
+        assert_eq!(
+            names(&clipboard_pdus_written(&written)),
+            ["CLIPRDR_FORMAT_DATA_RESPONSE"]
+        );
+
+        let read = |stream_id, position, requested_size| {
+            ClipboardPdu::FileContentsRequest(FileContentsRequest {
+                stream_id,
+                index: 0,
+                flags: FileContentsFlags::RANGE,
+                position,
+                requested_size,
+                data_id: None,
+            })
+        };
+        session
+            .process_frame(&from_server(&read(1, 0, 10)))
+            .await
+            .unwrap();
+        session
+            .process_frame(&from_server(&read(2, 10, 4096)))
+            .await
+            .unwrap();
+        let answers = clipboard_pdus_written(&written);
+        assert_eq!(
+            answers,
+            [
+                (
+                    "CLIPRDR_FILECONTENTS_RESPONSE",
+                    Some("Write-Host".to_owned())
+                ),
+                (
+                    "CLIPRDR_FILECONTENTS_RESPONSE",
+                    Some(" 'hello from the laptop'".to_owned())
+                ),
+            ]
+        );
+
+        let mut sent = None;
+        while let Ok(event) = events.try_recv() {
+            if let SessionEvent::ClipboardFiles(ClipboardFiles::Sent { local, bytes }) = event {
+                sent = Some((local, bytes));
+            }
+        }
+        assert_eq!(sent, Some((file.display().to_string(), 34)));
+    }
+
+    #[tokio::test]
+    async fn files_copied_on_the_server_are_offered_then_saved_into_the_chosen_folder() {
+        use ironrdp::cliprdr::pdu::{
+            ClipboardFileAttributes, ClipboardFormat, ClipboardFormatId, ClipboardFormatName,
+            ClipboardPdu, FileContentsResponse, FileDescriptor, FormatList,
+            OwnedFormatDataResponse, PackedFileList,
+        };
+        use remoter_proto::Session as _;
+
+        let transport = DripTransport::new(Vec::new());
+        let written = transport.written();
+        let (mut session, _ctx, _commands, mut events) = attached_with_files(transport);
+        let _ = initialise_clipboard_with(&mut session, &written, file_capable()).await;
+
+        let file_list = ClipboardFormatId::new(0xC0DE);
+        let copied = ClipboardPdu::FormatList(
+            FormatList::new_unicode(
+                &[ClipboardFormat::new(file_list).with_name(ClipboardFormatName::FILE_LIST)],
+                true,
+            )
+            .unwrap(),
+        );
+        session.process_frame(&from_server(&copied)).await.unwrap();
+        assert_eq!(
+            names(&clipboard_pdus_written(&written)),
+            [
+                "CLIPRDR_FORMAT_LIST_RESPONSE",
+                "CLIPRDR_LOCK_CLIPDATA",
+                "CLIPRDR_FORMAT_DATA_REQUEST"
+            ],
+            "acknowledged, locked, and the list asked for; no bytes yet"
+        );
+
+        let body = b"quarterly numbers";
+        let list = PackedFileList {
+            files: vec![
+                FileDescriptor::new("report.txt")
+                    .with_attributes(ClipboardFileAttributes::ARCHIVE)
+                    .with_file_size(body.len() as u64),
+            ],
+        };
+        let response = ClipboardPdu::FormatDataResponse(
+            OwnedFormatDataResponse::new_file_list(&list).unwrap(),
+        );
+        session
+            .process_frame(&from_server(&response))
+            .await
+            .unwrap();
+        let mut offered = false;
+        while let Ok(event) = events.try_recv() {
+            if let SessionEvent::ClipboardFiles(ClipboardFiles::Offered { total_entries, .. }) =
+                event
+            {
+                offered = total_entries == 1;
+            }
+        }
+        assert!(offered, "the file list was not offered to the interface");
+        assert!(clipboard_pdus_written(&written).is_empty());
+
+        let scratch = tempfile::tempdir().unwrap();
+        session
+            .clipboard(ClipboardOp::SaveFiles {
+                directory: scratch.path().display().to_string(),
+            })
+            .await
+            .unwrap();
+        let requests = clipboard_pdus_written(&written);
+        let [("CLIPRDR_FILECONTENTS_REQUEST", Some(detail))] = &requests[..] else {
+            panic!("{requests:?}");
+        };
+        assert_eq!(
+            detail,
+            &format!("stream=1 index=0 position=0 size={}", body.len())
+        );
+
+        let bytes = ClipboardPdu::FileContentsResponse(FileContentsResponse::new_data_response(
+            1,
+            body.to_vec(),
+        ));
+        session.process_frame(&from_server(&bytes)).await.unwrap();
+        assert_eq!(
+            std::fs::read(scratch.path().join("report.txt")).unwrap(),
+            body
+        );
+        let mut finished = false;
+        while let Ok(event) = events.try_recv() {
+            if let SessionEvent::ClipboardFiles(ClipboardFiles::Finished { files, .. }) = event {
+                finished = files == 1;
+            }
+        }
+        assert!(finished);
+    }
+
+    #[tokio::test]
+    async fn a_save_the_user_stops_removes_what_was_half_written() {
+        use ironrdp::cliprdr::pdu::{
+            ClipboardFileAttributes, ClipboardFormat, ClipboardFormatId, ClipboardFormatName,
+            ClipboardPdu, FileContentsResponse, FileDescriptor, FormatList,
+            OwnedFormatDataResponse, PackedFileList,
+        };
+        use remoter_proto::Session as _;
+
+        let transport = DripTransport::new(Vec::new());
+        let written = transport.written();
+        let (mut session, _ctx, _commands, mut events) = attached_with_files(transport);
+        let _ = initialise_clipboard_with(&mut session, &written, file_capable()).await;
+        let file_list = ClipboardFormatId::new(0xC0DE);
+        let copied = ClipboardPdu::FormatList(
+            FormatList::new_unicode(
+                &[ClipboardFormat::new(file_list).with_name(ClipboardFormatName::FILE_LIST)],
+                true,
+            )
+            .unwrap(),
+        );
+        session.process_frame(&from_server(&copied)).await.unwrap();
+        let list = PackedFileList {
+            files: vec![
+                FileDescriptor::new("image.iso")
+                    .with_attributes(ClipboardFileAttributes::ARCHIVE)
+                    .with_file_size(8 * 1024 * 1024),
+            ],
+        };
+        session
+            .process_frame(&from_server(&ClipboardPdu::FormatDataResponse(
+                OwnedFormatDataResponse::new_file_list(&list).unwrap(),
+            )))
+            .await
+            .unwrap();
+
+        let scratch = tempfile::tempdir().unwrap();
+        session
+            .clipboard(ClipboardOp::SaveFiles {
+                directory: scratch.path().display().to_string(),
+            })
+            .await
+            .unwrap();
+        session
+            .process_frame(&from_server(&ClipboardPdu::FileContentsResponse(
+                // Less than was asked for — a server may answer short — and
+                // small enough to travel as one channel chunk here.
+                FileContentsResponse::new_data_response(1, vec![0u8; 16_000]),
+            )))
+            .await
+            .unwrap();
+        assert!(
+            scratch
+                .path()
+                .join(format!("image.iso{}", crate::clipboard_files::PART_SUFFIX))
+                .exists()
+        );
+
+        session.clipboard(ClipboardOp::CancelSave).await.unwrap();
+        assert_eq!(std::fs::read_dir(scratch.path()).unwrap().count(), 0);
+        let mut cancelled = false;
+        while let Ok(event) = events.try_recv() {
+            cancelled |= matches!(
+                event,
+                SessionEvent::ClipboardFiles(ClipboardFiles::Cancelled)
+            );
+        }
+        assert!(cancelled);
+
+        // A late answer to the stopped save's request writes nothing.
+        let _ = clipboard_pdus_written(&written);
+        session
+            .process_frame(&from_server(&ClipboardPdu::FileContentsResponse(
+                FileContentsResponse::new_data_response(2, vec![1u8; 16]),
+            )))
+            .await
+            .unwrap();
+        assert_eq!(std::fs::read_dir(scratch.path()).unwrap().count(), 0);
     }
 
     #[tokio::test]

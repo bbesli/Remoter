@@ -108,7 +108,9 @@ after all.
   physical pixel size is not built
 - ✅ Keyboard scancode translation, with the layout read from the local machine
 - ✅ Clipboard synchronisation (text), both directions over MS-RDPECLIP, each
-  direction a setting on the connection. ⏳ Files and images over the clipboard
+  direction a setting on the connection. ✅ Files over the clipboard, both
+  directions, off by default and a setting on the connection. ⏳ Images and
+  rich formats over the clipboard
 - ✅ RDP through a jump chain
 
 **Exit criteria**

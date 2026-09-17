@@ -52,6 +52,8 @@ pub const SETTING_WORKSTATION: &str = "workstation";
 pub const SETTING_CLIPBOARD_TO_REMOTE: &str = "clipboard_to_remote";
 /// Whether text copied in the remote desktop reaches this machine's clipboard.
 pub const SETTING_CLIPBOARD_FROM_REMOTE: &str = "clipboard_from_remote";
+/// Whether files may cross the clipboard, in either direction.
+pub const SETTING_CLIPBOARD_FILES: &str = "clipboard_files";
 
 /// The catalogue key surfaced when Network Level Authentication is turned off.
 pub const WARNING_NLA_DISABLED: &str = "rdp.network_level_authentication_disabled";
@@ -267,10 +269,10 @@ impl RdpProtocol {
             .unwrap_or_default()
             .to_owned();
 
-        // Two settings rather than one, because the two directions are two
-        // different risks: text pasted *into* a host goes where the user sent
-        // it, and text copied *out* of a compromised one lands on this
-        // machine's clipboard unasked. Files stay off whatever these say.
+        // Two settings rather than one for text, because the two directions are
+        // two different risks: text pasted *into* a host goes where the user
+        // sent it, and text copied *out* of a compromised one lands on this
+        // machine's clipboard unasked. Files are a third, off by default.
         connection.clipboard = ClipboardPolicy {
             text_to_remote: self
                 .schema
@@ -280,7 +282,15 @@ impl RdpProtocol {
                 .schema
                 .boolean(&config.settings, SETTING_CLIPBOARD_FROM_REMOTE)?
                 .unwrap_or(true),
-            files: false,
+            // Off unless the connection turns it on:
+            // `docs/security/transport-security.md` keeps files off by default,
+            // because a compromised host should not be able to hand this
+            // machine files through a clipboard. Turned on, nothing still moves
+            // from the server until the user picks a folder to save into.
+            files: self
+                .schema
+                .boolean(&config.settings, SETTING_CLIPBOARD_FILES)?
+                .unwrap_or(false),
         };
 
         connection.timeout = config
@@ -491,6 +501,12 @@ pub fn schema() -> SettingsSchema {
             SettingKind::Boolean,
         )
         .with_default("true"),
+        SettingField::new(
+            SETTING_CLIPBOARD_FILES,
+            "settings.rdp.clipboard_files",
+            SettingKind::Boolean,
+        )
+        .with_default("false"),
     ])
 }
 
@@ -951,6 +967,7 @@ mod tests {
             SETTING_WORK_DIR,
             SETTING_CLIPBOARD_TO_REMOTE,
             SETTING_CLIPBOARD_FROM_REMOTE,
+            SETTING_CLIPBOARD_FILES,
         ];
         for field in schema().fields() {
             assert!(
@@ -960,7 +977,7 @@ mod tests {
             );
         }
 
-        // And each of the ten, set to a value nothing else would produce,
+        // And each of the eleven, set to a value nothing else would produce,
         // arrives on the configuration the connection sequence is built from.
         let config = effective(settings_from(
             NodeId::new(),
@@ -975,6 +992,7 @@ mod tests {
                 (SETTING_WORK_DIR, "C:\\Windows"),
                 (SETTING_CLIPBOARD_TO_REMOTE, "false"),
                 (SETTING_CLIPBOARD_FROM_REMOTE, "false"),
+                (SETTING_CLIPBOARD_FILES, "true"),
             ],
         ));
         let connection = adapter()
@@ -993,7 +1011,13 @@ mod tests {
         assert_eq!(connection.keyboard_layout, 0x0001_041F);
         assert_eq!(connection.alternate_shell, "cmd.exe");
         assert_eq!(connection.work_dir, "C:\\Windows");
-        assert_eq!(connection.clipboard, crate::clipboard::NO_CLIPBOARD);
+        assert_eq!(
+            connection.clipboard,
+            ClipboardPolicy {
+                files: true,
+                ..crate::clipboard::NO_CLIPBOARD
+            }
+        );
     }
 
     #[test]
@@ -1015,6 +1039,16 @@ mod tests {
         assert!(!connection.clipboard.text_to_remote);
         assert!(connection.clipboard.text_from_remote);
         assert!(!connection.clipboard.files);
+
+        let with_files = effective(settings_from(
+            NodeId::new(),
+            [(SETTING_CLIPBOARD_FILES, "true")],
+        ));
+        let connection = adapter
+            .connection_config(&with_files, &Account("ada"), &target())
+            .unwrap();
+        assert!(connection.clipboard.files);
+        assert!(connection.clipboard.text_to_remote);
     }
 
     #[test]

@@ -308,3 +308,67 @@ describe("a question answered by typing", () => {
     expect(record?.promptError?.code).toBe("session.no-such-prompt");
   });
 });
+
+describe("files on the remote desktop's clipboard", () => {
+  const offered: SessionMessage = {
+    event: "clipboardFiles",
+    state: "offered",
+    files: [{ path: "Reports", size: null, directory: true }],
+    totalEntries: 4,
+    totalBytes: 2048,
+  };
+
+  it("keeps the offer and the save apart, because they move apart", () => {
+    const tabId = open();
+    push(ready());
+    push(offered);
+    push({
+      event: "clipboardFiles",
+      state: "saving",
+      doneBytes: 1024,
+      totalBytes: 2048,
+      doneFiles: 1,
+      totalFiles: 3,
+    });
+
+    // The server copies something else while the save runs: the offer goes,
+    // the save carries on.
+    push({ event: "clipboardFiles", state: "withdrawn" });
+    let files = useSessions.getState().byId[tabId]?.clipboardFiles;
+    expect(files?.offer).toBeNull();
+    expect(files?.transfer).toMatchObject({ kind: "saving", doneFiles: 1 });
+
+    push({ event: "clipboardFiles", state: "finished", directory: "/home/ada", files: 3, bytes: 2048 });
+    files = useSessions.getState().byId[tabId]?.clipboardFiles;
+    expect(files?.transfer).toEqual({ kind: "finished", directory: "/home/ada", files: 3, bytes: 2048 });
+
+    // A new copy clears the sentence the finished save left.
+    push(offered);
+    files = useSessions.getState().byId[tabId]?.clipboardFiles;
+    expect(files?.offer?.totalEntries).toBe(4);
+    expect(files?.transfer).toBeNull();
+  });
+
+  it("records why a save stopped, and forgets a save the user stopped", () => {
+    const tabId = open();
+    push(ready());
+    push(offered);
+    push({ event: "clipboardFiles", state: "failed", reason: "rdp.clipboard_save_refused" });
+    expect(useSessions.getState().byId[tabId]?.clipboardFiles.transfer).toEqual({
+      kind: "failed",
+      reason: "rdp.clipboard_save_refused",
+    });
+
+    push({ event: "clipboardFiles", state: "cancelled" });
+    expect(useSessions.getState().byId[tabId]?.clipboardFiles).toMatchObject({
+      offer: { totalEntries: 4 },
+      transfer: null,
+    });
+
+    // One file landing is the core's audit row, not a change on screen.
+    const before = useSessions.getState().byId[tabId]?.clipboardFiles;
+    push({ event: "clipboardFiles", state: "saved", remote: "a", local: "/tmp/a", bytes: 1 });
+    push({ event: "clipboardFiles", state: "sent", local: "/tmp/b", bytes: 1 });
+    expect(useSessions.getState().byId[tabId]?.clipboardFiles).toBe(before);
+  });
+});

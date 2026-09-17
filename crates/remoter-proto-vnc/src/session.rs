@@ -512,7 +512,10 @@ const fn reaches_the_remote(op: &ClipboardOp) -> bool {
         // A request has no RFB encoding at all — the remote pushes its
         // clipboard unasked — and clearing has none either. Neither produces a
         // byte, so neither is a change a view-only session has to refuse.
-        ClipboardOp::Request { .. } | ClipboardOp::Clear => false,
+        ClipboardOp::Request { .. }
+        | ClipboardOp::Clear
+        | ClipboardOp::SaveFiles { .. }
+        | ClipboardOp::CancelSave => false,
     }
 }
 
@@ -645,9 +648,17 @@ impl Session for VncSession {
                     WARNING_CLIPBOARD_UNSUPPORTED,
                 )
                 .await),
-            // RFB has no way to withdraw an offer. Reporting a failure would
-            // make a tab close report an error it cannot act on.
-            ClipboardOp::Clear => Ok(()),
+            // RFB carries no files, so there is nothing to save.
+            ClipboardOp::SaveFiles { .. } => Err(self
+                .refuse(
+                    "saving files from the remote clipboard",
+                    WARNING_CLIPBOARD_UNSUPPORTED,
+                )
+                .await),
+            // RFB has no way to withdraw an offer, and no save to stop.
+            // Reporting a failure would make a tab close report an error it
+            // cannot act on.
+            ClipboardOp::Clear | ClipboardOp::CancelSave => Ok(()),
         }
     }
 

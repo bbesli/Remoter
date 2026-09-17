@@ -19,6 +19,7 @@ import {
   asFailure,
   ipc,
   sessionChannel,
+  type ClipboardFilesMessage,
   type HostKeyDecision,
   type PromptResponse,
   type SessionMessage,
@@ -267,6 +268,82 @@ function startAttempt(tabId: string): void {
 }
 
 /** Applies the `ready` state, from whichever of the two paths reports it first. */
+/**
+ * Files on the remote desktop's clipboard, and a save of them.
+ *
+ * The offer and the save are kept apart because they move apart: the remote
+ * copying something else withdraws the offer, and a save of what it copied
+ * before carries on — the server locked those files for it. A new offer clears
+ * the sentence a finished or failed save left behind, because that sentence is
+ * about a copy that is no longer on the clipboard.
+ */
+function onClipboardFiles(tabId: string, message: ClipboardFilesMessage): void {
+  const store = useSessions.getState();
+  const current = store.byId[tabId]?.clipboardFiles;
+  if (current === undefined) return;
+  const saving = current.transfer?.kind === "saving" ? current.transfer : null;
+  switch (message.state) {
+    case "offered":
+      store.patch(tabId, {
+        clipboardFiles: {
+          offer: {
+            files: message.files,
+            totalEntries: message.totalEntries,
+            totalBytes: message.totalBytes,
+          },
+          transfer: saving,
+        },
+      });
+      return;
+    case "withdrawn":
+      store.patch(tabId, { clipboardFiles: { offer: null, transfer: current.transfer } });
+      return;
+    case "saving":
+      store.patch(tabId, {
+        clipboardFiles: {
+          offer: current.offer,
+          transfer: {
+            kind: "saving",
+            doneBytes: message.doneBytes,
+            totalBytes: message.totalBytes,
+            doneFiles: message.doneFiles,
+            totalFiles: message.totalFiles,
+          },
+        },
+      });
+      return;
+    case "finished":
+      store.patch(tabId, {
+        clipboardFiles: {
+          offer: current.offer,
+          transfer: {
+            kind: "finished",
+            directory: message.directory,
+            files: message.files,
+            bytes: message.bytes,
+          },
+        },
+      });
+      return;
+    case "failed":
+      store.patch(tabId, {
+        clipboardFiles: {
+          offer: current.offer,
+          transfer: { kind: "failed", reason: message.reason },
+        },
+      });
+      return;
+    case "cancelled":
+      store.patch(tabId, { clipboardFiles: { offer: current.offer, transfer: null } });
+      return;
+    // One file landing, or one read by the remote. The core has written the
+    // audit row; the tab's sentence is about the whole save.
+    case "saved":
+    case "sent":
+      return;
+  }
+}
+
 function onReady(tabId: string, opened: SessionOpened): void {
   const store = useSessions.getState();
   const record = store.byId[tabId];
@@ -503,6 +580,10 @@ function handleMessage(tabId: string, message: SessionMessage): void {
     case "clipboardOffer":
       // Capability-gated, and SSH declares no clipboard. Recorded as nothing
       // rather than acted on.
+      return;
+
+    case "clipboardFiles":
+      onClipboardFiles(tabId, message);
       return;
 
     case "closed": {

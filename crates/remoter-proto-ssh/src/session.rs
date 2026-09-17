@@ -470,8 +470,14 @@ fn clipboard_plan(op: ClipboardOp) -> ClipboardPlan {
             operation: "reading the remote clipboard",
             key: WARNING_CLIPBOARD_UNSUPPORTED,
         },
+        // Files come over SFTP on the same connection, not over a clipboard
+        // the protocol does not have.
+        ClipboardOp::SaveFiles { .. } => ClipboardPlan::Refuse {
+            operation: "saving files from the remote clipboard",
+            key: WARNING_CLIPBOARD_UNSUPPORTED,
+        },
         // Nothing crosses the wire, so there is nothing to fail at.
-        ClipboardOp::Clear => ClipboardPlan::Nothing,
+        ClipboardOp::Clear | ClipboardOp::CancelSave => ClipboardPlan::Nothing,
     }
 }
 

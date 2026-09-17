@@ -1140,6 +1140,13 @@
         "انسخ جزءًا أصغر",
         "انقل الملف عبر SFTP بدلًا من ذلك"
       ]
+    },
+    "_comment_save-folder-missing": "A save of files copied on a remote desktop was asked for into a folder that does not exist, or a path that is not absolute. Nothing was transferred.",
+    "save-folder-missing": {
+      "message": "ذلك المجلد غير موجود، لذلك لم يُحفظ شيء.",
+      "actions": [
+        "اختر مجلدًا آخر"
+      ]
     }
   },
   "tunnel": {

@@ -378,6 +378,8 @@ pub enum SessionMessageDto {
         text: bool,
         files: bool,
     },
+    /// Files crossing the clipboard. See [`ClipboardFilesDto`].
+    ClipboardFiles(ClipboardFilesDto),
     /// A host key decision. Answer with `host_key_decide`.
     HostKey(HostKeyPromptDto),
     /// Anything else the server asked for.
@@ -399,6 +401,127 @@ pub enum SessionMessageDto {
         reason: String,
         failure: Option<SessionFailureDto>,
     },
+}
+
+/// One entry of a file list the remote desktop copied.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteFileDto {
+    /// Relative and `/`-separated, escaped for display: the remote chose it.
+    pub path: String,
+    pub size: Option<u64>,
+    pub directory: bool,
+}
+
+/// Files crossing a session's clipboard, as the tab draws them.
+///
+/// Every name in here came from the remote machine or names a local file, and
+/// both are escaped before they leave the core: a file name carrying a
+/// right-to-left override would otherwise read as something it is not.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(
+    tag = "state",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum ClipboardFilesDto {
+    /// The remote copied files; nothing has moved.
+    Offered {
+        files: Vec<RemoteFileDto>,
+        total_entries: u32,
+        total_bytes: u64,
+    },
+    /// The remote's clipboard no longer holds files.
+    Withdrawn,
+    Saving {
+        done_bytes: u64,
+        total_bytes: u64,
+        done_files: u32,
+        total_files: u32,
+    },
+    Saved {
+        remote: String,
+        local: String,
+        bytes: u64,
+    },
+    Finished {
+        directory: String,
+        files: u32,
+        bytes: u64,
+    },
+    /// `reason` is a catalogue key.
+    Failed {
+        reason: String,
+    },
+    Cancelled,
+    /// A local file the remote desktop finished reading.
+    Sent {
+        local: String,
+        bytes: u64,
+    },
+}
+
+impl ClipboardFilesDto {
+    fn from_event(event: &remoter_proto::ClipboardFiles) -> Self {
+        use crate::sftp::escape_remote_text as escape;
+        use remoter_proto::ClipboardFiles as Event;
+        match event {
+            Event::Offered {
+                files,
+                total_entries,
+                total_bytes,
+            } => Self::Offered {
+                files: files
+                    .iter()
+                    .map(|file| RemoteFileDto {
+                        path: escape(&file.path),
+                        size: file.size,
+                        directory: file.directory,
+                    })
+                    .collect(),
+                total_entries: *total_entries,
+                total_bytes: *total_bytes,
+            },
+            Event::Withdrawn => Self::Withdrawn,
+            Event::Saving {
+                done_bytes,
+                total_bytes,
+                done_files,
+                total_files,
+            } => Self::Saving {
+                done_bytes: *done_bytes,
+                total_bytes: *total_bytes,
+                done_files: *done_files,
+                total_files: *total_files,
+            },
+            Event::Saved {
+                remote,
+                local,
+                bytes,
+            } => Self::Saved {
+                remote: escape(remote),
+                local: escape(local),
+                bytes: *bytes,
+            },
+            Event::Finished {
+                directory,
+                files,
+                bytes,
+            } => Self::Finished {
+                directory: escape(directory),
+                files: *files,
+                bytes: *bytes,
+            },
+            Event::Failed { reason } => Self::Failed {
+                reason: reason.clone(),
+            },
+            Event::Cancelled => Self::Cancelled,
+            Event::Sent { local, bytes } => Self::Sent {
+                local: escape(local),
+                bytes: *bytes,
+            },
+        }
+    }
 }
 
 /// The answer to a suspended host key handshake.
@@ -680,6 +803,15 @@ impl SessionHub {
     /// load-bearing: locking the vault holds `Inner` and then takes this lock,
     /// so anything that held this lock while taking `Inner` would close the
     /// cycle. Nothing in this module does.
+    /// What an audit row about this session is attributed to: its node, and
+    /// the `sessions` row it opened.
+    fn audit_parts(&self, id: u64) -> Option<(Uuid, Option<Uuid>)> {
+        self.sessions
+            .lock()
+            .get(&id)
+            .map(|entry| (*entry.node.as_uuid(), entry.audit_id))
+    }
+
     fn finish(&self, id: u64) -> Option<Uuid> {
         self.sessions
             .lock()
@@ -1861,7 +1993,7 @@ pub(crate) async fn session_clipboard_sync_impl(
         return Err(frozen());
     }
     let (handle, ..) = hub.command_parts(session_id).ok_or_else(no_such_session)?;
-    let text = tokio::task::spawn_blocking(crate::clipboard::text_for_remote)
+    let copied = tokio::task::spawn_blocking(crate::clipboard::read_for_remote)
         .await
         .map_err(|_| {
             IpcError::new(
@@ -1870,11 +2002,72 @@ pub(crate) async fn session_clipboard_sync_impl(
             )
             .with_actions(["Try again"])
         })??;
-    let Some(text) = text else {
+    let Some(copied) = copied else {
         return Ok(());
     };
     handle
-        .clipboard(ClipboardOp::Offer(ClipboardData::Text(text)))
+        .clipboard(ClipboardOp::Offer(copied))
+        .await
+        .map_err(|_| session_closed())
+}
+
+/// Saves the files the remote desktop copied into a folder the user chose.
+///
+/// The folder comes from a dialog on this machine. It is checked here — it has
+/// to be an absolute path to a folder that exists — before the session is told,
+/// so that a mistyped or vanished folder is refused in a sentence rather than
+/// reported as a transfer that failed. What happens next arrives on the tab's
+/// channel as `clipboardFiles` messages, and every file that lands is written
+/// to the audit log, as an SFTP download is.
+#[tauri::command]
+pub(crate) async fn session_clipboard_save(
+    state: State<'_, AppState>,
+    session_id: u64,
+    directory: String,
+) -> Result<(), IpcError> {
+    session_clipboard_save_impl(&state, session_id, directory).await
+}
+
+pub(crate) async fn session_clipboard_save_impl(
+    state: &AppState,
+    session_id: u64,
+    directory: String,
+) -> Result<(), IpcError> {
+    let folder = std::path::PathBuf::from(&directory);
+    let is_folder = folder.is_absolute()
+        && tokio::fs::metadata(&folder)
+            .await
+            .is_ok_and(|meta| meta.is_dir());
+    if !is_folder {
+        return Err(IpcError::new(
+            "clipboard.save-folder-missing",
+            "That folder does not exist, so nothing was saved.",
+        )
+        .with_actions(["Choose another folder"]));
+    }
+    let (handle, ..) = state
+        .sessions()
+        .command_parts(session_id)
+        .ok_or_else(no_such_session)?;
+    handle
+        .clipboard(ClipboardOp::SaveFiles { directory })
+        .await
+        .map_err(|_| session_closed())
+}
+
+/// Stops a save of the remote desktop's copied files. Files already saved
+/// stay; the one that was arriving is removed.
+#[tauri::command]
+pub(crate) async fn session_clipboard_cancel(
+    state: State<'_, AppState>,
+    session_id: u64,
+) -> Result<(), IpcError> {
+    let (handle, ..) = state
+        .sessions()
+        .command_parts(session_id)
+        .ok_or_else(no_such_session)?;
+    handle
+        .clipboard(ClipboardOp::CancelSave)
         .await
         .map_err(|_| session_closed())
 }
@@ -2088,6 +2281,13 @@ async fn forward_events(
             SessionEvent::ClipboardContent(data) => {
                 deliver_clipboard(data, &channel).await;
             }
+            SessionEvent::ClipboardFiles(event) => {
+                audit_clipboard_files(&event, &hub, &inner, id);
+                send_control(
+                    &channel,
+                    &SessionMessageDto::ClipboardFiles(ClipboardFilesDto::from_event(&event)),
+                );
+            }
             SessionEvent::ClipboardOffer(formats) => {
                 send_control(
                     &channel,
@@ -2162,6 +2362,62 @@ async fn forward_events(
         {
             tracing::debug!(session = id, %error, "the session's audit row was not closed");
         }
+    }
+}
+
+/// Writes a row to the audit log for each file that crossed the clipboard.
+///
+/// The same rows an SFTP transfer writes, because it is the same fact: a file
+/// left the remote machine for this one, or this one's for it. A save that
+/// failed gets a failure row naming why; one the user stopped gets none, as a
+/// stopped SFTP transfer does not. Best effort, as those are: a vault locked
+/// underneath a running session has nowhere to write, and the transfer is not
+/// failed over its bookkeeping.
+fn audit_clipboard_files(
+    event: &remoter_proto::ClipboardFiles,
+    hub: &SessionHub,
+    inner: &Mutex<Inner>,
+    id: u64,
+) {
+    use crate::sftp::escape_remote_text as escape;
+    use remoter_proto::ClipboardFiles as Event;
+    use remoter_vault::{AuditEvent, AuditOutcome};
+
+    let (event, outcome, detail) = match event {
+        Event::Saved {
+            remote,
+            local,
+            bytes,
+        } => (
+            AuditEvent::FileDownloaded,
+            AuditOutcome::Success,
+            format!(
+                "clipboard: {} to {}, {bytes} bytes",
+                escape(remote),
+                escape(local)
+            ),
+        ),
+        Event::Sent { local, bytes } => (
+            AuditEvent::FileUploaded,
+            AuditOutcome::Success,
+            format!("clipboard: {}, {bytes} bytes", escape(local)),
+        ),
+        Event::Failed { reason } => (
+            AuditEvent::FileDownloaded,
+            AuditOutcome::Failure,
+            format!("clipboard: {reason}"),
+        ),
+        _ => return,
+    };
+    let Some((node, session)) = hub.audit_parts(id) else {
+        return;
+    };
+    let mut guard = inner.lock();
+    let Ok(vault) = guard.vault_mut() else {
+        return;
+    };
+    if let Err(error) = vault.audit_in_session(event, outcome, Some(node), session, Some(&detail)) {
+        tracing::debug!(%error, "a clipboard transfer's audit row was not written");
     }
 }
 
@@ -3230,6 +3486,63 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn a_save_into_a_folder_that_is_not_there_is_refused_before_the_session_is_asked() {
+        let scratch = crate::test_support::Scratch::new();
+        let Some(state) = crate::test_support::open_vault(&scratch) else {
+            panic!("the fixture vault could not be created");
+        };
+        for folder in ["relative/folder", "/no/such/folder/anywhere"] {
+            let refused = session_clipboard_save_impl(&state, 1, folder.to_owned()).await;
+            assert_eq!(
+                refused.err().map(|e| e.code),
+                Some(String::from("clipboard.save-folder-missing")),
+                "{folder}"
+            );
+        }
+        let real = std::env::temp_dir().display().to_string();
+        let refused = session_clipboard_save_impl(&state, 1, real).await;
+        assert_eq!(
+            refused.err().map(|e| e.code),
+            Some(String::from("session.no-such-session"))
+        );
+    }
+
+    #[test]
+    fn clipboard_files_reach_the_tab_escaped_and_in_its_own_shape() {
+        let event = remoter_proto::ClipboardFiles::Offered {
+            files: vec![remoter_proto::RemoteFile {
+                path: String::from("inbox/\u{202e}fdp.exe"),
+                size: Some(12),
+                directory: false,
+            }],
+            total_entries: 3,
+            total_bytes: 40,
+        };
+        let json = serde_json::to_value(SessionMessageDto::ClipboardFiles(
+            ClipboardFilesDto::from_event(&event),
+        ))
+        .unwrap();
+        assert_eq!(json["event"], "clipboardFiles");
+        assert_eq!(json["state"], "offered");
+        assert_eq!(json["totalEntries"], 3);
+        assert_eq!(json["totalBytes"], 40);
+        let path = json["files"][0]["path"].as_str().unwrap();
+        assert!(!path.contains('\u{202e}'), "{path}");
+
+        let saving = serde_json::to_value(SessionMessageDto::ClipboardFiles(
+            ClipboardFilesDto::from_event(&remoter_proto::ClipboardFiles::Saving {
+                done_bytes: 1,
+                total_bytes: 2,
+                done_files: 0,
+                total_files: 1,
+            }),
+        ))
+        .unwrap();
+        assert_eq!(saving["state"], "saving");
+        assert_eq!(saving["doneBytes"], 1);
+    }
+
     /// The freeze covers the keyboard *and* the mouse of a graphical session.
     ///
     /// A freeze that stopped `session_input` and left the two framebuffer
@@ -3989,12 +4302,12 @@ mod tests {
         assert_eq!(Adapter::Rdp.capabilities().kind, SessionKind::Framebuffer);
         assert_eq!(Adapter::Vnc.capabilities().kind, SessionKind::Framebuffer);
 
-        // RDP carries text both ways over MS-RDPECLIP. VNC does not claim
-        // one: its adapter can write the remote clipboard, but the interface
-        // offers on focus, and over RFB an offer is the text itself.
+        // RDP carries text and files both ways over MS-RDPECLIP. VNC does not
+        // claim one: its adapter can write the remote clipboard, but the
+        // interface offers on focus, and over RFB an offer is the text itself.
         assert_eq!(
             capabilities_dto(&Adapter::Rdp.capabilities()).clipboard,
-            "text"
+            "text_and_files"
         );
         assert_eq!(
             capabilities_dto(&Adapter::Vnc.capabilities()).clipboard,

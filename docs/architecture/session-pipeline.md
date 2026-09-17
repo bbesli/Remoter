@@ -5,7 +5,7 @@ What happens between double-clicking a connection and seeing a shell prompt.
 > **What ships.** The pipeline is real and all four adapters run it — including
 > the gateway-chain stage, the host-key prompt and the credential borrow that
 > never crosses into the WebView. Stage 2's recording notice does not exist,
-> and stage 8's clipboard exists for RDP text only; both are marked below.
+> and stage 8's clipboard exists for RDP only; both are marked below.
 
 ## Stages
 
@@ -18,7 +18,7 @@ What happens between double-clicking a connection and seeing a shell prompt.
  5  Handshake    ──▶  protocol adapter negotiates, verifies host identity
  6  Authenticate ──▶  credentials used, then dropped and zeroized
  7  Attach       ──▶  session registered, tab bound, event stream live
- 8  Run          ──▶  input/output, resize, clipboard  (◐ RDP text only; ⏳ no recording)
+ 8  Run          ──▶  input/output, resize, clipboard  (◐ RDP only; ⏳ no recording)
  9  Terminate    ──▶  cancellation, cleanup, audit entry
 ```
 
@@ -168,6 +168,9 @@ pub enum SessionEvent {
     ClipboardOffer(ClipboardFormats),
     /// What the remote copied, for the local clipboard. Redacting `Debug`.
     ClipboardContent(ClipboardData),
+    /// Files on either clipboard: offered by the remote, saved from it, or
+    /// read by it. Only where the session's policy lets files cross.
+    ClipboardFiles(ClipboardFiles),
     /// Server needs something: host key decision, password, 2FA code.
     Prompt(Prompt),
     /// SFTP progress, RDP connection quality, latency samples.

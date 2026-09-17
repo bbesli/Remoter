@@ -63,16 +63,19 @@
 //! but Windows uses; `remoter-ipc` puts the CRs back when it writes the Windows
 //! clipboard.
 
-use std::collections::VecDeque;
+use std::collections::{BTreeMap, VecDeque};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use ironrdp::cliprdr::backend::CliprdrBackend;
 use ironrdp::cliprdr::pdu::{
-    ClipboardFormat, ClipboardFormatId, ClipboardGeneralCapabilityFlags, FileContentsRequest,
-    FileContentsResponse, FormatDataRequest, FormatDataResponse, LockDataId,
-    OwnedFormatDataResponse,
+    ClipboardFormat, ClipboardFormatId, ClipboardFormatName, ClipboardGeneralCapabilityFlags,
+    FileContentsRequest, FileContentsResponse, FileDescriptor, FormatDataRequest,
+    FormatDataResponse, LockDataId, OwnedFormatDataResponse,
 };
-use remoter_proto::{ClipboardPolicy, ProtocolError};
+use remoter_proto::{ClipboardFiles, ClipboardPolicy, ProtocolError};
+
+use crate::clipboard_files::LocalFileSet;
 use sha2::{Digest as _, Sha256};
 use zeroize::Zeroizing;
 
@@ -131,6 +134,13 @@ pub const NO_CLIPBOARD: ClipboardPolicy = ClipboardPolicy {
 /// grows with the server's traffic.
 const MAX_QUEUED_SIGNALS: usize = 64;
 
+/// How many of this client's file lists the server may hold locked at once.
+///
+/// A Lock Clipboard Data PDU (§2.2.4.1) asks this side to keep serving a list
+/// after the clipboard has moved on, and the server chooses how many to send.
+/// `ironrdp-cliprdr` stops at the same number for its own snapshots.
+const MAX_LOCKED_OFFERS: usize = 100;
+
 /// What the channel told the backend, in the order it said it.
 pub enum Signal {
     /// The server sent Monitor Ready (§2.2.2.2); the client's first Format List
@@ -138,18 +148,43 @@ pub enum Signal {
     FormatListOwed,
     /// The server accepted that first list. The channel is usable.
     Ready,
-    /// The server's clipboard changed (§2.2.3.1), and whether text is on it.
+    /// The server's clipboard changed (§2.2.3.1), and what is on it.
     RemoteCopied {
         /// `CF_UNICODETEXT` is on offer.
         unicode: bool,
         /// `CF_TEXT` is on offer.
         ansi: bool,
+        /// The id the server gave `FileGroupDescriptorW`, when files are on
+        /// offer (§1.3.1.2: the format is known by its name, not its id).
+        file_list: Option<ClipboardFormatId>,
     },
     /// Something on the server pasted and wants this client's data (§2.2.5.1).
     DataRequested(ClipboardFormatId),
     /// The answer to this client's own request (§2.2.5.2). `None` when the
     /// server answered with `CB_RESPONSE_FAIL`.
     DataArrived(Option<Zeroizing<Vec<u8>>>),
+    /// The server's file list, already stripped of absolute paths and `..` by
+    /// `ironrdp-cliprdr`, and the lock it took on that list if it took one.
+    RemoteFiles {
+        /// The entries, in the order file requests index them.
+        files: Vec<FileDescriptor>,
+        /// The `clipDataId` of the lock (§2.2.4.1).
+        clip_data_id: Option<u32>,
+    },
+    /// Something on the server is pasting a file this client offered and
+    /// wants a piece of it (§2.2.5.3).
+    FileContentsRequested(FileContentsRequest),
+    /// A piece of a file this client asked for (§2.2.5.4). `None` on failure.
+    FileContentsArrived {
+        /// Which request it answers.
+        stream_id: u32,
+        /// The bytes.
+        data: Option<Zeroizing<Vec<u8>>>,
+    },
+    /// The server locked this client's current file list (§2.2.4.1).
+    Locked(u32),
+    /// And released it (§2.2.4.2).
+    Unlocked(u32),
 }
 
 impl core::fmt::Debug for Signal {
@@ -157,10 +192,15 @@ impl core::fmt::Debug for Signal {
         match self {
             Self::FormatListOwed => f.write_str("FormatListOwed"),
             Self::Ready => f.write_str("Ready"),
-            Self::RemoteCopied { unicode, ansi } => f
+            Self::RemoteCopied {
+                unicode,
+                ansi,
+                file_list,
+            } => f
                 .debug_struct("RemoteCopied")
                 .field("unicode", unicode)
                 .field("ansi", ansi)
+                .field("files", &file_list.is_some())
                 .finish(),
             Self::DataRequested(format) => write!(f, "DataRequested({})", format.value()),
             // What the server copied is the user's clipboard. The length is
@@ -169,17 +209,42 @@ impl core::fmt::Debug for Signal {
                 Some(bytes) => write!(f, "DataArrived(<redacted, {} bytes>)", bytes.len()),
                 None => f.write_str("DataArrived(failed)"),
             },
+            Self::RemoteFiles { files, .. } => write!(f, "RemoteFiles(<{} entries>)", files.len()),
+            Self::FileContentsRequested(request) => write!(
+                f,
+                "FileContentsRequested(stream {}, index {})",
+                request.stream_id, request.index
+            ),
+            Self::FileContentsArrived { stream_id, data } => match data {
+                Some(bytes) => write!(
+                    f,
+                    "FileContentsArrived(stream {stream_id}, <redacted, {} bytes>)",
+                    bytes.len()
+                ),
+                None => write!(f, "FileContentsArrived(stream {stream_id}, failed)"),
+            },
+            Self::Locked(id) => write!(f, "Locked({id})"),
+            Self::Unlocked(id) => write!(f, "Unlocked({id})"),
         }
     }
 }
 
 /// The channel's backend: a recorder of what it was told.
-#[derive(Default)]
 pub struct ClipboardSignals {
     queue: VecDeque<Signal>,
+    files: bool,
 }
 
 impl ClipboardSignals {
+    /// A backend for a connection that does, or does not, let files cross.
+    #[must_use]
+    pub const fn new(files: bool) -> Self {
+        Self {
+            queue: VecDeque::new(),
+            files,
+        }
+    }
+
     /// Everything recorded since the last call, oldest first.
     pub fn take(&mut self) -> VecDeque<Signal> {
         core::mem::take(&mut self.queue)
@@ -201,6 +266,7 @@ impl core::fmt::Debug for ClipboardSignals {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("ClipboardSignals")
             .field("queued", &self.queue.len())
+            .field("files", &self.files)
             .finish()
     }
 }
@@ -208,18 +274,28 @@ impl core::fmt::Debug for ClipboardSignals {
 ironrdp::core::impl_as_any!(ClipboardSignals);
 
 impl CliprdrBackend for ClipboardSignals {
-    /// §2.2.2.3's `wszTempDir`. The server uses it only to build paths for
-    /// files, which this build does not transfer, so the client's own
-    /// directory layout is not disclosed for nothing.
+    /// §2.2.2.3's `wszTempDir`. The server builds paths from it only when
+    /// `CB_FILECLIP_NO_FILE_PATHS` is not set, and this client sets it
+    /// whenever files may cross — so the client's directory layout is not
+    /// disclosed for nothing.
     fn temporary_directory(&self) -> &str {
         ""
     }
 
-    /// Text needs no general capability flag (§2.2.2.1.1.1): every one of them
-    /// is about file streams or clipboard locking. `ironrdp-cliprdr` adds
+    /// Text needs no general capability flag (§2.2.2.1.1.1). Files need file
+    /// streams, a promise that no source path travels with a name, locking so
+    /// that a paste in progress survives the clipboard moving on, and 64-bit
+    /// offsets for anything over 2 GiB. `ironrdp-cliprdr` adds
     /// `CB_USE_LONG_FORMAT_NAMES` itself.
     fn client_capabilities(&self) -> ClipboardGeneralCapabilityFlags {
-        ClipboardGeneralCapabilityFlags::empty()
+        if self.files {
+            ClipboardGeneralCapabilityFlags::STREAM_FILECLIP_ENABLED
+                | ClipboardGeneralCapabilityFlags::FILECLIP_NO_FILE_PATHS
+                | ClipboardGeneralCapabilityFlags::CAN_LOCK_CLIPDATA
+                | ClipboardGeneralCapabilityFlags::HUGE_FILE_SUPPORT_ENABLED
+        } else {
+            ClipboardGeneralCapabilityFlags::empty()
+        }
     }
 
     fn on_ready(&mut self) {
@@ -234,15 +310,24 @@ impl CliprdrBackend for ClipboardSignals {
         &mut self,
         _capabilities: ClipboardGeneralCapabilityFlags,
     ) {
-        // Nothing this build does depends on what the server can do beyond
-        // text, which every version of the channel carries.
+        // `ironrdp-cliprdr` keeps the negotiated set and refuses a file request
+        // the server did not agree to; nothing here needs its own copy.
     }
 
     fn on_remote_copy(&mut self, formats: &[ClipboardFormat]) {
         let offers = |id: ClipboardFormatId| formats.iter().any(|format| format.id() == id);
+        let file_list = formats
+            .iter()
+            .find(|format| {
+                format
+                    .name()
+                    .is_some_and(|name| name.value() == ClipboardFormatName::FILE_LIST.value())
+            })
+            .map(ClipboardFormat::id);
         self.push(Signal::RemoteCopied {
             unicode: offers(ClipboardFormatId::CF_UNICODETEXT),
             ansi: offers(ClipboardFormatId::CF_TEXT),
+            file_list,
         });
     }
 
@@ -255,17 +340,32 @@ impl CliprdrBackend for ClipboardSignals {
         self.push(Signal::DataArrived(data));
     }
 
-    // Files are not transferred: `CB_STREAM_FILECLIP_ENABLED` is not
-    // negotiated, and `ironrdp-cliprdr` answers a File Contents Request with a
-    // failure itself when it is not (§2.2.5.3). Locks exist only for file
-    // streams (§2.2.4.1).
-    fn on_file_contents_request(&mut self, _request: FileContentsRequest) {}
+    fn on_file_contents_request(&mut self, request: FileContentsRequest) {
+        self.push(Signal::FileContentsRequested(request));
+    }
 
-    fn on_file_contents_response(&mut self, _response: FileContentsResponse<'_>) {}
+    fn on_file_contents_response(&mut self, response: FileContentsResponse<'_>) {
+        let data = (!response.is_error()).then(|| Zeroizing::new(response.data().to_vec()));
+        self.push(Signal::FileContentsArrived {
+            stream_id: response.stream_id(),
+            data,
+        });
+    }
 
-    fn on_lock(&mut self, _data_id: LockDataId) {}
+    fn on_lock(&mut self, data_id: LockDataId) {
+        self.push(Signal::Locked(data_id.0));
+    }
 
-    fn on_unlock(&mut self, _data_id: LockDataId) {}
+    fn on_unlock(&mut self, data_id: LockDataId) {
+        self.push(Signal::Unlocked(data_id.0));
+    }
+
+    fn on_remote_file_list(&mut self, files: &[FileDescriptor], clip_data_id: Option<u32>) {
+        self.push(Signal::RemoteFiles {
+            files: files.to_vec(),
+            clip_data_id,
+        });
+    }
 }
 
 /// One thing the session has to do for the clipboard.
@@ -274,13 +374,33 @@ pub enum Step {
     /// initialisation `ironrdp-cliprdr` bundles the capabilities and the
     /// temporary directory with it, as §1.3.2.1 orders.
     Announce(Vec<ClipboardFormat>),
+    /// Send a Format List offering these files (§2.2.5.2.3).
+    AnnounceFiles(Vec<FileDescriptor>),
     /// Ask the server for its clipboard in this format (§2.2.5.1).
     Fetch(ClipboardFormatId),
     /// Answer the server's request (§2.2.5.2).
     Answer(OwnedFormatDataResponse),
+    /// Answer a file request from one of this client's file lists.
+    Serve {
+        /// What the server asked for.
+        request: FileContentsRequest,
+        /// The list its index belongs to.
+        files: Arc<LocalFileSet>,
+    },
+    /// Answer a file request without reading anything: a failure.
+    AnswerFile(FileContentsResponse<'static>),
+    /// Hand a piece of a file to the save in progress.
+    SaveData {
+        /// Which request it answers.
+        stream_id: u32,
+        /// The bytes, or `None` for a failure.
+        data: Option<Zeroizing<Vec<u8>>>,
+    },
     /// Hand text the server copied to the layer above, line endings already
     /// LF.
     Deliver(String),
+    /// Tell the layer above about files.
+    Files(ClipboardFiles),
     /// Tell the user something, by catalogue key.
     Warn(&'static str),
 }
@@ -292,17 +412,44 @@ impl core::fmt::Debug for Step {
                 let ids: Vec<u32> = formats.iter().map(|format| format.id().value()).collect();
                 write!(f, "Announce({ids:?})")
             }
+            Self::AnnounceFiles(files) => write!(f, "AnnounceFiles(<{} entries>)", files.len()),
             Self::Fetch(format) => write!(f, "Fetch({})", format.value()),
             Self::Answer(response) if response.is_error() => f.write_str("Answer(failed)"),
             Self::Answer(response) => {
                 write!(f, "Answer(<redacted, {} bytes>)", response.data().len())
             }
+            Self::Serve { request, .. } => write!(
+                f,
+                "Serve(stream {}, index {})",
+                request.stream_id, request.index
+            ),
+            Self::AnswerFile(response) => {
+                write!(f, "AnswerFile(stream {}, failed)", response.stream_id())
+            }
+            Self::SaveData { stream_id, data } => write!(
+                f,
+                "SaveData(stream {stream_id}, {})",
+                data.as_ref().map_or_else(
+                    || String::from("failed"),
+                    |bytes| format!("{} bytes", bytes.len())
+                )
+            ),
             Self::Deliver(text) => {
                 write!(f, "Deliver(<redacted, {} chars>)", text.chars().count())
             }
+            Self::Files(files) => write!(f, "Files({files:?})"),
             Self::Warn(key) => write!(f, "Warn({key})"),
         }
     }
+}
+
+/// What this client asked the server for and is still waiting on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Awaited {
+    /// Text, in this format.
+    Text(ClipboardFormatId),
+    /// The file list.
+    FileList,
 }
 
 /// What the clipboard knows, and what it decides.
@@ -319,14 +466,23 @@ pub struct ClipboardState {
     ready: bool,
     /// The text on offer, in its wire form: CRLF line endings.
     local: Option<Zeroizing<String>>,
-    /// Whether `local` is in the Format List the server holds.
+    /// The files on offer instead, when those are what was copied.
+    local_files: Option<Arc<LocalFileSet>>,
+    /// Earlier file lists the server locked, by `clipDataId`.
+    locked: BTreeMap<u32, Arc<LocalFileSet>>,
+    /// Whether the current offer is in the Format List the server holds.
     announced: bool,
-    /// The digest of the text both ends already hold. See the module header.
+    /// The digest of what both ends already hold. See the module header.
     settled: Option<[u8; 32]>,
     /// Which text format the server's latest copy carries, if any.
     remote_text: Option<ClipboardFormatId>,
-    /// The format of this client's own request still in flight.
-    awaiting: Option<ClipboardFormatId>,
+    /// The server's file list, once fetched, and the lock it took on it.
+    remote_files: Option<(Vec<FileDescriptor>, Option<u32>)>,
+    /// A file list still to fetch once the text request in flight answers:
+    /// `ironrdp-cliprdr` matches a response to the one request it remembers.
+    queued_file_list: Option<ClipboardFormatId>,
+    /// This client's own request still in flight.
+    awaiting: Option<Awaited>,
     /// Whether [`WARNING_CLIPBOARD_UNAVAILABLE`] has been said.
     unavailable_said: bool,
 }
@@ -337,9 +493,10 @@ impl core::fmt::Debug for ClipboardState {
             .field("policy", &self.policy)
             .field("joined", &self.joined)
             .field("ready", &self.ready)
-            .field("offering", &self.local.is_some())
+            .field("offering_text", &self.local.is_some())
+            .field("offering_files", &self.local_files.is_some())
             .field("announced", &self.announced)
-            .field("awaiting", &self.awaiting.map(|format| format.value()))
+            .field("awaiting", &self.awaiting)
             .finish_non_exhaustive()
     }
 }
@@ -363,9 +520,13 @@ impl ClipboardState {
             salt,
             ready: false,
             local: None,
+            local_files: None,
+            locked: BTreeMap::new(),
             announced: false,
             settled: None,
             remote_text: None,
+            remote_files: None,
+            queued_file_list: None,
             awaiting: None,
             unavailable_said: false,
         })
@@ -377,6 +538,27 @@ impl ClipboardState {
         self.ready
     }
 
+    /// What this connection lets cross.
+    #[must_use]
+    pub const fn policy(&self) -> ClipboardPolicy {
+        self.policy
+    }
+
+    /// The server's file list and the lock on it, when there is one to save.
+    #[must_use]
+    pub fn remote_files(&self) -> Option<(&[FileDescriptor], Option<u32>)> {
+        self.remote_files
+            .as_ref()
+            .map(|(files, clip_data_id)| (files.as_slice(), *clip_data_id))
+    }
+
+    /// Whether files are in play in either direction, which is what decides
+    /// whether the channel's timers need driving.
+    #[must_use]
+    pub fn holds_files(&self) -> bool {
+        self.remote_files.is_some() || self.local_files.is_some() || !self.locked.is_empty()
+    }
+
     /// Acts on one thing the channel said.
     pub fn on_signal(&mut self, signal: Signal) -> Vec<Step> {
         match signal {
@@ -384,25 +566,37 @@ impl ClipboardState {
                 // §1.3.2.1: the client's capabilities, temporary directory and
                 // first Format List, in that order, once Monitor Ready is in.
                 // Text offered before the server was listening goes into that
-                // first list rather than being lost.
+                // first list rather than being lost. Files cannot: a file list
+                // needs the channel ready, so they wait for `Ready`.
                 self.announced = self.local.is_some();
                 vec![Step::Announce(self.formats_on_offer())]
             }
             Signal::Ready => {
                 self.ready = true;
-                if self.local.is_some() && !self.announced {
+                if self.announced {
+                    return Vec::new();
+                }
+                if self.local.is_some() {
                     self.announced = true;
                     vec![Step::Announce(self.formats_on_offer())]
+                } else if let Some(files) = &self.local_files {
+                    self.announced = true;
+                    vec![Step::AnnounceFiles(files.descriptors())]
                 } else {
                     Vec::new()
                 }
             }
-            Signal::RemoteCopied { unicode, ansi } => {
+            Signal::RemoteCopied {
+                unicode,
+                ansi,
+                file_list,
+            } => {
                 // The server's clipboard owns the content now, so whatever this
                 // client had on offer is no longer what a paste there gets.
                 // Holding the text any longer would keep it in memory for
-                // nothing.
+                // nothing. A file list the server locked stays in `locked`.
                 self.local = None;
+                self.local_files = None;
                 self.announced = false;
                 self.awaiting = None;
                 self.remote_text = if unicode {
@@ -412,7 +606,13 @@ impl ClipboardState {
                 } else {
                     None
                 };
-                self.fetch()
+                self.queued_file_list = file_list.filter(|_| self.policy.files);
+                let mut steps = Vec::new();
+                if self.remote_files.take().is_some() {
+                    steps.push(Step::Files(ClipboardFiles::Withdrawn));
+                }
+                steps.extend(self.fetch());
+                steps
             }
             Signal::DataRequested(format) => {
                 let answer = match &self.local {
@@ -430,30 +630,60 @@ impl ClipboardState {
                 };
                 vec![Step::Answer(answer)]
             }
-            Signal::DataArrived(data) => {
-                let Some(format) = self.awaiting.take() else {
-                    // An answer to no request, or to one a newer copy
-                    // superseded. Delivering it would put stale text on the
-                    // local clipboard.
-                    return Vec::new();
-                };
-                let Some(bytes) = data else {
-                    return Vec::new();
-                };
-                if !self.policy.text_from_remote {
+            Signal::DataArrived(data) => match self.awaiting.take() {
+                // An answer to no request, or to one a newer copy superseded.
+                // Delivering it would put stale text on the local clipboard.
+                None => Vec::new(),
+                // The server could not produce its file list after all.
+                Some(Awaited::FileList) => Vec::new(),
+                Some(Awaited::Text(format)) => {
+                    let mut steps = self.deliver(format, data);
+                    steps.extend(self.fetch_file_list());
+                    steps
+                }
+            },
+            Signal::RemoteFiles {
+                files,
+                clip_data_id,
+            } => {
+                if self.awaiting == Some(Awaited::FileList) {
+                    self.awaiting = None;
+                }
+                if !self.policy.files || files.is_empty() {
                     return Vec::new();
                 }
-                let decoded = if format == ClipboardFormatId::CF_UNICODETEXT {
-                    decode_unicode(&bytes)
-                } else {
-                    decode_ansi(&bytes)
-                };
-                let text = from_wire(&decoded);
-                if text.is_empty() {
-                    return Vec::new();
+                let offer = crate::clipboard_files::offered(&files);
+                self.remote_files = Some((files, clip_data_id));
+                vec![Step::Files(offer)]
+            }
+            Signal::FileContentsRequested(request) => {
+                let files = request
+                    .data_id
+                    .and_then(|id| self.locked.get(&id))
+                    .or(self.local_files.as_ref())
+                    .filter(|_| self.policy.files)
+                    .map(Arc::clone);
+                match files {
+                    Some(files) => vec![Step::Serve { request, files }],
+                    None => vec![Step::AnswerFile(FileContentsResponse::new_error(
+                        request.stream_id,
+                    ))],
                 }
-                self.settled = Some(self.digest(&text));
-                vec![Step::Deliver(String::from(text.as_str()))]
+            }
+            Signal::FileContentsArrived { stream_id, data } => {
+                vec![Step::SaveData { stream_id, data }]
+            }
+            Signal::Locked(id) => {
+                if let Some(files) = &self.local_files
+                    && self.locked.len() < MAX_LOCKED_OFFERS
+                {
+                    self.locked.insert(id, Arc::clone(files));
+                }
+                Vec::new()
+            }
+            Signal::Unlocked(id) => {
+                self.locked.remove(&id);
+                Vec::new()
             }
         }
     }
@@ -476,29 +706,38 @@ impl ClipboardState {
         if plain.len() > MAX_OFFER_BYTES {
             return vec![Step::Warn(WARNING_CLIPBOARD_TOO_LARGE)];
         }
-        let digest = self.digest(&plain);
+        let digest = self.digest(plain.as_bytes());
         if self.settled == Some(digest) {
             return Vec::new();
         }
         self.settled = Some(digest);
         self.local = Some(to_wire(&plain));
-        self.announced = false;
-        // What this client asked for is no longer what it wants: the offer
-        // replaces the server's clipboard, so text still on its way from there
-        // would overwrite the local clipboard the user just changed.
-        self.awaiting = None;
+        self.local_files = None;
+        self.announce(now, None)
+    }
 
-        if self.ready {
-            self.announced = true;
-            return vec![Step::Announce(self.formats_on_offer())];
+    /// Offers local files to the server.
+    ///
+    /// The same rules as [`ClipboardState::offer`]: offered on focus, so an
+    /// offer of the same files — same names, sizes and times — does nothing.
+    pub fn offer_files(&mut self, files: LocalFileSet, now: Instant) -> Vec<Step> {
+        if !self.policy.files || files.is_empty() {
+            return Vec::new();
         }
-        let overdue =
-            !self.joined || now.saturating_duration_since(self.opened_at) >= CHANNEL_GRACE;
-        if overdue && !self.unavailable_said {
-            self.unavailable_said = true;
-            return vec![Step::Warn(WARNING_CLIPBOARD_UNAVAILABLE)];
+        let mut identity = b"files\0".to_vec();
+        identity.extend_from_slice(&files.identity());
+        let digest = self.digest(&identity);
+        if self.settled == Some(digest) {
+            return Vec::new();
         }
-        Vec::new()
+        self.settled = Some(digest);
+        let skipped = files.skipped() > 0;
+        self.local = None;
+        self.local_files = Some(Arc::new(files));
+        self.announce(
+            now,
+            skipped.then_some(crate::clipboard_files::WARNING_FILES_SKIPPED),
+        )
     }
 
     /// Asks the server again for what it copied.
@@ -509,6 +748,7 @@ impl ClipboardState {
     /// Withdraws this client's offer.
     pub fn clear(&mut self) -> Vec<Step> {
         self.local = None;
+        self.local_files = None;
         self.settled = None;
         if self.announced && self.ready {
             self.announced = false;
@@ -523,20 +763,88 @@ impl ClipboardState {
 
     /// A clipboard PDU was dropped for its size before it was reassembled.
     pub fn discarded(&mut self) -> Vec<Step> {
-        if self.awaiting.take().is_some() {
-            vec![Step::Warn(WARNING_CLIPBOARD_TOO_LARGE)]
-        } else {
-            Vec::new()
+        match self.awaiting.take() {
+            Some(Awaited::Text(_)) => vec![Step::Warn(WARNING_CLIPBOARD_TOO_LARGE)],
+            Some(Awaited::FileList) => {
+                vec![Step::Warn(crate::clipboard_files::WARNING_FILES_TOO_MANY)]
+            }
+            None => Vec::new(),
         }
     }
 
+    /// Puts the current offer in front of the server, or says why it cannot be.
+    fn announce(&mut self, now: Instant, warning: Option<&'static str>) -> Vec<Step> {
+        self.announced = false;
+        // What this client asked for is no longer what it wants: the offer
+        // replaces the server's clipboard, so content still on its way from
+        // there would overwrite the local clipboard the user just changed.
+        self.awaiting = None;
+        self.queued_file_list = None;
+
+        let mut steps: Vec<Step> = warning.into_iter().map(Step::Warn).collect();
+        if self.ready {
+            self.announced = true;
+            match &self.local_files {
+                Some(files) => steps.push(Step::AnnounceFiles(files.descriptors())),
+                None => steps.push(Step::Announce(self.formats_on_offer())),
+            }
+            return steps;
+        }
+        let overdue =
+            !self.joined || now.saturating_duration_since(self.opened_at) >= CHANNEL_GRACE;
+        if overdue && !self.unavailable_said {
+            self.unavailable_said = true;
+            steps.push(Step::Warn(WARNING_CLIPBOARD_UNAVAILABLE));
+        }
+        steps
+    }
+
+    fn deliver(
+        &mut self,
+        format: ClipboardFormatId,
+        data: Option<Zeroizing<Vec<u8>>>,
+    ) -> Vec<Step> {
+        let Some(bytes) = data else {
+            return Vec::new();
+        };
+        if !self.policy.text_from_remote {
+            return Vec::new();
+        }
+        let decoded = if format == ClipboardFormatId::CF_UNICODETEXT {
+            decode_unicode(&bytes)
+        } else {
+            decode_ansi(&bytes)
+        };
+        let text = from_wire(&decoded);
+        if text.is_empty() {
+            return Vec::new();
+        }
+        self.settled = Some(self.digest(text.as_bytes()));
+        vec![Step::Deliver(String::from(text.as_str()))]
+    }
+
+    /// Asks for the server's text, or for its file list when there is no text
+    /// to ask for. One request at a time: see `queued_file_list`.
     fn fetch(&mut self) -> Vec<Step> {
-        if !self.policy.text_from_remote || !self.ready {
+        if !self.ready {
             return Vec::new();
         }
         match self.remote_text {
+            Some(format) if self.policy.text_from_remote => {
+                self.awaiting = Some(Awaited::Text(format));
+                vec![Step::Fetch(format)]
+            }
+            _ => self.fetch_file_list(),
+        }
+    }
+
+    fn fetch_file_list(&mut self) -> Vec<Step> {
+        if !self.ready || self.awaiting.is_some() {
+            return Vec::new();
+        }
+        match self.queued_file_list.take() {
             Some(format) => {
-                self.awaiting = Some(format);
+                self.awaiting = Some(Awaited::FileList);
                 vec![Step::Fetch(format)]
             }
             None => Vec::new(),
@@ -551,10 +859,10 @@ impl ClipboardState {
         }
     }
 
-    fn digest(&self, text: &str) -> [u8; 32] {
+    fn digest(&self, bytes: &[u8]) -> [u8; 32] {
         Sha256::new()
             .chain_update(self.salt)
-            .chain_update(text.as_bytes())
+            .chain_update(bytes)
             .finalize()
             .into()
     }
@@ -695,6 +1003,7 @@ mod tests {
         let steps = state.on_signal(Signal::RemoteCopied {
             unicode: true,
             ansi: true,
+            file_list: None,
         });
         assert!(
             matches!(&steps[..], [Step::Fetch(format)] if *format == ClipboardFormatId::CF_UNICODETEXT)
@@ -712,6 +1021,7 @@ mod tests {
         let _ = state.on_signal(Signal::RemoteCopied {
             unicode: true,
             ansi: false,
+            file_list: None,
         });
         let _ = state.on_signal(Signal::DataArrived(Some(utf16("cells\r\n"))));
 
@@ -740,6 +1050,7 @@ mod tests {
         let steps = state.on_signal(Signal::RemoteCopied {
             unicode: false,
             ansi: false,
+            file_list: None,
         });
         assert!(steps.is_empty());
         assert!(state.offer("local", Instant::now()).is_empty());
@@ -754,6 +1065,7 @@ mod tests {
         let _ = state.on_signal(Signal::RemoteCopied {
             unicode: true,
             ansi: false,
+            file_list: None,
         });
         // The user copied something locally and clicked into the tab before
         // the server answered.
@@ -780,7 +1092,8 @@ mod tests {
             !state
                 .on_signal(Signal::RemoteCopied {
                     unicode: true,
-                    ansi: false
+                    ansi: false,
+                    file_list: None,
                 })
                 .is_empty()
         );
@@ -796,7 +1109,8 @@ mod tests {
             state
                 .on_signal(Signal::RemoteCopied {
                     unicode: true,
-                    ansi: false
+                    ansi: false,
+                    file_list: None,
                 })
                 .is_empty()
         );
@@ -810,6 +1124,7 @@ mod tests {
         let steps = state.on_signal(Signal::RemoteCopied {
             unicode: true,
             ansi: false,
+            file_list: None,
         });
         assert!(steps.is_empty());
     }
@@ -820,6 +1135,7 @@ mod tests {
         let steps = state.on_signal(Signal::RemoteCopied {
             unicode: false,
             ansi: true,
+            file_list: None,
         });
         assert!(
             matches!(&steps[..], [Step::Fetch(format)] if *format == ClipboardFormatId::CF_TEXT)
@@ -842,6 +1158,7 @@ mod tests {
         let _ = state.on_signal(Signal::RemoteCopied {
             unicode: true,
             ansi: false,
+            file_list: None,
         });
         assert!(matches!(
             &state.discarded()[..],
@@ -886,6 +1203,7 @@ mod tests {
         let _ = state.on_signal(Signal::RemoteCopied {
             unicode: true,
             ansi: false,
+            file_list: None,
         });
         assert!(state.clear().is_empty());
     }
@@ -919,5 +1237,196 @@ mod tests {
         let mut state = ready();
         let _ = state.offer(secret, Instant::now());
         assert!(!format!("{state:?}").contains("hunter2"));
+    }
+
+    fn with_files() -> ClipboardState {
+        let policy = ClipboardPolicy {
+            files: true,
+            ..ClipboardPolicy::default()
+        };
+        let mut state = ClipboardState::new(policy, true, Instant::now()).unwrap();
+        let _ = state.on_signal(Signal::FormatListOwed);
+        let _ = state.on_signal(Signal::Ready);
+        state
+    }
+
+    fn file_list_id() -> ClipboardFormatId {
+        ClipboardFormatId::new(0xC0FE)
+    }
+
+    fn descriptor(name: &str, size: u64) -> FileDescriptor {
+        FileDescriptor::new(name).with_file_size(size)
+    }
+
+    async fn local_files(names: &[&str]) -> (tempfile::TempDir, LocalFileSet) {
+        let scratch = tempfile::tempdir().unwrap();
+        let paths: Vec<String> = names
+            .iter()
+            .map(|name| {
+                let path = scratch.path().join(name);
+                std::fs::write(&path, name.as_bytes()).unwrap();
+                path.display().to_string()
+            })
+            .collect();
+        let files = LocalFileSet::collect(&paths).await.unwrap();
+        (scratch, files)
+    }
+
+    #[test]
+    fn a_remote_copy_of_files_asks_for_the_text_first_and_the_list_after() {
+        // `ironrdp-cliprdr` remembers one request at a time, so two in flight
+        // would have one answer matched to the other.
+        let mut state = with_files();
+        let steps = state.on_signal(Signal::RemoteCopied {
+            unicode: true,
+            ansi: false,
+            file_list: Some(file_list_id()),
+        });
+        assert!(
+            matches!(&steps[..], [Step::Fetch(format)] if *format == ClipboardFormatId::CF_UNICODETEXT)
+        );
+
+        let steps = state.on_signal(Signal::DataArrived(Some(utf16("names"))));
+        assert!(
+            matches!(&steps[..], [Step::Deliver(_), Step::Fetch(format)] if *format == file_list_id())
+        );
+
+        let steps = state.on_signal(Signal::RemoteFiles {
+            files: vec![descriptor("a.txt", 3), descriptor("b.txt", 4)],
+            clip_data_id: Some(9),
+        });
+        assert!(matches!(
+            &steps[..],
+            [Step::Files(ClipboardFiles::Offered {
+                total_entries: 2,
+                total_bytes: 7,
+                ..
+            })]
+        ));
+        let (files, lock) = state.remote_files().unwrap();
+        assert_eq!(files.len(), 2);
+        assert_eq!(lock, Some(9));
+        assert!(state.holds_files());
+
+        // The server copies something else: the offer is withdrawn.
+        let steps = state.on_signal(Signal::RemoteCopied {
+            unicode: true,
+            ansi: false,
+            file_list: None,
+        });
+        assert!(matches!(
+            &steps[..],
+            [Step::Files(ClipboardFiles::Withdrawn), Step::Fetch(_)]
+        ));
+        assert!(state.remote_files().is_none());
+    }
+
+    #[test]
+    fn files_the_policy_does_not_allow_are_never_asked_for() {
+        let mut state = ready();
+        let steps = state.on_signal(Signal::RemoteCopied {
+            unicode: false,
+            ansi: false,
+            file_list: Some(file_list_id()),
+        });
+        assert!(steps.is_empty());
+        let steps = state.on_signal(Signal::RemoteFiles {
+            files: vec![descriptor("a.txt", 3)],
+            clip_data_id: None,
+        });
+        assert!(steps.is_empty());
+        assert!(state.remote_files().is_none());
+    }
+
+    #[tokio::test]
+    async fn local_files_are_announced_once_and_served_from_the_list_the_server_locked() {
+        let mut state = with_files();
+        let (_first_dir, first) = local_files(&["one.txt"]).await;
+        let steps = state.offer_files(first, Instant::now());
+        assert!(matches!(&steps[..], [Step::AnnounceFiles(list)] if list.len() == 1));
+
+        // The server locks the list while it pastes.
+        assert!(state.on_signal(Signal::Locked(4)).is_empty());
+
+        // Then the user copies something else here.
+        let (_second_dir, second) = local_files(&["two.txt", "three.txt"]).await;
+        let steps = state.offer_files(second, Instant::now());
+        assert!(matches!(&steps[..], [Step::AnnounceFiles(list)] if list.len() == 2));
+
+        // A request under the lock reads the first list, not the current one.
+        let locked = FileContentsRequest {
+            stream_id: 1,
+            index: 0,
+            flags: ironrdp::cliprdr::pdu::FileContentsFlags::SIZE,
+            position: 0,
+            requested_size: 8,
+            data_id: Some(4),
+        };
+        let [Step::Serve { files, .. }] =
+            &state.on_signal(Signal::FileContentsRequested(locked))[..]
+        else {
+            panic!("a locked request was not served");
+        };
+        assert_eq!(files.descriptors()[0].name, "one.txt");
+
+        let current = FileContentsRequest {
+            stream_id: 2,
+            index: 1,
+            flags: ironrdp::cliprdr::pdu::FileContentsFlags::SIZE,
+            position: 0,
+            requested_size: 8,
+            data_id: None,
+        };
+        let [Step::Serve { files, .. }] =
+            &state.on_signal(Signal::FileContentsRequested(current))[..]
+        else {
+            panic!("a current request was not served");
+        };
+        // In the order the user's files were offered.
+        assert_eq!(files.descriptors()[1].name, "three.txt");
+
+        // Released, the old list answers nothing.
+        assert!(state.on_signal(Signal::Unlocked(4)).is_empty());
+        let stale = FileContentsRequest {
+            stream_id: 3,
+            index: 0,
+            flags: ironrdp::cliprdr::pdu::FileContentsFlags::SIZE,
+            position: 0,
+            requested_size: 8,
+            data_id: Some(4),
+        };
+        // Falls back to the current list, as `ironrdp-cliprdr` does.
+        let steps = state.on_signal(Signal::FileContentsRequested(stale));
+        assert!(matches!(&steps[..], [Step::Serve { .. }]));
+    }
+
+    #[tokio::test]
+    async fn the_same_local_files_are_not_announced_twice() {
+        let mut state = with_files();
+        let scratch = tempfile::tempdir().unwrap();
+        let path = scratch.path().join("same.txt");
+        std::fs::write(&path, b"x").unwrap();
+        let paths = [path.display().to_string()];
+        let first = LocalFileSet::collect(&paths).await.unwrap();
+        assert!(!state.offer_files(first, Instant::now()).is_empty());
+        let again = LocalFileSet::collect(&paths).await.unwrap();
+        assert!(state.offer_files(again, Instant::now()).is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_file_request_on_a_connection_without_files_is_refused() {
+        let mut state = ready();
+        let (_dir, files) = local_files(&["x.txt"]).await;
+        assert!(state.offer_files(files, Instant::now()).is_empty());
+        let request = FileContentsRequest {
+            stream_id: 5,
+            index: 0,
+            flags: ironrdp::cliprdr::pdu::FileContentsFlags::SIZE,
+            position: 0,
+            requested_size: 8,
+            data_id: None,
+        };
+        let steps = state.on_signal(Signal::FileContentsRequested(request));
+        assert!(matches!(&steps[..], [Step::AnswerFile(response)] if response.is_error()));
     }
 }

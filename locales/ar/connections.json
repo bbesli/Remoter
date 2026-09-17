@@ -281,8 +281,8 @@
     "protocolSettingsUnknown": "مخزَّنة على هذا الاتصال لكنها ليست من إعدادات هذه النسخة لهذا البروتوكول. تُحفظ كما هي وتُمرَّر دون مساس.",
     "_comment_protocolLimits": "SECURITY-ADJACENT. One sentence per protocol, naming what this build's adapter does NOT do — so that a missing control reads as an answer rather than as an oversight. Every item is a real gap in the adapter, not a policy: there is no setting for any of them because there is nothing behind them. Do not add to these lists and do not remove from them; they are kept in step with the adapters. 'Remote Desktop Gateway', 'RDP', 'VNC', 'RFB' and 'Tight' are product and protocol names and are never translated.",
     "protocolLimits": {
-      "_comment_rdp": "The desktop, the keyboard, the pointer and clipboard text in both directions are what RDP carries here; files do not cross the clipboard yet. 'Console session' is the /admin session on a Windows server. 'True colour' is 32-bit colour; the frame format has no other depth, so colour depth is not a choice rather than a choice nobody made.",
-      "rdp": "يحمل RDP في هذه النسخة سطح المكتب ولوحة المفاتيح والمؤشر ونص الحافظة في الاتجاهين. ولا ينسخ الملفات عبر الحافظة، ولا يعيد توجيه الأقراص ولا الطابعات ولا البطاقات الذكية، ولا ينقل صوتًا، ولا يفتح جلسة وحدة تحكّم، ولا يقود إلا شاشة واحدة، ولا يمر عبر Remote Desktop Gateway. وعمق الألوان ليس خيارًا كذلك — فكل إطار يصل بألوان حقيقية بعمق 32 بت.",
+      "_comment_rdp": "The desktop, the keyboard, the pointer and clipboard text in both directions are what RDP carries here; files cross the clipboard only where the connection allows it. 'Console session' is the /admin session on a Windows server. 'True colour' is 32-bit colour; the frame format has no other depth, so colour depth is not a choice rather than a choice nobody made.",
+      "rdp": "يحمل RDP في هذه النسخة سطح المكتب ولوحة المفاتيح والمؤشر ونص الحافظة في الاتجاهين، والملفات عبر الحافظة عندما يسمح الاتصال بذلك. ولا يعيد توجيه الأقراص ولا الطابعات ولا البطاقات الذكية، ولا ينقل صوتًا، ولا يفتح جلسة وحدة تحكّم، ولا يقود إلا شاشة واحدة، ولا يمر عبر Remote Desktop Gateway. وعمق الألوان ليس خيارًا كذلك — فكل إطار يصل بألوان حقيقية بعمق 32 بت.",
       "_comment_vnc": "'Ask the server to resize' is the client-initiated desktop resize, which RFB has no standard message for — so the tab scales the picture instead, which is a different thing and worth naming. Reading the remote clipboard is the direction that is missing; pasting into the session is not.",
       "vnc": "يوفّر VNC في هذه النسخة ترميز Raw، ويترك الاختيار للخادم فيما عدا ذلك، فلا شيء يُضبط في مستويات ضغط Tight وجودته. ولا يستطيع أن يطلب من الخادم تغيير الحجم — بل يقيس التبويب الصورة بدلًا من ذلك — ولا يستطيع قراءة حافظة الجهاز البعيد. ولا يحمل VNC اسم حساب على السلك، لذا يُحفظ اسم المستخدم أعلاه في سجلّك ولا يُرسل."
     },
@@ -294,6 +294,8 @@
       "rdpKeyboardLayout": "يحوّل Windows المفاتيح التي تضغطها إلى حروف باستخدام هذا التخطيط. وإن لم يطابق لوحة المفاتيح التي تكتب عليها فعلًا، كتبت الجلسة البعيدة حروفًا خاطئة ولم يُبلّغ أي طرف عن خلل.",
       "_comment_rdpNlaOff": "SECURITY-CRITICAL. Network Level Authentication is off on this connection. Without it the credentials are sent to whatever answered the port, before the server has proved it is the right machine. State the consequence; do not turn it into advice.",
       "rdpNlaOff": "المصادقة على مستوى الشبكة معطّلة على هذا الاتصال، فتُرسل بيانات اعتمادك إلى أيّ جهاز أجاب على المنفذ قبل أن يُثبت أيّ جهاز هو.",
+      "_comment_rdpClipboardFiles": "Shown under the setting above when it is on. States both directions and the risk, without turning it into advice.",
+      "rdpClipboardFiles": "يمكن لصق الملفات المنسوخة هنا على سطح المكتب البعيد، ويمكن حفظ الملفات المنسوخة هناك هنا بعد أن تختار مجلدًا. يستطيع خادم مُخترَق أن يقدّم ملفات من اختياره.",
       "_comment_vncFloor": "The floor is at its default. Explains what a floor is for, since nothing else on the screen does: without one the server alone decides how old a conversation the two of you have.",
       "vncFloor": "أقدم إصدار RFB يقبله هذا الاتصال. وتفاوض RFB يقوم على «الأدنى بين الاثنين»، فبلا حدّ أدنى يقرر الخادم وحده إلى أي مدى يعود بالحوار إلى الوراء.",
       "_comment_vncFloorLowered": "SECURITY-CRITICAL. The floor has been lowered below 3.8. RFB 3.3 lets the SERVER pick the security type rather than offering a list the client chooses from, and below 3.8 a failed handshake can appear as a connection that simply stops instead of as a reported error. Both halves matter.",
@@ -521,7 +523,9 @@
       "_comment_clipboard_to_remote": "Whether text copied on this machine may be pasted into the remote desktop. One direction of the clipboard; clipboard_from_remote is the other. On by default.",
       "clipboard_to_remote": "اللصق في سطح المكتب البعيد",
       "_comment_clipboard_from_remote": "Whether text copied on the remote desktop reaches this machine's clipboard. A compromised host could put text on this clipboard unasked, which is why this direction can be switched off on its own. On by default.",
-      "clipboard_from_remote": "النسخ من سطح المكتب البعيد"
+      "clipboard_from_remote": "النسخ من سطح المكتب البعيد",
+      "_comment_clipboard_files": "Whether files may cross the clipboard in either direction. Off by default: a compromised host should not be able to hand this machine files. With it on, nothing is saved here until the user picks a folder.",
+      "clipboard_files": "نسخ الملفات عبر الحافظة"
     },
     "_comment_vnc": "The names of the VNC adapter's own settings, labelling the fields declared in crates/remoter-proto-vnc/src/protocol.rs. 'VNC', 'RFB' and 'Raw' are protocol names and are never translated. The values these offer — '3.8', 'auto', 'raw', 'local', 'remote' — are wire tokens shown exactly as they stand and are not in this file at all.",
     "vnc": {

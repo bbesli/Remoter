@@ -1738,7 +1738,7 @@ fn now_filetime() -> u64 {
 ///   inside it the Display Control channel (MS-RDPEDISP) that carries a
 ///   resize. Always.
 /// - `cliprdr`, the clipboard (MS-RDPECLIP), when `clipboard` lets text cross
-///   in either direction. A connection whose policy allows nothing does not
+///   in either direction or lets files cross at all. A connection whose policy allows nothing does not
 ///   ask for the channel at all: requesting one nothing will use makes the
 ///   server start `rdpclip` and wait on it.
 ///
@@ -1760,9 +1760,9 @@ pub fn static_channels(clipboard: ClipboardPolicy) -> StaticChannelSet {
             Ok(Vec::new())
         })),
     );
-    if clipboard.text_to_remote || clipboard.text_from_remote {
+    if clipboard.text_to_remote || clipboard.text_from_remote || clipboard.files {
         channels.insert(CliprdrClient::new(Box::new(
-            crate::clipboard::ClipboardSignals::default(),
+            crate::clipboard::ClipboardSignals::new(clipboard.files),
         )));
     }
     channels
@@ -2882,6 +2882,16 @@ mod tests {
 
         let none = static_channels(crate::clipboard::NO_CLIPBOARD);
         assert!(none.get_by_type::<CliprdrClient>().is_none());
+
+        let files_only = ClipboardPolicy {
+            files: true,
+            ..crate::clipboard::NO_CLIPBOARD
+        };
+        assert!(
+            static_channels(files_only)
+                .get_by_type::<CliprdrClient>()
+                .is_some()
+        );
 
         // And the name the server matches it by (MS-RDPECLIP §2.1).
         let blocks = client_gcc_blocks(&config(), nego::SecurityProtocol::HYBRID, &default);

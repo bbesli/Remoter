@@ -388,6 +388,138 @@ pub enum ClipboardOp {
     },
     /// Withdraw a previous offer.
     Clear,
+    /// Copy the files the remote put on its clipboard into a local folder.
+    ///
+    /// The user chose the folder. Nothing already in it is overwritten: a name
+    /// that is taken gets a number, and a file arrives under a temporary name
+    /// until its last byte is written.
+    SaveFiles {
+        /// The folder, as an absolute local path.
+        directory: String,
+    },
+    /// Stop a [`ClipboardOp::SaveFiles`] in progress.
+    CancelSave,
+}
+
+/// One entry of a file list the remote copied.
+///
+/// Described, not transferred: the bytes move only on
+/// [`ClipboardOp::SaveFiles`]. `Debug` is redacting like [`ClipboardData`]'s —
+/// a file name is not a secret, but it is the user's, and a log is the wrong
+/// place for a list of what they copied.
+#[derive(Clone, PartialEq, Eq)]
+pub struct RemoteFile {
+    /// Where it sits in what was copied: relative, `/`-separated, and already
+    /// stripped of anything that would climb out of the folder it is saved
+    /// into. The remote chose it, so it is untrusted text.
+    pub path: String,
+    /// Its size in bytes, when the remote said.
+    pub size: Option<u64>,
+    /// Whether it is a folder.
+    pub directory: bool,
+}
+
+impl fmt::Debug for RemoteFile {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RemoteFile")
+            .field(
+                "path",
+                &format_args!("<redacted, {} chars>", self.path.chars().count()),
+            )
+            .field("size", &self.size)
+            .field("directory", &self.directory)
+            .finish()
+    }
+}
+
+/// Files moving across a session's clipboard, as the adapter reports them.
+#[derive(Clone, PartialEq, Eq)]
+pub enum ClipboardFiles {
+    /// The remote copied files. Nothing has moved yet.
+    Offered {
+        /// The first entries, in the remote's order — enough to say what was
+        /// copied without carrying a hundred thousand names to the interface.
+        files: Vec<RemoteFile>,
+        /// How many entries there are in all, folders included.
+        total_entries: u32,
+        /// How many bytes the files declare in all.
+        total_bytes: u64,
+    },
+    /// The remote's clipboard no longer holds files.
+    Withdrawn,
+    /// A save is under way.
+    Saving {
+        /// Bytes written so far.
+        done_bytes: u64,
+        /// Bytes in the whole save, as the remote declared them.
+        total_bytes: u64,
+        /// Files finished so far.
+        done_files: u32,
+        /// Files in the whole save, folders not counted.
+        total_files: u32,
+    },
+    /// One file of a save reached the local folder whole.
+    Saved {
+        /// Its path in what was copied. Untrusted.
+        remote: String,
+        /// Where it was written.
+        local: String,
+        /// Its size.
+        bytes: u64,
+    },
+    /// The whole save finished.
+    Finished {
+        /// The folder it was saved into.
+        directory: String,
+        /// How many files arrived.
+        files: u32,
+        /// How many bytes.
+        bytes: u64,
+    },
+    /// The save stopped short.
+    Failed {
+        /// A catalogue key saying why.
+        reason: String,
+    },
+    /// The user stopped the save.
+    Cancelled,
+    /// Something on the remote machine pasted a local file and has now read
+    /// the whole of it.
+    Sent {
+        /// The local file.
+        local: String,
+        /// Its size.
+        bytes: u64,
+    },
+}
+
+impl fmt::Debug for ClipboardFiles {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Offered {
+                total_entries,
+                total_bytes,
+                ..
+            } => write!(f, "Offered(<{total_entries} entries, {total_bytes} bytes>)"),
+            Self::Withdrawn => f.write_str("Withdrawn"),
+            Self::Saving {
+                done_bytes,
+                total_bytes,
+                done_files,
+                total_files,
+            } => write!(
+                f,
+                "Saving {{ {done_bytes}/{total_bytes} bytes, {done_files}/{total_files} files }}"
+            ),
+            Self::Saved { bytes, .. } => write!(f, "Saved(<redacted>, {bytes} bytes)"),
+            Self::Finished { files, bytes, .. } => {
+                write!(f, "Finished({files} files, {bytes} bytes)")
+            }
+            Self::Failed { reason } => write!(f, "Failed({reason})"),
+            Self::Cancelled => f.write_str("Cancelled"),
+            Self::Sent { bytes, .. } => write!(f, "Sent(<redacted>, {bytes} bytes)"),
+        }
+    }
 }
 
 /// What clipboard traffic is allowed.
@@ -424,7 +556,8 @@ impl ClipboardPolicy {
             ClipboardOp::Offer(ClipboardData::Files(_)) => self.files,
             ClipboardOp::Request { files: true } => self.files,
             ClipboardOp::Request { files: false } => self.text_from_remote,
-            ClipboardOp::Clear => true,
+            ClipboardOp::SaveFiles { .. } => self.files,
+            ClipboardOp::Clear | ClipboardOp::CancelSave => true,
         }
     }
 }
@@ -1053,7 +1186,11 @@ mod tests {
             ])))
         );
         assert!(!policy.permits(&ClipboardOp::Request { files: true }));
+        assert!(!policy.permits(&ClipboardOp::SaveFiles {
+            directory: "/tmp".to_owned()
+        }));
         assert!(policy.permits(&ClipboardOp::Clear));
+        assert!(policy.permits(&ClipboardOp::CancelSave));
     }
 
     #[test]

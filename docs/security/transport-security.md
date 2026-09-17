@@ -123,16 +123,36 @@ knowing when deciding whether to switch a direction off:
   text travels only when something on the server pastes it. An offer of text
   the server already holds does nothing.
 
+**Files cross only where a connection turns them on**, with *Copy files through
+the clipboard*, which is off by default. With it on:
+
+- **Remote → local waits for the user.** A file list the server copies is shown
+  above the picture — names, count, total size — and not one byte is fetched
+  until the user picks a folder. Every name is the server's choice and is
+  treated as untrusted: `ironrdp-cliprdr` strips absolute prefixes and `..`, and
+  the adapter then makes each component a single safe file name on this
+  platform — separators, control characters and Windows' reserved characters
+  replaced, device names such as `CON` prefixed. Nothing is written outside the
+  chosen folder and nothing in it is overwritten: a taken top-level name gets a
+  number, and a file arrives under a `.remoter-part` name until its last byte
+  is in. The bytes written stop at the size the server declared.
+- **Local → remote serves only what was copied.** The server reads a file by
+  its index in the list this machine offered, so there is no path in a request
+  to widen. A symbolic link inside a copied folder is skipped rather than
+  followed, so a folder holding a link to `~/.ssh` does not send `~/.ssh`.
+- **Both directions are audited** — a `file_downloaded` or `file_uploaded` row
+  per file, the same rows an SFTP transfer writes.
+
 VNC's policy is honoured by its adapter too, but the interface offers VNC no
-clipboard. No other redirection channel is requested on any wire, and files
-cannot cross the clipboard in either direction. The rows still marked ⏳ are the
-policy the implementation must adopt, not a description of running behaviour.
+clipboard. No other redirection channel is requested on any wire. The rows still
+marked ⏳ are the policy the implementation must adopt, not a description of
+running behaviour.
 
 | Feature | Default | Rationale | |
 |---|---|---|---|
 | Clipboard, text, local → remote | On | Expected behaviour; the user initiated the paste | ✅ RDP, a setting per connection |
 | Clipboard, text, remote → local | On | Needed constantly for copying output | ✅ RDP, a setting per connection |
-| Clipboard, **files** | **Off** | A compromised host should not be able to drop files into your clipboard | ✅ off, and nothing can turn it on |
+| Clipboard, **files** | **Off** | A compromised host should not be able to drop files into your clipboard | ✅ off; RDP turns it on per connection, and a remote file still waits for a folder to be chosen |
 | Drive redirection | **Off** | Per-connection opt-in, per-folder, read-only offered first | ⏳ no channel |
 | Printer redirection | Off | Opt-in | ⏳ no channel |
 | Smart card redirection | Off | Opt-in | ⏳ no channel |

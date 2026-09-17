@@ -147,6 +147,8 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         session::session_pointer,
         session::session_resize,
         session::session_clipboard_sync,
+        session::session_clipboard_save,
+        session::session_clipboard_cancel,
         session::session_close,
         session::session_list,
         session::host_key_decide,

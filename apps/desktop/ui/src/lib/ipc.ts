@@ -1733,6 +1733,39 @@ export interface SessionFailure {
   retryable: boolean;
 }
 
+/** One entry of a file list the remote desktop copied. */
+export interface RemoteClipboardFile {
+  /** Relative and `/`-separated, escaped by the core: the remote chose it. */
+  path: string;
+  size: number | null;
+  directory: boolean;
+}
+
+/**
+ * Files crossing a session's clipboard.
+ *
+ * `offered` is the remote copying files — nothing has moved. A save runs as
+ * `saving` messages ending in `finished`, `failed` or `cancelled`; `saved` and
+ * `sent` are single files landing here or read by the remote, which the core
+ * has already written to the audit log. Every path is escaped by the core.
+ */
+export type ClipboardFilesMessage =
+  | { state: "offered"; files: RemoteClipboardFile[]; totalEntries: number; totalBytes: number }
+  | { state: "withdrawn" }
+  | {
+      state: "saving";
+      doneBytes: number;
+      totalBytes: number;
+      doneFiles: number;
+      totalFiles: number;
+    }
+  | { state: "saved"; remote: string; local: string; bytes: number }
+  | { state: "finished"; directory: string; files: number; bytes: number }
+  /** `reason` is a catalogue key, e.g. `rdp.clipboard_save_refused`. */
+  | { state: "failed"; reason: string }
+  | { state: "cancelled" }
+  | { state: "sent"; local: string; bytes: number };
+
 /**
  * A control event on a session's channel.
  *
@@ -1744,6 +1777,7 @@ export type SessionMessage =
   | ({ event: "ready" } & SessionOpened)
   | { event: "resized"; width: number; height: number }
   | { event: "clipboardOffer"; text: boolean; files: boolean }
+  | ({ event: "clipboardFiles" } & ClipboardFilesMessage)
   | ({ event: "hostKey" } & HostKeyPrompt)
   | ({ event: "prompt" } & SessionPrompt)
   | ({ event: "progress" } & SessionProgress)
@@ -2581,6 +2615,19 @@ export const ipc = {
    * surely as a keystroke does.
    */
   syncClipboard: (sessionId: number) => invoke<void>("session_clipboard_sync", { sessionId }),
+  /**
+   * Saves the files the remote desktop copied into a local folder.
+   *
+   * The folder must exist; the core refuses anything else with
+   * `clipboard.save-folder-missing` before the session is asked. Progress and
+   * the outcome arrive on the tab's channel as `clipboardFiles` messages.
+   * Nothing in the folder is overwritten.
+   */
+  saveClipboardFiles: (sessionId: number, directory: string) =>
+    invoke<void>("session_clipboard_save", { sessionId, directory }),
+  /** Stops a save. Files that arrived whole stay. */
+  cancelClipboardSave: (sessionId: number) =>
+    invoke<void>("session_clipboard_cancel", { sessionId }),
   /**
    * Tells the far end the tab changed size.
    *

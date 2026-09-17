@@ -1140,6 +1140,13 @@
         "复制较小的一部分",
         "改用 SFTP 传输该文件"
       ]
+    },
+    "_comment_save-folder-missing": "A save of files copied on a remote desktop was asked for into a folder that does not exist, or a path that is not absolute. Nothing was transferred.",
+    "save-folder-missing": {
+      "message": "该文件夹不存在，因此没有保存任何内容。",
+      "actions": [
+        "选择其他文件夹"
+      ]
     }
   },
   "tunnel": {

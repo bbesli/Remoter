@@ -407,6 +407,7 @@ const SETTING_NOTES = {
   rdpDomain: "editor.settingNote.rdpDomain",
   rdpKeyboardLayout: "editor.settingNote.rdpKeyboardLayout",
   rdpNlaOff: "editor.settingNote.rdpNlaOff",
+  rdpClipboardFiles: "editor.settingNote.rdpClipboardFiles",
   vncFloor: "editor.settingNote.vncFloor",
   vncFloorLowered: "editor.settingNote.vncFloorLowered",
   vncExclusive: "editor.settingNote.vncExclusive",
@@ -435,6 +436,9 @@ function settingNoteKey(protocol: string, key: string, value: string): CopyKey |
     if (key === "network_level_authentication" && value === "false") {
       return SETTING_NOTES.rdpNlaOff;
     }
+    // Only when it is on, for the same reason: off is the default and the
+    // documented position, and the consequence belongs to turning it on.
+    if (key === "clipboard_files" && value === "true") return SETTING_NOTES.rdpClipboardFiles;
   }
   if (protocol === "vnc") {
     if (key === "rfb_version_min") {

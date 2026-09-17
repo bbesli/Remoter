@@ -62,6 +62,9 @@ export type WarningKey =
   | "warning.detail.rdpClipboardTooLarge"
   | "warning.detail.rdpClipboardUnavailable"
   | "warning.detail.localClipboardWriteFailed"
+  | "warning.detail.rdpClipboardFilesSkipped"
+  | "warning.detail.rdpClipboardFilesTooMany"
+  | "warning.detail.rdpClipboardFilesUnsupported"
   | "warning.detail.sshAgentForwarding"
   | "warning.detail.sshInputUnsupported"
   | "warning.detail.sshClipboardRefused"
@@ -122,6 +125,9 @@ const DETAIL_KEYS: Readonly<Record<string, WarningKey>> = {
   "rdp.clipboard_too_large": "warning.detail.rdpClipboardTooLarge",
   "rdp.clipboard_unavailable": "warning.detail.rdpClipboardUnavailable",
   "clipboard.local_write_failed": "warning.detail.localClipboardWriteFailed",
+  "rdp.clipboard_files_skipped": "warning.detail.rdpClipboardFilesSkipped",
+  "rdp.clipboard_files_too_many": "warning.detail.rdpClipboardFilesTooMany",
+  "rdp.clipboard_files_unsupported": "warning.detail.rdpClipboardFilesUnsupported",
   "ssh.agent_forwarding_enabled": "warning.detail.sshAgentForwarding",
   "ssh.input_unsupported": "warning.detail.sshInputUnsupported",
   "ssh.clipboard.policy_refused": "warning.detail.sshClipboardRefused",
@@ -170,6 +176,9 @@ const DETAIL_TONES: Readonly<Record<string, CalloutTone>> = {
   // Not `info`: the next paste on this machine will silently produce the wrong
   // text, and the user has no other way to find out.
   "clipboard.local_write_failed": "warning",
+  "rdp.clipboard_files_skipped": "info",
+  "rdp.clipboard_files_too_many": "info",
+  "rdp.clipboard_files_unsupported": "info",
   "ssh.agent_forwarding_enabled": "warning",
   "ssh.input_unsupported": "info",
   "ssh.clipboard.policy_refused": "info",

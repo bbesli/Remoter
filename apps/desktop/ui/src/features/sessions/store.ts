@@ -20,6 +20,7 @@ import type {
   CloseReason,
   HostKeyPrompt,
   IpcFailure,
+  RemoteClipboardFile,
   SessionFailure,
   SessionOpened,
   SessionPrompt,
@@ -115,6 +116,14 @@ export interface SessionRecord {
   inputError: IpcFailure | null;
 
   warnings: SessionWarning[];
+  /**
+   * Files on the remote desktop's clipboard, and a save of them.
+   *
+   * Two halves because they change independently: the remote can copy
+   * something else while a save of what it copied before is still running, and
+   * the save carries on — the server locked those files for it.
+   */
+  clipboardFiles: ClipboardFilesState;
   metrics: SessionMetrics;
   renderer: RendererReport | null;
 
@@ -138,6 +147,24 @@ export interface SessionRecord {
   startedAt: number;
   /** When each stage was seen to finish, measured between real events. */
   stageAt: Partial<Record<StageId, number>>;
+}
+
+/** What the remote desktop copied, when that is files. */
+export interface ClipboardFilesOffer {
+  files: RemoteClipboardFile[];
+  totalEntries: number;
+  totalBytes: number;
+}
+
+/** A save of those files, running or ended. */
+export type ClipboardFilesTransfer =
+  | { kind: "saving"; doneBytes: number; totalBytes: number; doneFiles: number; totalFiles: number }
+  | { kind: "finished"; directory: string; files: number; bytes: number }
+  | { kind: "failed"; reason: string };
+
+export interface ClipboardFilesState {
+  offer: ClipboardFilesOffer | null;
+  transfer: ClipboardFilesTransfer | null;
 }
 
 interface SessionStore {
@@ -211,6 +238,7 @@ function seedRecord(seed: {
     promptError: null,
     inputError: null,
     warnings: [],
+    clipboardFiles: { offer: null, transfer: null },
     metrics: { bytesIn: 0, bytesOut: 0, cols: 0, rows: 0, echoMs: null },
     renderer: null,
     // `fit` until the session reports whether it is resizable, at which point

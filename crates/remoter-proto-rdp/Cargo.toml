@@ -113,6 +113,9 @@ tokio = { workspace = true, features = [
     "macros",
     "net",
     "io-util",
+    # Files over the clipboard: reading what the user offered, writing what
+    # they chose to save. See `src/clipboard_files.rs`.
+    "fs",
 ] }
 tokio-util = { version = "0.7", features = ["rt"] }
 thiserror.workspace = true
@@ -136,6 +139,9 @@ winreg = "0.55"
 # and against a real one it would either take seconds or assert nothing.
 tokio = { workspace = true, features = ["full", "test-util"] }
 parking_lot.workspace = true
+# A scratch folder per test for the clipboard's file saves. MIT OR Apache-2.0,
+# and already a dev-dependency of remoter-vault, so nothing new is reviewed.
+tempfile = "3"
 
 [lints]
 workspace = true

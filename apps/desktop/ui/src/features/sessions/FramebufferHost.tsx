@@ -112,6 +112,7 @@ import {
   type KeyInput,
 } from "./keymap";
 import { requestDesktopSize } from "./manager";
+import { ClipboardFilesBar } from "./ClipboardFilesBar";
 import { cursorCssValue, cursorDataUrl } from "./presenter";
 import { layoutFor, remotePoint, ZOOM_STEPS, type Layout, type ScaleMode, type Size } from "./scaling";
 import { useSessions, type SessionRecord } from "./store";
@@ -847,7 +848,10 @@ export function FramebufferHost({ record, active }: { record: SessionRecord; act
    * smart-resize session is two desktop renegotiations at the far end. It is a
    * chip in the toolbar, whose height does not move.
    */
-  const hasNotices = viewOnly || unavailable || status.stale || status.decodeError !== null;
+  const clipboardFiles =
+    record.clipboardFiles.offer !== null || record.clipboardFiles.transfer !== null;
+  const hasNotices =
+    viewOnly || unavailable || status.stale || status.decodeError !== null || clipboardFiles;
 
   return (
     <div
@@ -954,6 +958,8 @@ export function FramebufferHost({ record, active }: { record: SessionRecord; act
               {t(frameDecodeKey(status.decodeError))}
             </p>
           )}
+
+          {clipboardFiles && <ClipboardFilesBar record={record} />}
         </div>
       )}
 

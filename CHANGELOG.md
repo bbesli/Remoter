@@ -180,6 +180,19 @@ this project adheres to [Semantic Versioning](https://semver.org/).
   tab. Every other channel's ceiling still ends the session. A server that has
   not opened the channel a minute in, and a local clipboard that could not be
   written, are said too
+- **Files over the clipboard, both ways**, behind a new connection setting,
+  *Copy files through the clipboard*, off by default. Files copied here are
+  offered with delayed rendering like text and served from the list that was
+  offered, by index, a piece at a time as the server asks; links inside a copied
+  folder are skipped rather than followed. Files copied on the server are shown
+  above the picture — how many, how large, the first names — with *Save to
+  folder*, and nothing is fetched until a folder is chosen. A save never
+  overwrites (a taken name gets a number), writes each file under a temporary
+  name until it is whole, turns every name the server chose into one safe local
+  name, reports progress and can be stopped. Both directions write the same
+  audit rows an SFTP transfer does, and the clipboard channel's timers are
+  driven only while files are in play, so an idle session still wakes for
+  nothing
 
 #### Graphical sessions — VNC
 - `remoter-proto-vnc`: a working RFB client over `vnc-rs`, with the handshake

@@ -1140,6 +1140,13 @@
         "Copie uma parte menor",
         "Transfira o arquivo por SFTP"
       ]
+    },
+    "_comment_save-folder-missing": "A save of files copied on a remote desktop was asked for into a folder that does not exist, or a path that is not absolute. Nothing was transferred.",
+    "save-folder-missing": {
+      "message": "Essa pasta não existe, então nada foi salvo.",
+      "actions": [
+        "Escolher outra pasta"
+      ]
     }
   },
   "tunnel": {

@@ -37,6 +37,7 @@ function record(warnings: SessionWarning[]): SessionRecord {
     promptError: null,
     inputError: null,
     warnings,
+    clipboardFiles: { offer: null, transfer: null },
     metrics: { bytesIn: 0, bytesOut: 0, cols: 0, rows: 0, echoMs: null },
     renderer: null,
     scale: { mode: "fit", zoom: 2 },

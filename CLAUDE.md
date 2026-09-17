@@ -49,7 +49,7 @@ implemented and have been used against real servers.
 
 What is **not** implemented, so that you do not go looking for it: session
 recording of any kind, the FIDO2 key slot, FTP, the plugin host, the clipboard
-beyond RDP text (no files, no images, nothing for VNC), and tab detach or split
+beyond RDP (no images or rich formats, nothing for VNC), and tab detach or split
 view. `docs/` is a specification
 that describes the finished product, so it describes more than exists —
 [README.md](README.md#what-works-today) carries the shipped-versus-planned

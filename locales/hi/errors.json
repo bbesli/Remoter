@@ -1140,6 +1140,13 @@
         "छोटा हिस्सा कॉपी करें",
         "इसके बजाय फ़ाइल SFTP से भेजें"
       ]
+    },
+    "_comment_save-folder-missing": "A save of files copied on a remote desktop was asked for into a folder that does not exist, or a path that is not absolute. Nothing was transferred.",
+    "save-folder-missing": {
+      "message": "वह फ़ोल्डर मौजूद नहीं है, इसलिए कुछ भी सहेजा नहीं गया।",
+      "actions": [
+        "कोई दूसरा फ़ोल्डर चुनें"
+      ]
     }
   },
   "tunnel": {

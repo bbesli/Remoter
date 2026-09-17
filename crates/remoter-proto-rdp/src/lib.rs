@@ -13,6 +13,7 @@
 //! | [`credssp`] | Network Level Authentication: MS-CSSP, and the NTLM it runs on |
 //! | [`cert`] | The server certificate as a host key problem: prompt, pin, and a changed one blocked |
 //! | [`clipboard`] | MS-RDPECLIP text in both directions, and what keeps a copy from crossing back |
+//! | [`clipboard_files`] | Files over the clipboard: offering local files, saving the server's |
 //! | [`framed`] | Whole PDUs off an injected transport, and the TLS upgrade |
 //! | [`session`] | [`RdpSession`]: the read loop, input, resize, clean disconnect |
 //! | [`display`] | Decoded pixels into `remoter_proto::framebuffer`'s format |
@@ -43,9 +44,9 @@
 //!
 //! Connect to a Windows host over TLS, with or without Network Level
 //! Authentication; see the desktop, type, click, scroll, resize the remote
-//! display, copy and paste text in both directions, and disconnect cleanly. Not
-//! yet: files over the clipboard, drive redirection, audio, printing, multiple
-//! monitors, or a Remote Desktop Gateway. Each of those is a separate channel or
+//! display, copy and paste text and — where the connection allows it — files in
+//! both directions, and disconnect cleanly. Not yet: drive redirection, audio,
+//! printing, multiple monitors, or a Remote Desktop Gateway. Each of those is a separate channel or
 //! a separate half of one, and [`capabilities`] reports every one of them as
 //! absent so the interface does not draw a control that does nothing.
 //!
@@ -126,6 +127,7 @@
 
 pub mod cert;
 pub mod clipboard;
+pub mod clipboard_files;
 pub mod connect;
 pub mod credssp;
 pub mod display;
