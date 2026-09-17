@@ -1483,10 +1483,14 @@ mod real_keys {
             );
             let der = pem_der(&original);
             let explicit_der = with_explicit_parameters(&der);
-            assert_ne!(
-                explicit_der, der,
-                "{name}: the parameters were not rewritten"
-            );
+            // Where `ssh-keygen` is the macOS one, it already wrote the explicit
+            // form this test exists for, and there is nothing to rewrite.
+            if names_its_curve(&der) {
+                assert_ne!(
+                    explicit_der, der,
+                    "{name}: the parameters were not rewritten"
+                );
+            }
 
             let iv = [0x3C; 16];
             let body =
@@ -1552,7 +1556,10 @@ mod real_keys {
                 (len, 2 + count)
             };
             let whole = der[at..at + header + len].to_vec();
-            if tag == 0xA0 {
+            // `[0]` holding an OID is a named curve. Anything else is already
+            // the explicit form, which is what macOS's `ssh-keygen` writes, and
+            // is kept as it is.
+            if tag == 0xA0 && der[at + header] == 0x06 {
                 let oid = &der[at + header + 2..at + header + len];
                 let domain = crate::pkcs8::specified_domain_for_tests(oid, false).unwrap();
                 parts.push(der_tlv(0xA0, &domain));
@@ -1562,6 +1569,34 @@ mod real_keys {
             at += header + len;
         }
         der_tlv(0x30, &parts.concat())
+    }
+
+    /// Whether an `ECPrivateKey`'s `[0]` names its curve by OID rather than
+    /// spelling the domain out. Walks the same top-level elements
+    /// [`with_explicit_parameters`] does.
+    fn names_its_curve(der: &[u8]) -> bool {
+        let outer_len_octets = if der[1] & 0x80 == 0 {
+            0
+        } else {
+            usize::from(der[1] & 0x7F)
+        };
+        let mut at = 2 + outer_len_octets;
+        while at < der.len() {
+            let (len, header) = if der[at + 1] & 0x80 == 0 {
+                (usize::from(der[at + 1]), 2)
+            } else {
+                let count = usize::from(der[at + 1] & 0x7F);
+                let len = der[at + 2..at + 2 + count]
+                    .iter()
+                    .fold(0usize, |acc, octet| acc * 256 + usize::from(*octet));
+                (len, 2 + count)
+            };
+            if der[at] == 0xA0 {
+                return der[at + header] == 0x06;
+            }
+            at += header + len;
+        }
+        false
     }
 
     fn der_tlv(tag: u8, value: &[u8]) -> Vec<u8> {
