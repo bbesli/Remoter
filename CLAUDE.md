@@ -48,8 +48,9 @@ port forwarding, eight importers, export, the audit log and ten localisations ar
 implemented and have been used against real servers.
 
 What is **not** implemented, so that you do not go looking for it: session
-recording of any kind, the FIDO2 key slot, FTP, the plugin host, the clipboard,
-and tab detach or split view. `docs/` is a specification
+recording of any kind, the FIDO2 key slot, FTP, the plugin host, the clipboard
+beyond RDP text (no files, no images, nothing for VNC), and tab detach or split
+view. `docs/` is a specification
 that describes the finished product, so it describes more than exists —
 [README.md](README.md#what-works-today) carries the shipped-versus-planned
 table, and §3 below is the tree as it actually is.

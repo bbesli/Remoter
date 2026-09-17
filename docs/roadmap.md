@@ -107,8 +107,8 @@ after all.
   opens and there is no way to revise a tab's capabilities mid-session; HiDPI at
   physical pixel size is not built
 - ✅ Keyboard scancode translation, with the layout read from the local machine
-- ⏳ Clipboard synchronisation (text) — not requested on the wire, not exposed
-  as a command, not drawn as a control
+- ✅ Clipboard synchronisation (text), both directions over MS-RDPECLIP, each
+  direction a setting on the connection. ⏳ Files and images over the clipboard
 - ✅ RDP through a jump chain
 
 **Exit criteria**

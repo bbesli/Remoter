@@ -62,20 +62,19 @@ pub const MAX_PDU_BYTES: usize = 256 * 1024;
 pub const MAX_FASTPATH_REASSEMBLY_BYTES: u32 = 8 * 1024 * 1024;
 
 /// The largest static virtual channel PDU this build will let `ironrdp-svc`
-/// reassemble out of chunks.
+/// reassemble out of chunks, on a channel that has not chosen its own.
 ///
-/// One static channel is opened (`crate::connect::static_channels`): `drdynvc`,
-/// MS-RDPEDYC's dynamic channel multiplexer, and inside it MS-RDPEDISP's
-/// Display Control. Everything that travels there is small and fixed — a
-/// capability exchange of tens of bytes, a create request, and a monitor layout
-/// of at most sixteen forty-byte entries. A megabyte is three orders of
-/// magnitude more than any of them and is reached by nothing legitimate.
+/// `drdynvc`, MS-RDPEDYC's dynamic channel multiplexer, is the channel this
+/// applies to, and inside it MS-RDPEDISP's Display Control. Everything that
+/// travels there is small and fixed — a capability exchange of tens of bytes, a
+/// create request, and a monitor layout of at most sixteen forty-byte entries.
+/// A megabyte is three orders of magnitude more than any of them and is reached
+/// by nothing legitimate, so reaching it ends the session.
 ///
-/// **Raising this is a decision, not a default.** The clipboard channel
-/// (MS-RDPECLIP) carries whatever the remote user copied, so adding it means
-/// choosing a clipboard ceiling deliberately — the way
-/// `remoter-proto-vnc`'s `MAX_CLIPBOARD_BYTES` is chosen — rather than
-/// discovering that this number was already in the way.
+/// **The clipboard channel does not use this number.** MS-RDPECLIP carries
+/// whatever the remote user copied, so its ceiling is chosen on its own —
+/// [`crate::clipboard::MAX_CLIPBOARD_PDU_BYTES`] — and a PDU above it is
+/// dropped rather than fatal. See [`Reassembly::discard_oversized`].
 pub const MAX_SVC_REASSEMBLY_BYTES: u32 = 1024 * 1024;
 
 /// How much to ask the transport for at a time.
@@ -409,8 +408,8 @@ pub struct Reassembly {
     /// has been seen, which is the state in which the library appends nothing.
     fastpath: Option<u64>,
     /// One entry per joined static virtual channel, and how much of a chunked
-    /// PDU each is holding. A `Vec` because there is one channel, occasionally
-    /// two: a map would cost more than the linear scan it replaced.
+    /// PDU each is holding. A `Vec` because there are one or two channels: a
+    /// map would cost more than the linear scan it replaced.
     channels: Vec<SvcChannel>,
 }
 
@@ -419,6 +418,28 @@ pub struct Reassembly {
 struct SvcChannel {
     id: u16,
     held: u64,
+    /// The largest PDU this channel may reassemble.
+    ceiling: u32,
+    /// Whether a PDU above `ceiling` is dropped rather than fatal.
+    discards: bool,
+    /// Inside a PDU being dropped: every chunk up to its last is withheld.
+    discarding: bool,
+}
+
+/// What [`Reassembly::inspect`] decided about one PDU.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Verdict {
+    /// Hand it to `ironrdp`.
+    Process,
+    /// Withhold it: it is a chunk of a PDU too large for a channel that drops
+    /// such PDUs rather than ending the session.
+    Discard {
+        /// The channel it arrived on.
+        channel: u16,
+        /// Whether this is the chunk the PDU was refused on, so that whoever
+        /// reports the drop reports it once and not once per chunk.
+        first: bool,
+    },
 }
 
 impl Reassembly {
@@ -429,15 +450,50 @@ impl Reassembly {
     /// neither is the I/O or message channel: `ironrdp-session` routes those
     /// somewhere other than `ChunkProcessor`, so counting them would refuse a
     /// conforming server for bytes nothing accumulated.
+    ///
+    /// Every channel starts with [`MAX_SVC_REASSEMBLY_BYTES`] and ends the
+    /// session above it.
     #[must_use]
     pub fn new(channel_ids: impl IntoIterator<Item = u16>) -> Self {
         Self {
             fastpath: None,
             channels: channel_ids
                 .into_iter()
-                .map(|id| SvcChannel { id, held: 0 })
+                .map(|id| SvcChannel {
+                    id,
+                    held: 0,
+                    ceiling: MAX_SVC_REASSEMBLY_BYTES,
+                    discards: false,
+                    discarding: false,
+                })
                 .collect(),
         }
+    }
+
+    /// Gives `channel` its own ceiling, and drops a PDU that declares more
+    /// rather than ending the session.
+    ///
+    /// For the clipboard. A server whose user copied a whole log file is not
+    /// misbehaving, and the proportionate answer is "that was too large to
+    /// carry", not a failed tab.
+    ///
+    /// **Why dropping is safe here and nowhere near here.** `ChunkProcessor`
+    /// never resets on `CHANNEL_FLAG_FIRST`: it appends every chunk until one
+    /// carries `CHANNEL_FLAG_LAST`. Withholding a PDU part way through would
+    /// leave its head in that buffer, and the next PDU would be decoded glued
+    /// to it. So a PDU is dropped only when it can be dropped *whole* — refused
+    /// on its first chunk, by the total that chunk declares, while the
+    /// library's buffer for the channel is empty — and every chunk after it is
+    /// withheld up to and including its last. A PDU that declares a small total
+    /// and then sends more is still a violation, because by then the library
+    /// has already been handed part of it.
+    #[must_use]
+    pub fn discard_oversized(mut self, channel: u16, ceiling: u32) -> Self {
+        if let Some(entry) = self.channels.iter_mut().find(|entry| entry.id == channel) {
+            entry.ceiling = ceiling;
+            entry.discards = true;
+        }
+        self
     }
 
     /// Checks one whole PDU before it is handed to `ironrdp`.
@@ -448,9 +504,13 @@ impl Reassembly {
     /// either reassembly buffer past its ceiling. That is a clean per-session
     /// failure — one tab with a diagnostic — which is what the allocation it
     /// replaces is not.
-    pub fn inspect(&mut self, action: rdp_pdu::Action, frame: &[u8]) -> Result<(), ProtocolError> {
+    pub fn inspect(
+        &mut self,
+        action: rdp_pdu::Action,
+        frame: &[u8],
+    ) -> Result<Verdict, ProtocolError> {
         match action {
-            rdp_pdu::Action::FastPath => self.inspect_fast_path(frame),
+            rdp_pdu::Action::FastPath => self.inspect_fast_path(frame).map(|()| Verdict::Process),
             rdp_pdu::Action::X224 => self.inspect_x224(frame),
         }
     }
@@ -498,49 +558,70 @@ impl Reassembly {
     /// MS-RDPBCGR §3.1.5.2.2: a static virtual channel PDU may be split into
     /// chunks, each repeating the Channel PDU Header, with the last one
     /// carrying `CHANNEL_FLAG_LAST`.
-    fn inspect_x224(&mut self, frame: &[u8]) -> Result<(), ProtocolError> {
+    fn inspect_x224(&mut self, frame: &[u8]) -> Result<Verdict, ProtocolError> {
         if self.channels.is_empty() {
-            return Ok(());
+            return Ok(Verdict::Process);
         }
         // Not every X.224 PDU is a Send Data Indication — a Disconnect Provider
         // Ultimatum is not — and one that is not carries no channel data.
         let Ok(indication) = rdp_pdu::mcs::decode_send_data_indication(frame) else {
-            return Ok(());
+            return Ok(Verdict::Process);
         };
         let Some(channel) = self
             .channels
             .iter_mut()
             .find(|channel| channel.id == indication.channel_id)
         else {
-            return Ok(());
+            return Ok(Verdict::Process);
         };
         let mut cursor = ReadCursor::new(indication.user_data);
         let Ok(header) = decode_cursor::<ChannelPduHeader>(&mut cursor) else {
-            return Ok(());
+            return Ok(Verdict::Process);
         };
+        let last = header.flags.contains(ChannelControlFlags::FLAG_LAST);
+        let first = header.flags.contains(ChannelControlFlags::FLAG_FIRST);
+
+        if channel.discarding {
+            if !first {
+                // The rest of a PDU already refused. The library never saw
+                // its head, so it must not see its tail either.
+                channel.discarding = !last;
+                return Ok(Verdict::Discard {
+                    channel: channel.id,
+                    first: false,
+                });
+            }
+            // A new PDU before the dropped one ended. The library's buffer is
+            // still empty — it was handed none of the dropped one — so this
+            // chunk is judged as the start of a PDU like any other.
+            channel.discarding = false;
+        }
 
         // The declared total, which `dechunkify` never reads. Refusing an
         // absurd one on the first chunk turns a slow accumulation into an
         // immediate, accurate diagnostic; the running total below is what
         // actually holds when the declaration is a lie.
-        if u64::from(header.length) > u64::from(MAX_SVC_REASSEMBLY_BYTES) {
+        if u64::from(header.length) > u64::from(channel.ceiling) {
+            if channel.discards && first && channel.held == 0 {
+                channel.discarding = !last;
+                return Ok(Verdict::Discard {
+                    channel: channel.id,
+                    first: true,
+                });
+            }
             return Err(violation(
                 "the server announced a virtual channel PDU larger than this build will reassemble",
             ));
         }
         let chunk = u64::try_from(cursor.len()).unwrap_or(u64::MAX);
         let held = channel.held.saturating_add(chunk);
-        if held > u64::from(MAX_SVC_REASSEMBLY_BYTES) {
+        if held > u64::from(channel.ceiling) {
             return Err(violation(
                 "the server sent more virtual channel chunks than this build will reassemble",
             ));
         }
-        channel.held = if header.flags.contains(ChannelControlFlags::FLAG_LAST) {
-            0
-        } else {
-            held
-        };
-        Ok(())
+        channel.held = if last { 0 } else { held };
+        Ok(Verdict::Process)
     }
 }
 
@@ -1045,6 +1126,122 @@ mod tests {
             );
             guard.inspect(rdp_pdu::Action::X224, &frame).unwrap();
         }
+    }
+
+    /// The clipboard's channel in these tests, with a small ceiling so that a
+    /// test does not have to send sixteen megabytes to reach it.
+    const CLIPBOARD_CHANNEL: u16 = 1007;
+    const CLIPBOARD_CEILING: u32 = 64 * 1024;
+
+    fn with_clipboard() -> Reassembly {
+        Reassembly::new([SVC_CHANNEL, CLIPBOARD_CHANNEL])
+            .discard_oversized(CLIPBOARD_CHANNEL, CLIPBOARD_CEILING)
+    }
+
+    #[test]
+    fn an_oversized_clipboard_pdu_is_withheld_whole_and_the_next_one_goes_through() {
+        // A user who copies a whole log file on the server must not lose the
+        // session for it. The PDU is refused on its first chunk by the total it
+        // declares, and every chunk up to its last is withheld, so the
+        // library's chunk buffer never holds any of it.
+        let mut guard = with_clipboard();
+        let declared = CLIPBOARD_CEILING + 1;
+        let payload = vec![0u8; 16_000];
+
+        let head = channel_chunk(
+            CLIPBOARD_CHANNEL,
+            declared,
+            ChannelControlFlags::FLAG_FIRST,
+            &payload,
+        );
+        assert_eq!(
+            guard.inspect(rdp_pdu::Action::X224, &head).unwrap(),
+            Verdict::Discard {
+                channel: CLIPBOARD_CHANNEL,
+                first: true
+            }
+        );
+        for _ in 0..3 {
+            let middle = channel_chunk(
+                CLIPBOARD_CHANNEL,
+                declared,
+                ChannelControlFlags::empty(),
+                &payload,
+            );
+            assert_eq!(
+                guard.inspect(rdp_pdu::Action::X224, &middle).unwrap(),
+                Verdict::Discard {
+                    channel: CLIPBOARD_CHANNEL,
+                    first: false
+                }
+            );
+        }
+        let tail = channel_chunk(
+            CLIPBOARD_CHANNEL,
+            declared,
+            ChannelControlFlags::FLAG_LAST,
+            &payload,
+        );
+        assert_eq!(
+            guard.inspect(rdp_pdu::Action::X224, &tail).unwrap(),
+            Verdict::Discard {
+                channel: CLIPBOARD_CHANNEL,
+                first: false
+            }
+        );
+
+        let next = channel_chunk(
+            CLIPBOARD_CHANNEL,
+            16,
+            ChannelControlFlags::FLAG_FIRST | ChannelControlFlags::FLAG_LAST,
+            &[0u8; 16],
+        );
+        assert_eq!(
+            guard.inspect(rdp_pdu::Action::X224, &next).unwrap(),
+            Verdict::Process
+        );
+    }
+
+    #[test]
+    fn a_clipboard_pdu_that_lies_about_its_size_still_ends_the_session() {
+        // Dropping is safe only while nothing of the PDU has reached the
+        // library. One that declared a small total has been handed over chunk
+        // by chunk, so running past the ceiling is the hostile case and is
+        // treated as one.
+        let mut guard = with_clipboard();
+        let payload = vec![0u8; 16_000];
+        let mut refused = None;
+        for index in 0..16 {
+            let flags = if index == 0 {
+                ChannelControlFlags::FLAG_FIRST
+            } else {
+                ChannelControlFlags::empty()
+            };
+            let frame = channel_chunk(CLIPBOARD_CHANNEL, 16_000, flags, &payload);
+            match guard.inspect(rdp_pdu::Action::X224, &frame) {
+                Ok(verdict) => assert_eq!(verdict, Verdict::Process),
+                Err(error) => {
+                    refused = Some(error);
+                    break;
+                }
+            }
+        }
+        let Some(error) = refused else {
+            panic!("a lying clipboard PDU accumulated past its ceiling");
+        };
+        assert!(matches!(error, ProtocolError::ProtocolViolation { .. }));
+    }
+
+    #[test]
+    fn only_the_clipboard_channel_drops_rather_than_fails() {
+        let mut guard = with_clipboard();
+        let frame = channel_chunk(
+            SVC_CHANNEL,
+            MAX_SVC_REASSEMBLY_BYTES + 1,
+            ChannelControlFlags::FLAG_FIRST,
+            &[0u8; 16],
+        );
+        assert!(guard.inspect(rdp_pdu::Action::X224, &frame).is_err());
     }
 
     #[test]

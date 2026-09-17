@@ -282,8 +282,8 @@
     "protocolSettingsUnknown": "Stored on this connection but not part of this build's settings for this protocol. They are kept as they are and passed on untouched.",
     "_comment_protocolLimits": "SECURITY-ADJACENT. One sentence per protocol, naming what this build's adapter does NOT do — so that a missing control reads as an answer rather than as an oversight. Every item is a real gap in the adapter, not a policy: there is no setting for any of them because there is nothing behind them. Do not add to these lists and do not remove from them; they are kept in step with the adapters. 'Remote Desktop Gateway', 'RDP', 'VNC', 'RFB' and 'Tight' are product and protocol names and are never translated.",
     "protocolLimits": {
-      "_comment_rdp": "The desktop, the keyboard and the pointer are what RDP carries here. 'Console session' is the /admin session on a Windows server. 'True colour' is 32-bit colour; the frame format has no other depth, so colour depth is not a choice rather than a choice nobody made.",
-      "rdp": "This build's RDP carries the desktop, the keyboard and the pointer. It does not redirect the clipboard, drives, printers or smart cards, carries no audio, opens no console session, drives one monitor only, and does not go through a Remote Desktop Gateway. Colour depth is not a choice either — every frame arrives as 32-bit true colour.",
+      "_comment_rdp": "The desktop, the keyboard, the pointer and clipboard text in both directions are what RDP carries here; files do not cross the clipboard yet. 'Console session' is the /admin session on a Windows server. 'True colour' is 32-bit colour; the frame format has no other depth, so colour depth is not a choice rather than a choice nobody made.",
+      "rdp": "This build's RDP carries the desktop, the keyboard, the pointer and clipboard text in both directions. It does not copy files over the clipboard, does not redirect drives, printers or smart cards, carries no audio, opens no console session, drives one monitor only, and does not go through a Remote Desktop Gateway. Colour depth is not a choice either — every frame arrives as 32-bit true colour.",
       "_comment_vnc": "'Ask the server to resize' is the client-initiated desktop resize, which RFB has no standard message for — so the tab scales the picture instead, which is a different thing and worth naming. Reading the remote clipboard is the direction that is missing; pasting into the session is not.",
       "vnc": "This build's VNC offers the Raw encoding and otherwise lets the server choose, so Tight's compression and quality levels have nothing to set. It cannot ask the server to resize — the tab scales the picture instead — and it cannot read the remote clipboard. VNC has no account name on the wire, so the username above is kept for your records and is not sent."
     },
@@ -518,7 +518,11 @@
       "_comment_alternate_shell": "A program run instead of the Windows desktop, as RemoteApp does. The wire field really is called the alternate shell.",
       "alternate_shell": "Program to run instead of the desktop",
       "_comment_work_dir": "That program's working directory. Meaningless without the setting above it.",
-      "work_dir": "That program's working folder"
+      "work_dir": "That program's working folder",
+      "_comment_clipboard_to_remote": "Whether text copied on this machine may be pasted into the remote desktop. One direction of the clipboard; clipboard_from_remote is the other. On by default.",
+      "clipboard_to_remote": "Paste into the remote desktop",
+      "_comment_clipboard_from_remote": "Whether text copied on the remote desktop reaches this machine's clipboard. A compromised host could put text on this clipboard unasked, which is why this direction can be switched off on its own. On by default.",
+      "clipboard_from_remote": "Copy from the remote desktop"
     },
     "_comment_vnc": "The names of the VNC adapter's own settings, labelling the fields declared in crates/remoter-proto-vnc/src/protocol.rs. 'VNC', 'RFB' and 'Raw' are protocol names and are never translated. The values these offer — '3.8', 'auto', 'raw', 'local', 'remote' — are wire tokens shown exactly as they stand and are not in this file at all.",
     "vnc": {

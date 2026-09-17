@@ -38,6 +38,8 @@ use core::time::Duration;
 use std::time::Instant;
 
 use async_trait::async_trait;
+use ironrdp::cliprdr::pdu::OwnedFormatDataResponse;
+use ironrdp::cliprdr::{CliprdrClient, CliprdrSvcMessages};
 use ironrdp::displaycontrol::client::DisplayControlClient;
 use ironrdp::graphics::image_processing::PixelFormat as IronPixelFormat;
 use ironrdp::pdu::Action;
@@ -46,16 +48,18 @@ use ironrdp::pdu::x224::X224;
 use ironrdp::session::image::DecodedImage;
 use ironrdp::session::{ActiveStage, ActiveStageBuilder, ActiveStageOutput};
 use remoter_proto::{
-    Capabilities, ClipboardOp, ClipboardSupport, CloseReason, EventSink, FailureReport, HostPort,
-    InputEvent, ProtocolError, SessionContext, SessionEvent, SessionId, SessionKind,
-    SessionWarning,
+    Capabilities, ClipboardData, ClipboardOp, ClipboardSupport, CloseReason, EventSink,
+    FailureReport, HostPort, InputEvent, ProtocolError, SessionContext, SessionEvent, SessionId,
+    SessionKind, SessionWarning,
 };
 use tokio_util::sync::CancellationToken;
+use zeroize::Zeroizing;
 
+use crate::clipboard::{ClipboardSignals, ClipboardState, MAX_CLIPBOARD_PDU_BYTES, Step};
 use crate::connect::{Connected, ConnectionConfig, DesktopSize};
 use crate::display::FrameEncoder;
 use crate::error::{map_io, unsupported, violation};
-use crate::framed::{Framed, Reassembly, rdp_pdu_length};
+use crate::framed::{Framed, Reassembly, Verdict, rdp_pdu_length};
 use crate::input::InputEncoder;
 
 /// The largest desktop this build will allocate a framebuffer for.
@@ -126,17 +130,22 @@ fn check_desktop(desktop: DesktopSize) -> Result<(), ProtocolError> {
 /// What an RDP session can do, as the adapter offers it.
 ///
 /// The interface reads this rather than hardcoding "RDP has a clipboard
-/// button". Four of these are claims the implementation has not earned, and
+/// button". Three of these are claims the implementation has not earned, and
 /// claiming one early would put a control on the tab that does nothing:
 ///
-/// - `clipboard` is `None` because the MS-RDPECLIP channel is not requested
-///   yet. `docs/features/protocols.md` expects text both ways, and this is the
-///   gap; a `ClipboardSupport::Text` here would render a paste button that
-///   silently discards.
 /// - `file_transfer` is drive redirection (MS-RDPEFS), not in scope for the
 ///   first RDP milestone.
 /// - `audio` is MS-RDPEA, likewise — and the Client Info PDU actively asks the
 ///   server not to send any, so claiming it would be doubly wrong.
+/// - `multi_monitor` is the third; see below.
+///
+/// `clipboard` is `Text`: MS-RDPECLIP text in both directions, as
+/// [`crate::clipboard`] describes, and not files yet. It is `Text` even for a
+/// connection whose policy lets nothing cross, because this is asked before any
+/// connection's settings are known. Such a connection does not request the
+/// channel, and the offers the interface makes on focus are refused as
+/// unsupported inside the session loop rather than drawn as anything.
+///
 /// - `multi_monitor` needs a per-monitor framebuffer stream, which
 ///   `docs/architecture/rendering.md` defers until the presenter is chosen at
 ///   the end of v0.2 (ADR-0010).
@@ -169,7 +178,7 @@ pub const fn capabilities() -> Capabilities {
         // section above for why this is the adapter's offer and not a promise
         // about any particular server.
         resizable: true,
-        clipboard: ClipboardSupport::None,
+        clipboard: ClipboardSupport::Text,
         file_transfer: false,
         audio: false,
         printing: false,
@@ -204,6 +213,11 @@ pub struct RdpSession {
     /// [`Reassembly`]: `crate::framed::MAX_PDU_BYTES` bounds one PDU and
     /// nothing bounded the reassembly of many.
     reassembly: Reassembly,
+    /// The clipboard, when the connection asked for the channel. `None` for a
+    /// connection whose policy lets nothing cross.
+    clipboard: Option<ClipboardState>,
+    /// The id the server gave the clipboard channel, if it joined it.
+    clipboard_channel: Option<u16>,
 }
 
 impl core::fmt::Debug for RdpSession {
@@ -244,6 +258,7 @@ impl RdpSession {
             share_id,
             static_channels,
             desktop,
+            clipboard: policy,
         } = connected;
 
         // Before anything is sized from it. `DecodedImage::new` below is
@@ -256,7 +271,25 @@ impl RdpSession {
         // moved into the stage. `Reassembly` needs them to tell a chunk of a
         // static virtual channel PDU — which `ironrdp-svc` accumulates without
         // a ceiling — from I/O and message channel traffic, which it does not.
-        let reassembly = Reassembly::new(static_channels.channel_ids().collect::<Vec<_>>());
+        //
+        // The clipboard's channel is the exception to the ceiling's rule: what
+        // travels on it is what the remote user copied, so a PDU too large is
+        // dropped and said rather than ending the session. See
+        // `Reassembly::discard_oversized`.
+        let clipboard_channel = static_channels.get_channel_id_by_type::<CliprdrClient>();
+        let mut reassembly = Reassembly::new(static_channels.channel_ids().collect::<Vec<_>>());
+        if let Some(channel) = clipboard_channel {
+            reassembly = reassembly.discard_oversized(channel, MAX_CLIPBOARD_PDU_BYTES);
+        }
+        let clipboard = if static_channels.get_by_type::<CliprdrClient>().is_some() {
+            Some(ClipboardState::new(
+                policy,
+                clipboard_channel.is_some(),
+                Instant::now(),
+            )?)
+        } else {
+            None
+        };
 
         let stage = ActiveStageBuilder {
             static_channels,
@@ -294,6 +327,8 @@ impl RdpSession {
             cancel: CancellationToken::new(),
             resize_refused: false,
             reassembly,
+            clipboard,
+            clipboard_channel,
         })
     }
 
@@ -323,6 +358,11 @@ impl RdpSession {
     pub fn granted_capabilities(&mut self) -> Capabilities {
         Capabilities {
             resizable: self.display_control_open(),
+            clipboard: if self.clipboard_channel.is_some() {
+                ClipboardSupport::Text
+            } else {
+                ClipboardSupport::None
+            },
             ..capabilities()
         }
     }
@@ -427,7 +467,21 @@ impl RdpSession {
         // after `process` returns would bound this crate's copy of a buffer the
         // library had already materialised, which is no bound at all. See
         // [`Reassembly`].
-        self.reassembly.inspect(action, frame)?;
+        if let Verdict::Discard { channel, first } = self.reassembly.inspect(action, frame)? {
+            // Only the clipboard's channel drops rather than fails, and only a
+            // PDU it has refused whole. Said once, on the chunk it was refused
+            // on, and only if it answered something this client asked for.
+            if first && Some(channel) == self.clipboard_channel {
+                tracing::debug!("dropped a clipboard PDU larger than this build carries");
+                let steps = self
+                    .clipboard
+                    .as_mut()
+                    .map(ClipboardState::discarded)
+                    .unwrap_or_default();
+                self.carry_out(steps).await?;
+            }
+            return Ok(None);
+        }
 
         let outputs = self
             .stage
@@ -442,7 +496,106 @@ impl RdpSession {
                 return Ok(Some(reason));
             }
         }
+        // After the library's own replies, which include the Format List
+        // Response a copy on the server is owed before anything else is said
+        // about it (MS-RDPECLIP §3.1.5.2.2).
+        self.service_clipboard().await?;
         Ok(None)
+    }
+
+    /// Acts on whatever the clipboard channel said while the last PDU was
+    /// processed. See [`crate::clipboard`] for why it is said to a queue.
+    async fn service_clipboard(&mut self) -> Result<(), ProtocolError> {
+        if self.clipboard.is_none() {
+            return Ok(());
+        }
+        let signals = self
+            .stage
+            .get_svc_processor_mut::<CliprdrClient>()
+            .and_then(|channel| channel.downcast_backend_mut::<ClipboardSignals>())
+            .map(ClipboardSignals::take)
+            .unwrap_or_default();
+        for signal in signals {
+            let Some(state) = self.clipboard.as_mut() else {
+                break;
+            };
+            let steps = state.on_signal(signal);
+            self.carry_out(steps).await?;
+        }
+        Ok(())
+    }
+
+    /// Carries out what the clipboard state decided.
+    ///
+    /// # Errors
+    ///
+    /// A transport failure, or [`ProtocolError::EventStreamClosed`] once the
+    /// presenter is gone. A clipboard PDU the library will not build is logged
+    /// and skipped: a clipboard that fails is not a reason to end a desktop
+    /// session.
+    async fn carry_out(&mut self, steps: Vec<Step>) -> Result<(), ProtocolError> {
+        for step in steps {
+            match step {
+                Step::Announce(formats) => {
+                    self.send_on_clipboard(|channel| channel.initiate_copy(&formats))
+                        .await?;
+                }
+                Step::Fetch(format) => {
+                    self.send_on_clipboard(|channel| channel.initiate_paste(format))
+                        .await?;
+                }
+                Step::Answer(response) => {
+                    self.send_on_clipboard(move |channel| answer(channel, response))
+                        .await?;
+                }
+                Step::Deliver(text) => {
+                    self.events
+                        .send(SessionEvent::ClipboardContent(ClipboardData::Text(text)))
+                        .await?;
+                }
+                Step::Warn(key) => {
+                    // Ignored deliberately, as for the resize refusal: a closed
+                    // event stream ends the session on the loop's own account.
+                    let _ = self
+                        .events
+                        .send(SessionEvent::Warning(SessionWarning::Other {
+                            detail: key.to_owned(),
+                        }))
+                        .await;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Builds PDUs on the clipboard channel and writes them.
+    async fn send_on_clipboard(
+        &mut self,
+        build: impl FnOnce(
+            &mut CliprdrClient,
+        )
+            -> ironrdp::pdu::PduResult<CliprdrSvcMessages<ironrdp::cliprdr::Client>>,
+    ) -> Result<(), ProtocolError> {
+        let Some(channel) = self.stage.get_svc_processor_mut::<CliprdrClient>() else {
+            return Ok(());
+        };
+        let messages = match build(channel) {
+            Ok(messages) => messages,
+            Err(error) => {
+                tracing::debug!(%error, "a clipboard PDU could not be built");
+                return Ok(());
+            }
+        };
+        // Fails only when the server never joined the channel, in which case
+        // there is nowhere to send it.
+        let bytes = match self.stage.process_svc_processor_messages(messages) {
+            Ok(bytes) => bytes,
+            Err(error) => {
+                tracing::debug!(%error, "a clipboard PDU could not be encoded");
+                return Ok(());
+            }
+        };
+        self.stream.write_all(&bytes).await
     }
 
     /// Flushes any frame whose coalescing window has closed.
@@ -620,6 +773,15 @@ impl RdpSession {
     }
 }
 
+/// `submit_format_data`, as a function so that the response can be moved into
+/// the closure that builds it.
+fn answer(
+    channel: &mut CliprdrClient,
+    response: OwnedFormatDataResponse,
+) -> ironrdp::pdu::PduResult<CliprdrSvcMessages<ironrdp::cliprdr::Client>> {
+    channel.submit_format_data(response)
+}
+
 #[async_trait]
 impl remoter_proto::Session for RdpSession {
     /// Asks the server to change its desktop size. MS-RDPEDISP §2.2.2.2.
@@ -717,15 +879,34 @@ impl remoter_proto::Session for RdpSession {
         Ok(())
     }
 
-    /// Clipboard operations are not implemented.
+    /// Offers local text to the server, asks again for the server's, or
+    /// withdraws an offer. MS-RDPECLIP; see [`crate::clipboard`].
+    ///
+    /// An offer the server already holds, or one the connection's policy does
+    /// not allow, does nothing and succeeds: the interface offers on every
+    /// focus, and neither is something the user did.
     ///
     /// # Errors
     ///
-    /// Always [`ProtocolError::Unsupported`]. The MS-RDPECLIP channel is not
-    /// requested, and `capabilities()` reports `ClipboardSupport::None` so the
-    /// interface does not offer the control in the first place.
-    async fn clipboard(&mut self, _op: ClipboardOp) -> Result<(), ProtocolError> {
-        Err(unsupported("clipboard transfer"))
+    /// [`ProtocolError::Unsupported`] for files, which are not carried yet, and
+    /// for any operation on a connection whose policy did not ask for the
+    /// channel. A transport failure otherwise.
+    async fn clipboard(&mut self, op: ClipboardOp) -> Result<(), ProtocolError> {
+        let Some(state) = self.clipboard.as_mut() else {
+            return Err(unsupported("clipboard transfer"));
+        };
+        let steps = match op {
+            ClipboardOp::Offer(ClipboardData::Text(text)) => {
+                let text = Zeroizing::new(text);
+                state.offer(&text, Instant::now())
+            }
+            ClipboardOp::Offer(ClipboardData::Files(_)) | ClipboardOp::Request { files: true } => {
+                return Err(unsupported("copying files over the clipboard"));
+            }
+            ClipboardOp::Request { files: false } => state.request(),
+            ClipboardOp::Clear => state.clear(),
+        };
+        self.carry_out(steps).await
     }
 
     /// Says goodbye and releases everything.
@@ -1221,7 +1402,7 @@ mod tests {
         tokio::sync::mpsc::Sender<SessionCommand>,
         tokio::sync::mpsc::Receiver<SessionEvent>,
     ) {
-        let mut channels = crate::connect::static_channels();
+        let mut channels = crate::connect::static_channels(crate::clipboard::NO_CLIPBOARD);
         let type_id = channels
             .type_ids()
             .next()
@@ -1261,6 +1442,7 @@ mod tests {
             share_id: SHARE_ID,
             static_channels,
             desktop,
+            clipboard: remoter_proto::ClipboardPolicy::default(),
         };
         let (events, event_rx) = event_channel(32);
         let session =
@@ -1432,9 +1614,10 @@ mod tests {
         let caps = capabilities();
         assert_eq!(caps.kind, SessionKind::Framebuffer);
         assert!(caps.resizable);
+        // Text both ways over MS-RDPECLIP. Files are not carried yet.
+        assert_eq!(caps.clipboard, ClipboardSupport::Text);
         // Claiming a redirection that is not implemented puts a dead control
         // on the tab, so these stay false until the channel exists.
-        assert_eq!(caps.clipboard, ClipboardSupport::None);
         assert!(!caps.file_transfer);
         assert!(!caps.audio);
         assert!(!caps.multi_monitor);
@@ -1890,6 +2073,309 @@ mod tests {
         assert!(
             error.to_string().contains("larger than this build"),
             "{error}"
+        );
+    }
+
+    /// The id the server gives `cliprdr` in these tests.
+    const CLIPBOARD_CHANNEL: u16 = 1007;
+
+    /// A session whose server joined both channels, clipboard included.
+    fn attached_with_clipboard(
+        transport: DripTransport,
+    ) -> (
+        RdpSession,
+        SessionContext,
+        tokio::sync::mpsc::Sender<SessionCommand>,
+        tokio::sync::mpsc::Receiver<SessionEvent>,
+    ) {
+        use core::any::TypeId;
+
+        let mut channels =
+            crate::connect::static_channels(remoter_proto::ClipboardPolicy::default());
+        channels.attach_channel_id(TypeId::of::<ironrdp::dvc::DrdynvcClient>(), SVC_CHANNEL);
+        channels.attach_channel_id(TypeId::of::<CliprdrClient>(), CLIPBOARD_CHANNEL);
+        attached_at(
+            transport,
+            DesktopSize {
+                width: 64,
+                height: 64,
+            },
+            channels,
+        )
+        .expect("64x64 is inside every bound this module has")
+    }
+
+    /// One whole clipboard PDU from the server, as a single chunk.
+    fn from_server(pdu: &ironrdp::cliprdr::pdu::ClipboardPdu<'_>) -> Vec<u8> {
+        use ironrdp::pdu::rdp::vc::{ChannelControlFlags, ChannelPduHeader};
+
+        let body = encode_vec(pdu).unwrap();
+        let mut user_data = encode_vec(&ChannelPduHeader {
+            length: u32::try_from(body.len()).unwrap(),
+            flags: ChannelControlFlags::FLAG_FIRST | ChannelControlFlags::FLAG_LAST,
+        })
+        .unwrap();
+        user_data.extend_from_slice(&body);
+        encode_vec(&X224(mcs::SendDataIndication {
+            initiator_id: SERVER_INITIATOR,
+            channel_id: CLIPBOARD_CHANNEL,
+            user_data: std::borrow::Cow::Owned(user_data),
+        }))
+        .unwrap()
+    }
+
+    /// Every clipboard PDU the client wrote, as `(name, decoded text)` —
+    /// the text only for a Format Data Response, which is where it travels.
+    fn clipboard_pdus_written(written: &Mutex<Vec<u8>>) -> Vec<(&'static str, Option<String>)> {
+        use ironrdp::cliprdr::pdu::ClipboardPdu;
+        use ironrdp::pdu::rdp::vc::ChannelPduHeader;
+
+        let bytes = core::mem::take(&mut *written.lock());
+        let mut rest = &bytes[..];
+        let mut pdus = Vec::new();
+        while rest.len() >= 4 {
+            let length = usize::from(u16::from_be_bytes([rest[2], rest[3]]));
+            let (frame, tail) = rest.split_at(length);
+            rest = tail;
+            let request = ironrdp::core::decode::<X224<mcs::SendDataRequest<'_>>>(frame).unwrap();
+            if request.0.channel_id != CLIPBOARD_CHANNEL {
+                continue;
+            }
+            let mut cursor = ironrdp::core::ReadCursor::new(&request.0.user_data);
+            let _header: ChannelPduHeader = ironrdp::core::decode_cursor(&mut cursor).unwrap();
+            let pdu: ClipboardPdu<'_> = ironrdp::core::decode(cursor.remaining()).unwrap();
+            let text = match &pdu {
+                ClipboardPdu::FormatDataResponse(response) if !response.is_error() => {
+                    Some(response.to_unicode_string().unwrap())
+                }
+                _ => None,
+            };
+            pdus.push((pdu.message_name(), text));
+        }
+        pdus
+    }
+
+    /// Runs the channel's initialisation (MS-RDPECLIP §1.3.2.1) against a
+    /// session, and returns what the client wrote during it.
+    async fn initialise_clipboard(
+        session: &mut RdpSession,
+        written: &Mutex<Vec<u8>>,
+    ) -> Vec<(&'static str, Option<String>)> {
+        use ironrdp::cliprdr::pdu::{
+            Capabilities, ClipboardGeneralCapabilityFlags, ClipboardPdu, ClipboardProtocolVersion,
+            FormatListResponse,
+        };
+
+        let capabilities = ClipboardPdu::Capabilities(Capabilities::new(
+            ClipboardProtocolVersion::V2,
+            ClipboardGeneralCapabilityFlags::USE_LONG_FORMAT_NAMES,
+        ));
+        session
+            .process_frame(&from_server(&capabilities))
+            .await
+            .unwrap();
+        session
+            .process_frame(&from_server(&ClipboardPdu::MonitorReady))
+            .await
+            .unwrap();
+        let sent = clipboard_pdus_written(written);
+        session
+            .process_frame(&from_server(&ClipboardPdu::FormatListResponse(
+                FormatListResponse::Ok,
+            )))
+            .await
+            .unwrap();
+        sent
+    }
+
+    #[tokio::test]
+    async fn text_copied_on_the_server_reaches_the_event_stream_with_lf_endings() {
+        use ironrdp::cliprdr::pdu::{ClipboardFormat, ClipboardFormatId, ClipboardPdu, FormatList};
+
+        let transport = DripTransport::new(Vec::new());
+        let written = transport.written();
+        let (mut session, _ctx, _commands, mut events) = attached_with_clipboard(transport);
+
+        let sent = initialise_clipboard(&mut session, &written).await;
+        let names: Vec<&str> = sent.iter().map(|(name, _)| *name).collect();
+        assert_eq!(
+            names,
+            [
+                "CLIPRDR_CAPABILITIES",
+                "CLIPRDR_TEMP_DIRECTORY",
+                "CLIPRDR_FORMAT_LIST"
+            ],
+            "§1.3.2.1's order"
+        );
+
+        let copied = ClipboardPdu::FormatList(
+            FormatList::new_unicode(
+                &[ClipboardFormat::new(ClipboardFormatId::CF_UNICODETEXT)],
+                true,
+            )
+            .unwrap(),
+        );
+        session.process_frame(&from_server(&copied)).await.unwrap();
+        let names: Vec<&str> = clipboard_pdus_written(&written)
+            .into_iter()
+            .map(|(name, _)| name)
+            .collect();
+        assert_eq!(
+            names,
+            [
+                "CLIPRDR_FORMAT_LIST_RESPONSE",
+                "CLIPRDR_FORMAT_DATA_REQUEST"
+            ],
+            "the copy is acknowledged before it is asked for"
+        );
+
+        let data = ClipboardPdu::FormatDataResponse(
+            ironrdp::cliprdr::pdu::OwnedFormatDataResponse::new_unicode_string("dir\r\nls"),
+        );
+        session.process_frame(&from_server(&data)).await.unwrap();
+        let delivered = loop {
+            match events.try_recv() {
+                Ok(SessionEvent::ClipboardContent(ClipboardData::Text(text))) => break text,
+                Ok(_) => {}
+                Err(error) => panic!("no clipboard content was delivered: {error:?}"),
+            }
+        };
+        assert_eq!(delivered, "dir\nls");
+    }
+
+    #[tokio::test]
+    async fn local_text_is_announced_and_sent_when_the_server_pastes_it() {
+        use ironrdp::cliprdr::pdu::{ClipboardFormatId, ClipboardPdu, FormatDataRequest};
+        use remoter_proto::Session as _;
+
+        let transport = DripTransport::new(Vec::new());
+        let written = transport.written();
+        let (mut session, _ctx, _commands, _events) = attached_with_clipboard(transport);
+        let _ = initialise_clipboard(&mut session, &written).await;
+
+        session
+            .clipboard(ClipboardOp::Offer(ClipboardData::Text(
+                "Get-Service\n".to_owned(),
+            )))
+            .await
+            .unwrap();
+        let names: Vec<&str> = clipboard_pdus_written(&written)
+            .into_iter()
+            .map(|(name, _)| name)
+            .collect();
+        assert_eq!(names, ["CLIPRDR_FORMAT_LIST"]);
+
+        // The same text again, as the interface offers it on every focus.
+        session
+            .clipboard(ClipboardOp::Offer(ClipboardData::Text(
+                "Get-Service\r\n".to_owned(),
+            )))
+            .await
+            .unwrap();
+        assert!(clipboard_pdus_written(&written).is_empty());
+
+        let paste = ClipboardPdu::FormatDataRequest(FormatDataRequest {
+            format: ClipboardFormatId::CF_UNICODETEXT,
+        });
+        session.process_frame(&from_server(&paste)).await.unwrap();
+        let sent = clipboard_pdus_written(&written);
+        assert_eq!(
+            sent,
+            [(
+                "CLIPRDR_FORMAT_DATA_RESPONSE",
+                Some("Get-Service\r\n".to_owned())
+            )]
+        );
+    }
+
+    #[tokio::test]
+    async fn a_clipboard_too_large_to_carry_is_dropped_and_said_and_the_session_lives() {
+        use ironrdp::cliprdr::pdu::{ClipboardFormat, ClipboardFormatId, ClipboardPdu, FormatList};
+        use ironrdp::pdu::rdp::vc::{ChannelControlFlags, ChannelPduHeader};
+
+        let transport = DripTransport::new(Vec::new());
+        let written = transport.written();
+        let (mut session, _ctx, _commands, mut events) = attached_with_clipboard(transport);
+        let _ = initialise_clipboard(&mut session, &written).await;
+        let copied = ClipboardPdu::FormatList(
+            FormatList::new_unicode(
+                &[ClipboardFormat::new(ClipboardFormatId::CF_UNICODETEXT)],
+                true,
+            )
+            .unwrap(),
+        );
+        session.process_frame(&from_server(&copied)).await.unwrap();
+        let _ = clipboard_pdus_written(&written);
+
+        // The first chunk of a response declaring more than the ceiling.
+        let chunk = |flags: ChannelControlFlags| {
+            let mut user_data = encode_vec(&ChannelPduHeader {
+                length: MAX_CLIPBOARD_PDU_BYTES + 1,
+                flags,
+            })
+            .unwrap();
+            user_data.extend_from_slice(&[0u8; 1024]);
+            encode_vec(&X224(mcs::SendDataIndication {
+                initiator_id: SERVER_INITIATOR,
+                channel_id: CLIPBOARD_CHANNEL,
+                user_data: std::borrow::Cow::Owned(user_data),
+            }))
+            .unwrap()
+        };
+        session
+            .process_frame(&chunk(ChannelControlFlags::FLAG_FIRST))
+            .await
+            .unwrap();
+        session
+            .process_frame(&chunk(ChannelControlFlags::empty()))
+            .await
+            .unwrap();
+        session
+            .process_frame(&chunk(ChannelControlFlags::FLAG_LAST))
+            .await
+            .unwrap();
+
+        let mut warned = 0;
+        while let Ok(event) = events.try_recv() {
+            if let SessionEvent::Warning(SessionWarning::Other { detail }) = event {
+                assert_eq!(detail, crate::clipboard::WARNING_CLIPBOARD_TOO_LARGE);
+                warned += 1;
+            }
+        }
+        assert_eq!(warned, 1, "said once, not once per chunk");
+
+        // And the channel still works: the next copy is acknowledged.
+        session.process_frame(&from_server(&copied)).await.unwrap();
+        let names: Vec<&str> = clipboard_pdus_written(&written)
+            .into_iter()
+            .map(|(name, _)| name)
+            .collect();
+        assert_eq!(
+            names,
+            [
+                "CLIPRDR_FORMAT_LIST_RESPONSE",
+                "CLIPRDR_FORMAT_DATA_REQUEST"
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn a_connection_that_allows_no_clipboard_asks_for_no_channel_and_refuses_offers() {
+        use remoter_proto::Session as _;
+
+        let (mut session, _ctx, _commands, _events) =
+            attached_on_channel(DripTransport::new(Vec::new()));
+        let error = session
+            .clipboard(ClipboardOp::Offer(ClipboardData::Text("x".to_owned())))
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(error, ProtocolError::Unsupported { .. }),
+            "{error:?}"
+        );
+        assert_eq!(
+            session.granted_capabilities().clipboard,
+            ClipboardSupport::None
         );
     }
 

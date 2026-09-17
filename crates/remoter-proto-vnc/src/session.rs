@@ -628,11 +628,12 @@ impl Session for VncSession {
                 .await),
             // The remote pushes its clipboard unasked, as `ServerCutText`;
             // there is no request in the protocol. The push is reported as a
-            // `ClipboardOffer`, but the session contract has no event that
-            // carries the *content* to the interface — so the text cannot be
-            // delivered, and it is deliberately not retained while it cannot
-            // be. This becomes a one-line change the day `SessionEvent` grows
-            // a clipboard-content variant.
+            // `ClipboardOffer` and its text is not retained. The contract can
+            // carry the content now — `SessionEvent::ClipboardContent` — and
+            // this arm is not wired to it, for the reason
+            // `crate::protocol::capabilities` gives: turning reading on turns
+            // on an interface that offers the local clipboard on every focus,
+            // and over RFB an offer is the text itself.
             //
             // `crate::capabilities` reports `ClipboardSupport::None` **because**
             // of this arm. It used to report `Text`, which promised the

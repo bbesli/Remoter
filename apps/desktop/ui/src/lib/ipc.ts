@@ -2564,6 +2564,24 @@ export const ipc = {
       wheelX: pointer.wheelX,
     }),
   /**
+   * Offers the system clipboard's text to a graphical session.
+   *
+   * The text is read in the core and goes straight to the session; it never
+   * comes to this side, which has no reason to hold it. Call it when the screen
+   * takes the keyboard and before a paste chord — the moments the user may be
+   * about to paste into the remote desktop. Most calls change nothing: the
+   * adapter ignores text the remote already has, including text that came from
+   * it, which offering back would strip of every format but plain text.
+   *
+   * Text copied on the remote desktop needs no call. The core puts it on the
+   * system clipboard as it arrives.
+   *
+   * Subject to the input freeze, and rejected with `session.frozen` while the
+   * vault is locked under that policy: a paste changes the remote machine as
+   * surely as a keystroke does.
+   */
+  syncClipboard: (sessionId: number) => invoke<void>("session_clipboard_sync", { sessionId }),
+  /**
    * Tells the far end the tab changed size.
    *
    * **The unit depends on the session's kind, and the parameter names are the

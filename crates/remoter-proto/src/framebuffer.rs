@@ -25,6 +25,7 @@
 //! | Pixels, cursor shape | [`FrameMessage::encode`] → [`SessionEvent::Data`] |
 //! | The desktop changed size | [`SessionEvent::Resized`] |
 //! | The remote has something copied | [`SessionEvent::ClipboardOffer`] |
+//! | What it copied, for the local clipboard | [`SessionEvent::ClipboardContent`] |
 //! | Credentials, certificate decisions | [`SessionEvent::Prompt`] |
 //! | Clear-text warning, weak auth | [`SessionEvent::Warning`] |
 //! | Input, clipboard, resize, disconnect | [`crate::SessionCommand`] |

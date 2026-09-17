@@ -103,12 +103,20 @@ import {
 import { isolate, useT } from "@/i18n";
 import { asFailure, ipc } from "@/lib/ipc";
 import { frameDecodeKey } from "./frames";
-import { buttonsFrom, chordFor, keyInputFrom, wheelFrom, type KeyInput } from "./keymap";
+import {
+  buttonsFrom,
+  chordFor,
+  isPasteChord,
+  keyInputFrom,
+  wheelFrom,
+  type KeyInput,
+} from "./keymap";
 import { requestDesktopSize } from "./manager";
 import { cursorCssValue, cursorDataUrl } from "./presenter";
 import { layoutFor, remotePoint, ZOOM_STEPS, type Layout, type ScaleMode, type Size } from "./scaling";
 import { useSessions, type SessionRecord } from "./store";
 import { attachSurface, subscribeSurface, surfaceElement, surfaceStatus, surfaceUnavailable } from "./surfaces";
+import { reportClipboardFailure } from "./terminals";
 
 import s from "./FramebufferHost.module.css";
 
@@ -234,6 +242,8 @@ interface InputTarget {
   desktop: Size;
   /** False for a view-only session, a background tab, or one still connecting. */
   live: boolean;
+  /** Whether the session carries a clipboard at all, from its capabilities. */
+  clipboard: boolean;
   /** The scrolling stage, for the one listener React cannot attach. */
   stage: React.RefObject<HTMLDivElement | null>;
 }
@@ -246,7 +256,7 @@ interface InputTarget {
  * that has to survive a re-render and be cleaned up when the tab goes.
  */
 function useFramebufferInput(target: InputTarget) {
-  const { tabId, sessionId, layout, desktop, live, stage } = target;
+  const { tabId, sessionId, layout, desktop, live, clipboard, stage } = target;
 
   /**
    * The tail of the send queue.
@@ -268,9 +278,9 @@ function useFramebufferInput(target: InputTarget) {
   // Read through refs by the handlers below, which are attached once: a
   // native listener that closed over the first render's layout would send
   // coordinates from a scale the user changed a minute ago.
-  const latest = useRef({ sessionId, layout, desktop, live });
+  const latest = useRef({ sessionId, layout, desktop, live, clipboard });
   useEffect(() => {
-    latest.current = { sessionId, layout, desktop, live };
+    latest.current = { sessionId, layout, desktop, live, clipboard };
   });
 
   /**
@@ -307,6 +317,38 @@ function useFramebufferInput(target: InputTarget) {
       enqueue((id) => ipc.sendKey(id, key));
     },
     [enqueue],
+  );
+
+  /**
+   * Offers the local clipboard to the session, in the same queue as the keys.
+   *
+   * In the queue because order is the point: a Ctrl+V that overtook the offer
+   * it depends on would paste whatever the remote clipboard held before.
+   *
+   * Not through `enqueue`, because a clipboard that could not be read is not a
+   * keystroke that did not arrive, and drawing it as "the last keystroke did not
+   * reach the server" would send the user looking in the wrong place. An offer
+   * made because the screen took focus fails silently — nobody asked for it.
+   * One made for a paste chord is said, as a clipboard failure. A frozen vault
+   * is left to the paste key itself, which is refused a moment later and says
+   * so on its own.
+   */
+  const syncClipboard = useCallback(
+    (reportFailure: boolean) => {
+      const { sessionId: id, clipboard: carries } = latest.current;
+      if (id === null || !carries) return;
+      queue.current = queue.current
+        .then(() => ipc.syncClipboard(id))
+        .then(
+          () => undefined,
+          (error: unknown) => {
+            const failure = asFailure(error);
+            if (!reportFailure || failure.code === "session.frozen") return;
+            reportClipboardFailure(tabId, failure);
+          },
+        );
+    },
+    [tabId],
   );
 
   const sendPointer = useCallback(
@@ -462,6 +504,21 @@ function useFramebufferInput(target: InputTarget) {
     return () => element.removeEventListener("wheel", onWheel);
   }, [live, pointAt, sendPointer, stage]);
 
+  // Coming back to the window is the other way the local clipboard changes
+  // under a screen that has the keyboard: the user copied something in another
+  // application and switched back, and the element — which kept its focus the
+  // whole time — never saw a `focus` event to offer it on.
+  useEffect(() => {
+    if (!live) return;
+    const onWindowFocus = () => {
+      if (stage.current !== null && document.activeElement === stage.current) {
+        syncClipboard(false);
+      }
+    };
+    window.addEventListener("focus", onWindowFocus);
+    return () => window.removeEventListener("focus", onWindowFocus);
+  }, [live, stage, syncClipboard]);
+
   // The window losing focus is not the element losing focus: the element keeps
   // it, so `blur` on the element never fires, and the keyup for whatever was
   // held goes to the desktop that took the focus.
@@ -492,7 +549,16 @@ function useFramebufferInput(target: InputTarget) {
     [],
   );
 
-  return { sendKey, sendChord, releaseAll, down, onPointerMove, onPointerButton, onPointerDown };
+  return {
+    sendKey,
+    sendChord,
+    syncClipboard,
+    releaseAll,
+    down,
+    onPointerMove,
+    onPointerButton,
+    onPointerDown,
+  };
 }
 
 export function FramebufferHost({ record, active }: { record: SessionRecord; active: boolean }) {
@@ -580,6 +646,9 @@ export function FramebufferHost({ record, active }: { record: SessionRecord; act
   // it would raise "that session is not open any more" over the failure that
   // actually matters.
   const live = active && !viewOnly && record.phase === "running" && record.sessionId !== null;
+  // From the core's own capabilities, never the protocol name. A view-only
+  // session is not `live` and so offers nothing, which is what view only means.
+  const carriesClipboard = (record.opened?.capabilities.clipboard ?? "none") !== "none";
 
   const input = useFramebufferInput({
     tabId,
@@ -587,6 +656,7 @@ export function FramebufferHost({ record, active }: { record: SessionRecord; act
     layout,
     desktop,
     live,
+    clipboard: carriesClipboard,
     stage: ref,
   });
 
@@ -639,7 +709,7 @@ export function FramebufferHost({ record, active }: { record: SessionRecord; act
     [prefix, shortcuts],
   );
 
-  const { sendKey, down } = input;
+  const { sendKey, syncClipboard, down } = input;
   const onKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
       if (!live) return;
@@ -653,9 +723,12 @@ export function FramebufferHost({ record, active }: { record: SessionRecord; act
       if (key === null) return;
       down.current.add(key.scancode);
       event.preventDefault();
+      // Before the key, in the same queue, so the remote desktop has the
+      // clipboard by the time it acts on the paste.
+      if (isPasteChord(event.nativeEvent)) syncClipboard(true);
       sendKey(key);
     },
-    [applicationOwns, down, live, sendKey],
+    [applicationOwns, down, live, sendKey, syncClipboard],
   );
 
   const onKeyUp = useCallback(
@@ -909,6 +982,9 @@ export function FramebufferHost({ record, active }: { record: SessionRecord; act
             ? () => {
                 setFocused(true);
                 setEverFocused(true);
+                // The last moment before the user might paste into the remote
+                // desktop, and the one moment this side can see coming.
+                syncClipboard(false);
               }
             : undefined
         }

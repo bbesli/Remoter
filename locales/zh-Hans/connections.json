@@ -281,8 +281,8 @@
     "protocolSettingsUnknown": "这些设置存在此连接上，但不在此版本的适配器为该协议声明的那份清单里——可能是某次导入写下的，也可能是更新版本的 Remoter 写下的。它们会原样保留，并原封不动地传下去。",
     "_comment_protocolLimits": "SECURITY-ADJACENT. One sentence per protocol, naming what this build's adapter does NOT do — so that a missing control reads as an answer rather than as an oversight. Every item is a real gap in the adapter, not a policy: there is no setting for any of them because there is nothing behind them. Do not add to these lists and do not remove from them; they are kept in step with the adapters. 'Remote Desktop Gateway', 'RDP', 'VNC', 'RFB' and 'Tight' are product and protocol names and are never translated.",
     "protocolLimits": {
-      "_comment_rdp": "The desktop, the keyboard and the pointer are what RDP carries here. 'Console session' is the /admin session on a Windows server. 'True colour' is 32-bit colour; the frame format has no other depth, so colour depth is not a choice rather than a choice nobody made.",
-      "rdp": "此版本的 RDP 承载桌面、键盘和指针。它不重定向剪贴板、驱动器、打印机或智能卡，不承载音频，不打开控制台会话，只驱动一台显示器，也不经过 Remote Desktop Gateway。颜色深度同样不由您选——每一帧送来的都是 32 位真彩色。",
+      "_comment_rdp": "The desktop, the keyboard, the pointer and clipboard text in both directions are what RDP carries here; files do not cross the clipboard yet. 'Console session' is the /admin session on a Windows server. 'True colour' is 32-bit colour; the frame format has no other depth, so colour depth is not a choice rather than a choice nobody made.",
+      "rdp": "此版本的 RDP 承载桌面、键盘、指针以及双向的剪贴板文本。它不通过剪贴板复制文件，不重定向驱动器、打印机或智能卡，不承载音频，不打开控制台会话，只驱动一台显示器，也不经过 Remote Desktop Gateway。颜色深度同样不由您选——每一帧送来的都是 32 位真彩色。",
       "_comment_vnc": "'Ask the server to resize' is the client-initiated desktop resize, which RFB has no standard message for — so the tab scales the picture instead, which is a different thing and worth naming. Reading the remote clipboard is the direction that is missing; pasting into the session is not.",
       "vnc": "此版本的 VNC 提供 Raw 编码，其余交由服务器挑选，因此 Tight 的压缩级别和质量级别在这里无处可设。它没法请服务器改变桌面尺寸——改由标签页缩放画面——也没法读取远端剪贴板。VNC 在线路上没有账户名这一项，所以上面那个用户名只是留给您自己备查，并不会发送出去。"
     },
@@ -517,7 +517,11 @@
       "_comment_alternate_shell": "A program run instead of the Windows desktop, as RemoteApp does. The wire field really is called the alternate shell.",
       "alternate_shell": "代替桌面运行的程序",
       "_comment_work_dir": "That program's working directory. Meaningless without the setting above it.",
-      "work_dir": "该程序的工作文件夹"
+      "work_dir": "该程序的工作文件夹",
+      "_comment_clipboard_to_remote": "Whether text copied on this machine may be pasted into the remote desktop. One direction of the clipboard; clipboard_from_remote is the other. On by default.",
+      "clipboard_to_remote": "粘贴到远程桌面",
+      "_comment_clipboard_from_remote": "Whether text copied on the remote desktop reaches this machine's clipboard. A compromised host could put text on this clipboard unasked, which is why this direction can be switched off on its own. On by default.",
+      "clipboard_from_remote": "从远程桌面复制"
     },
     "_comment_vnc": "The names of the VNC adapter's own settings, labelling the fields declared in crates/remoter-proto-vnc/src/protocol.rs. 'VNC', 'RFB' and 'Raw' are protocol names and are never translated. The values these offer — '3.8', 'auto', 'raw', 'local', 'remote' — are wire tokens shown exactly as they stand and are not in this file at all.",
     "vnc": {

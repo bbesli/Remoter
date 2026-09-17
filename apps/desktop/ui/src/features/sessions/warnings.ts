@@ -59,6 +59,9 @@ export type WarningKey =
   | "warning.detail.rdpNlaDisabled"
   | "warning.detail.rdpKeyboardLayoutGuessed"
   | "warning.detail.rdpDisplayControlUnavailable"
+  | "warning.detail.rdpClipboardTooLarge"
+  | "warning.detail.rdpClipboardUnavailable"
+  | "warning.detail.localClipboardWriteFailed"
   | "warning.detail.sshAgentForwarding"
   | "warning.detail.sshInputUnsupported"
   | "warning.detail.sshClipboardRefused"
@@ -89,7 +92,9 @@ export type WarningKey =
  *
  * - `WARNING_*` in `crates/remoter-proto-vnc/src/{protocol,session}.rs`
  * - `Exposure::warning_key` in `crates/remoter-proto-vnc/src/security.rs`
- * - `WARNING_*` in `crates/remoter-proto-rdp/src/{protocol,session}.rs`
+ * - `WARNING_*` in `crates/remoter-proto-rdp/src/{protocol,session,clipboard}.rs`
+ * - `WARNING_LOCAL_CLIPBOARD_FAILED` in `crates/remoter-ipc/src/session.rs`, which
+ *   is raised by the core rather than by an adapter
  * - `WARNING_*` in `crates/remoter-proto-ssh/src/session.rs`
  *
  * The one thing not here is `WARNING_EXIT_SIGNAL_PREFIX`, whose details carry a
@@ -114,6 +119,9 @@ const DETAIL_KEYS: Readonly<Record<string, WarningKey>> = {
   "rdp.network_level_authentication_disabled": "warning.detail.rdpNlaDisabled",
   "rdp.keyboard_layout_guessed": "warning.detail.rdpKeyboardLayoutGuessed",
   "rdp.display_control_unavailable": "warning.detail.rdpDisplayControlUnavailable",
+  "rdp.clipboard_too_large": "warning.detail.rdpClipboardTooLarge",
+  "rdp.clipboard_unavailable": "warning.detail.rdpClipboardUnavailable",
+  "clipboard.local_write_failed": "warning.detail.localClipboardWriteFailed",
   "ssh.agent_forwarding_enabled": "warning.detail.sshAgentForwarding",
   "ssh.input_unsupported": "warning.detail.sshInputUnsupported",
   "ssh.clipboard.policy_refused": "warning.detail.sshClipboardRefused",
@@ -157,6 +165,11 @@ const DETAIL_TONES: Readonly<Record<string, CalloutTone>> = {
   // it — the user's own conclusion is that their keyboard is broken.
   "rdp.keyboard_layout_guessed": "warning",
   "rdp.display_control_unavailable": "info",
+  "rdp.clipboard_too_large": "info",
+  "rdp.clipboard_unavailable": "info",
+  // Not `info`: the next paste on this machine will silently produce the wrong
+  // text, and the user has no other way to find out.
+  "clipboard.local_write_failed": "warning",
   "ssh.agent_forwarding_enabled": "warning",
   "ssh.input_unsupported": "info",
   "ssh.clipboard.policy_refused": "info",

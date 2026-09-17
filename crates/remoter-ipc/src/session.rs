@@ -65,11 +65,11 @@ use std::time::Duration;
 use parking_lot::Mutex;
 use remoter_core::{EffectiveConnection, GatewayHop, NodeId, NodeKind, RecordingPolicy};
 use remoter_proto::{
-    ChainBuilder, CloseReason, CredentialProvider, DEFAULT_HOP_TIMEOUT, EventSink,
-    GatewayChainPlan, HopConfig, HostPort, InputEvent, Modifiers, NextAction, PointerButtons,
-    Prompt, PromptAnswer, PromptKind, ProtocolError, SessionEvent, SessionHandle, SessionId,
-    SessionSpec, SessionSupervisor, SessionWarning, SettingsSchema, SupervisorConfig, TcpDialer,
-    Transport, TrustStore, connection_target,
+    ChainBuilder, ClipboardData, ClipboardOp, CloseReason, CredentialProvider, DEFAULT_HOP_TIMEOUT,
+    EventSink, GatewayChainPlan, HopConfig, HostPort, InputEvent, Modifiers, NextAction,
+    PointerButtons, Prompt, PromptAnswer, PromptKind, ProtocolError, SessionEvent, SessionHandle,
+    SessionId, SessionSpec, SessionSupervisor, SessionWarning, SettingsSchema, SupervisorConfig,
+    TcpDialer, Transport, TrustStore, connection_target,
 };
 use remoter_proto_rdp::{
     PromptChannel as RdpPromptChannel, RDP_ID, RdpProtocol, capabilities as rdp_capabilities,
@@ -1802,12 +1802,7 @@ pub(crate) async fn session_pointer_impl(
 async fn send_input(state: &AppState, session_id: u64, event: InputEvent) -> Result<(), IpcError> {
     let hub = state.sessions();
     if hub.is_frozen() {
-        return Err(IpcError::new(
-            "session.frozen",
-            "The vault is locked, and this vault's policy is to freeze session input until it is \
-             unlocked. The session is still connected.",
-        )
-        .with_actions(["Unlock the vault", "Change the policy in vault settings"]));
+        return Err(frozen());
     }
     let (handle, ..) = hub.command_parts(session_id).ok_or_else(no_such_session)?;
 
@@ -1819,6 +1814,69 @@ async fn send_input(state: &AppState, session_id: u64, event: InputEvent) -> Res
     state.activity().touch();
 
     handle.input(event).await.map_err(|_| session_closed())
+}
+
+fn frozen() -> IpcError {
+    IpcError::new(
+        "session.frozen",
+        "The vault is locked, and this vault's policy is to freeze session input until it is \
+         unlocked. The session is still connected.",
+    )
+    .with_actions(["Unlock the vault", "Change the policy in vault settings"])
+}
+
+/// Offers the system clipboard's text to a session.
+///
+/// The interface calls this when a graphical tab takes the keyboard, and again
+/// before it sends a paste chord, because those are the moments the user may be
+/// about to paste into the remote desktop. The text is read here and goes
+/// straight to the session: it never crosses into the frontend, which has no
+/// reason to hold it.
+///
+/// Most calls change nothing. The adapter remembers what the remote already has
+/// and ignores an offer of the same text — including text that came *from* the
+/// remote a moment ago, which offering back would strip of every format but
+/// plain text. See `remoter_proto_rdp::clipboard`.
+///
+/// An empty clipboard, or one holding an image or files, offers nothing and is
+/// not an error.
+///
+/// Refused while the vault is locked under a `freeze_input` policy, like every
+/// other input command: a paste changes the remote machine as surely as a
+/// keystroke does.
+#[tauri::command]
+pub(crate) async fn session_clipboard_sync(
+    state: State<'_, AppState>,
+    session_id: u64,
+) -> Result<(), IpcError> {
+    session_clipboard_sync_impl(&state, session_id).await
+}
+
+pub(crate) async fn session_clipboard_sync_impl(
+    state: &AppState,
+    session_id: u64,
+) -> Result<(), IpcError> {
+    let hub = state.sessions();
+    if hub.is_frozen() {
+        return Err(frozen());
+    }
+    let (handle, ..) = hub.command_parts(session_id).ok_or_else(no_such_session)?;
+    let text = tokio::task::spawn_blocking(crate::clipboard::text_for_remote)
+        .await
+        .map_err(|_| {
+            IpcError::new(
+                "clipboard.unavailable",
+                "The system clipboard could not be reached, so nothing was copied or pasted.",
+            )
+            .with_actions(["Try again"])
+        })??;
+    let Some(text) = text else {
+        return Ok(());
+    };
+    handle
+        .clipboard(ClipboardOp::Offer(ClipboardData::Text(text)))
+        .await
+        .map_err(|_| session_closed())
 }
 
 /// Tells the far end the tab changed size.
@@ -2027,6 +2085,9 @@ async fn forward_events(
             SessionEvent::Resized { width, height } => {
                 send_control(&channel, &SessionMessageDto::Resized { width, height });
             }
+            SessionEvent::ClipboardContent(data) => {
+                deliver_clipboard(data, &channel).await;
+            }
             SessionEvent::ClipboardOffer(formats) => {
                 send_control(
                     &channel,
@@ -2101,6 +2162,48 @@ async fn forward_events(
         {
             tracing::debug!(session = id, %error, "the session's audit row was not closed");
         }
+    }
+}
+
+/// The warning a tab gets when text the remote desktop copied could not be put
+/// on this machine's clipboard.
+pub(crate) const WARNING_LOCAL_CLIPBOARD_FAILED: &str = "clipboard.local_write_failed";
+
+/// Puts what a remote session copied on the system clipboard.
+///
+/// Awaited in the forwarder rather than spawned, so that two copies made in
+/// quick succession land in the order they were made: the second write
+/// finishing first would leave the older text on the clipboard. The write is
+/// on a blocking thread because `arboard` talks to the display server.
+///
+/// A failure is told to the tab. Without it the user pastes, gets whatever was
+/// on the clipboard before, and has no way to know the copy never arrived.
+async fn deliver_clipboard(data: ClipboardData, channel: &Channel<InvokeResponseBody>) {
+    let ClipboardData::Text(text) = data else {
+        // No adapter sends files yet, and putting a file on the local
+        // clipboard is `ClipboardPolicy::files`, which is off.
+        return;
+    };
+    let written =
+        tokio::task::spawn_blocking(move || crate::clipboard::put_text_from_remote(text)).await;
+    let failed = match written {
+        Ok(Ok(())) => false,
+        Ok(Err(error)) => {
+            // The code only. The detail names the mechanism that failed and
+            // never the text, but there is nothing in it worth a log line.
+            tracing::debug!(code = %error.code, "remote clipboard text was not written locally");
+            true
+        }
+        Err(_) => true,
+    };
+    if failed {
+        send_control(
+            channel,
+            &SessionMessageDto::Warning {
+                kind: String::from("other"),
+                detail: Some(String::from(WARNING_LOCAL_CLIPBOARD_FAILED)),
+            },
+        );
     }
 }
 
@@ -3104,6 +3207,29 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn a_frozen_vault_refuses_a_clipboard_offer_before_reading_the_clipboard() {
+        // Checked first, so that a locked vault does not even read what the
+        // user copied, let alone send it.
+        let scratch = crate::test_support::Scratch::new();
+        let Some(state) = crate::test_support::open_vault(&scratch) else {
+            panic!("the fixture vault could not be created");
+        };
+        let hub = state.sessions();
+        hub.apply_lock_policy(SessionOnLock::FreezeInput);
+        let refused = session_clipboard_sync_impl(&state, 1).await;
+        assert_eq!(
+            refused.err().map(|e| e.code),
+            Some(String::from("session.frozen"))
+        );
+        hub.thaw();
+        let refused = session_clipboard_sync_impl(&state, 1).await;
+        assert_eq!(
+            refused.err().map(|e| e.code),
+            Some(String::from("session.no-such-session"))
+        );
+    }
+
     /// The freeze covers the keyboard *and* the mouse of a graphical session.
     ///
     /// A freeze that stopped `session_input` and left the two framebuffer
@@ -3863,11 +3989,12 @@ mod tests {
         assert_eq!(Adapter::Rdp.capabilities().kind, SessionKind::Framebuffer);
         assert_eq!(Adapter::Vnc.capabilities().kind, SessionKind::Framebuffer);
 
-        // Neither framebuffer adapter claims a clipboard in this build, and
-        // both say so rather than leaving the interface to assume RDP has one.
+        // RDP carries text both ways over MS-RDPECLIP. VNC does not claim
+        // one: its adapter can write the remote clipboard, but the interface
+        // offers on focus, and over RFB an offer is the text itself.
         assert_eq!(
             capabilities_dto(&Adapter::Rdp.capabilities()).clipboard,
-            "none"
+            "text"
         );
         assert_eq!(
             capabilities_dto(&Adapter::Vnc.capabilities()).clipboard,

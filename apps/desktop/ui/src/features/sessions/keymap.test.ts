@@ -20,6 +20,7 @@ import {
   BUTTON_RIGHT,
   buttonsFrom,
   EXTENDED,
+  isPasteChord,
   keyInputFrom,
   keysymFor,
   modifiersFrom,
@@ -262,6 +263,35 @@ describe("the rest of the layout matrix", () => {
     const input = keyInputFrom(press(code, key), true);
     expect(input?.scancode).toBe(scancode);
     expect(input?.keysym).toBe(keysym);
+  });
+});
+
+describe("isPasteChord", () => {
+  const key = (overrides: Partial<Parameters<typeof isPasteChord>[0]>) => ({
+    code: "KeyV",
+    ctrlKey: false,
+    altKey: false,
+    shiftKey: false,
+    metaKey: false,
+    repeat: false,
+    ...overrides,
+  });
+
+  it("knows the ways a hand says paste", () => {
+    expect(isPasteChord(key({ ctrlKey: true }))).toBe(true);
+    expect(isPasteChord(key({ ctrlKey: true, shiftKey: true }))).toBe(true);
+    expect(isPasteChord(key({ metaKey: true }))).toBe(true);
+    expect(isPasteChord(key({ code: "Insert", shiftKey: true }))).toBe(true);
+  });
+
+  it("is not fooled by a V, an AltGr chord or a held key", () => {
+    expect(isPasteChord(key({}))).toBe(false);
+    // AltGr arrives as Ctrl+Alt on Windows, and on a Polish keyboard it types a
+    // letter rather than pasting.
+    expect(isPasteChord(key({ ctrlKey: true, altKey: true }))).toBe(false);
+    expect(isPasteChord(key({ ctrlKey: true, repeat: true }))).toBe(false);
+    expect(isPasteChord(key({ code: "Insert", ctrlKey: true }))).toBe(false);
+    expect(isPasteChord(key({ code: "KeyC", ctrlKey: true }))).toBe(false);
   });
 });
 

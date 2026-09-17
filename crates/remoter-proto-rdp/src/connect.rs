@@ -46,7 +46,7 @@ use ironrdp::pdu::rdp::headers::{ShareControlPdu, ShareDataPdu};
 use ironrdp::pdu::x224::{X224, X224Data};
 use ironrdp::pdu::{gcc, mcs, nego, rdp};
 use ironrdp::svc::{StaticChannelSet, SvcClientProcessor, make_channel_definition};
-use remoter_proto::{CredentialProvider, EventSink, HostPort, ProtocolError};
+use remoter_proto::{ClipboardPolicy, CredentialProvider, EventSink, HostPort, ProtocolError};
 use tokio_util::sync::CancellationToken;
 use zeroize::Zeroize as _;
 
@@ -165,6 +165,10 @@ pub struct ConnectionConfig {
     pub work_dir: String,
     /// How long the whole sequence gets.
     pub timeout: Duration,
+    /// What may cross the clipboard. Decides whether the MS-RDPECLIP channel
+    /// is requested at all — see [`static_channels`] — and travels on to the
+    /// session in [`Connected::clipboard`].
+    pub clipboard: ClipboardPolicy,
 }
 
 impl ConnectionConfig {
@@ -184,6 +188,8 @@ impl ConnectionConfig {
             alternate_shell: String::new(),
             work_dir: String::new(),
             timeout: DEFAULT_TIMEOUT,
+            // Text both ways, files never: `docs/security/transport-security.md`.
+            clipboard: ClipboardPolicy::default(),
         }
     }
 
@@ -216,6 +222,9 @@ pub struct Connected {
     /// The desktop size the server actually gave, which may differ from the
     /// one requested.
     pub desktop: DesktopSize,
+    /// The clipboard policy the connection was made with, for the session to
+    /// enforce.
+    pub clipboard: ClipboardPolicy,
 }
 
 impl core::fmt::Debug for Connected {
@@ -483,6 +492,7 @@ async fn run(
         share_id,
         static_channels: channels,
         desktop,
+        clipboard: config.clipboard,
     })
 }
 
@@ -1724,14 +1734,21 @@ fn now_filetime() -> u64 {
 
 /// The static channel set this adapter asks for.
 ///
-/// Only the dynamic virtual channel multiplexer, `drdynvc` (MS-RDPEDYC), and
-/// inside it the Display Control channel (MS-RDPEDISP) that carries a resize.
-/// The clipboard channel is not requested yet: `capabilities()` claims text
-/// clipboard support and the channel that would implement it is a separate
-/// piece of work, and requesting a channel nothing services would make the
-/// server open one and wait.
+/// - `drdynvc`, the dynamic virtual channel multiplexer (MS-RDPEDYC), and
+///   inside it the Display Control channel (MS-RDPEDISP) that carries a
+///   resize. Always.
+/// - `cliprdr`, the clipboard (MS-RDPECLIP), when `clipboard` lets text cross
+///   in either direction. A connection whose policy allows nothing does not
+///   ask for the channel at all: requesting one nothing will use makes the
+///   server start `rdpclip` and wait on it.
+///
+/// The channels go into the Client Network Data in this set's own order and
+/// the server's ids come back in that order (MS-RDPBCGR §2.2.1.4.4), which
+/// `crate::connect` relies on; the set is a `BTreeMap`, so the order is the
+/// same on both passes.
 #[must_use]
-pub fn static_channels() -> StaticChannelSet {
+pub fn static_channels(clipboard: ClipboardPolicy) -> StaticChannelSet {
+    use ironrdp::cliprdr::CliprdrClient;
     use ironrdp::displaycontrol::client::DisplayControlClient;
     use ironrdp::dvc::DrdynvcClient;
 
@@ -1743,6 +1760,11 @@ pub fn static_channels() -> StaticChannelSet {
             Ok(Vec::new())
         })),
     );
+    if clipboard.text_to_remote || clipboard.text_from_remote {
+        channels.insert(CliprdrClient::new(Box::new(
+            crate::clipboard::ClipboardSignals::default(),
+        )));
+    }
     channels
 }
 
@@ -2547,7 +2569,7 @@ mod tests {
     fn the_gcc_blocks_echo_the_protocol_the_server_selected() {
         // §2.2.1.3.2 requires it, and it is what lets the server notice that
         // the X.224 exchange was tampered with.
-        let channels = static_channels();
+        let channels = static_channels(crate::clipboard::NO_CLIPBOARD);
         let blocks = client_gcc_blocks(&config(), nego::SecurityProtocol::HYBRID, &channels);
         assert_eq!(
             blocks.core.optional_data.server_selected_protocol,
@@ -2560,7 +2582,7 @@ mod tests {
 
     #[test]
     fn the_gcc_blocks_ask_for_a_32_bit_session_and_the_message_channel() {
-        let channels = static_channels();
+        let channels = static_channels(crate::clipboard::NO_CLIPBOARD);
         let blocks = client_gcc_blocks(&config(), nego::SecurityProtocol::HYBRID, &channels);
         let flags = blocks.core.optional_data.early_capability_flags.unwrap();
         assert!(flags.contains(gcc::ClientEarlyCapabilityFlags::WANT_32_BPP_SESSION));
@@ -2834,8 +2856,42 @@ mod tests {
 
     #[test]
     fn the_static_channel_set_carries_the_dynamic_channel_multiplexer() {
-        let channels = static_channels();
+        let channels = static_channels(crate::clipboard::NO_CLIPBOARD);
         assert_eq!(channels.values().count(), 1);
         _assert_client_channels::<ironrdp::dvc::DrdynvcClient>();
+    }
+
+    #[test]
+    fn the_clipboard_channel_is_asked_for_only_when_text_may_cross() {
+        use ironrdp::cliprdr::CliprdrClient;
+
+        _assert_client_channels::<CliprdrClient>();
+        let default = static_channels(ClipboardPolicy::default());
+        assert_eq!(default.values().count(), 2);
+        assert!(default.get_by_type::<CliprdrClient>().is_some());
+
+        let one_way = ClipboardPolicy {
+            text_to_remote: false,
+            ..ClipboardPolicy::default()
+        };
+        assert!(
+            static_channels(one_way)
+                .get_by_type::<CliprdrClient>()
+                .is_some()
+        );
+
+        let none = static_channels(crate::clipboard::NO_CLIPBOARD);
+        assert!(none.get_by_type::<CliprdrClient>().is_none());
+
+        // And the name the server matches it by (MS-RDPECLIP §2.1).
+        let blocks = client_gcc_blocks(&config(), nego::SecurityProtocol::HYBRID, &default);
+        let names: Vec<String> = blocks
+            .network
+            .unwrap()
+            .channels
+            .iter()
+            .filter_map(|definition| definition.name.as_str().map(ToOwned::to_owned))
+            .collect();
+        assert!(names.iter().any(|name| name == "cliprdr"), "{names:?}");
     }
 }

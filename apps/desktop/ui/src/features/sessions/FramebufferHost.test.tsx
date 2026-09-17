@@ -24,7 +24,7 @@ import type { SessionOpened } from "@/lib/ipc";
 import { FramebufferHost } from "./FramebufferHost";
 import { useSessions, type SessionRecord } from "./store";
 
-const { ipcMock, surfaceMock } = vi.hoisted(() => ({
+const { ipcMock, surfaceMock, terminalsMock } = vi.hoisted(() => ({
   ipcMock: {
     // Typed with their arguments, not as bare spies: these assertions are
     // about *what* was sent, and `mock.calls[0][1]` on an untyped spy is a
@@ -41,7 +41,11 @@ const { ipcMock, surfaceMock } = vi.hoisted(() => ({
         _pointer: { x: number; y: number; buttons: number; wheel: number; wheelX: number },
       ) => Promise.resolve(),
     ),
+    syncClipboard: vi.fn((_sessionId: number) => Promise.resolve()),
     getSettings: vi.fn(() => Promise.resolve({ terminalPrefix: "ctrl+alt", shortcuts: {} })),
+  },
+  terminalsMock: {
+    reportClipboardFailure: vi.fn((_tabId: string, _failure: { code: string }) => undefined),
   },
   surfaceMock: {
     /**
@@ -73,6 +77,10 @@ vi.mock("@/lib/ipc", async (importOriginal) => {
 
 vi.mock("./manager", () => ({ requestDesktopSize: vi.fn() }));
 
+// The terminals' module owns xterm, which jsdom cannot host. This file only
+// needs to know that a clipboard failure was reported, and where.
+vi.mock("./terminals", () => terminalsMock);
+
 // The canvas is owned outside React by `surfaces.ts` and needs a 2D context,
 // which jsdom does not provide. Mocked so that these tests are about what this
 // component does with an event, which is what it is responsible for.
@@ -102,7 +110,7 @@ vi.mock("./surfaces", () => {
   };
 });
 
-function opened(resizable: boolean): SessionOpened {
+function opened(resizable: boolean, clipboard: "none" | "text" = "text"): SessionOpened {
   return {
     sessionId: 1,
     nodeId: "n1",
@@ -115,7 +123,7 @@ function opened(resizable: boolean): SessionOpened {
     capabilities: {
       kind: "framebuffer",
       resizable,
-      clipboard: "none",
+      clipboard,
       fileTransfer: false,
       audio: false,
       printing: false,
@@ -401,6 +409,78 @@ describe("the combinations the local machine takes first", () => {
     expect(ipcMock.sendKey.mock.calls.map((call) => call[1].scancode)).toEqual([
       0x38, 0x0f, 0x0f, 0x38,
     ]);
+  });
+});
+
+describe("the clipboard", () => {
+  it("offers the local clipboard when the screen takes the keyboard", async () => {
+    show();
+    act(() => screenElement().focus());
+    await delivered();
+    expect(ipcMock.syncClipboard).toHaveBeenCalledWith(1);
+  });
+
+  it("offers nothing from a session that carries no clipboard", async () => {
+    show({ opened: opened(true, "none") });
+    act(() => screenElement().focus());
+    fireEvent.keyDown(screenElement(), { code: "KeyV", key: "v", ctrlKey: true });
+    await delivered();
+    expect(ipcMock.syncClipboard).not.toHaveBeenCalled();
+    expect(ipcMock.sendKey).toHaveBeenCalled();
+  });
+
+  it("offers the clipboard before a paste chord, not after it", async () => {
+    // A Ctrl+V that reached the server before the offer would paste whatever
+    // the remote clipboard held before the user copied.
+    show();
+    fireEvent.keyDown(screenElement(), { code: "KeyV", key: "v", ctrlKey: true });
+    await delivered();
+    expect(ipcMock.syncClipboard).toHaveBeenCalledTimes(1);
+    const offered = ipcMock.syncClipboard.mock.invocationCallOrder[0] ?? Infinity;
+    const pasted = ipcMock.sendKey.mock.invocationCallOrder.at(-1) ?? -Infinity;
+    expect(offered).toBeLessThan(pasted);
+  });
+
+  it("offers again when the window comes back to a screen that kept the keyboard", async () => {
+    // Copied in another application and switched back: the element never lost
+    // focus, so only the window's own focus event can see it.
+    show();
+    act(() => screenElement().focus());
+    await delivered();
+    ipcMock.syncClipboard.mockClear();
+    window.dispatchEvent(new Event("focus"));
+    await delivered();
+    expect(ipcMock.syncClipboard).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not draw a clipboard failure as a keystroke that did not arrive", async () => {
+    ipcMock.syncClipboard.mockImplementationOnce(() =>
+      Promise.reject({ code: "clipboard.unavailable", message: "no clipboard" }),
+    );
+    show();
+    act(() => screenElement().focus());
+    await delivered();
+    expect(useSessions.getState().byId.t1?.inputError).toBeNull();
+    // Nobody asked for an offer made on focus, so nobody is told it failed.
+    expect(terminalsMock.reportClipboardFailure).not.toHaveBeenCalled();
+
+    ipcMock.syncClipboard.mockImplementationOnce(() =>
+      Promise.reject({ code: "clipboard.too-large", message: "too large" }),
+    );
+    fireEvent.keyDown(screenElement(), { code: "KeyV", key: "v", ctrlKey: true });
+    await delivered();
+    expect(terminalsMock.reportClipboardFailure).toHaveBeenCalledWith(
+      "t1",
+      expect.objectContaining({ code: "clipboard.too-large" }),
+    );
+    expect(useSessions.getState().byId.t1?.inputError).toBeNull();
+  });
+
+  it("offers nothing from a view-only session", async () => {
+    show({ viewOnly: true });
+    fireEvent.focus(screenElement());
+    await delivered();
+    expect(ipcMock.syncClipboard).not.toHaveBeenCalled();
   });
 });
 

@@ -18,6 +18,13 @@
 //! never reaches the frontend is untouched. Nothing is logged: a clipboard
 //! routinely holds a password the user copied from elsewhere.
 //!
+//! **A graphical session reaches the same clipboard.** An RDP tab offers the
+//! clipboard's text to the remote desktop through [`text_for_remote`] — the
+//! text goes from here to the session, and never through the frontend — and
+//! text copied on the remote desktop arrives through [`put_text_from_remote`].
+//! Both are the user's own clipboard moving where they pointed it; what may
+//! move is the connection's clipboard policy, enforced in the adapter.
+//!
 //! One `arboard::Clipboard` lives for the life of the process. On X11 and
 //! Wayland the application *serves* what it copied — the text lives in this
 //! process until another application takes ownership — and a handle created
@@ -87,6 +94,33 @@ pub(crate) fn clipboard_write_text(selection: Selection, text: String) -> Result
         return Ok(());
     }
     with_clipboard(|clipboard| write(clipboard, selection, text))
+}
+
+/// The clipboard's text, for offering to a remote session.
+///
+/// The same read, and the same bound, as a terminal paste: four megabytes is
+/// also what the RDP adapter will announce.
+pub(crate) fn text_for_remote() -> Result<Option<String>, IpcError> {
+    clipboard_read_text(Selection::Clipboard)
+}
+
+/// Puts text a remote session copied onto the clipboard.
+pub(crate) fn put_text_from_remote(text: String) -> Result<(), IpcError> {
+    clipboard_write_text(
+        Selection::Clipboard,
+        local_line_endings(text, cfg!(windows)),
+    )
+}
+
+/// A session hands text over with LF line endings. The Windows clipboard's
+/// text is CRLF, and what reads it — Notepad on an older build, a form field in
+/// a native application — shows LF alone as one long line.
+fn local_line_endings(text: String, windows: bool) -> String {
+    if windows {
+        text.replace("\r\n", "\n").replace('\n', "\r\n")
+    } else {
+        text
+    }
 }
 
 fn with_clipboard<T>(
@@ -214,6 +248,15 @@ mod tests {
         }
         assert!(matches!(clipboard_read_text(Selection::Primary), Ok(None)));
         assert!(clipboard_write_text(Selection::Primary, String::from("x")).is_ok());
+    }
+
+    #[test]
+    fn remote_text_gets_the_line_endings_of_the_clipboard_it_lands_on() {
+        let text = String::from("one\ntwo\n");
+        assert_eq!(local_line_endings(text.clone(), false), "one\ntwo\n");
+        assert_eq!(local_line_endings(text, true), "one\r\ntwo\r\n");
+        // Never doubled, whatever arrived.
+        assert_eq!(local_line_endings(String::from("a\r\nb"), true), "a\r\nb");
     }
 
     #[test]

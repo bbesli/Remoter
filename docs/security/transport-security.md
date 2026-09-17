@@ -105,16 +105,33 @@ an explicit setting with an inline warning.
 Redirection is convenient and is also a data-exfiltration path in both
 directions.
 
-**None of this is reachable today.** `ClipboardPolicy` exists and a VNC session
-honours it, but no adapter advertises a clipboard, no IPC command carries a
-clipboard operation, and no redirection channel is requested on any wire. The
-defaults below are the policy the implementation must adopt, not a description of
-running behaviour — the current behaviour is that every row is effectively off.
+**Only the text clipboard is reachable today, and only over RDP.** An RDP
+connection's two settings, *Paste into the remote desktop* and *Copy from the
+remote desktop*, are its `ClipboardPolicy::text_to_remote` and
+`text_from_remote`, enforced in the adapter; a connection with both off does not
+request the clipboard channel at all. Two properties of how it runs are worth
+knowing when deciding whether to switch a direction off:
+
+- **Remote → local does not wait for a paste.** The local clipboard is reached
+  through `arboard`, which has no delayed rendering, so text copied on the
+  server is fetched as soon as the server announces it and written to this
+  machine's clipboard. A compromised host can therefore put text on the local
+  clipboard unasked — which is the reason that direction is a setting of its
+  own.
+- **Local → remote is read in the core and never crosses into the WebView.** It
+  is offered when the tab takes the keyboard and before a paste chord, and the
+  text travels only when something on the server pastes it. An offer of text
+  the server already holds does nothing.
+
+VNC's policy is honoured by its adapter too, but the interface offers VNC no
+clipboard. No other redirection channel is requested on any wire, and files
+cannot cross the clipboard in either direction. The rows still marked ⏳ are the
+policy the implementation must adopt, not a description of running behaviour.
 
 | Feature | Default | Rationale | |
 |---|---|---|---|
-| Clipboard, text, local → remote | On | Expected behaviour; the user initiated the paste | ⏳ |
-| Clipboard, text, remote → local | On | Needed constantly for copying output | ⏳ |
+| Clipboard, text, local → remote | On | Expected behaviour; the user initiated the paste | ✅ RDP, a setting per connection |
+| Clipboard, text, remote → local | On | Needed constantly for copying output | ✅ RDP, a setting per connection |
 | Clipboard, **files** | **Off** | A compromised host should not be able to drop files into your clipboard | ✅ off, and nothing can turn it on |
 | Drive redirection | **Off** | Per-connection opt-in, per-folder, read-only offered first | ⏳ no channel |
 | Printer redirection | Off | Opt-in | ⏳ no channel |

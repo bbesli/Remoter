@@ -130,9 +130,17 @@ pub const DEFAULT_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(30);
 /// true one: a capability is a promise, and half a promise kept is a control
 /// that fails in the user's hand. Pasting *into* the session still works for a
 /// caller that sends `ClipboardOp::Offer`; what is withdrawn is the claim that
-/// the interface may offer both. This becomes `Text` again the day
-/// `SessionEvent` grows a clipboard-content variant — which is a change in
-/// `remoter-proto`, not here.
+/// the interface may offer both.
+///
+/// `SessionEvent::ClipboardContent` now exists — the RDP adapter delivers remote
+/// text through it — so the reading half is no longer blocked on the contract.
+/// What keeps this `None` is the other half. The interface offers the local
+/// clipboard whenever a graphical tab takes the keyboard, which RDP can afford
+/// because MS-RDPECLIP announces formats and moves the text only on paste. RFB
+/// has no such step: `ClientCutText` *is* the text, so the same offer here would
+/// send whatever the user last copied — a password, often — to the server every
+/// time they clicked into the tab. Turning this on needs the interface to offer
+/// VNC only on a paste chord, and that is a decision to make on its own.
 #[must_use]
 pub const fn capabilities() -> Capabilities {
     Capabilities {

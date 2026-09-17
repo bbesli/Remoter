@@ -405,6 +405,23 @@ const MODIFIER_OF: Readonly<Record<string, number>> = {
  * worse than none, because the half that arrives is a modifier that never comes
  * back up.
  */
+/**
+ * Whether a key press is a paste on the remote desktop.
+ *
+ * Ctrl+V and Shift+Insert, the two Windows answers to "paste", plus Cmd+V —
+ * which reaches a remote Windows host as Win+V, but is what a Mac user's hand
+ * does when it means paste, and offering the clipboard first costs nothing. A
+ * held key's repeats are not new pastes.
+ */
+export function isPasteChord(
+  event: Pick<KeyboardEvent, "code" | "ctrlKey" | "altKey" | "shiftKey" | "metaKey" | "repeat">,
+): boolean {
+  if (event.repeat) return false;
+  if (event.code === "KeyV") return (event.ctrlKey || event.metaKey) && !event.altKey;
+  if (event.code === "Insert") return event.shiftKey && !event.ctrlKey && !event.altKey;
+  return false;
+}
+
 export function chordFor(codes: readonly string[]): KeyInput[] | null {
   if (codes.length === 0) return null;
 

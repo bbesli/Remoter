@@ -281,8 +281,8 @@
     "protocolSettingsUnknown": "Están guardados en esta conexión, pero no forman parte de los ajustes que esta compilación conoce para este protocolo. Se conservan tal cual y se transmiten sin tocar.",
     "_comment_protocolLimits": "SECURITY-ADJACENT. One sentence per protocol, naming what this build's adapter does NOT do — so that a missing control reads as an answer rather than as an oversight. Every item is a real gap in the adapter, not a policy: there is no setting for any of them because there is nothing behind them. Do not add to these lists and do not remove from them; they are kept in step with the adapters. 'Remote Desktop Gateway', 'RDP', 'VNC', 'RFB' and 'Tight' are product and protocol names and are never translated.",
     "protocolLimits": {
-      "_comment_rdp": "The desktop, the keyboard and the pointer are what RDP carries here. 'Console session' is the /admin session on a Windows server. 'True colour' is 32-bit colour; the frame format has no other depth, so colour depth is not a choice rather than a choice nobody made.",
-      "rdp": "El RDP de esta compilación transporta el escritorio, el teclado y el puntero. No redirige el portapapeles, ni unidades, ni impresoras, ni tarjetas inteligentes; no lleva audio; no abre sesión de consola; maneja un solo monitor; y no pasa por una Remote Desktop Gateway. La profundidad de color tampoco se elige: cada fotograma llega en color verdadero de 32 bits.",
+      "_comment_rdp": "The desktop, the keyboard, the pointer and clipboard text in both directions are what RDP carries here; files do not cross the clipboard yet. 'Console session' is the /admin session on a Windows server. 'True colour' is 32-bit colour; the frame format has no other depth, so colour depth is not a choice rather than a choice nobody made.",
+      "rdp": "El RDP de esta compilación transporta el escritorio, el teclado, el puntero y el texto del portapapeles en ambos sentidos. No copia archivos por el portapapeles; no redirige unidades, ni impresoras, ni tarjetas inteligentes; no lleva audio; no abre sesión de consola; maneja un solo monitor; y no pasa por una Remote Desktop Gateway. La profundidad de color tampoco se elige: cada fotograma llega en color verdadero de 32 bits.",
       "_comment_vnc": "'Ask the server to resize' is the client-initiated desktop resize, which RFB has no standard message for — so the tab scales the picture instead, which is a different thing and worth naming. Reading the remote clipboard is the direction that is missing; pasting into the session is not.",
       "vnc": "El VNC de esta compilación ofrece la codificación Raw y, por lo demás, deja elegir al servidor, así que los niveles de compresión y de calidad de Tight no tienen nada que ajustar. No puede pedirle al servidor que cambie de tamaño —la pestaña escala la imagen en su lugar— y no puede leer el portapapeles remoto. VNC no transmite ningún nombre de cuenta, así que el usuario de arriba se guarda para su registro y no se envía."
     },
@@ -517,7 +517,11 @@
       "_comment_alternate_shell": "A program run instead of the Windows desktop, as RemoteApp does. The wire field really is called the alternate shell.",
       "alternate_shell": "Programa que se ejecuta en lugar del escritorio",
       "_comment_work_dir": "That program's working directory. Meaningless without the setting above it.",
-      "work_dir": "Carpeta de trabajo de ese programa"
+      "work_dir": "Carpeta de trabajo de ese programa",
+      "_comment_clipboard_to_remote": "Whether text copied on this machine may be pasted into the remote desktop. One direction of the clipboard; clipboard_from_remote is the other. On by default.",
+      "clipboard_to_remote": "Pegar en el escritorio remoto",
+      "_comment_clipboard_from_remote": "Whether text copied on the remote desktop reaches this machine's clipboard. A compromised host could put text on this clipboard unasked, which is why this direction can be switched off on its own. On by default.",
+      "clipboard_from_remote": "Copiar desde el escritorio remoto"
     },
     "_comment_vnc": "The names of the VNC adapter's own settings, labelling the fields declared in crates/remoter-proto-vnc/src/protocol.rs. 'VNC', 'RFB' and 'Raw' are protocol names and are never translated. The values these offer — '3.8', 'auto', 'raw', 'local', 'remote' — are wire tokens shown exactly as they stand and are not in this file at all.",
     "vnc": {

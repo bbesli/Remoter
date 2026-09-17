@@ -1138,7 +1138,7 @@ describe("the protocol settings a connection carries", () => {
     renderEditor({ mode: "edit", nodeId: "conn-1" });
 
     expect(
-      await screen.findByText(/does not redirect the clipboard, drives, printers/),
+      await screen.findByText(/does not copy files over the clipboard, does not redirect drives/),
     ).toBeInTheDocument();
   });
 

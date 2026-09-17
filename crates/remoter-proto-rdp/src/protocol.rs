@@ -18,8 +18,8 @@ use std::time::Duration;
 use async_trait::async_trait;
 use remoter_core::{EffectiveConnection, NodeId, ProtocolId, Provenance, Resolved};
 use remoter_proto::{
-    Capabilities, CredentialProvider, EventSink, HostPort, ProtocolError, Session, SessionId,
-    SettingField, SettingKind, SettingsSchema, Transport, TrustStore, connection_target,
+    Capabilities, ClipboardPolicy, CredentialProvider, EventSink, HostPort, ProtocolError, Session,
+    SessionId, SettingField, SettingKind, SettingsSchema, Transport, TrustStore, connection_target,
 };
 use tokio_util::sync::CancellationToken;
 
@@ -48,6 +48,10 @@ pub const SETTING_ALTERNATE_SHELL: &str = "alternate_shell";
 pub const SETTING_WORK_DIR: &str = "work_dir";
 /// The client name this machine reports to the server.
 pub const SETTING_WORKSTATION: &str = "workstation";
+/// Whether text copied here may be pasted into the remote desktop.
+pub const SETTING_CLIPBOARD_TO_REMOTE: &str = "clipboard_to_remote";
+/// Whether text copied in the remote desktop reaches this machine's clipboard.
+pub const SETTING_CLIPBOARD_FROM_REMOTE: &str = "clipboard_from_remote";
 
 /// The catalogue key surfaced when Network Level Authentication is turned off.
 pub const WARNING_NLA_DISABLED: &str = "rdp.network_level_authentication_disabled";
@@ -174,7 +178,7 @@ impl RdpProtocol {
             &connection,
             creds,
             &certificates,
-            static_channels(),
+            static_channels(connection.clipboard),
             &events,
             self.prompts.clone(),
             &cancel,
@@ -262,6 +266,22 @@ impl RdpProtocol {
             .string(config, SETTING_WORK_DIR)
             .unwrap_or_default()
             .to_owned();
+
+        // Two settings rather than one, because the two directions are two
+        // different risks: text pasted *into* a host goes where the user sent
+        // it, and text copied *out* of a compromised one lands on this
+        // machine's clipboard unasked. Files stay off whatever these say.
+        connection.clipboard = ClipboardPolicy {
+            text_to_remote: self
+                .schema
+                .boolean(&config.settings, SETTING_CLIPBOARD_TO_REMOTE)?
+                .unwrap_or(true),
+            text_from_remote: self
+                .schema
+                .boolean(&config.settings, SETTING_CLIPBOARD_FROM_REMOTE)?
+                .unwrap_or(true),
+            files: false,
+        };
 
         connection.timeout = config
             .connect_timeout_ms
@@ -455,6 +475,22 @@ pub fn schema() -> SettingsSchema {
             "settings.rdp.work_dir",
             SettingKind::Text { max_len: 512 },
         ),
+        // On, both of them: `docs/security/transport-security.md` makes text
+        // the default in both directions, because copying output out of a
+        // session and pasting a command into one is most of what a clipboard
+        // is for.
+        SettingField::new(
+            SETTING_CLIPBOARD_TO_REMOTE,
+            "settings.rdp.clipboard_to_remote",
+            SettingKind::Boolean,
+        )
+        .with_default("true"),
+        SettingField::new(
+            SETTING_CLIPBOARD_FROM_REMOTE,
+            "settings.rdp.clipboard_from_remote",
+            SettingKind::Boolean,
+        )
+        .with_default("true"),
     ])
 }
 
@@ -913,6 +949,8 @@ mod tests {
             SETTING_KEYBOARD_LAYOUT,
             SETTING_ALTERNATE_SHELL,
             SETTING_WORK_DIR,
+            SETTING_CLIPBOARD_TO_REMOTE,
+            SETTING_CLIPBOARD_FROM_REMOTE,
         ];
         for field in schema().fields() {
             assert!(
@@ -922,7 +960,7 @@ mod tests {
             );
         }
 
-        // And each of the eight, set to a value nothing else would produce,
+        // And each of the ten, set to a value nothing else would produce,
         // arrives on the configuration the connection sequence is built from.
         let config = effective(settings_from(
             NodeId::new(),
@@ -935,6 +973,8 @@ mod tests {
                 (SETTING_KEYBOARD_LAYOUT, "66591"),
                 (SETTING_ALTERNATE_SHELL, "cmd.exe"),
                 (SETTING_WORK_DIR, "C:\\Windows"),
+                (SETTING_CLIPBOARD_TO_REMOTE, "false"),
+                (SETTING_CLIPBOARD_FROM_REMOTE, "false"),
             ],
         ));
         let connection = adapter()
@@ -953,6 +993,28 @@ mod tests {
         assert_eq!(connection.keyboard_layout, 0x0001_041F);
         assert_eq!(connection.alternate_shell, "cmd.exe");
         assert_eq!(connection.work_dir, "C:\\Windows");
+        assert_eq!(connection.clipboard, crate::clipboard::NO_CLIPBOARD);
+    }
+
+    #[test]
+    fn the_clipboard_carries_text_both_ways_unless_told_otherwise_and_files_never() {
+        let adapter = adapter();
+        let silent = effective(settings_from(NodeId::new(), Vec::<(&str, &str)>::new()));
+        let connection = adapter
+            .connection_config(&silent, &Account("ada"), &target())
+            .unwrap();
+        assert_eq!(connection.clipboard, ClipboardPolicy::default());
+
+        let inbound_only = effective(settings_from(
+            NodeId::new(),
+            [(SETTING_CLIPBOARD_TO_REMOTE, "false")],
+        ));
+        let connection = adapter
+            .connection_config(&inbound_only, &Account("ada"), &target())
+            .unwrap();
+        assert!(!connection.clipboard.text_to_remote);
+        assert!(connection.clipboard.text_from_remote);
+        assert!(!connection.clipboard.files);
     }
 
     #[test]

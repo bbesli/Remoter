@@ -12,6 +12,7 @@
 //! | [`connect`] | The connection sequence of MS-RDPBCGR §1.3.1.1, start to finish |
 //! | [`credssp`] | Network Level Authentication: MS-CSSP, and the NTLM it runs on |
 //! | [`cert`] | The server certificate as a host key problem: prompt, pin, and a changed one blocked |
+//! | [`clipboard`] | MS-RDPECLIP text in both directions, and what keeps a copy from crossing back |
 //! | [`framed`] | Whole PDUs off an injected transport, and the TLS upgrade |
 //! | [`session`] | [`RdpSession`]: the read loop, input, resize, clean disconnect |
 //! | [`display`] | Decoded pixels into `remoter_proto::framebuffer`'s format |
@@ -42,10 +43,11 @@
 //!
 //! Connect to a Windows host over TLS, with or without Network Level
 //! Authentication; see the desktop, type, click, scroll, resize the remote
-//! display, and disconnect cleanly. Not yet: the clipboard, drive redirection,
-//! audio, printing, multiple monitors, or a Remote Desktop Gateway. Each of
-//! those is a separate channel, and [`capabilities`] reports every one of them
-//! as absent so the interface does not draw a control that does nothing.
+//! display, copy and paste text in both directions, and disconnect cleanly. Not
+//! yet: files over the clipboard, drive redirection, audio, printing, multiple
+//! monitors, or a Remote Desktop Gateway. Each of those is a separate channel or
+//! a separate half of one, and [`capabilities`] reports every one of them as
+//! absent so the interface does not draw a control that does nothing.
 //!
 //! # Deviations from the specifications and the design documents, and why
 //!
@@ -81,12 +83,21 @@
 //! the user is asked instead of being trusted — and closing the gap is a
 //! dependency decision for the maintainer under CLAUDE.md §8.
 //!
-//! **The clipboard is not implemented, and [`capabilities`] says so.** The
-//! skeleton this crate replaced claimed `ClipboardSupport::Text`, and
-//! `docs/features/protocols.md` expects it; MS-RDPECLIP is the channel that
-//! would provide it. Claiming it before the channel exists puts a paste button
-//! on the tab that silently discards, so the claim was withdrawn rather than
-//! the button drawn.
+//! **Text copied on the server is fetched before anyone pastes it.**
+//! MS-RDPECLIP §1.3.1.4 describes delayed rendering, where the data moves only
+//! on paste, and this crate keeps that shape for text going *to* the server.
+//! The other direction cannot: the local clipboard is reached through
+//! `arboard`, which has no delayed rendering, so [`clipboard`] asks for the text
+//! as soon as the server announces a copy. The cost is a round trip per remote
+//! copy whether or not it is pasted here; the connection's
+//! `clipboard_from_remote` setting is how a user who does not want that says
+//! so.
+//!
+//! **A clipboard PDU too large to carry is dropped, not fatal.** Every other
+//! static virtual channel's reassembly ceiling ends the session, because nothing
+//! legitimate reaches it. The clipboard's is reached by a user who copies a log
+//! file; see [`framed::Reassembly::discard_oversized`] for why dropping is safe
+//! only on the first chunk.
 //!
 //! **`Protocol::connect` cannot know its session id.** A framebuffer message's
 //! header carries one so a presenter can tell two tabs apart, and the trait has
@@ -114,6 +125,7 @@
 #![forbid(unsafe_code)]
 
 pub mod cert;
+pub mod clipboard;
 pub mod connect;
 pub mod credssp;
 pub mod display;

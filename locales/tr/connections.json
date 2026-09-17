@@ -281,8 +281,8 @@
     "protocolSettingsUnknown": "Bu bağlantıda saklanıyor, ama bu sürümün bu protokol için tanıdığı ayarlardan değil. Oldukları gibi korunur ve dokunulmadan iletilir.",
     "_comment_protocolLimits": "SECURITY-ADJACENT. One sentence per protocol, naming what this build's adapter does NOT do — so that a missing control reads as an answer rather than as an oversight. Every item is a real gap in the adapter, not a policy: there is no setting for any of them because there is nothing behind them. Do not add to these lists and do not remove from them; they are kept in step with the adapters. 'Remote Desktop Gateway', 'RDP', 'VNC', 'RFB' and 'Tight' are product and protocol names and are never translated.",
     "protocolLimits": {
-      "_comment_rdp": "The desktop, the keyboard and the pointer are what RDP carries here. 'Console session' is the /admin session on a Windows server. 'True colour' is 32-bit colour; the frame format has no other depth, so colour depth is not a choice rather than a choice nobody made.",
-      "rdp": "Bu sürümün RDP'si masaüstünü, klavyeyi ve imleci taşır. Panoyu, sürücüleri, yazıcıları ya da akıllı kartları yönlendirmez; ses taşımaz, konsol oturumu açmaz, yalnızca tek bir ekran sürer ve bir Remote Desktop Gateway üzerinden geçmez. Renk derinliği de bir seçim değildir — her kare 32 bit gerçek renk olarak gelir.",
+      "_comment_rdp": "The desktop, the keyboard, the pointer and clipboard text in both directions are what RDP carries here; files do not cross the clipboard yet. 'Console session' is the /admin session on a Windows server. 'True colour' is 32-bit colour; the frame format has no other depth, so colour depth is not a choice rather than a choice nobody made.",
+      "rdp": "Bu sürümün RDP'si masaüstünü, klavyeyi, imleci ve iki yönde pano metnini taşır. Pano üzerinden dosya kopyalamaz; sürücüleri, yazıcıları ya da akıllı kartları yönlendirmez; ses taşımaz, konsol oturumu açmaz, yalnızca tek bir ekran sürer ve bir Remote Desktop Gateway üzerinden geçmez. Renk derinliği de bir seçim değildir — her kare 32 bit gerçek renk olarak gelir.",
       "_comment_vnc": "'Ask the server to resize' is the client-initiated desktop resize, which RFB has no standard message for — so the tab scales the picture instead, which is a different thing and worth naming. Reading the remote clipboard is the direction that is missing; pasting into the session is not.",
       "vnc": "Bu sürümün VNC'si Raw kodlamasını sunar, gerisini sunucunun seçmesine bırakır; bu yüzden Tight'ın sıkıştırma ve kalite düzeylerinde ayarlanacak bir şey yoktur. Sunucudan yeniden boyutlanmasını isteyemez — bunun yerine sekme görüntüyü ölçekler — ve uzak panoyu okuyamaz. VNC'de hat üzerinde hesap adı diye bir şey yoktur; bu yüzden yukarıdaki kullanıcı adı yalnızca sizin kayıtlarınız için tutulur ve gönderilmez."
     },
@@ -517,7 +517,11 @@
       "_comment_alternate_shell": "A program run instead of the Windows desktop, as RemoteApp does. The wire field really is called the alternate shell.",
       "alternate_shell": "Masaüstü yerine çalıştırılacak program",
       "_comment_work_dir": "That program's working directory. Meaningless without the setting above it.",
-      "work_dir": "O programın çalışma klasörü"
+      "work_dir": "O programın çalışma klasörü",
+      "_comment_clipboard_to_remote": "Whether text copied on this machine may be pasted into the remote desktop. One direction of the clipboard; clipboard_from_remote is the other. On by default.",
+      "clipboard_to_remote": "Uzak masaüstüne yapıştır",
+      "_comment_clipboard_from_remote": "Whether text copied on the remote desktop reaches this machine's clipboard. A compromised host could put text on this clipboard unasked, which is why this direction can be switched off on its own. On by default.",
+      "clipboard_from_remote": "Uzak masaüstünden kopyala"
     },
     "_comment_vnc": "The names of the VNC adapter's own settings, labelling the fields declared in crates/remoter-proto-vnc/src/protocol.rs. 'VNC', 'RFB' and 'Raw' are protocol names and are never translated. The values these offer — '3.8', 'auto', 'raw', 'local', 'remote' — are wire tokens shown exactly as they stand and are not in this file at all.",
     "vnc": {

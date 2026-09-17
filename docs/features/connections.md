@@ -187,7 +187,7 @@ schema, so a plugin protocol gets exactly the same editing experience as SSH.
 - ⏳ There is no "test connection" button
 - Every field shows its inheritance state
 - The editor also states, per protocol, what *this build's* adapter cannot do —
-  RDP's absent clipboard and redirection channels, VNC's fixed size — rather
+  RDP's absent file clipboard and redirection channels, VNC's fixed size — rather
   than omitting those settings and letting the absence read as an oversight
 - ✅ Jump hosts are a section of the editor on a connection and on a folder: an
   ordered list of SSH connections, the first reached directly and the last

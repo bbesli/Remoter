@@ -21,7 +21,7 @@ use zeroize::Zeroizing;
 
 use crate::coalesce::{DEFAULT_FRAME_INTERVAL, DEFAULT_MAX_FRAME_BYTES, OutputCoalescer};
 use crate::error::{FailureReport, ProtocolError};
-use crate::protocol::ClipboardFormats;
+use crate::protocol::{ClipboardData, ClipboardFormats};
 
 /// How many events a session's channel holds before its producer waits.
 ///
@@ -320,6 +320,13 @@ pub enum SessionEvent {
     },
     /// The remote has something on its clipboard.
     ClipboardOffer(ClipboardFormats),
+    /// What the remote copied, for the local clipboard.
+    ///
+    /// Sent only when the session's [`crate::ClipboardPolicy`] lets remote
+    /// content reach this machine, and only content the adapter has already
+    /// bounded. The layer above puts it on the system clipboard; nothing keeps
+    /// it longer than that. `Debug` is redacting, through [`ClipboardData`]'s.
+    ClipboardContent(ClipboardData),
     /// The server needs something before it will continue.
     Prompt(Prompt),
     /// Progress on something long-running.
@@ -338,6 +345,7 @@ impl fmt::Debug for SessionEvent {
                 write!(f, "Resized {{ width: {width}, height: {height} }}")
             }
             Self::ClipboardOffer(formats) => write!(f, "ClipboardOffer({formats:?})"),
+            Self::ClipboardContent(data) => write!(f, "ClipboardContent({data:?})"),
             Self::Prompt(prompt) => write!(f, "Prompt({prompt:?})"),
             Self::Progress(update) => write!(f, "Progress({update:?})"),
             Self::Warning(warning) => write!(f, "Warning({warning:?})"),

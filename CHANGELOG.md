@@ -161,9 +161,25 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 - Three different failures with three different remedies: an unreachable host,
   an untrusted certificate and a rejected password never collapse into one
   another, and a server that requires NLA says so by name
-- The clipboard capability the skeleton claimed is withdrawn until the
-  MS-RDPECLIP channel exists; a paste button that silently discards is worse
-  than no paste button
+- **The clipboard, text both ways**, over MS-RDPECLIP. Text copied on the server
+  is fetched as soon as it is announced and put on this machine's clipboard;
+  text copied here is offered when the tab takes the keyboard, when the window
+  regains focus over it and before Ctrl+V, Shift+Insert or Cmd+V, and crosses
+  only when something on the server pastes it. The clipboard is read in the core
+  (`session_clipboard_sync`), so the text never passes through the WebView
+- Nothing crosses back the way it came: an offer of text the server already
+  holds does nothing, so clicking into the tab after copying cells on the server
+  does not flatten the server's clipboard to plain text. The check is a salted
+  digest; the text itself is not kept
+- *Paste into the remote desktop* and *Copy from the remote desktop* are two
+  settings on an RDP connection, both on by default; with both off the channel
+  is not requested. Files do not cross the clipboard
+- A copy too large to carry no longer risks the session: the clipboard channel
+  gets its own 16 MiB ceiling, and a PDU declaring more is dropped whole on its
+  first chunk — before `ironrdp-svc` has buffered a byte of it — and said on the
+  tab. Every other channel's ceiling still ends the session. A server that has
+  not opened the channel a minute in, and a local clipboard that could not be
+  written, are said too
 
 #### Graphical sessions — VNC
 - `remoter-proto-vnc`: a working RFB client over `vnc-rs`, with the handshake

@@ -126,6 +126,18 @@ function emit(event: TerminalEvent): void {
   for (const listener of listeners) listener(event);
 }
 
+/**
+ * Reports a clipboard that could not be reached from a graphical tab.
+ *
+ * Through the terminals' channel because it is the same sentence in the same
+ * place: `SessionSurface` already draws a clipboard failure over whichever tab
+ * it came from, and a second notice for the same fact would be two ways of
+ * saying one thing.
+ */
+export function reportClipboardFailure(tabId: string, failure: IpcFailure): void {
+  emit({ kind: "clipboardFailed", tabId, failure });
+}
+
 interface Entry {
   term: Terminal;
   fit: FitAddon;

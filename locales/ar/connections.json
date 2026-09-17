@@ -281,8 +281,8 @@
     "protocolSettingsUnknown": "مخزَّنة على هذا الاتصال لكنها ليست من إعدادات هذه النسخة لهذا البروتوكول. تُحفظ كما هي وتُمرَّر دون مساس.",
     "_comment_protocolLimits": "SECURITY-ADJACENT. One sentence per protocol, naming what this build's adapter does NOT do — so that a missing control reads as an answer rather than as an oversight. Every item is a real gap in the adapter, not a policy: there is no setting for any of them because there is nothing behind them. Do not add to these lists and do not remove from them; they are kept in step with the adapters. 'Remote Desktop Gateway', 'RDP', 'VNC', 'RFB' and 'Tight' are product and protocol names and are never translated.",
     "protocolLimits": {
-      "_comment_rdp": "The desktop, the keyboard and the pointer are what RDP carries here. 'Console session' is the /admin session on a Windows server. 'True colour' is 32-bit colour; the frame format has no other depth, so colour depth is not a choice rather than a choice nobody made.",
-      "rdp": "يحمل RDP في هذه النسخة سطح المكتب ولوحة المفاتيح والمؤشر. ولا يعيد توجيه الحافظة ولا الأقراص ولا الطابعات ولا البطاقات الذكية، ولا ينقل صوتًا، ولا يفتح جلسة وحدة تحكّم، ولا يقود إلا شاشة واحدة، ولا يمر عبر Remote Desktop Gateway. وعمق الألوان ليس خيارًا كذلك — فكل إطار يصل بألوان حقيقية بعمق 32 بت.",
+      "_comment_rdp": "The desktop, the keyboard, the pointer and clipboard text in both directions are what RDP carries here; files do not cross the clipboard yet. 'Console session' is the /admin session on a Windows server. 'True colour' is 32-bit colour; the frame format has no other depth, so colour depth is not a choice rather than a choice nobody made.",
+      "rdp": "يحمل RDP في هذه النسخة سطح المكتب ولوحة المفاتيح والمؤشر ونص الحافظة في الاتجاهين. ولا ينسخ الملفات عبر الحافظة، ولا يعيد توجيه الأقراص ولا الطابعات ولا البطاقات الذكية، ولا ينقل صوتًا، ولا يفتح جلسة وحدة تحكّم، ولا يقود إلا شاشة واحدة، ولا يمر عبر Remote Desktop Gateway. وعمق الألوان ليس خيارًا كذلك — فكل إطار يصل بألوان حقيقية بعمق 32 بت.",
       "_comment_vnc": "'Ask the server to resize' is the client-initiated desktop resize, which RFB has no standard message for — so the tab scales the picture instead, which is a different thing and worth naming. Reading the remote clipboard is the direction that is missing; pasting into the session is not.",
       "vnc": "يوفّر VNC في هذه النسخة ترميز Raw، ويترك الاختيار للخادم فيما عدا ذلك، فلا شيء يُضبط في مستويات ضغط Tight وجودته. ولا يستطيع أن يطلب من الخادم تغيير الحجم — بل يقيس التبويب الصورة بدلًا من ذلك — ولا يستطيع قراءة حافظة الجهاز البعيد. ولا يحمل VNC اسم حساب على السلك، لذا يُحفظ اسم المستخدم أعلاه في سجلّك ولا يُرسل."
     },
@@ -517,7 +517,11 @@
       "_comment_alternate_shell": "A program run instead of the Windows desktop, as RemoteApp does. The wire field really is called the alternate shell.",
       "alternate_shell": "برنامج يُشغَّل بدل سطح المكتب",
       "_comment_work_dir": "That program's working directory. Meaningless without the setting above it.",
-      "work_dir": "مجلد عمل ذلك البرنامج"
+      "work_dir": "مجلد عمل ذلك البرنامج",
+      "_comment_clipboard_to_remote": "Whether text copied on this machine may be pasted into the remote desktop. One direction of the clipboard; clipboard_from_remote is the other. On by default.",
+      "clipboard_to_remote": "اللصق في سطح المكتب البعيد",
+      "_comment_clipboard_from_remote": "Whether text copied on the remote desktop reaches this machine's clipboard. A compromised host could put text on this clipboard unasked, which is why this direction can be switched off on its own. On by default.",
+      "clipboard_from_remote": "النسخ من سطح المكتب البعيد"
     },
     "_comment_vnc": "The names of the VNC adapter's own settings, labelling the fields declared in crates/remoter-proto-vnc/src/protocol.rs. 'VNC', 'RFB' and 'Raw' are protocol names and are never translated. The values these offer — '3.8', 'auto', 'raw', 'local', 'remote' — are wire tokens shown exactly as they stand and are not in this file at all.",
     "vnc": {
