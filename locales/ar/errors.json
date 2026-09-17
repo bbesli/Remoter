@@ -599,7 +599,7 @@
       ]
     },
     "unknown-format": {
-      "message": "هذا الملف ليس بصيغة يستوردها Remoter: فهو ليس أرشيف Remoter ولا تصدير JSON منه، ولا مستند mRemoteNG ولا مستند Remote Desktop Connection Manager ولا ملف .rdp ولا إعداد OpenSSH ولا تصدير CSV.",
+      "message": "هذا الملف ليس بصيغة يستوردها Remoter: فهو ليس أرشيف Remoter ولا تصدير JSON منه، ولا مستند mRemoteNG ولا مستند Remote Desktop Connection Manager ولا ملف .rdp ولا جلسات PuTTY محفوظة ولا إعداد OpenSSH ولا تصدير CSV.",
       "actions": [
         "اختيار صيغة المصدر بنفسك",
         "تصدير الاتصالات مجددًا بصيغة CSV"

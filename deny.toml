@@ -85,6 +85,10 @@ confidence-threshold = 0.9
 # the workspace sets `unsafe_code = "forbid"`. MIT is permissive and imposes
 # nothing on a GPL-3.0 work; the crate is already in the graph, so the
 # dependency tree does not grow.
+#
+# `remoter-import` depends on it too, for the same reason and the same licence:
+# `src/putty.rs` reads PuTTY's and KiTTY's saved sessions from
+# `HKCU\Software\SimonTatham\PuTTY\Sessions` and nothing else in the registry.
 
 # Trying a key passphrase at import rather than at connect time (CLAUDE.md §8.1).
 # Four crates, all direct dependencies of `remoter-vault` now, none new to the

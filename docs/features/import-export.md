@@ -1,9 +1,9 @@
 # Import and Export
 
-> **What ships: seven importers and four of the five export formats.** Remoter's
+> **What ships: eight importers and four of the five export formats.** Remoter's
 > own `.rmtr` archive and JSON export, mRemoteNG `confCons.xml`, Remote Desktop
-> Connection Manager `.rdg`, `.rdp` files, `~/.ssh/config` and CSV are
-> imported, each with format detection, a preview the user selects
+> Connection Manager `.rdg`, `.rdp` files, PuTTY's and KiTTY's saved sessions,
+> `~/.ssh/config` and CSV are imported, each with format detection, a preview the user selects
 > from, a choice about what the vault already has, an all-or-nothing commit and
 > a findings report; every one parses boundedly under a `cargo-fuzz` target.
 > ✅ Export writes the encrypted `.rmtr` archive, secrets included, for another
@@ -23,7 +23,7 @@ none of them touches the vault until the user confirms a preview.
 
 ## Supported sources
 
-Seven of these are built. The parser for anything marked ⏳ does not exist, and
+Eight of these are built. The parser for anything marked ⏳ does not exist, and
 `import_parse` refuses its name — asking for `royalts` is answered with
 "`royalts` is not an importer" and the names of the ones that are.
 
@@ -35,7 +35,7 @@ Seven of these are built. The parser for anything marked ⏳ does not exist, and
 | **OpenSSH** | `~/.ssh/config` | Key references | ✅ shipped |
 | **Generic** | CSV | Depends | ✅ shipped |
 | **Royal TS / Royal TSX** | `.rtsz`, `.rtsx` | ✅ with the document password | ⏳ v0.5 |
-| **PuTTY** | Registry (Windows), `~/.putty/sessions` (Unix) | Keys only | ⏳ v0.5 — though `.ppk` key *files* are read today, by the SSH adapter |
+| **PuTTY / KiTTY** | Registry (Windows), a `reg export`, `~/.putty/sessions` (Unix) | Key file references; a jump host's proxy password | ✅ shipped |
 | **Remote Desktop Connection Manager** | `.rdg` | Only schema 1's clear-text passwords; DPAPI-protected ones stay with Windows | ✅ shipped |
 | **Windows RDP** | `.rdp` files | — the saved password is DPAPI-bound | ✅ shipped |
 | **Termius** | JSON export | ✅ | ⏳ v1.1 |
@@ -134,20 +134,44 @@ else becomes `Inherited::Explicit`. Structure is preserved, not flattened.
 Connections, folders, credential objects and the credential *links* between them
 all map cleanly onto Remoter's model, including Royal TS's own inheritance.
 
-### PuTTY — ⏳ not built
+### PuTTY — ✅ shipped
 
-The `.ppk` half of this is done, in a different place: `remoter-proto-ssh`'s key
-reader parses PuTTY v2 and v3 key files, encrypted or not, and identifies a
-container by its contents rather than by its file name. What is missing is the
-*session* importer — the registry and `~/.putty/sessions` halves below.
+Sessions come from three places, and the source step's *Use this computer's
+PuTTY sessions* finds the first two without a file dialog:
 
-On Windows, sessions live in the registry under
-`HKCU\Software\SimonTatham\PuTTY\Sessions`; KiTTY uses
-`HKCU\Software\9bis.com\KiTTY`. On Unix, `~/.putty/sessions`. Remoter reads
-both, and imports `.ppk` private keys (v2 and v3), decrypting them with a
-passphrase if one is supplied.
+- the registry itself on Windows, under
+  `HKCU\Software\SimonTatham\PuTTY\Sessions`, or KiTTY's
+  `HKCU\Software\9bis.com\KiTTY\Sessions` — nothing else in the registry is
+  read;
+- `~/.putty/sessions` on Unix, a directory with one file per session;
+- a `reg export` of either key, which is how sessions leave a Windows machine.
 
-PuTTY stores no session passwords, so only key material comes across.
+The value names are PuTTY's own, from its `settings.c`, and a session's name is
+unescaped the way PuTTY escaped it. `HostName` gives the host — a `user@` in
+front of it is the account — `PortNumber` the port when it is not the
+protocol's own, `UserName` and `PublicKeyFile` the credential, and
+`PingIntervalSecs` the keep-alive interval. KiTTY's `Folder` becomes a folder.
+PuTTY's *Default Settings* are defaults, not a server, and are not imported.
+
+A proxy of type *SSH to proxy* (`ProxyMethod` 6) becomes a gateway: through the
+saved session its `ProxyHost` names, a session for that host, or a jump host
+made for it under *Jump hosts* — carrying `ProxyUsername`, and `ProxyPassword`,
+which PuTTY stores in the clear. Any other proxy is reported, its settings kept
+and its password dropped, and the connection goes direct. Telnet, rlogin, raw
+and SUPDUP sessions keep their protocol names and are reported, having no
+adapter here; a serial line is left out.
+
+Only values that describe the connection and differ from PuTTY's defaults are
+kept, as `putty.<Value>` — port forwardings, a remote command, agent and X11
+forwarding, compression. Fonts, colours and the bell describe PuTTY's window,
+not the server.
+
+PuTTY saves no login passwords. A `.ppk` file is recorded as a reference and
+stays on disk; `remoter-proto-ssh`'s key reader parses PuTTY v2 and v3 key
+files, encrypted or not. ⏳ A credential that only *references* a key file —
+imported from PuTTY or from an `IdentityFile` — is not yet opened at connect
+time: the session says the credential is held elsewhere and asks for one. See
+`remoter_import::putty`.
 
 ### Remote Desktop Connection Manager — ✅ shipped
 
@@ -269,7 +293,7 @@ deliberately crafted.
 |---|---|---|
 | XXE / entity expansion | A `<!DOCTYPE` declaration is a hard error, not a skipped one, and there is no entity table for a document to add to — an unknown entity is a named failure rather than an empty string | ✅ |
 | Memory exhaustion | Bounded parse with an explicit `Limits` struct: input bytes, depth, item count, attribute count, value bytes, node count, findings, custom fields, included files and include depth | ✅ |
-| Malformed input | `cargo-fuzz` targets for all seven shipped importers — `import_archive`, `import_csv`, `import_json`, `import_mremoteng`, `import_rdcman`, `import_rdp_file`, `import_sshconfig` | ✅ |
+| Malformed input | `cargo-fuzz` targets for all eight shipped importers — `import_archive`, `import_csv`, `import_json`, `import_mremoteng`, `import_putty`, `import_rdcman`, `import_rdp_file`, `import_sshconfig` | ✅ |
 | Credential misuse | Imported credentials carry a `Purpose` restriction matching their source protocol | ✅ |
 | Zip slip | Archive entries with absolute paths, `..` segments or symlinks rejected | ⏳ — no importer reads an archive yet; this is for Royal TS |
 | Decompression bombs | Hard cap on decompressed size and entry count | ⏳ — same |

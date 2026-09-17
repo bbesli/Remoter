@@ -72,6 +72,7 @@ export type ImportSource =
   | "mremoteng"
   | "rdcman"
   | "rdp-file"
+  | "putty"
   | "ssh-config"
   | "csv";
 
@@ -1219,6 +1220,17 @@ export type ImportFinding =
    * account that saved them, or a certificate left on that machine.
    */
   | { severity: FindingSeverity; kind: "protected_passwords_not_carried"; count: number }
+  /**
+   * A proxy this build does not use. `proxy` is its kind — `socks5`, `http`,
+   * `command`… — and `host` its address, or the command for a local one.
+   */
+  | {
+      severity: FindingSeverity;
+      kind: "proxy_not_supported";
+      item: string;
+      proxy: string;
+      host: string;
+    }
   /** A Remote Desktop Gateway this build cannot use; `host` is the gateway. */
   | { severity: FindingSeverity; kind: "rd_gateway_not_supported"; item: string; host: string }
   /** A credential profile the file names and does not contain. */
@@ -2340,6 +2352,12 @@ export const ipc = {
    * What the held preview would collide with at a destination. Read-only; the
    * commit makes the same comparison.
    */
+  /**
+   * Where this computer keeps PuTTY's saved sessions — the registry key on
+   * Windows, `~/.putty/sessions` elsewhere — or `null` when it keeps none.
+   * What comes back is a path the other import commands accept.
+   */
+  importPuttyLocation: () => invoke<string | null>("import_putty_location"),
   importConflicts: (req: {
     importId: string;
     destinationId: string | null;

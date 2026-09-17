@@ -32,6 +32,9 @@ pub enum SourceFormat {
     RdpFile,
     /// A Remote Desktop Connection Manager `.rdg` document.
     RdcMan,
+    /// PuTTY's or KiTTY's saved sessions: a registry export, the registry
+    /// itself, or Unix session files.
+    Putty,
 }
 
 impl SourceFormat {
@@ -46,6 +49,7 @@ impl SourceFormat {
             Self::RemoterJson => "remoter_json",
             Self::RdpFile => "rdp_file",
             Self::RdcMan => "rdcman",
+            Self::Putty => "putty",
         }
     }
 }
@@ -226,6 +230,19 @@ pub enum Finding {
         host: String,
     },
 
+    /// A proxy this build does not use — SOCKS, HTTP, Telnet, a local command.
+    /// The connection is imported and connects directly; the proxy's settings
+    /// are kept in its `custom_fields`, and never its password.
+    ProxyNotSupported {
+        /// The connection it was set on.
+        item: String,
+        /// What kind of proxy: `socks4`, `socks5`, `http`, `telnet`, `command`,
+        /// `ssh-exec`, `ssh-subsystem` or `unknown`.
+        proxy: String,
+        /// The proxy's host, or the command for a local one.
+        host: String,
+    },
+
     /// A credential profile the file refers to and does not contain. Remote
     /// Desktop Connection Manager keeps a "Local" profile in its own settings
     /// on the machine that wrote the file, not in the file.
@@ -270,6 +287,7 @@ impl Finding {
             | Self::SecretsNotCarried { .. }
             | Self::ProtectedPasswordsNotCarried { .. }
             | Self::RdGatewayNotSupported { .. }
+            | Self::ProxyNotSupported { .. }
             | Self::CredentialProfileMissing { .. }
             | Self::LimitReached { .. } => Severity::Warning,
             Self::FullFileEncryption

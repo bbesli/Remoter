@@ -1,6 +1,6 @@
 [package]
 name = "remoter-import"
-description = "Importers for other connection managers (mRemoteNG, RDCMan, .rdp, OpenSSH config, CSV), and the exporters back out"
+description = "Importers for other connection managers (mRemoteNG, RDCMan, .rdp, PuTTY, OpenSSH config, CSV), and the exporters back out"
 license = "GPL-3.0-or-later"
 version.workspace = true
 edition.workspace = true
@@ -36,6 +36,14 @@ serde.workspace = true
 # The JSON export. Already in the graph through `remoter-ipc`.
 serde_json.workspace = true
 thiserror.workspace = true
+
+# Reading PuTTY's saved sessions straight out of `HKCU\Software\SimonTatham\
+# PuTTY\Sessions`, so a Windows user does not have to `reg export` them first.
+# MIT, Windows only, and already in the graph through `remoter-proto-rdp` and
+# tauri-build; recorded in `deny.toml`. The alternative is the registry API
+# over FFI, and this workspace forbids `unsafe`.
+[target.'cfg(windows)'.dependencies]
+winreg = "0.55"
 
 [dev-dependencies]
 proptest.workspace = true

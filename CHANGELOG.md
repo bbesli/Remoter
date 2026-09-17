@@ -265,6 +265,13 @@ this project adheres to [Semantic Versioning](https://semver.org/).
   instead of being dropped quietly
 
 #### Import
+- **PuTTY and KiTTY sessions import**, from wherever they are: *Use this
+  computer's PuTTY sessions* reads the Windows registry or `~/.putty/sessions`
+  directly, and a `reg export` from another machine works too. Host, account,
+  port, key file, keep-alive and KiTTY's folders come across; a session set to
+  go *SSH to proxy* gets a real gateway, through the saved session it names or a
+  jump host made for it, with the proxy password PuTTY kept. A SOCKS or HTTP
+  proxy, a Telnet session and a serial line are each named in the report
 - **Remote Desktop Connection Manager and `.rdp` files import.** An `.rdg`
   arrives as its groups and servers, with a port or an account set once on a
   group still set once on the folder; an `.rdp` file arrives as one connection

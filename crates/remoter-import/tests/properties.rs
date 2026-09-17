@@ -22,7 +22,9 @@
 
 use proptest::prelude::*;
 use remoter_core::{Node, Tree};
-use remoter_import::{ImportPreview, ImportedSecret, Limits, csv, mremoteng, ssh_config};
+use remoter_import::{
+    ImportPreview, ImportedSecret, Limits, csv, mremoteng, putty, rdcman, rdp_file, ssh_config,
+};
 
 /// Small limits, so a generated input reaches a ceiling instead of merely
 /// approaching one.
@@ -37,7 +39,7 @@ fn tree_of(preview: ImportPreview) -> Tree {
         .into_iter()
         .map(|node| {
             // Standing in for the vault's sealing call.
-            let sealed = node.needs_sealing().then(|| vec![0x5a; 32]);
+            let sealed = node.holds_password().then(|| vec![0x5a; 32]);
             node.into_node(1_700_000_000_000, sealed)
                 .unwrap_or_else(|err| panic!("a previewed node was not a valid node: {err}"))
         })
@@ -79,6 +81,33 @@ fn token() -> impl Strategy<Value = String> {
         Just(String::from("=")),
         Just(String::from("#")),
         Just(String::from("%h")),
+        Just(String::from("<RDCMan><file>")),
+        Just(String::from("</file></RDCMan>")),
+        Just(String::from(
+            "<group><properties><name>g</name></properties>"
+        )),
+        Just(String::from("</group>")),
+        Just(String::from(
+            "<server><properties><name>s.example.com</name></properties>"
+        )),
+        Just(String::from("</server>")),
+        Just(String::from(
+            r#"<logonCredentials inherit="None"><userName>u</userName><password>AQ==</password>"#
+        )),
+        Just(String::from(r#"<profileName scope="File">p</profileName>"#)),
+        Just(String::from("</logonCredentials>")),
+        Just(String::from("full address:s:")),
+        Just(String::from("username:s:")),
+        Just(String::from("password 51:b:")),
+        Just(String::from("Windows Registry Editor Version 5.00\n")),
+        Just(String::from(
+            "[HKEY_CURRENT_USER\\Software\\SimonTatham\\PuTTY\\Sessions\\"
+        )),
+        Just(String::from("]\n")),
+        Just(String::from(r#""HostName"=""#)),
+        Just(String::from(r#""ProxyMethod"=dword:00000006"#)),
+        Just(String::from(r#""ProxyHost"=""#)),
+        Just(String::from("HostName=")),
         "[a-z0-9.@:/-]{0,12}",
     ]
 }
@@ -94,7 +123,31 @@ proptest! {
         let _ = mremoteng::inspect(&bytes, &limits());
         let _ = ssh_config::parse(&bytes, &limits());
         let _ = csv::parse(&bytes, &limits());
+        let _ = rdcman::parse(&bytes, &limits());
+        let _ = rdp_file::parse(&bytes, "generated", &limits());
+        let _ = putty::parse_file(&bytes, "generated", &limits());
         let _ = remoter_import::detect(&bytes);
+    }
+
+    /// Whatever the three Windows-estate importers accept is a tree too:
+    /// Remote Desktop Connection Manager, `.rdp` files and PuTTY's sessions.
+    #[test]
+    fn every_windows_estate_preview_is_a_valid_tree(
+        parts in proptest::collection::vec(token(), 0..64)
+    ) {
+        let text = parts.concat();
+        if let Ok(preview) = rdcman::parse(text.as_bytes(), &limits()) {
+            let tree = tree_of(preview);
+            prop_assert!(tree.validate_all().is_empty());
+        }
+        if let Ok(preview) = rdp_file::parse(text.as_bytes(), "generated", &limits()) {
+            let tree = tree_of(preview);
+            prop_assert!(tree.validate_all().is_empty());
+        }
+        if let Ok(preview) = putty::parse_file(text.as_bytes(), "generated", &limits()) {
+            let tree = tree_of(preview);
+            prop_assert!(tree.validate_all().is_empty());
+        }
     }
 
     /// Nor does text assembled from the fragments these formats are made of,

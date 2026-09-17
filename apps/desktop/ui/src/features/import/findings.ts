@@ -94,6 +94,14 @@ export function describeFinding(t: TFunction<"import">, finding: ImportFinding):
         body: t("finding.protectedPasswordsNotCarriedBody"),
         code: null,
       };
+    case "proxy_not_supported":
+      return {
+        severity,
+        title: t("finding.proxyNotSupportedTitle", { item: isolate(finding.item) }),
+        body: t("finding.proxyNotSupportedBody"),
+        // The proxy's kind and address are both the file's own text.
+        code: finding.host === "" ? finding.proxy : `${finding.proxy} ${finding.host}`,
+      };
     case "rd_gateway_not_supported":
       return {
         severity,

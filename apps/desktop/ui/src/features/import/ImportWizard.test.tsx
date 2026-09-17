@@ -35,6 +35,7 @@ vi.mock("@/lib/ipc", async (importOriginal) => {
       commitImport: vi.fn(),
       cancelImport: vi.fn(),
       importConflicts: vi.fn(),
+      importPuttyLocation: vi.fn(),
       listNodes: vi.fn(),
     },
   };
@@ -50,6 +51,7 @@ const mocked = ipc as unknown as {
   commitImport: ReturnType<typeof vi.fn>;
   cancelImport: ReturnType<typeof vi.fn>;
   importConflicts: ReturnType<typeof vi.fn>;
+  importPuttyLocation: ReturnType<typeof vi.fn>;
   listNodes: ReturnType<typeof vi.fn>;
 };
 
@@ -172,6 +174,27 @@ describe("step gating", () => {
     await reachSecrets(user, detection());
     expect(mocked.detectImport).toHaveBeenCalledWith(PATH);
     expect(screen.getByText("Nothing to supply")).toBeInTheDocument();
+  });
+
+  it("fills in where this computer keeps PuTTY's sessions, or says it keeps none", async () => {
+    const user = userEvent.setup();
+    mocked.importPuttyLocation.mockResolvedValueOnce(null);
+    draw(<ImportWizard />);
+
+    await user.click(screen.getByRole("button", { name: "Use this computer's PuTTY sessions" }));
+    expect(
+      await screen.findByText("No saved PuTTY sessions were found on this computer."),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Path to the file")).toHaveValue("");
+
+    mocked.importPuttyLocation.mockResolvedValueOnce("/home/you/.putty/sessions");
+    await user.click(screen.getByRole("button", { name: "Use this computer's PuTTY sessions" }));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Path to the file")).toHaveValue("/home/you/.putty/sessions"),
+    );
+    expect(
+      screen.queryByText("No saved PuTTY sessions were found on this computer."),
+    ).not.toBeInTheDocument();
   });
 
   it("takes the format the user chooses when detection cannot read the file", async () => {

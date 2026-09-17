@@ -599,7 +599,7 @@
       ]
     },
     "unknown-format": {
-      "message": "Esse arquivo não está em um formato que o Remoter importa: não é um arquivo ou exportação JSON do Remoter, nem um documento do mRemoteNG, nem um documento do Remote Desktop Connection Manager, nem um arquivo .rdp, nem uma configuração do OpenSSH, nem uma exportação CSV.",
+      "message": "Esse arquivo não está em um formato que o Remoter importa: não é um arquivo ou exportação JSON do Remoter, nem um documento do mRemoteNG, nem um documento do Remote Desktop Connection Manager, nem um arquivo .rdp, nem sessões salvas do PuTTY, nem uma configuração do OpenSSH, nem uma exportação CSV.",
       "actions": [
         "Escolher o formato de origem você mesmo",
         "Exportar as conexões novamente como CSV"

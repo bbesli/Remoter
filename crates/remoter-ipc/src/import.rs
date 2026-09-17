@@ -24,7 +24,7 @@ use remoter_core::{Node, NodeId, NodeKind, SecretKind, Tree, TreePatch};
 use remoter_import::conflicts::{self, Candidate, ConflictPolicy};
 use remoter_import::{
     ImportPreview, ImportReport, ImportedSecret, Limits, NodeSummary, PreviewNode, Severity,
-    SourceFormat, csv, mremoteng, native, rdcman, rdp_file, ssh_config,
+    SourceFormat, csv, mremoteng, native, putty, rdcman, rdp_file, ssh_config,
 };
 use remoter_vault::archive::{self, ArchiveError};
 use remoter_vault::{AuditEvent, AuditOutcome, Secret, Vault};
@@ -58,6 +58,24 @@ pub(crate) fn import_detect(path: String) -> Result<ImportDetectionDto, IpcError
 fn import_detect_impl(path: String) -> Result<ImportDetectionDto, IpcError> {
     let path = PathBuf::from(path);
     let limits = Limits::new();
+    // PuTTY's sessions are a registry key or a directory, not a file, and are
+    // answered for before anything tries to read one.
+    if let Some(store) = SessionStore::at(&path) {
+        let sessions = store.read(&limits)?;
+        let size_bytes = sessions
+            .iter()
+            .flat_map(|session| session.values.iter())
+            .map(|(name, value)| name.len() + value.len())
+            .sum::<usize>();
+        return Ok(ImportDetectionDto {
+            path: path.display().to_string(),
+            size_bytes: u64::try_from(size_bytes).unwrap_or(u64::MAX),
+            format: Some(source_wire(SourceFormat::Putty).to_owned()),
+            format_label: Some(SourceFormat::Putty.label().to_owned()),
+            password_required: false,
+            document: None,
+        });
+    }
     let bytes = read_source(&path, &limits)?;
     let size_bytes = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
 
@@ -138,6 +156,14 @@ fn import_parse_impl(
     let subject = path.display().to_string();
     let limits = Limits::new();
 
+    if let Some(store) = SessionStore::at(&path) {
+        drop(password);
+        let sessions = store.read(&limits)?;
+        let preview = putty::parse_sessions(sessions, &limits)
+            .map_err(|err| IpcError::from_import(&err, &subject))?;
+        return hold_preview(state, SourceFormat::Putty, preview);
+    }
+
     let bytes = read_source(&path, &limits)?;
     let format = match source.as_deref() {
         Some(name) => parse_source(name)?,
@@ -165,6 +191,15 @@ fn import_parse_impl(
                 .unwrap_or_default(),
             &limits,
         ),
+        // A registry export, or one session file named as its session is.
+        SourceFormat::Putty => putty::parse_file(
+            &bytes,
+            &path
+                .file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+                .unwrap_or_default(),
+            &limits,
+        ),
         SourceFormat::OpenSshConfig => {
             // Includes are followed, confined to the directory the chosen file
             // lives in: an `Include /etc/shadow` in a file a colleague sent is
@@ -179,6 +214,16 @@ fn import_parse_impl(
     }
     .map_err(|err| IpcError::from_import(&err, &subject))?;
 
+    hold_preview(state, format, preview)
+}
+
+/// Holds a parsed preview until it is committed or cancelled, and hands the
+/// interface its secret-free summary.
+fn hold_preview(
+    state: &AppState,
+    format: SourceFormat,
+    preview: ImportPreview,
+) -> Result<ImportPreviewDto, IpcError> {
     let dto = preview_dto(format, &preview);
     let (nodes, report) = preview.into_parts();
 
@@ -195,6 +240,72 @@ fn import_parse_impl(
         native: None,
     });
     Ok(dto)
+}
+
+/// Where this computer keeps PuTTY's saved sessions, as a path the other
+/// import commands accept — or nothing, when it keeps none.
+///
+/// On Windows that is the registry key, and nothing is read from it here but
+/// whether it has sessions under it. Elsewhere it is `~/.putty/sessions`.
+#[tauri::command]
+pub(crate) fn import_putty_location() -> Option<String> {
+    #[cfg(windows)]
+    {
+        putty::REGISTRY_KEYS
+            .iter()
+            .find(|key| putty::registry_has_sessions(key))
+            .map(|key| format!("HKEY_CURRENT_USER\\{key}"))
+    }
+    #[cfg(not(windows))]
+    {
+        let home = std::env::var_os("HOME")?;
+        putty_directory_under(Path::new(&home))
+    }
+}
+
+/// `~/.putty/sessions` under `home`, when it holds at least one session.
+#[cfg(not(windows))]
+fn putty_directory_under(home: &Path) -> Option<String> {
+    let directory = home.join(".putty").join("sessions");
+    let has_one = fs::read_dir(&directory)
+        .ok()?
+        .flatten()
+        .any(|entry| entry.file_type().is_ok_and(|kind| kind.is_file()));
+    has_one.then(|| directory.display().to_string())
+}
+
+/// Saved sessions that are not one file.
+enum SessionStore {
+    /// One of [`putty::REGISTRY_KEYS`].
+    #[cfg(windows)]
+    Registry(&'static str),
+    /// A directory of session files, as `~/.putty/sessions` is.
+    Directory(PathBuf),
+}
+
+impl SessionStore {
+    /// What `path` names, when it names sessions rather than a file.
+    ///
+    /// A registry path is recognised only on Windows and only for the two
+    /// session keys; any other directory is read as a sessions directory,
+    /// because a directory is nothing else an importer here reads.
+    fn at(path: &Path) -> Option<Self> {
+        #[cfg(windows)]
+        if let Some(key) = path.to_str().and_then(putty::registry_key) {
+            return Some(Self::Registry(key));
+        }
+        path.is_dir().then(|| Self::Directory(path.to_path_buf()))
+    }
+
+    fn read(&self, limits: &Limits) -> Result<Vec<putty::Session>, IpcError> {
+        match self {
+            #[cfg(windows)]
+            Self::Registry(key) => putty::read_registry(key, limits)
+                .map_err(|err| IpcError::from_import(&err, &format!("HKEY_CURRENT_USER\\{key}"))),
+            Self::Directory(directory) => putty::read_directory(directory, limits)
+                .map_err(|err| IpcError::from_import(&err, &directory.display().to_string())),
+        }
+    }
 }
 
 /// The wire spelling of Remoter's own archive.
@@ -840,6 +951,7 @@ const fn source_wire(format: SourceFormat) -> &'static str {
         SourceFormat::RemoterJson => JSON_WIRE,
         SourceFormat::RdpFile => "rdp-file",
         SourceFormat::RdcMan => "rdcman",
+        SourceFormat::Putty => "putty",
         // `SourceFormat` is `#[non_exhaustive]`: a format added upstream is
         // named rather than mistaken for one of these.
         _ => "unknown",
@@ -855,11 +967,12 @@ fn parse_source(name: &str) -> Result<SourceFormat, IpcError> {
         JSON_WIRE => Ok(SourceFormat::RemoterJson),
         "rdp-file" => Ok(SourceFormat::RdpFile),
         "rdcman" => Ok(SourceFormat::RdcMan),
+        "putty" => Ok(SourceFormat::Putty),
         other => Err(IpcError::invalid_request(
             "source",
             format!(
-                "`{other}` is not an importer; expected mremoteng, rdcman, rdp-file, ssh-config, \
-                 csv, remoter-archive or remoter-json"
+                "`{other}` is not an importer; expected mremoteng, rdcman, rdp-file, putty, \
+                 ssh-config, csv, remoter-archive or remoter-json"
             ),
         )),
     }
@@ -870,7 +983,7 @@ fn unknown_format() -> IpcError {
         "import.unknown-format",
         "That file is not in a format Remoter imports: it is not a Remoter archive or JSON \
          export, an mRemoteNG document, a Remote Desktop Connection Manager document, an .rdp \
-         file, an OpenSSH config or a CSV export.",
+         file, saved PuTTY sessions, an OpenSSH config or a CSV export.",
     )
     .with_actions([
         "Choose the source format yourself",
@@ -1039,6 +1152,7 @@ mod tests {
             SourceFormat::RemoterJson,
             SourceFormat::RdpFile,
             SourceFormat::RdcMan,
+            SourceFormat::Putty,
         ] {
             let wire = source_wire(format);
             assert_eq!(parse_source(wire).ok(), Some(format), "wire: {wire}");
@@ -1488,6 +1602,77 @@ mod vault_tests {
             vault.borrow_secret(uuid, "password", remoter_vault::Purpose::RdpCredentials),
             Err(remoter_vault::VaultError::NoSuchSecret { .. })
         ));
+    }
+
+    #[test]
+    #[expect(
+        clippy::panic,
+        reason = "an import test without a vault has nothing left to assert"
+    )]
+    fn a_putty_sessions_directory_imports_with_its_jump_host() {
+        let scratch = Scratch::new();
+        let Some(state) = open_vault(&scratch) else {
+            panic!("the vault could not be created");
+        };
+        let home = scratch.join("home");
+        let sessions = home.join(".putty").join("sessions");
+        std::fs::create_dir_all(&sessions).unwrap_or_else(|err| panic!("mkdir failed: {err}"));
+        for (name, body) in [
+            (
+                "bastion",
+                "HostName=bastion.example.com\nProtocol=ssh\nUserName=jump\n",
+            ),
+            (
+                "db%20primary",
+                "HostName=db.internal\nProtocol=ssh\nPortNumber=2222\nProxyMethod=6\n\
+                 ProxyHost=bastion\nUserName=postgres\n",
+            ),
+        ] {
+            std::fs::write(sessions.join(name), body)
+                .unwrap_or_else(|err| panic!("writing {name} failed: {err}"));
+        }
+
+        #[cfg(not(windows))]
+        assert_eq!(
+            putty_directory_under(&home),
+            Some(sessions.display().to_string())
+        );
+        let path = sessions.display().to_string();
+        let detected = import_detect_impl(path.clone())
+            .unwrap_or_else(|err| panic!("detecting failed: {}", err.message));
+        assert_eq!(detected.format.as_deref(), Some("putty"));
+        let preview = import_parse_impl(&state, path, None, None)
+            .unwrap_or_else(|err| panic!("parsing failed: {}", err.message));
+        let committed = import_commit_impl(
+            &state,
+            ImportCommitDto {
+                import_id: preview.import_id,
+                destination_id: None,
+                excluded_ids: None,
+                conflict_policy: None,
+            },
+        )
+        .unwrap_or_else(|err| panic!("committing failed: {}", err.message));
+        assert_eq!(committed.source, "putty");
+        assert_eq!(committed.connections, 2);
+
+        let tree = tree_list_impl(&state).unwrap_or_default();
+        let bastion = tree
+            .iter()
+            .find(|node| node.name == "bastion")
+            .unwrap_or_else(|| panic!("no bastion: {tree:?}"));
+        let db = tree
+            .iter()
+            .find(|node| node.name == "db primary")
+            .unwrap_or_else(|| panic!("no db primary: {tree:?}"));
+        assert_eq!(db.port, Some(2222));
+        let hops: Vec<&str> = db
+            .gateway
+            .iter()
+            .flatten()
+            .map(|hop| hop.node_id.as_str())
+            .collect();
+        assert_eq!(hops, [bastion.id.as_str()], "{db:?}");
     }
 
     #[test]

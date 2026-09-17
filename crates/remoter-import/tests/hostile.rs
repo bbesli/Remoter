@@ -19,10 +19,13 @@
 use std::path::Path;
 
 use remoter_import::ssh_config::{MemoryConfigFiles, OsConfigFiles};
-use remoter_import::{ImportError, ImportedSecret, Limits, XmlProblem, csv, mremoteng, ssh_config};
+use remoter_import::{
+    ImportError, ImportedSecret, Limits, XmlProblem, csv, mremoteng, putty, rdcman, rdp_file,
+    ssh_config,
+};
 
 /// Every parser, behind one signature, so a hostile input can be pointed at
-/// all three without three copies of the assertion.
+/// all of them without a copy of the assertion each.
 fn parse_everything(bytes: &[u8], limits: &Limits) -> Vec<Result<(), ImportError>> {
     let password = ImportedSecret::from("mR3m");
     vec![
@@ -30,6 +33,10 @@ fn parse_everything(bytes: &[u8], limits: &Limits) -> Vec<Result<(), ImportError
         mremoteng::inspect(bytes, limits).map(|_| ()),
         ssh_config::parse(bytes, limits).map(|_| ()),
         csv::parse(bytes, limits).map(|_| ()),
+        rdcman::parse(bytes, limits).map(|_| ()),
+        rdp_file::parse(bytes, "hostile", limits).map(|_| ()),
+        putty::parse_reg(bytes, limits).map(|_| ()),
+        putty::parse_file(bytes, "hostile", limits).map(|_| ()),
     ]
 }
 
@@ -366,7 +373,7 @@ fn a_preview_from_a_hostile_file_still_produces_a_tree_or_a_named_refusal() {
     assert!(report.counts().skipped >= 1);
     for node in nodes {
         // Whatever survived is something the domain model accepts.
-        let sealed = node.needs_sealing().then(|| vec![1u8; 32]);
+        let sealed = node.holds_password().then(|| vec![1u8; 32]);
         node.into_node(0, sealed).unwrap();
     }
 }

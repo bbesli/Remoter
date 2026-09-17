@@ -56,6 +56,19 @@ describe("describeFinding", () => {
     expect(view.code).toBe("rdgw.example.com");
   });
 
+  it("names the proxy a PuTTY session will no longer go through", () => {
+    const view = describeFinding(t, {
+      severity: "warning",
+      kind: "proxy_not_supported",
+      item: "app",
+      proxy: "socks5",
+      host: "socks.example.com",
+    });
+    expect(view.title).toContain("app");
+    expect(view.body).toMatch(/never its password/);
+    expect(view.code).toBe("socks5 socks.example.com");
+  });
+
   it("names the credential profile the file does not contain", () => {
     const view = describeFinding(t, {
       severity: "warning",

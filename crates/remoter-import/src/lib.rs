@@ -68,6 +68,7 @@ mod mapping;
 pub mod mremoteng;
 pub mod native;
 mod preview;
+pub mod putty;
 pub mod rdcman;
 pub mod rdp_file;
 mod report;
@@ -154,6 +155,11 @@ pub fn detect(bytes: &[u8]) -> Option<SourceFormat> {
     // its other lines — `screen mode id:i:2` — would otherwise say nothing.
     if rdp_file::looks_like(text) {
         return Some(SourceFormat::RdpFile);
+    }
+    // A registry export opens with its own header, and a Unix session file is
+    // `Key=Value` lines no other format here writes.
+    if putty::looks_like_reg(text) || putty::looks_like_session_file(text) {
+        return Some(SourceFormat::Putty);
     }
     // A header row naming both required columns is a CSV, whatever its rows
     // say. Asked before the line test below because a quoted description can
@@ -296,6 +302,14 @@ mod tests {
         assert_eq!(
             detect(b"screen mode id:i:2\r\ndesktopwidth:i:1920\r\nfull address:s:dc01\r\n"),
             Some(SourceFormat::RdpFile)
+        );
+        assert_eq!(
+            detect(b"Windows Registry Editor Version 5.00\r\n\r\n[HKEY_CURRENT_USER\\Software\\SimonTatham\\PuTTY\\Sessions\\web]\r\n"),
+            Some(SourceFormat::Putty)
+        );
+        assert_eq!(
+            detect(b"HostName=web.example.com\nProtocol=ssh\nPortNumber=22\n"),
+            Some(SourceFormat::Putty)
         );
         assert_eq!(detect(b""), None);
         assert_eq!(detect(b"nothing recognisable here"), None);

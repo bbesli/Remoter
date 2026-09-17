@@ -17,7 +17,7 @@ import { FailureNotice } from "@/components/FailureNotice";
 import { Icon } from "@/components/Icon";
 import { TextInput } from "@/components/TextInput";
 import { formatBytes, isolateLtr, useLocale, useT } from "@/i18n";
-import type { ImportDetection, ImportSource, IpcFailure } from "@/lib/ipc";
+import { ipc, type ImportDetection, type ImportSource, type IpcFailure } from "@/lib/ipc";
 
 import s from "./ImportWizard.module.css";
 
@@ -34,6 +34,7 @@ const SOURCES: readonly {
     | "source.format.mremotengLabel"
     | "source.format.rdcmanLabel"
     | "source.format.rdpFileLabel"
+    | "source.format.puttyLabel"
     | "source.format.sshConfigLabel"
     | "source.format.csvLabel";
   hintKey:
@@ -42,6 +43,7 @@ const SOURCES: readonly {
     | "source.format.mremotengHint"
     | "source.format.rdcmanHint"
     | "source.format.rdpFileHint"
+    | "source.format.puttyHint"
     | "source.format.sshConfigHint"
     | "source.format.csvHint";
 }[] = [
@@ -66,6 +68,7 @@ const SOURCES: readonly {
     labelKey: "source.format.rdpFileLabel",
     hintKey: "source.format.rdpFileHint",
   },
+  { id: "putty", labelKey: "source.format.puttyLabel", hintKey: "source.format.puttyHint" },
   {
     id: "ssh-config",
     labelKey: "source.format.sshConfigLabel",
@@ -102,6 +105,26 @@ export function SourceStep({
   const { code: locale } = useLocale();
   const [browsing, setBrowsing] = useState(false);
   const [dialogError, setDialogError] = useState<string | null>(null);
+  const [lookingForPutty, setLookingForPutty] = useState(false);
+  /** Set when this computer was asked and has no PuTTY sessions to give. */
+  const [noPutty, setNoPutty] = useState(false);
+
+  // Sessions in the registry or in ~/.putty/sessions are not a file anyone
+  // would find in a file dialog, so the core says where they are.
+  const onLocalPutty = useCallback(() => {
+    setLookingForPutty(true);
+    setNoPutty(false);
+    void ipc
+      .importPuttyLocation()
+      .then(
+        (location) => {
+          if (location === null) setNoPutty(true);
+          else onPath(location);
+        },
+        () => setNoPutty(true),
+      )
+      .finally(() => setLookingForPutty(false));
+  }, [onPath]);
 
   const onBrowse = useCallback(() => {
     setBrowsing(true);
@@ -175,6 +198,18 @@ export function SourceStep({
           ariaLabel={t("source.pathLabel")}
           placeholder={t("source.pathPlaceholder")}
         />
+
+        <div className={s.fileRow}>
+          <BusyButton
+            variant="ghost"
+            busy={lookingForPutty}
+            busyLabel={t("source.puttyLooking")}
+            onClick={onLocalPutty}
+          >
+            {t("source.puttyLocal")}
+          </BusyButton>
+          {noPutty && <span className={s.stepLead}>{t("source.puttyNone")}</span>}
+        </div>
 
         {dialogError !== null && <p className={s.stepLead}>{dialogError}</p>}
         {detecting && <BusyStatus label={t("source.detecting")} />}
