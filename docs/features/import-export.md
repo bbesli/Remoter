@@ -182,11 +182,11 @@ restriction holds exactly as it does for a key in the vault, and an RDP or VNC
 session never reads the file at all. A file that is missing, unreadable, not a
 file, too large or not a key is refused with the path and which of those it
 was — and nothing from the file or from the operating system's error, so a
-reference to `/etc/shadow` learns only that it is not a key. ◐ An encrypted key
-is lent without a passphrase and the session raises the passphrase prompt, but
-this build's interface has no way to answer a passphrase prompt yet; choosing
-the key file again in the credential's settings stores it, with its passphrase,
-in the vault.
+reference to `/etc/shadow` learns only that it is not a key. An encrypted key
+is lent without a passphrase, and the session asks for it in the tab: what is
+typed opens the key for that attempt and is not saved. Choosing the key file
+again in the credential's settings stores it, with its passphrase, in the vault
+instead.
 
 ### Remote Desktop Connection Manager — ✅ shipped
 

@@ -1029,7 +1029,10 @@
       "message": "O bağlantı artık bu kasada değil. Başka bir pencerede silinmiş olabilir."
     },
     "no-such-prompt": {
-      "message": "O sunucu anahtarı sorusu artık açık değil. Oturum beklemekten vazgeçmiş olabilir."
+      "message": "Bu soru artık açık değil. Oturum beklemeyi bırakmış olabilir."
+    },
+    "prompt-kind-mismatch": {
+      "message": "Bu soru bu yolla yanıtlanamaz. Açtığı pencerede yanıtlayın."
     },
     "frozen": {
       "message": "Kasa kilitli ve bu kasanın ilkesi, kilit açılana dek oturum girişini dondurmak. Oturum hâlâ bağlı."

@@ -1029,7 +1029,10 @@
       "message": "Essa conexão não está mais neste cofre. Pode ter sido excluída em outra janela."
     },
     "no-such-prompt": {
-      "message": "Essa pergunta sobre a chave de host não está mais aberta. A sessão pode ter desistido de esperar."
+      "message": "Essa pergunta não está mais aberta. A sessão pode ter parado de esperar."
+    },
+    "prompt-kind-mismatch": {
+      "message": "Essa pergunta não pode ser respondida desta forma. Responda-a na caixa de diálogo que ela abriu."
     },
     "frozen": {
       "message": "O cofre está bloqueado, e a política deste cofre é congelar a entrada das sessões até que ele seja desbloqueado. A sessão continua conectada."

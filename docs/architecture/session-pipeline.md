@@ -128,6 +128,14 @@ go out of scope and are zeroized. Interactive prompts (keyboard-interactive,
 travel back over a dedicated channel and are never held longer than the
 challenge requires.
 
+✅ The same holds for a password nothing stored supplies — RDP asks for one —
+and for the passphrase of an encrypted key. Each is answered in the tab's
+dialog through `session_prompt_answer`, which carries typed text and nothing
+else: every open prompt is recorded as a trust decision or as a typed
+question, and each of the two commands refuses the other kind, so no password
+field can send `yes` to a host key. ⏳ Offering to save a typed answer back to
+the vault, which §3 describes, is not built; nothing typed is kept.
+
 ## 7 · Attach
 
 The session registers with the `SessionSupervisor`:

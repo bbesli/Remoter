@@ -20,6 +20,7 @@ import {
   ipc,
   sessionChannel,
   type HostKeyDecision,
+  type PromptResponse,
   type SessionMessage,
   type SessionOpened,
   type TreeNode,
@@ -451,12 +452,11 @@ function handleMessage(tabId: string, message: SessionMessage): void {
       return;
 
     case "prompt":
-      // A certificate question is answerable and is answered through
-      // `decideHostKey`; a password, passphrase or keyboard-interactive
-      // question is not, and saying so beats a dialog whose answer would go
-      // nowhere. The surface decides which of the two it is drawing — the
-      // whole prompt is carried here so it can, the certificate's fingerprint
-      // and reason included.
+      // A certificate question is answered through `decideHostKey`; a
+      // password, passphrase or keyboard-interactive question through
+      // `answerPrompt`. The surface decides which of the two it is drawing —
+      // the whole prompt is carried here so it can, the certificate's
+      // fingerprint and reason and the server's instruction included.
       store.patch(tabId, {
         prompt: {
           promptId: message.promptId,
@@ -465,7 +465,10 @@ function handleMessage(tabId: string, message: SessionMessage): void {
           echo: message.echo,
           fingerprint: message.fingerprint,
           reason: message.reason,
+          instruction: message.instruction,
         },
+        promptBusy: false,
+        promptError: null,
       });
       return;
 
@@ -568,6 +571,40 @@ export async function decideHostKey(tabId: string, decision: HostKeyDecision): P
     }
   } catch (error) {
     useSessions.getState().patch(tabId, { hostKeyBusy: false, hostKeyError: asFailure(error) });
+  }
+}
+
+/**
+ * Answers a password, passphrase or keyboard-interactive question.
+ *
+ * The typed value is handed straight to the command and not kept anywhere in
+ * the store: the record holds the question, never the answer. Cancelling is an
+ * answer too — the adapter gives up the attempt and the `closed` message says
+ * so, the same way declining a certificate ends one.
+ */
+export async function answerPrompt(
+  tabId: string,
+  promptId: number,
+  response: PromptResponse,
+): Promise<void> {
+  const store = useSessions.getState();
+  const record = store.byId[tabId];
+  if (record === undefined || record.sessionId === null) return;
+
+  store.patch(tabId, { promptBusy: true, promptError: null });
+  try {
+    await ipc.answerPrompt(record.sessionId, promptId, response);
+    const open = useSessions.getState().byId[tabId]?.prompt;
+    useSessions.getState().patch(tabId, {
+      promptBusy: false,
+      // Matched by id: the next question of a keyboard-interactive round may
+      // already be on screen, and this answer did not answer that one.
+      ...(open !== undefined && open !== null && open.promptId === promptId
+        ? { prompt: null }
+        : {}),
+    });
+  } catch (error) {
+    useSessions.getState().patch(tabId, { promptBusy: false, promptError: asFailure(error) });
   }
 }
 

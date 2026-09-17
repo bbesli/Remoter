@@ -1029,7 +1029,10 @@
       "message": "That connection is not in this vault any more. It may have been deleted in another window."
     },
     "no-such-prompt": {
-      "message": "That host key question is no longer open. The session may have given up waiting."
+      "message": "That question is no longer open. The session may have given up waiting."
+    },
+    "prompt-kind-mismatch": {
+      "message": "That question cannot be answered this way. Answer it in the dialog it opened."
     },
     "frozen": {
       "message": "The vault is locked, and this vault's policy is to freeze session input until it is unlocked. The session is still connected."

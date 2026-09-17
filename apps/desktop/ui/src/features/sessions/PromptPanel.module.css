@@ -1,56 +1,13 @@
-/* Two things live here, and they are deliberately different weights.
+/* Two things live here, and both are dialogs over the session.
 
-   The unanswerable prompt is a notice over the session: the attempt is stuck,
-   nothing can be done about it here, and it uses the same overlay the ended and
-   failed panels do.
+   The certificate question is a trust decision with two real outcomes, so it
+   takes the screen the way the host key dialog does — the same backdrop, the
+   same footer, the same audit line. That resemblance is on purpose: it is the
+   same decision about a different kind of key, and a user who has learned to
+   read one should not have to learn the other.
 
-   The certificate question is a dialog. It is a trust decision with two real
-   outcomes, so it takes the screen the way the host key dialog does — the same
-   backdrop, the same footer, the same audit line. That resemblance is on
-   purpose: it is the same decision about a different kind of key, and a user who
-   has learned to read one should not have to learn the other. */
-
-/* Anything drawn on the terminal ground inherits dark foregrounds, for the
-   reason SessionSurface.module.css sets out at length: the app's light theme
-   puts near-black text on a card that sits over a permanently dark terminal. */
-.overlay {
-  --fg-default: #e6e8ea;
-  --fg-strong: #c8ced4;
-  --fg-muted: #9aa1a9;
-  --fg-subtle: #8a929a;
-  --bg-surface: #1c1e22;
-  --bg-elevated: #23262b;
-  --bg-inset: #101114;
-  --border-default: #2a2e34;
-  --border-strong: #3a4048;
-
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-6);
-  background: var(--bg-overlay);
-  overflow-y: auto;
-}
-
-.notice {
-  width: 100%;
-  max-width: 36rem;
-}
-
-.noticeBody {
-  margin: 0 0 var(--space-2);
-  text-wrap: pretty;
-}
-
-.noticeActions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-top: var(--space-3);
-}
+   A typed question — a password, a passphrase, a one-time code — uses the same
+   frame with a field in it, because it suspends the attempt just as firmly. */
 
 /* Remote text — a keyboard-interactive challenge, or the address a certificate
    was offered for. Preformatted so its own line breaks survive, and it is text,
@@ -213,4 +170,17 @@
   display: flex;
   gap: var(--space-2);
   flex-wrap: wrap;
+}
+
+/* ------------------------------------------------- the typed question --- */
+
+.answerRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.answerField {
+  flex: 1 1 auto;
+  min-width: 0;
 }

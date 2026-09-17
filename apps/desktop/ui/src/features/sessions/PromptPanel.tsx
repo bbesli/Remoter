@@ -39,39 +39,37 @@
  *    issuer saying this key is compromised, and a fingerprint comparison cannot
  *    answer that. A malformed certificate has nothing to compare.
  *
- * **Everything else is still unanswerable**, and still says so. A password, a
- * key passphrase and a keyboard-interactive challenge have no command behind
- * them in this build, so they get the notice and the one honest control.
+ * **A typed question is a form.** A password with none stored, the passphrase of
+ * an encrypted key, a keyboard-interactive round — a one-time code, an expired
+ * password — are answered with what the user types, through
+ * `session_prompt_answer`, which the core refuses for a trust decision. Four
+ * rules hold for it:
+ *
+ * 1. **`echo` is the server's, and it is obeyed.** A field the server marked
+ *    secret is a password field, with a reveal toggle the user has to press.
+ * 2. **The answer is not kept.** It lives in this component's field until it is
+ *    sent and is cleared the moment it is; the session store holds the
+ *    question, never the answer, and nothing offers to save it.
+ * 3. **The server's words are text.** The question and the instruction of a
+ *    keyboard-interactive round are peer-supplied, and are rendered as text in
+ *    their own block — never as markup, never as a label a server could style.
+ * 4. **Cancelling is an answer.** It tells the adapter to give up, and the
+ *    attempt ends with a failure the tab can explain and retry.
  */
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { Button } from "@/components/Button";
-import { Callout } from "@/components/Callout";
 import { FailureNotice } from "@/components/FailureNotice";
+import { TextInput } from "@/components/TextInput";
 import { isolate, isolateLtr, useT } from "@/i18n";
 import { useFocusTrap } from "@/features/connections/focusTrap";
 import { useModalRegistration } from "@/hooks/useModalRegistration";
 import type { SessionPrompt } from "@/lib/ipc";
-import { cancelConnect, decideHostKey } from "./manager";
+import { answerPrompt, decideHostKey } from "./manager";
 import type { SessionRecord } from "./store";
 
 import s from "./PromptPanel.module.css";
-
-/**
- * What the server asked for, as the object of "It asked for …".
- *
- * A record rather than a key built from the wire token, so a kind the core adds
- * without copy for it is a compile error here. The old code printed the token
- * with its underscores swapped for spaces, which produced "key passphrase" in
- * English and nothing usable in any other language.
- */
-const PROMPT_KIND_KEYS = {
-  password: "surface.prompt.kind.password",
-  key_passphrase: "surface.prompt.kind.key_passphrase",
-  keyboard_interactive: "surface.prompt.kind.keyboard_interactive",
-  certificate: "surface.prompt.kind.certificate",
-} as const satisfies Record<SessionPrompt["kind"], string>;
 
 /**
  * Why the certificate is not trusted, in words.
@@ -260,36 +258,178 @@ function CertificateDialog({ record, prompt }: { record: SessionRecord; prompt: 
   );
 }
 
+/** The three typed questions, and the copy each is drawn with. */
+type TypedKind = Exclude<SessionPrompt["kind"], "certificate">;
+
+const TYPED_COPY = {
+  password: {
+    title: "surface.prompt.passwordTitle",
+    lead: "surface.prompt.passwordLead",
+    label: "surface.prompt.passwordLabel",
+  },
+  key_passphrase: {
+    title: "surface.prompt.passphraseTitle",
+    lead: "surface.prompt.passphraseLead",
+    label: "surface.prompt.passphraseLabel",
+  },
+  keyboard_interactive: {
+    title: "surface.prompt.challengeTitle",
+    lead: "surface.prompt.challengeLead",
+    label: "surface.prompt.answerLabel",
+  },
+} as const satisfies Record<TypedKind, { title: string; lead: string; label: string }>;
+
 /**
- * A question this build cannot answer.
+ * A password, passphrase or keyboard-interactive question, answered by typing.
  *
- * The one control is honest: the attempt is suspended on something no command
- * carries an answer for, and giving up is the only thing left to do from here.
+ * Escape cancels, and so does the backdrop: the core is suspended on this
+ * question, and walking away from it without saying so would leave the attempt
+ * waiting for an answer nobody is going to type.
  */
-function UnanswerablePrompt({ record, prompt }: { record: SessionRecord; prompt: SessionPrompt }) {
+function TypedPromptDialog({
+  record,
+  prompt,
+  kind,
+}: {
+  record: SessionRecord;
+  prompt: SessionPrompt;
+  kind: TypedKind;
+}) {
   const t = useT("sessions");
+  const dialogRef = useRef<HTMLFormElement>(null);
+  const [value, setValue] = useState("");
+  const [revealed, setRevealed] = useState(false);
+  const busy = record.promptBusy;
+  const copy = TYPED_COPY[kind];
+  const id = `prompt-${String(prompt.promptId)}`;
+  const fieldId = `${id}-field`;
+  const titleId = `${id}-title`;
+
+  useFocusTrap(true, dialogRef);
+  useModalRegistration(id, true);
+
+  // A keyboard-interactive round may legitimately be answered with nothing;
+  // a password or a passphrase may not.
+  const required = kind !== "keyboard_interactive";
+  const canSend = !busy && (!required || value !== "");
+
+  const cancel = () => {
+    setValue("");
+    void answerPrompt(record.tabId, prompt.promptId, { response: "cancel" });
+  };
+
+  const send = (event: FormEvent) => {
+    event.preventDefault();
+    if (!canSend) return;
+    const typed = value;
+    // Out of the field before the command is even awaited: a slow session is
+    // no reason for the answer to stay on screen.
+    setValue("");
+    setRevealed(false);
+    void answerPrompt(record.tabId, prompt.promptId, { response: "answer", value: typed });
+  };
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (record.promptBusy) return;
+      setValue("");
+      void answerPrompt(record.tabId, prompt.promptId, { response: "cancel" });
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [record.tabId, record.promptBusy, prompt.promptId]);
+
+  // The address the attempt is for: machine text, left to right, isolated.
+  const host = isolateLtr(record.target ?? record.name);
+  const secret = !prompt.echo;
+  const question = kind === "keyboard_interactive" ? prompt.text : "";
+  const instruction = kind === "keyboard_interactive" ? (prompt.instruction ?? "") : "";
 
   return (
-    <div className={s.overlay}>
-      <div className={s.notice}>
-        <Callout tone="warning" title={t("surface.prompt.title")}>
-          <p className={s.noticeBody}>
-            {t("surface.prompt.body", { kind: t(PROMPT_KIND_KEYS[prompt.kind]) })}
-          </p>
-          {prompt.text !== "" && (
-            <>
-              <p className={s.noticeBody}>{t("surface.prompt.serverText")}</p>
-              {/* The server's own text. Untrusted, and rendered as text. */}
-              <pre className={s.serverText}>{prompt.text}</pre>
-            </>
+    <div
+      className={s.backdrop}
+      onMouseDown={(event) => {
+        if (event.target !== event.currentTarget) return;
+        if (!busy) cancel();
+      }}
+    >
+      <form
+        ref={dialogRef}
+        className={s.dialog}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        onSubmit={send}
+      >
+        <header className={s.header}>
+          <p className={s.session}>{record.name}</p>
+          <h2 className={s.title} id={titleId}>
+            {t(copy.title, { host })}
+          </h2>
+          <p className={s.lead}>{t(copy.lead)}</p>
+        </header>
+
+        <div className={s.body}>
+          {(instruction !== "" || question !== "") && (
+            <div>
+              <p className={s.factLabel}>{t("surface.prompt.serverText")}</p>
+              {/* The server's own words. Untrusted, and rendered as text. */}
+              <pre className={s.serverText}>
+                {[instruction, question].filter((part) => part !== "").join("\n")}
+              </pre>
+            </div>
           )}
-          <div className={s.noticeActions}>
-            <Button variant="secondary" size="sm" onClick={() => void cancelConnect(record.tabId)}>
+
+          <div>
+            <label className={s.factLabel} htmlFor={fieldId}>
+              {t(copy.label)}
+            </label>
+            <div className={s.answerRow}>
+              <div className={s.answerField}>
+                <TextInput
+                  id={fieldId}
+                  value={value}
+                  onChange={setValue}
+                  type={secret && !revealed ? "password" : "text"}
+                  mono={!secret || revealed}
+                  autoFocus
+                  disabled={busy}
+                />
+              </div>
+              {secret && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setRevealed(!revealed)}
+                  disabled={busy}
+                >
+                  {revealed ? t("surface.prompt.hide") : t("surface.prompt.show")}
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {record.promptError !== null && (
+            <FailureNotice failure={record.promptError} title={t("surface.prompt.sendFailed")} />
+          )}
+        </div>
+
+        <footer className={s.footer}>
+          <p className={s.audited}>{t("surface.prompt.notSaved")}</p>
+          <div className={s.actions}>
+            <Button variant="secondary" onClick={cancel} disabled={busy}>
               {t("surface.prompt.cancel")}
             </Button>
+            <Button variant="primary" type="submit" disabled={!canSend}>
+              {busy ? t("surface.prompt.sending") : t("surface.prompt.submit")}
+            </Button>
           </div>
-        </Callout>
-      </div>
+        </footer>
+      </form>
     </div>
   );
 }
@@ -301,5 +441,14 @@ export function PromptPanel({ record }: { record: SessionRecord }) {
   if (prompt.kind === "certificate") {
     return <CertificateDialog record={record} prompt={prompt} />;
   }
-  return <UnanswerablePrompt record={record} prompt={prompt} />;
+  // Keyed by the question: the next round of a keyboard-interactive exchange
+  // is a new question, and must not inherit the field of the one before it.
+  return (
+    <TypedPromptDialog
+      key={prompt.promptId}
+      record={record}
+      prompt={prompt}
+      kind={prompt.kind}
+    />
+  );
 }

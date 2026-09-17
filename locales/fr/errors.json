@@ -1029,7 +1029,10 @@
       "message": "Cette connexion n'est plus dans ce coffre-fort. Elle a peut-être été supprimée dans une autre fenêtre."
     },
     "no-such-prompt": {
-      "message": "Cette question sur la clé d'hôte n'est plus ouverte. La session a peut-être cessé d'attendre."
+      "message": "Cette question n'est plus ouverte. La session a peut-être cessé d'attendre."
+    },
+    "prompt-kind-mismatch": {
+      "message": "Cette question ne peut pas recevoir de réponse ainsi. Répondez-y dans la boîte de dialogue qu'elle a ouverte."
     },
     "frozen": {
       "message": "Le coffre-fort est verrouillé, et sa politique est de geler la saisie des sessions jusqu'au déverrouillage. La session reste connectée."

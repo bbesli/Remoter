@@ -1029,7 +1029,10 @@
       "message": "Esa conexión ya no está en esta bóveda. Puede que se haya borrado en otra ventana."
     },
     "no-such-prompt": {
-      "message": "Esa pregunta sobre la clave de host ya no está abierta. Puede que la sesión haya dejado de esperar."
+      "message": "Esa pregunta ya no está abierta. Puede que la sesión haya dejado de esperar."
+    },
+    "prompt-kind-mismatch": {
+      "message": "Esa pregunta no se puede responder de esta manera. Respóndala en el cuadro de diálogo que abrió."
     },
     "frozen": {
       "message": "La bóveda está bloqueada, y la política de esta bóveda es congelar la entrada de las sesiones hasta que se desbloquee. La sesión sigue conectada."

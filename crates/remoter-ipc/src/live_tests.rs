@@ -48,9 +48,9 @@ use crate::commands::node_create_impl;
 use crate::dto::{CreateNodeDto, CredentialInputDto};
 use crate::error::IpcError;
 use crate::session::{
-    HostKeyDecisionDto, SessionMessageDto, SessionOpenedDto, host_key_decide_impl,
-    session_close_impl, session_input_impl, session_list_impl, session_open_impl,
-    session_resize_impl,
+    HostKeyDecisionDto, PromptResponseDto, SessionMessageDto, SessionOpenedDto,
+    host_key_decide_impl, session_close_impl, session_input_impl, session_list_impl,
+    session_open_impl, session_prompt_answer_impl, session_resize_impl,
 };
 use crate::sftp::{
     EnqueueReportDto, SftpPaneDto, TransferRequestDto, TransferStateDto, TransferStatusDto,
@@ -404,51 +404,76 @@ async fn a_key_file_an_import_points_at_opens_the_session() {
     }
 }
 
-/// An encrypted key file is lent without a passphrase, and the session asks for
-/// one rather than failing.
+/// An encrypted key file is lent without a passphrase: the session asks for
+/// one, and the passphrase typed into that question opens it.
 #[tokio::test(flavor = "multi_thread")]
-async fn an_encrypted_key_file_asks_for_its_passphrase() {
+async fn an_encrypted_key_file_opens_with_the_passphrase_typed_into_its_prompt() {
     let fixture = key_file_fixture("openssh-identity-file", ENCRYPTED_KEY);
     let (channel, _collected, mut control) = recording_channel();
-    let opening = tokio::spawn({
+    let answering = tokio::spawn({
         let state = Arc::clone(&fixture.state);
-        let node_id = fixture.node_id.clone();
-        async move { session_open_impl(&state, node_id, channel).await }
+        async move {
+            let mut session_id = None;
+            let mut asked = None;
+            while let Some(message) = control.recv().await {
+                match message {
+                    SessionMessageDto::Opening { session_id: id } => session_id = Some(id),
+                    SessionMessageDto::HostKey(prompt) => {
+                        let Some(id) = session_id else { continue };
+                        let _ = host_key_decide_impl(
+                            &state,
+                            id,
+                            HostKeyDecisionDto::Accept {
+                                prompt_id: prompt.prompt_id,
+                            },
+                        )
+                        .await;
+                    }
+                    SessionMessageDto::Prompt(prompt) => {
+                        let Some(id) = session_id else { continue };
+                        asked = Some(prompt.kind.clone());
+                        session_prompt_answer_impl(
+                            &state,
+                            id,
+                            prompt.prompt_id,
+                            PromptResponseDto::Answer {
+                                value: String::from(KEY_PASSPHRASE),
+                            },
+                        )
+                        .await
+                        .expect("the typed passphrase should reach the session");
+                    }
+                    SessionMessageDto::Ready(_) => break,
+                    _ => {}
+                }
+            }
+            asked
+        }
     });
 
-    let mut session_id = None;
-    let asked = tokio::time::timeout(Duration::from_secs(20), async {
-        while let Some(message) = control.recv().await {
-            match message {
-                SessionMessageDto::Opening { session_id: id } => session_id = Some(id),
-                SessionMessageDto::HostKey(prompt) => {
-                    let Some(id) = session_id else { continue };
-                    let _ = host_key_decide_impl(
-                        &fixture.state,
-                        id,
-                        HostKeyDecisionDto::Accept {
-                            prompt_id: prompt.prompt_id,
-                        },
-                    )
-                    .await;
-                }
-                SessionMessageDto::Prompt(prompt) => return Some(prompt.kind),
-                _ => {}
-            }
-        }
-        None
-    })
-    .await;
-    assert_eq!(
-        asked.ok().flatten().as_deref(),
-        Some("key_passphrase"),
-        "the session did not ask for the key's passphrase"
-    );
+    let opened = tokio::time::timeout(
+        Duration::from_secs(30),
+        session_open_impl(&fixture.state, fixture.node_id.clone(), channel),
+    )
+    .await
+    .expect("the session should not hang on its passphrase");
+    let opened = match opened {
+        Ok(opened) => opened,
+        Err(error) => panic!(
+            "the session did not open: {} — {}",
+            error.code, error.message
+        ),
+    };
+    assert_eq!(opened.auth_method, "publickey");
+    let asked = tokio::time::timeout(Duration::from_secs(5), answering)
+        .await
+        .expect("the answering task should finish")
+        .expect("the answering task should not panic");
+    assert_eq!(asked.as_deref(), Some("key_passphrase"));
 
-    if let Some(id) = session_id {
-        let _ = session_close_impl(&fixture.state, id).await;
-    }
-    opening.abort();
+    session_close_impl(&fixture.state, opened.session_id)
+        .await
+        .expect("closing should succeed");
 }
 
 /// Declining a first-use host key refuses the session, and says which host and

@@ -26,6 +26,7 @@ const ipcMock = vi.hoisted(() => ({
   resizeSession: vi.fn(),
   closeSession: vi.fn(),
   sendInput: vi.fn(),
+  answerPrompt: vi.fn(),
 }));
 
 /** Handlers of the channel the manager builds, captured as it builds them. */
@@ -66,7 +67,7 @@ vi.mock("./surfaces", () => ({
   writeFrame: vi.fn(),
 }));
 
-const { openSession, requestDesktopSize } = await import("./manager");
+const { answerPrompt, openSession, requestDesktopSize } = await import("./manager");
 const { useSessions } = await import("./store");
 
 function node(): TreeNode {
@@ -231,5 +232,79 @@ describe("a graphical tab's resize capability", () => {
     const record = useSessions.getState().byId[tabId];
     expect(record?.opened?.capabilities.resizable).toBe(true);
     expect(record?.scale.mode).toBe("actual");
+  });
+});
+
+describe("a question answered by typing", () => {
+  function asked(promptId: number): SessionMessage {
+    return {
+      event: "prompt",
+      promptId,
+      kind: "password",
+      text: "ctso-dc01.internal:3389",
+      echo: false,
+      fingerprint: null,
+      reason: null,
+      instruction: null,
+    };
+  }
+
+  it("sends the answer to the session that asked and takes that question down", async () => {
+    ipcMock.answerPrompt.mockResolvedValue(undefined);
+    const tabId = open();
+    push({ event: "opening", sessionId: 7 });
+    push(asked(3));
+    expect(useSessions.getState().byId[tabId]?.prompt?.promptId).toBe(3);
+
+    await answerPrompt(tabId, 3, { response: "answer", value: "zzq-typed-pw" });
+
+    expect(ipcMock.answerPrompt).toHaveBeenCalledWith(7, 3, {
+      response: "answer",
+      value: "zzq-typed-pw",
+    });
+    const record = useSessions.getState().byId[tabId];
+    expect(record?.prompt).toBeNull();
+    expect(record?.promptBusy).toBe(false);
+    // The store holds questions, never answers.
+    expect(JSON.stringify(record)).not.toContain("zzq-typed-pw");
+  });
+
+  it("leaves the next question of a round on screen", async () => {
+    // The adapter can raise the next keyboard-interactive question before the
+    // command for the previous answer has returned.
+    let release: () => void = () => undefined;
+    ipcMock.answerPrompt.mockReturnValue(
+      new Promise<void>((resolve) => {
+        release = resolve;
+      }),
+    );
+    const tabId = open();
+    push({ event: "opening", sessionId: 7 });
+    push(asked(3));
+
+    const sending = answerPrompt(tabId, 3, { response: "answer", value: "first" });
+    push(asked(4));
+    release();
+    await sending;
+
+    expect(useSessions.getState().byId[tabId]?.prompt?.promptId).toBe(4);
+  });
+
+  it("keeps the question and says why when the answer is refused", async () => {
+    ipcMock.answerPrompt.mockRejectedValue({
+      code: "session.no-such-prompt",
+      message: "That question is no longer open. The session may have given up waiting.",
+      detail: null,
+      actions: ["Try connecting again"],
+    });
+    const tabId = open();
+    push({ event: "opening", sessionId: 7 });
+    push(asked(3));
+
+    await answerPrompt(tabId, 3, { response: "cancel" });
+
+    const record = useSessions.getState().byId[tabId];
+    expect(record?.prompt?.promptId).toBe(3);
+    expect(record?.promptError?.code).toBe("session.no-such-prompt");
   });
 });

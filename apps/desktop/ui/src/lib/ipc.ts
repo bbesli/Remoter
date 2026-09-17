@@ -1701,7 +1701,17 @@ export interface SessionPrompt {
    * set from the core, so it is translated rather than printed. `null` for
    * every other kind. */
   reason: string | null;
+  /** The server's instruction above a keyboard-interactive question — "Your
+   * password has expired". Untrusted text; `null` for every other kind. */
+  instruction: string | null;
 }
+
+/**
+ * What the user did with a password, passphrase or keyboard-interactive
+ * question: typed an answer, or gave up. `value` is a secret typed a moment
+ * ago; it goes straight into the command and is not kept.
+ */
+export type PromptResponse = { response: "answer"; value: string } | { response: "cancel" };
 
 /** Progress on something long-running. */
 export interface SessionProgress {
@@ -2596,6 +2606,13 @@ export const ipc = {
    */
   decideHostKey: (sessionId: number, decision: HostKeyDecision) =>
     invoke<void>("host_key_decide", { sessionId, decision }),
+  /**
+   * Answers a password, passphrase or keyboard-interactive question. The core
+   * refuses it for a host key or certificate question, which only
+   * `decideHostKey` answers.
+   */
+  answerPrompt: (sessionId: number, promptId: number, response: PromptResponse) =>
+    invoke<void>("session_prompt_answer", { sessionId, promptId, response }),
 
   // --- tunnels ---
   /**

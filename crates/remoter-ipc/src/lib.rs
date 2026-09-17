@@ -38,7 +38,8 @@ pub use dto::*;
 pub use error::IpcError;
 pub use session::{
     CapabilitiesDto, HostKeyDecisionDto, HostKeyPromptDto, ProgressDto, PromptDto,
-    SessionFailureDto, SessionMessageDto, SessionOpenedDto, SessionSummaryDto, TrustedHostKeyDto,
+    PromptResponseDto, SessionFailureDto, SessionMessageDto, SessionOpenedDto, SessionSummaryDto,
+    TrustedHostKeyDto,
 };
 pub use sftp::{
     DirectoryEntryDto, EnqueueReportDto, EnqueueSkippedDto, NameRisksDto, PreflightProblemDto,
@@ -148,6 +149,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         session::session_close,
         session::session_list,
         session::host_key_decide,
+        session::session_prompt_answer,
         // --- sftp ---
         sftp::sftp_open,
         sftp::sftp_close,

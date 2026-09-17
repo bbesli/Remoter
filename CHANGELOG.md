@@ -236,6 +236,21 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 - `docs/architecture/sftp-command-surface.md`: what the file manager needs from
   `remoter-ipc`
 
+#### Sessions — questions a connection asks
+- **A password, a key passphrase and a keyboard-interactive question can be
+  answered.** They used to stop the attempt with a notice and a Cancel button,
+  because nothing carried an answer back. The tab now opens a dialog with a
+  field for it: RDP asks for a password when none is stored, an encrypted key
+  asks for its passphrase, and an SSH server's one-time code or expired-password
+  change is shown as the server wrote it, with the field hidden whenever the
+  server marked the answer secret. What is typed goes to that attempt only and
+  is never saved; cancelling ends the attempt the way declining a certificate
+  does
+- A trust decision cannot be typed and a typed question cannot be decided: the
+  core records every open prompt as one kind or the other, and each command
+  refuses the other kind, so a password field can never send `yes` to a changed
+  host key
+
 #### Export
 - **Remoter to Remoter, passwords included.** Exporting now asks first who the
   file is for. For another Remoter it writes a `.rmtr` archive: the chosen
@@ -272,8 +287,8 @@ this project adheres to [Semantic Versioning](https://semver.org/).
   account's home, and lent to the SSH adapter as the private key. The
   credential's protocol restriction still applies, the use is recorded in the
   audit log, and a file that is missing, unreadable or not a key is named with
-  the reason — never with anything read from it. An encrypted key file raises
-  the passphrase prompt, which the interface cannot answer yet
+  the reason — never with anything read from it. An encrypted key file asks
+  for its passphrase in the tab
 - **SSH host keys import from `known_hosts`.** *Import SSH host keys* in the
   command palette, or the link on the import wizard's first step, reads the
   account's own `~/.ssh/known_hosts` — hashed and wildcard entries matched

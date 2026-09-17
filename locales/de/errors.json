@@ -1029,7 +1029,10 @@
       "message": "Diese Verbindung ist nicht mehr in diesem Tresor. Möglicherweise wurde sie in einem anderen Fenster gelöscht."
     },
     "no-such-prompt": {
-      "message": "Diese Frage zum Hostschlüssel ist nicht mehr offen. Die Sitzung hat das Warten womöglich aufgegeben."
+      "message": "Diese Frage ist nicht mehr offen. Die Sitzung hat das Warten vielleicht aufgegeben."
+    },
+    "prompt-kind-mismatch": {
+      "message": "Diese Frage lässt sich so nicht beantworten. Beantworten Sie sie im Dialog, den sie geöffnet hat."
     },
     "frozen": {
       "message": "Der Tresor ist gesperrt, und seine Richtlinie friert die Eingabe in Sitzungen bis zum Entsperren ein. Die Sitzung ist weiterhin verbunden."

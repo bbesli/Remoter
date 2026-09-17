@@ -94,12 +94,16 @@ export interface SessionRecord {
   /**
    * Anything else the server asked for.
    *
-   * The `certificate` kind is answerable — it is a first-use trust decision,
-   * and `host_key_decide` takes it. The other three are shown and named rather
-   * than silently dropped, because this build has no command that carries an
-   * answer to them.
+   * The `certificate` kind is a first-use trust decision, answered through
+   * `host_key_decide`. The other three — a password, a key passphrase, a
+   * keyboard-interactive question — are answered with what the user types,
+   * through `session_prompt_answer`.
    */
   prompt: SessionPrompt | null;
+  /** A typed answer is on its way to the core. */
+  promptBusy: boolean;
+  /** Why a typed answer did not reach the session. */
+  promptError: IpcFailure | null;
 
   /**
    * Why the last keystroke did not reach the far end.
@@ -203,6 +207,8 @@ function seedRecord(seed: {
     hostKeyBusy: false,
     hostKeyError: null,
     prompt: null,
+    promptBusy: false,
+    promptError: null,
     inputError: null,
     warnings: [],
     metrics: { bytesIn: 0, bytesOut: 0, cols: 0, rows: 0, echoMs: null },

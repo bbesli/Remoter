@@ -318,6 +318,10 @@ pub struct PromptDto {
     /// `changed`. A closed set, so the interface translates it. `None` for
     /// every other kind.
     pub reason: Option<String>,
+    /// The server's instruction for a keyboard-interactive round, shown above
+    /// the field. Untrusted text. `None` for every other kind, and for a round
+    /// the server gave no instruction.
+    pub instruction: Option<String>,
 }
 
 /// Why a session ended, with everything the tab shows.
@@ -427,9 +431,17 @@ pub enum HostKeyDecisionDto {
 
 // =============================================================== the hub ===
 
-/// Which question a suspended host key prompt is asking.
+/// Which question a suspended prompt is asking — and so which command may
+/// answer it.
+///
+/// Two commands answer prompts, and they must never answer each other's:
+/// `host_key_decide` carries a trust decision, `session_prompt_answer` carries
+/// text somebody typed. A password field that could send `yes` to a changed host
+/// key would walk straight past the confirmation the replace path demands, so
+/// every open prompt is recorded here as one kind or the other, and each command
+/// refuses the other kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum HostKeyQuestion {
+enum OpenQuestion {
     /// Nothing is stored for this host and algorithm.
     Unknown,
     /// A different key is stored. A hard failure unless replaced deliberately.
@@ -444,6 +456,9 @@ enum HostKeyQuestion {
     /// the only prompt shape that can carry both fingerprints for the
     /// side-by-side comparison `docs/security/transport-security.md` demands.
     Certificate,
+    /// A password, a key passphrase or a keyboard-interactive challenge: answered
+    /// with what the user typed, and never with a decision.
+    Typed,
 }
 
 /// The three things a session command needs, cloned out of the registry so the
@@ -451,7 +466,7 @@ enum HostKeyQuestion {
 type SessionParts = (
     Arc<SessionHandle>,
     mpsc::Sender<PromptAnswer>,
-    Arc<Mutex<BTreeMap<u64, HostKeyQuestion>>>,
+    Arc<Mutex<BTreeMap<u64, OpenQuestion>>>,
 );
 
 /// One registered session, from this layer's side.
@@ -477,7 +492,7 @@ pub(crate) struct SessionEntry {
     answers: mpsc::Sender<PromptAnswer>,
     /// Host key prompts currently on screen, and which question each is asking.
     /// Written by the event forwarder, read by `host_key_decide`.
-    host_keys: Arc<Mutex<BTreeMap<u64, HostKeyQuestion>>>,
+    questions: Arc<Mutex<BTreeMap<u64, OpenQuestion>>>,
     node: NodeId,
     name: String,
     /// `ssh` or `sftp`. Stored rather than assumed: the session list used to
@@ -681,7 +696,7 @@ impl SessionHub {
         Some((
             Arc::clone(&entry.handle),
             entry.answers.clone(),
-            Arc::clone(&entry.host_keys),
+            Arc::clone(&entry.questions),
         ))
     }
 
@@ -1100,7 +1115,7 @@ pub(crate) async fn session_open_impl(
         answers_tx
     };
 
-    let host_keys = Arc::new(Mutex::new(BTreeMap::new()));
+    let questions = Arc::new(Mutex::new(BTreeMap::new()));
     // Read from the adapter rather than assumed: a file pane is not resizable
     // and has no clipboard, a framebuffer has no scrollback to search, and the
     // interface decides which controls to show from this rather than from the
@@ -1277,7 +1292,7 @@ pub(crate) async fn session_open_impl(
         SessionEntry {
             handle: Arc::new(handle),
             answers: answers_tx,
-            host_keys: Arc::clone(&host_keys),
+            questions: Arc::clone(&questions),
             node,
             name: name.clone(),
             protocol: protocol_wire.clone(),
@@ -1301,7 +1316,7 @@ pub(crate) async fn session_open_impl(
         tokio::spawn(forward_events(
             events,
             channel.clone(),
-            Arc::clone(&host_keys),
+            Arc::clone(&questions),
             forward_hub,
             state.inner_handle(),
             state.activity(),
@@ -1906,7 +1921,7 @@ pub(crate) async fn host_key_decide_impl(
     session_id: u64,
     decision: HostKeyDecisionDto,
 ) -> Result<(), IpcError> {
-    let (_, answers, host_keys) = state
+    let (_, answers, questions) = state
         .sessions()
         .command_parts(session_id)
         .ok_or_else(no_such_session)?;
@@ -1917,7 +1932,7 @@ pub(crate) async fn host_key_decide_impl(
         | HostKeyDecisionDto::Replace { prompt_id, .. } => *prompt_id,
     };
 
-    let question = host_keys.lock().get(&prompt_id).copied().ok_or_else(|| {
+    let question = questions.lock().get(&prompt_id).copied().ok_or_else(|| {
         IpcError::new(
             "session.no-such-prompt",
             "That host key question is no longer open. The session may have given up waiting.",
@@ -1926,14 +1941,18 @@ pub(crate) async fn host_key_decide_impl(
     })?;
 
     let answer = match (&decision, question) {
+        // Declining is the one thing both kinds of question accept.
+        (HostKeyDecisionDto::Reject { .. }, _) => {
+            PromptAnswer::cancelled(remoter_proto::PromptId::new(prompt_id))
+        }
+        (_, OpenQuestion::Typed) => return Err(wrong_command()),
         // `b"yes"` for both, and it is the same word on the wire: the RDP
         // adapter's `PromptChannel::confirm` reads exactly `yes` and treats
         // everything else — including a dismissed dialog — as a refusal.
-        (
-            HostKeyDecisionDto::Accept { .. },
-            HostKeyQuestion::Unknown | HostKeyQuestion::Certificate,
-        ) => PromptAnswer::new(remoter_proto::PromptId::new(prompt_id), b"yes".to_vec()),
-        (HostKeyDecisionDto::Accept { .. }, HostKeyQuestion::Changed) => {
+        (HostKeyDecisionDto::Accept { .. }, OpenQuestion::Unknown | OpenQuestion::Certificate) => {
+            PromptAnswer::new(remoter_proto::PromptId::new(prompt_id), b"yes".to_vec())
+        }
+        (HostKeyDecisionDto::Accept { .. }, OpenQuestion::Changed) => {
             // The rule this whole command exists for. A changed host key is a
             // possible man-in-the-middle; it must not be acceptable through the
             // path that accepts a first use.
@@ -1949,10 +1968,7 @@ pub(crate) async fn host_key_decide_impl(
                 "Contact the administrator",
             ]));
         }
-        (
-            HostKeyDecisionDto::Replace { .. },
-            HostKeyQuestion::Unknown | HostKeyQuestion::Certificate,
-        ) => {
+        (HostKeyDecisionDto::Replace { .. }, OpenQuestion::Unknown | OpenQuestion::Certificate) => {
             return Err(IpcError::new(
                 "session.host-key-nothing-to-replace",
                 "Nothing is stored for this host yet, so there is no key to replace. Review the \
@@ -1960,18 +1976,15 @@ pub(crate) async fn host_key_decide_impl(
             )
             .with_actions(["Review the host key"]));
         }
-        (HostKeyDecisionDto::Replace { confirmation, .. }, HostKeyQuestion::Changed) => {
+        (HostKeyDecisionDto::Replace { confirmation, .. }, OpenQuestion::Changed) => {
             PromptAnswer::new(
                 remoter_proto::PromptId::new(prompt_id),
                 confirmation.trim().as_bytes().to_vec(),
             )
         }
-        (HostKeyDecisionDto::Reject { .. }, _) => {
-            PromptAnswer::cancelled(remoter_proto::PromptId::new(prompt_id))
-        }
     };
 
-    host_keys.lock().remove(&prompt_id);
+    questions.lock().remove(&prompt_id);
     answers.send(answer).await.map_err(|_| session_closed())
 }
 
@@ -1984,7 +1997,7 @@ pub(crate) async fn host_key_decide_impl(
 async fn forward_events(
     mut events: mpsc::Receiver<SessionEvent>,
     channel: Channel<InvokeResponseBody>,
-    host_keys: Arc<Mutex<BTreeMap<u64, HostKeyQuestion>>>,
+    questions: Arc<Mutex<BTreeMap<u64, OpenQuestion>>>,
     hub: Arc<SessionHub>,
     inner: Arc<Mutex<Inner>>,
     activity: Arc<ActivityClock>,
@@ -2024,7 +2037,7 @@ async fn forward_events(
                 );
             }
             SessionEvent::Prompt(prompt) => {
-                let message = classify_prompt(&prompt, &host_keys);
+                let message = classify_prompt(&prompt, &questions);
                 send_control(&channel, &message);
             }
             SessionEvent::Progress(update) => {
@@ -2096,7 +2109,7 @@ async fn forward_events(
 /// path.
 fn classify_prompt(
     prompt: &Prompt,
-    host_keys: &Arc<Mutex<BTreeMap<u64, HostKeyQuestion>>>,
+    questions: &Arc<Mutex<BTreeMap<u64, OpenQuestion>>>,
 ) -> SessionMessageDto {
     match &prompt.kind {
         PromptKind::HostKey {
@@ -2108,11 +2121,11 @@ fn classify_prompt(
         } => {
             let changed = previously_trusted.is_some();
             let question = if changed {
-                HostKeyQuestion::Changed
+                OpenQuestion::Changed
             } else {
-                HostKeyQuestion::Unknown
+                OpenQuestion::Unknown
             };
-            host_keys.lock().insert(prompt.id.get(), question);
+            questions.lock().insert(prompt.id.get(), question);
             SessionMessageDto::HostKey(HostKeyPromptDto {
                 prompt_id: prompt.id.get(),
                 host: host.clone(),
@@ -2132,7 +2145,7 @@ fn classify_prompt(
         }
         other => {
             // The certificate case carries two more facts than the rest, and
-            // both of them leave this function. Recorded in `host_keys` so
+            // both of them leave this function. Recorded in `questions` so
             // `host_key_decide` can answer it — without that, the only
             // certificate a `session_open` could get past would be one signed
             // by a public trust anchor, which is not what a Windows host
@@ -2147,12 +2160,26 @@ fn classify_prompt(
                     fingerprint,
                     reason,
                 } => {
-                    host_keys
+                    questions
                         .lock()
-                        .insert(prompt.id.get(), HostKeyQuestion::Certificate);
+                        .insert(prompt.id.get(), OpenQuestion::Certificate);
                     (Some(fingerprint.clone()), Some(reason.clone()))
                 }
-                _ => (None, None),
+                // Recorded too, as the kind `session_prompt_answer` answers.
+                _ => {
+                    questions
+                        .lock()
+                        .insert(prompt.id.get(), OpenQuestion::Typed);
+                    (None, None)
+                }
+            };
+            // The server's instruction for a keyboard-interactive round: the
+            // "Your password has expired" above the fields. Peer-supplied text.
+            let instruction = match other {
+                PromptKind::KeyboardInteractive { instruction } if !instruction.is_empty() => {
+                    Some(instruction.clone())
+                }
+                _ => None,
             };
             SessionMessageDto::Prompt(PromptDto {
                 prompt_id: prompt.id.get(),
@@ -2161,9 +2188,98 @@ fn classify_prompt(
                 echo: prompt.echo,
                 fingerprint,
                 reason,
+                instruction,
             })
         }
     }
+}
+
+/// What the user typed for a password, passphrase or keyboard-interactive
+/// prompt, or their decision not to.
+///
+/// **Review note (CLAUDE.md §5).** `Answer` carries a secret, typed a moment
+/// ago. It is `Deserialize` only — nothing here can send one back out — and its
+/// `Debug` is written by hand so that no field of it is ever printed. The
+/// `String` serde builds is moved, not copied, into the zeroizing buffer
+/// `PromptAnswer` keeps; the copies the webview's IPC made on the way in are
+/// out of this crate's reach, which is the same limit every secret the interface
+/// sends already has.
+#[derive(Deserialize)]
+#[serde(
+    tag = "response",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum PromptResponseDto {
+    /// The text the user typed.
+    Answer { value: String },
+    /// The user closed the question instead.
+    Cancel,
+}
+
+impl std::fmt::Debug for PromptResponseDto {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Answer { .. } => "PromptResponseDto::Answer(<redacted>)",
+            Self::Cancel => "PromptResponseDto::Cancel",
+        })
+    }
+}
+
+/// Answers a password, passphrase or keyboard-interactive prompt.
+///
+/// The typed text goes to the session's own prompt channel and nowhere else: it
+/// is not stored, not logged, and not remembered for a next attempt.
+#[tauri::command]
+pub(crate) async fn session_prompt_answer(
+    state: State<'_, AppState>,
+    session_id: u64,
+    prompt_id: u64,
+    response: PromptResponseDto,
+) -> Result<(), IpcError> {
+    session_prompt_answer_impl(&state, session_id, prompt_id, response).await
+}
+
+pub(crate) async fn session_prompt_answer_impl(
+    state: &AppState,
+    session_id: u64,
+    prompt_id: u64,
+    response: PromptResponseDto,
+) -> Result<(), IpcError> {
+    let (_, answers, questions) = state
+        .sessions()
+        .command_parts(session_id)
+        .ok_or_else(no_such_session)?;
+
+    match questions.lock().get(&prompt_id).copied() {
+        Some(OpenQuestion::Typed) => {}
+        Some(_) => return Err(wrong_command()),
+        None => {
+            return Err(IpcError::new(
+                "session.no-such-prompt",
+                "That question is no longer open. The session may have given up waiting.",
+            )
+            .with_actions(["Try connecting again"]));
+        }
+    }
+
+    let id = remoter_proto::PromptId::new(prompt_id);
+    let answer = match response {
+        PromptResponseDto::Answer { value } => PromptAnswer::new(id, value.into_bytes()),
+        PromptResponseDto::Cancel => PromptAnswer::cancelled(id),
+    };
+    questions.lock().remove(&prompt_id);
+    answers.send(answer).await.map_err(|_| session_closed())
+}
+
+/// A prompt answered through the command meant for the other kind.
+fn wrong_command() -> IpcError {
+    IpcError::new(
+        "session.prompt-kind-mismatch",
+        "That question cannot be answered this way: a trust decision is not typed, and a \
+         password is not a decision. Answer it in the dialog it opened.",
+    )
+    .with_actions(["Try connecting again"])
 }
 
 /// Serialises a control event onto the channel.
@@ -2683,7 +2799,7 @@ mod tests {
         let unknown = classify_prompt(&host_key_prompt(None), &registry);
         assert_eq!(
             registry.lock().get(&7).copied(),
-            Some(HostKeyQuestion::Unknown)
+            Some(OpenQuestion::Unknown)
         );
         let SessionMessageDto::HostKey(dto) = unknown else {
             panic!("a host key prompt should classify as one");
@@ -2695,7 +2811,7 @@ mod tests {
         let changed = classify_prompt(&host_key_prompt(Some(trusted())), &registry);
         assert_eq!(
             registry.lock().get(&7).copied(),
-            Some(HostKeyQuestion::Changed)
+            Some(OpenQuestion::Changed)
         );
         let SessionMessageDto::HostKey(dto) = changed else {
             panic!("a host key prompt should classify as one");
@@ -2719,14 +2835,13 @@ mod tests {
             echo: false,
         };
         let message = classify_prompt(&prompt, &registry);
-        assert!(
-            registry.lock().is_empty(),
-            "only host key prompts are recorded"
-        );
+        // Recorded as something typed, which `host_key_decide` refuses.
+        assert_eq!(registry.lock().get(&3).copied(), Some(OpenQuestion::Typed));
         let SessionMessageDto::Prompt(dto) = message else {
             panic!("expected a plain prompt");
         };
         assert_eq!(dto.kind, "keyboard_interactive");
+        assert_eq!(dto.instruction.as_deref(), Some("Enter your code"));
         assert!(!dto.echo);
     }
 
@@ -2741,8 +2856,8 @@ mod tests {
         // A session that exists only far enough to carry a suspended prompt.
         let hub = state.sessions();
         let (answers, _prompts) = PromptChannel::new();
-        let host_keys = Arc::new(Mutex::new(BTreeMap::new()));
-        host_keys.lock().insert(9, HostKeyQuestion::Changed);
+        let questions = Arc::new(Mutex::new(BTreeMap::new()));
+        questions.lock().insert(9, OpenQuestion::Changed);
         let handle = hub
             .supervisor()
             .spawn(
@@ -2764,7 +2879,7 @@ mod tests {
             SessionEntry {
                 handle: Arc::new(handle),
                 answers,
-                host_keys: Arc::clone(&host_keys),
+                questions: Arc::clone(&questions),
                 node: NodeId::new(),
                 name: String::from("db-01"),
                 protocol: String::from(SSH_ID),
@@ -2786,10 +2901,10 @@ mod tests {
         };
         assert_eq!(error.code, "session.host-key-changed");
         // The prompt is still open: a refused decision must not consume it.
-        assert!(host_keys.lock().contains_key(&9));
+        assert!(questions.lock().contains_key(&9));
 
         // And the reverse: `replace` has nothing to replace on a first use.
-        host_keys.lock().insert(10, HostKeyQuestion::Unknown);
+        questions.lock().insert(10, OpenQuestion::Unknown);
         let refused = host_key_decide_impl(
             &state,
             id,
@@ -2805,6 +2920,162 @@ mod tests {
         );
 
         let _ = session_close_impl(&state, id).await;
+    }
+
+    /// A typed answer reaches the adapter that asked, a decision cannot be
+    /// typed, and a typed question cannot be decided.
+    #[tokio::test]
+    async fn a_typed_answer_reaches_the_question_and_neither_command_answers_the_other_kind() {
+        let scratch = crate::test_support::Scratch::new();
+        let Some(state) = crate::test_support::open_vault(&scratch) else {
+            panic!("the fixture vault could not be created");
+        };
+
+        let hub = state.sessions();
+        let (answers, prompts) = PromptChannel::new();
+        let questions = Arc::new(Mutex::new(BTreeMap::new()));
+        let handle = hub
+            .supervisor()
+            .spawn(
+                SessionSpec {
+                    node: NodeId::new(),
+                    protocol: remoter_core::ProtocolId::new(SSH_ID).unwrap(),
+                    capabilities: ssh_capabilities(),
+                    target: HostPort::new("127.0.0.1", 2222).unwrap(),
+                },
+                |ctx| async move {
+                    ctx.cancel.cancelled().await;
+                    Ok(CloseReason::ClosedByUser)
+                },
+            )
+            .unwrap();
+        let id = handle.id().get();
+        hub.insert(
+            id,
+            SessionEntry {
+                handle: Arc::new(handle),
+                answers,
+                questions: Arc::clone(&questions),
+                node: NodeId::new(),
+                name: String::from("db-01"),
+                protocol: String::from(SSH_ID),
+                capabilities: ssh_capabilities(),
+                connection: None,
+                events: None,
+                target: String::from("127.0.0.1:2222"),
+                username: String::from("ada"),
+                started_at_ms: 0,
+                connected: false,
+                audit_id: None,
+            },
+        );
+
+        // The adapter's side: a passphrase question, raised the way the SSH
+        // authentication ladder raises it.
+        let (events, mut raised) = remoter_proto::event_channel(8);
+        let asking = tokio::spawn({
+            let prompts = Arc::clone(&prompts);
+            async move {
+                prompts
+                    .ask(&events, PromptKind::KeyPassphrase, String::new(), false)
+                    .await
+            }
+        });
+        let Some(SessionEvent::Prompt(prompt)) = raised.recv().await else {
+            panic!("the question was not raised");
+        };
+        let message = classify_prompt(&prompt, &questions);
+        let SessionMessageDto::Prompt(dto) = message else {
+            panic!("a passphrase question is a plain prompt");
+        };
+        assert_eq!(dto.kind, "key_passphrase");
+
+        // Deciding it is refused, and leaves it open.
+        let decided = host_key_decide_impl(
+            &state,
+            id,
+            HostKeyDecisionDto::Accept {
+                prompt_id: dto.prompt_id,
+            },
+        )
+        .await;
+        assert_eq!(
+            decided.err().map(|e| e.code),
+            Some(String::from("session.prompt-kind-mismatch"))
+        );
+        assert!(questions.lock().contains_key(&dto.prompt_id));
+
+        // Typing it is what answers it.
+        session_prompt_answer_impl(
+            &state,
+            id,
+            dto.prompt_id,
+            PromptResponseDto::Answer {
+                value: String::from("correct horse"),
+            },
+        )
+        .await
+        .unwrap();
+        let typed = asking.await.unwrap().unwrap();
+        assert_eq!(typed.as_slice(), b"correct horse");
+        assert!(!questions.lock().contains_key(&dto.prompt_id));
+
+        // The same prompt twice is a question no longer open.
+        let again =
+            session_prompt_answer_impl(&state, id, dto.prompt_id, PromptResponseDto::Cancel).await;
+        assert_eq!(
+            again.err().map(|e| e.code),
+            Some(String::from("session.no-such-prompt"))
+        );
+
+        // A host key question cannot be typed at — not even with `yes`.
+        questions.lock().insert(40, OpenQuestion::Changed);
+        let typed_yes = session_prompt_answer_impl(
+            &state,
+            id,
+            40,
+            PromptResponseDto::Answer {
+                value: String::from("yes"),
+            },
+        )
+        .await;
+        assert_eq!(
+            typed_yes.err().map(|e| e.code),
+            Some(String::from("session.prompt-kind-mismatch"))
+        );
+        assert!(questions.lock().contains_key(&40));
+
+        // Cancelling reaches the asker as a cancellation.
+        let (events, mut raised) = remoter_proto::event_channel(8);
+        let asking = tokio::spawn({
+            let prompts = Arc::clone(&prompts);
+            async move {
+                prompts
+                    .ask(&events, PromptKind::Password, String::new(), false)
+                    .await
+            }
+        });
+        let Some(SessionEvent::Prompt(prompt)) = raised.recv().await else {
+            panic!("the question was not raised");
+        };
+        let _ = classify_prompt(&prompt, &questions);
+        session_prompt_answer_impl(&state, id, prompt.id.get(), PromptResponseDto::Cancel)
+            .await
+            .unwrap();
+        assert!(matches!(
+            asking.await.unwrap(),
+            Err(ProtocolError::AuthCancelled)
+        ));
+
+        let _ = session_close_impl(&state, id).await;
+    }
+
+    #[test]
+    fn a_typed_answer_is_never_printed() {
+        let response = PromptResponseDto::Answer {
+            value: String::from("zzq-typed-5e1"),
+        };
+        assert!(!format!("{response:?}").contains("zzq-typed"));
     }
 
     #[tokio::test]
@@ -2923,7 +3194,7 @@ mod tests {
             SessionEntry {
                 handle: Arc::new(handle),
                 answers: PromptChannel::new().0,
-                host_keys: Arc::new(Mutex::new(BTreeMap::new())),
+                questions: Arc::new(Mutex::new(BTreeMap::new())),
                 node: NodeId::new(),
                 name: String::from("lab-vnc"),
                 protocol: String::from(VNC_ID),
@@ -3036,7 +3307,7 @@ mod tests {
             SessionEntry {
                 handle: Arc::new(handle),
                 answers: PromptChannel::new().0,
-                host_keys: Arc::new(Mutex::new(BTreeMap::new())),
+                questions: Arc::new(Mutex::new(BTreeMap::new())),
                 node: NodeId::new(),
                 name: String::from("ctso-dc01"),
                 protocol: String::from(RDP_ID),
@@ -3114,7 +3385,7 @@ mod tests {
             SessionEntry {
                 handle: Arc::new(handle),
                 answers: PromptChannel::new().0,
-                host_keys: Arc::new(Mutex::new(BTreeMap::new())),
+                questions: Arc::new(Mutex::new(BTreeMap::new())),
                 node: NodeId::new(),
                 name: String::from("ctso-dc01"),
                 protocol: String::from(RDP_ID),
@@ -3199,7 +3470,7 @@ mod tests {
             SessionEntry {
                 handle: Arc::new(handle),
                 answers: PromptChannel::new().0,
-                host_keys: Arc::new(Mutex::new(BTreeMap::new())),
+                questions: Arc::new(Mutex::new(BTreeMap::new())),
                 node: NodeId::new(),
                 name: String::from("web-01"),
                 protocol: String::from(SSH_ID),
@@ -3510,7 +3781,7 @@ mod tests {
             SessionEntry {
                 handle: Arc::new(doomed),
                 answers: PromptChannel::new().0,
-                host_keys: Arc::new(Mutex::new(BTreeMap::new())),
+                questions: Arc::new(Mutex::new(BTreeMap::new())),
                 node: NodeId::new(),
                 name: String::from("doomed"),
                 protocol: String::from(SSH_ID),
@@ -3654,7 +3925,7 @@ mod tests {
         let message = classify_prompt(&prompt, &registry);
         assert_eq!(
             registry.lock().get(&4).copied(),
-            Some(HostKeyQuestion::Certificate)
+            Some(OpenQuestion::Certificate)
         );
         let SessionMessageDto::Prompt(dto) = message else {
             panic!("a certificate is a prompt, not a host key comparison");
@@ -3689,8 +3960,11 @@ mod tests {
         assert_eq!(dto.kind, "password");
         assert!(dto.fingerprint.is_none());
         assert!(dto.reason.is_none());
-        assert!(
-            registry.lock().is_empty(),
+        // Recorded, but as something typed: `host_key_decide` refuses it, so it
+        // is still not answerable as a trust decision.
+        assert_eq!(
+            registry.lock().get(&5).copied(),
+            Some(OpenQuestion::Typed),
             "a password question is not a trust decision and must not be answerable as one"
         );
     }
@@ -3708,8 +3982,8 @@ mod tests {
 
         let hub = state.sessions();
         let (answers, prompts) = PromptChannel::new();
-        let host_keys = Arc::new(Mutex::new(BTreeMap::new()));
-        host_keys.lock().insert(11, HostKeyQuestion::Certificate);
+        let questions = Arc::new(Mutex::new(BTreeMap::new()));
+        questions.lock().insert(11, OpenQuestion::Certificate);
         let handle = hub
             .supervisor()
             .spawn(
@@ -3731,7 +4005,7 @@ mod tests {
             SessionEntry {
                 handle: Arc::new(handle),
                 answers,
-                host_keys: Arc::clone(&host_keys),
+                questions: Arc::clone(&questions),
                 node: NodeId::new(),
                 name: String::from("win-01"),
                 protocol: String::from(RDP_ID),
@@ -3767,7 +4041,7 @@ mod tests {
                 .await
                 .is_ok()
         );
-        assert!(!host_keys.lock().contains_key(&11));
+        assert!(!questions.lock().contains_key(&11));
         drop(prompts);
 
         let _ = session_close_impl(&state, id).await;

@@ -146,6 +146,8 @@ function record(overrides: Partial<SessionRecord> = {}): SessionRecord {
     hostKeyBusy: false,
     hostKeyError: null,
     prompt: null,
+    promptBusy: false,
+    promptError: null,
     inputError: null,
     warnings: [],
     metrics: { bytesIn: 0, bytesOut: 0, cols: 0, rows: 0, echoMs: null },
