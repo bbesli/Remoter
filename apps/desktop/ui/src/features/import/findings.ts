@@ -87,6 +87,30 @@ export function describeFinding(t: TFunction<"import">, finding: ImportFinding):
         body: t("finding.secretsNotCarriedBody"),
         code: null,
       };
+    case "protected_passwords_not_carried":
+      return {
+        severity,
+        title: t("finding.protectedPasswordsNotCarriedTitle", { count: finding.count }),
+        body: t("finding.protectedPasswordsNotCarriedBody"),
+        code: null,
+      };
+    case "rd_gateway_not_supported":
+      return {
+        severity,
+        title: t("finding.rdGatewayNotSupportedTitle", { item: isolate(finding.item) }),
+        body: t("finding.rdGatewayNotSupportedBody"),
+        code: finding.host,
+      };
+    case "credential_profile_missing":
+      return {
+        severity,
+        title: t("finding.credentialProfileMissingTitle", {
+          item: isolate(finding.item),
+          profile: isolate(finding.profile),
+        }),
+        body: t("finding.credentialProfileMissingBody"),
+        code: null,
+      };
     case "credentials_deduplicated":
       return {
         severity,

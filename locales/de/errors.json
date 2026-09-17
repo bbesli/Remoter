@@ -599,7 +599,7 @@
       ]
     },
     "unknown-format": {
-      "message": "Diese Datei liegt in keinem Format vor, das Remoter importiert: weder ein Remoter-Archiv oder -JSON-Export noch ein mRemoteNG-Dokument, eine OpenSSH-Konfiguration oder ein CSV-Export.",
+      "message": "Diese Datei liegt in keinem Format vor, das Remoter importiert: weder ein Remoter-Archiv oder -JSON-Export noch ein mRemoteNG-Dokument, ein Remote-Desktop-Connection-Manager-Dokument, eine .rdp-Datei, eine OpenSSH-Konfiguration oder ein CSV-Export.",
       "actions": [
         "Das Quellformat selbst wählen",
         "Die Verbindungen erneut als CSV exportieren"

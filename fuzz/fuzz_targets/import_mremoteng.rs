@@ -45,7 +45,7 @@ fn check(preview: ImportPreview) {
     for node in nodes {
         // Standing in for the vault's sealing call, which this crate has no
         // access to and the fuzzer has no need of.
-        let sealed = node.needs_sealing().then(|| vec![0x5a; 32]);
+        let sealed = node.holds_password().then(|| vec![0x5a; 32]);
         let Ok(node) = node.into_node(0, sealed) else {
             panic!("a previewed node was not a valid node");
         };

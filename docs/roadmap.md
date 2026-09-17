@@ -46,7 +46,7 @@ today* table in [README.md](../README.md#what-works-today).
 - ✅ Every cryptographic known-answer test passes
 - ✅ Recovery unlock works after the password slot is deliberately destroyed
 - ◐ Truncation fuzzing produces no panic at any byte offset — the fuzz targets
-  that exist cover the five importers, the `.rmtr` archive among them, not the
+  that exist cover the seven importers, the `.rmtr` archive among them, not the
   vault container
 - ⏳ No secret appears in a `trace`-level log capture — **nothing runs this
   check.** `tracing-subscriber` is a dependency of `apps/desktop/src-tauri`
@@ -169,14 +169,15 @@ after all.
   another vault, a JSON export reads back as the same tree less its secrets,
   and CSV and `ssh_config` exports read back as the same connections, under test, with a property test on CSV field contents. ⏳ A
   property test over arbitrary trees
-- ◐ Every fuzz target has run 24 hours with no crash — five targets exist, for
-  the five importers; none has had a 24-hour run recorded
+- ◐ Every fuzz target has run 24 hours with no crash — seven targets exist, for
+  the seven importers; none has had a 24-hour run recorded
 - ⏳ WCAG 2.2 AA verified across all four themes — the four themes exist; nothing has audited them
 - ⏳ Screen readers verified on all three platforms
 
 ## v1.0 — Release
 
-- RDCMan and `.rdp` import
+- ✅ RDCMan and `.rdp` import — ahead of the milestone. Saved passwords in either
+  are bound to Windows and stay behind; the credentials ask for them
 - Code signing for every target — Authenticode on Windows, Developer ID with
   notarisation and stapling on macOS, GPG-signed artefacts on Linux. The
   packaging half of this has landed: a `vX.Y.Z` tag already produces installers

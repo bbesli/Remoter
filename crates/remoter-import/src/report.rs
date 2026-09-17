@@ -28,6 +28,10 @@ pub enum SourceFormat {
     RemoterArchive,
     /// The JSON document Remoter's export writes: the tree, without secrets.
     RemoterJson,
+    /// A Remote Desktop Connection `.rdp` file.
+    RdpFile,
+    /// A Remote Desktop Connection Manager `.rdg` document.
+    RdcMan,
 }
 
 impl SourceFormat {
@@ -40,6 +44,8 @@ impl SourceFormat {
             Self::Csv => "csv",
             Self::RemoterArchive => "remoter_archive",
             Self::RemoterJson => "remoter_json",
+            Self::RdpFile => "rdp_file",
+            Self::RdcMan => "rdcman",
         }
     }
 }
@@ -200,6 +206,36 @@ pub enum Finding {
         column: String,
     },
 
+    /// Saved passwords the file holds in a form only Windows can open — Windows
+    /// data protection, bound to the account that saved them, or a certificate
+    /// that stayed on that machine. The credentials arrive with their account
+    /// names and without the passwords, and each asks for its password the
+    /// first time it is used.
+    ProtectedPasswordsNotCarried {
+        /// How many saved passwords.
+        count: usize,
+    },
+
+    /// A connection that goes through a Remote Desktop Gateway, which this
+    /// build does not speak. The connection is imported and connects directly;
+    /// the gateway's host is kept in its `custom_fields`.
+    RdGatewayNotSupported {
+        /// The connection or folder it was set on.
+        item: String,
+        /// The gateway's host, as written.
+        host: String,
+    },
+
+    /// A credential profile the file refers to and does not contain. Remote
+    /// Desktop Connection Manager keeps a "Local" profile in its own settings
+    /// on the machine that wrote the file, not in the file.
+    CredentialProfileMissing {
+        /// The connection or folder that used it.
+        item: String,
+        /// The profile's name.
+        profile: String,
+    },
+
     /// Credentials that arrive without the secret they hold — a Remoter JSON
     /// export carries which kind of secret each one has and never the secret.
     /// They are imported as they are, and each asks for its password or key
@@ -232,6 +268,9 @@ impl Finding {
             | Self::MatchBlockNotApplied { .. }
             | Self::UnknownColumn { .. }
             | Self::SecretsNotCarried { .. }
+            | Self::ProtectedPasswordsNotCarried { .. }
+            | Self::RdGatewayNotSupported { .. }
+            | Self::CredentialProfileMissing { .. }
             | Self::LimitReached { .. } => Severity::Warning,
             Self::FullFileEncryption
             | Self::SecretsRecovered { .. }

@@ -32,12 +32,16 @@ const SOURCES: readonly {
     | "source.format.archiveLabel"
     | "source.format.jsonLabel"
     | "source.format.mremotengLabel"
+    | "source.format.rdcmanLabel"
+    | "source.format.rdpFileLabel"
     | "source.format.sshConfigLabel"
     | "source.format.csvLabel";
   hintKey:
     | "source.format.archiveHint"
     | "source.format.jsonHint"
     | "source.format.mremotengHint"
+    | "source.format.rdcmanHint"
+    | "source.format.rdpFileHint"
     | "source.format.sshConfigHint"
     | "source.format.csvHint";
 }[] = [
@@ -51,6 +55,16 @@ const SOURCES: readonly {
     id: "mremoteng",
     labelKey: "source.format.mremotengLabel",
     hintKey: "source.format.mremotengHint",
+  },
+  {
+    id: "rdcman",
+    labelKey: "source.format.rdcmanLabel",
+    hintKey: "source.format.rdcmanHint",
+  },
+  {
+    id: "rdp-file",
+    labelKey: "source.format.rdpFileLabel",
+    hintKey: "source.format.rdpFileHint",
   },
   {
     id: "ssh-config",

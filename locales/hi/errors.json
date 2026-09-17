@@ -599,7 +599,7 @@
       ]
     },
     "unknown-format": {
-      "message": "वह फ़ाइल ऐसे प्रारूप में नहीं है जिसे Remoter आयात करता है: यह न Remoter आर्काइव या JSON एक्सपोर्ट है, न mRemoteNG दस्तावेज़, न OpenSSH कॉन्फ़िग, न CSV निर्यात।",
+      "message": "वह फ़ाइल ऐसे प्रारूप में नहीं है जिसे Remoter आयात करता है: यह न Remoter आर्काइव या JSON एक्सपोर्ट है, न mRemoteNG दस्तावेज़, न Remote Desktop Connection Manager दस्तावेज़, न .rdp फ़ाइल, न OpenSSH कॉन्फ़िग, न CSV निर्यात।",
       "actions": [
         "स्रोत प्रारूप खुद चुनें",
         "कनेक्शनों को फिर से CSV में निर्यात करें"

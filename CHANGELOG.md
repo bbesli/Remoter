@@ -265,6 +265,18 @@ this project adheres to [Semantic Versioning](https://semver.org/).
   instead of being dropped quietly
 
 #### Import
+- **Remote Desktop Connection Manager and `.rdp` files import.** An `.rdg`
+  arrives as its groups and servers, with a port or an account set once on a
+  group still set once on the folder; an `.rdp` file arrives as one connection
+  named after the file. Desktop size, start program, working directory and
+  network-level authentication become the RDP connection's own settings, and
+  everything else is kept with the connection
+- Saved passwords in either are encrypted by Windows for the account that saved
+  them and cannot be read anywhere else. The credentials come in with their user
+  names, the report says how many passwords stayed behind, and each credential
+  asks for its password the first time it is used. A Remote Desktop Gateway, a
+  credential profile the document does not contain, and a smart group are each
+  named in the report rather than dropped quietly
 - **Remoter's JSON export imports back.** The tree returns with its
   inheritance, settings, custom fields, tags, icons and colours; credentials
   keep the kind of secret they held and ask for it the first time they are

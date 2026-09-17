@@ -599,7 +599,7 @@
       ]
     },
     "unknown-format": {
-      "message": "该文件不是 Remoter 可导入的格式：它既不是 Remoter 归档或 JSON 导出，也不是 mRemoteNG 文档、OpenSSH 配置或 CSV 导出文件。",
+      "message": "该文件不是 Remoter 可导入的格式：它既不是 Remoter 归档或 JSON 导出，也不是 mRemoteNG 文档、Remote Desktop Connection Manager 文档、.rdp 文件、OpenSSH 配置或 CSV 导出文件。",
       "actions": [
         "自行选择来源格式",
         "将连接重新导出为 CSV"

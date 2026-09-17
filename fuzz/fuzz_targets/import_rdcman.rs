@@ -1,19 +1,19 @@
-//! Fuzzes the CSV reader.
+//! Fuzzes the Remote Desktop Connection Manager reader.
 //!
-//! The state machine is small — quoted, unquoted, escaped quote, delimiter,
-//! record end — which is exactly why it is worth fuzzing: an off-by-one in a
-//! five-state reader is easy to write and hard to see. The delimiter is chosen
-//! from the header row, so an input whose first line is unlike its body reaches
-//! a different reader than the one it looks like it should.
+//! The XML underneath is the hardened reader every XML importer shares, and
+//! that has its own coverage through `import_mremoteng`. What this reaches is
+//! the walk over the element tree: settings blocks in either schema's place,
+//! `inherit` spelled any way at all, a profile that names a profile, groups
+//! nested to the depth limit, and a `<file>` that is not where it should be.
 
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
 use remoter_core::{Node, Tree};
-use remoter_import::{Limits, csv};
+use remoter_import::{Limits, rdcman};
 
 fuzz_target!(|data: &[u8]| {
-    let Ok(preview) = csv::parse(data, &Limits::small()) else {
+    let Ok(preview) = rdcman::parse(data, &Limits::small()) else {
         return;
     };
 

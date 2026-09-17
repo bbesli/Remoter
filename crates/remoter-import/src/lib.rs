@@ -68,6 +68,8 @@ mod mapping;
 pub mod mremoteng;
 pub mod native;
 mod preview;
+pub mod rdcman;
+pub mod rdp_file;
 mod report;
 mod secret;
 pub mod ssh_config;
@@ -129,7 +131,11 @@ pub fn detect(bytes: &[u8]) -> Option<SourceFormat> {
     // file the importer goes on to parse without complaint.
     let prolog = xml::sniff_head(&bytes[..bytes.len().min(XML_ROOT_BYTES)]);
     if let Some(root) = root_element(&prolog) {
-        return (root == MREMOTENG_ROOT).then_some(SourceFormat::MRemoteNg);
+        return match root {
+            MREMOTENG_ROOT => Some(SourceFormat::MRemoteNg),
+            rdcman::ROOT_ELEMENT => Some(SourceFormat::RdcMan),
+            _ => None,
+        };
     }
 
     // No root element within [`XML_ROOT_BYTES`]: either the file is not markup
@@ -143,6 +149,11 @@ pub fn detect(bytes: &[u8]) -> Option<SourceFormat> {
     // opens `Host `.
     if is_remoter_json(text) {
         return Some(SourceFormat::RemoterJson);
+    }
+    // An `.rdp` file's address line has a shape no other format here has, and
+    // its other lines — `screen mode id:i:2` — would otherwise say nothing.
+    if rdp_file::looks_like(text) {
+        return Some(SourceFormat::RdpFile);
     }
     // A header row naming both required columns is a CSV, whatever its rows
     // say. Asked before the line test below because a quoted description can
@@ -278,8 +289,26 @@ mod tests {
             detect(b"name,host,protocol\na,b,ssh\n"),
             Some(SourceFormat::Csv)
         );
+        assert_eq!(
+            detect(br#"<?xml version="1.0" encoding="utf-8"?><RDCMan programVersion="2.93" schemaVersion="3"><file>"#),
+            Some(SourceFormat::RdcMan)
+        );
+        assert_eq!(
+            detect(b"screen mode id:i:2\r\ndesktopwidth:i:1920\r\nfull address:s:dc01\r\n"),
+            Some(SourceFormat::RdpFile)
+        );
         assert_eq!(detect(b""), None);
         assert_eq!(detect(b"nothing recognisable here"), None);
+    }
+
+    /// `mstsc` saves as UTF-16 with a mark, and that is the file a person has.
+    #[test]
+    fn an_rdp_file_as_mstsc_saves_it_is_recognised() {
+        let mut bytes = vec![0xff, 0xfe];
+        for unit in "screen mode id:i:2\r\nfull address:s:dc01.contoso.com\r\n".encode_utf16() {
+            bytes.extend_from_slice(&unit.to_le_bytes());
+        }
+        assert_eq!(detect(&bytes), Some(SourceFormat::RdpFile));
     }
 
     /// The shape a person's own `confCons.xml` is actually in.

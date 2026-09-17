@@ -44,7 +44,7 @@ application. Comparable to mRemoteNG and Royal TS. Licensed GPL-3.0.
 
 **Current state: alpha, and it runs.** There is a Cargo workspace, a React
 frontend and a Tauri shell. The vault, the connection tree, SSH, SFTP, RDP, VNC,
-port forwarding, five importers, export, the audit log and ten localisations are
+port forwarding, seven importers, export, the audit log and ten localisations are
 implemented and have been used against real servers.
 
 What is **not** implemented, so that you do not go looking for it: session
@@ -113,7 +113,8 @@ crates/
                         dynamic forwarding, the SOCKS5 server
   remoter-proto-rdp/    RDP (IronRDP), CredSSP/NTLMv2
   remoter-proto-vnc/    VNC / RFB (vnc-rs), with the handshake owned here
-  remoter-import/       mRemoteNG confCons.xml, ssh_config, CSV, Remoter JSON;
+  remoter-import/       mRemoteNG confCons.xml, RDCMan .rdg, .rdp, ssh_config,
+                        CSV, Remoter JSON;
                         grafting an archive, conflict resolution, and the
                         CSV / ssh_config / JSON exporters
   remoter-plugin-abi/   Plugin ABI types and wire format   (Apache-2.0 OR MIT)

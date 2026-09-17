@@ -44,6 +44,34 @@ pub(crate) fn parse_port(raw: &str) -> Option<u16> {
     raw.trim().parse::<u16>().ok().filter(|port| *port != 0)
 }
 
+/// Splits an address that may carry a port — `host`, `host:3390`,
+/// `[2001:db8::1]:3390` — into the host the domain model stores and the port.
+///
+/// A bare IPv6 literal has more than one colon and no port, and comes back
+/// bracketed, which is the only spelling of one [`remoter_core::validate_host`]
+/// accepts. `None` when a port is there and is not one.
+pub(crate) fn split_address(raw: &str) -> Option<(String, Option<u16>)> {
+    let raw = raw.trim();
+    if let Some(inner) = raw.strip_prefix('[') {
+        let (address, rest) = inner.split_once(']')?;
+        let host = format!("[{address}]");
+        return match rest.strip_prefix(':') {
+            Some(port) => Some((host, Some(parse_port(port)?))),
+            None if rest.is_empty() => Some((host, None)),
+            None => None,
+        };
+    }
+    match raw.matches(':').count() {
+        0 => Some((raw.to_owned(), None)),
+        1 => {
+            let (host, port) = raw.split_once(':')?;
+            Some((host.to_owned(), Some(parse_port(port)?)))
+        }
+        _ if raw.parse::<std::net::Ipv6Addr>().is_ok() => Some((format!("[{raw}]"), None)),
+        _ => None,
+    }
+}
+
 /// Reads one of the several spellings of "true" these formats use.
 pub(crate) fn parse_bool(raw: &str) -> bool {
     matches!(
@@ -271,6 +299,10 @@ fn digest(secret: &PreviewSecret) -> [u8; 20] {
             hasher.update(b"password\0");
             hasher.update(password.expose().as_bytes());
         }
+        PreviewSecret::PasswordNotCarried(identity) => {
+            hasher.update(b"not-carried\0");
+            hasher.update(identity);
+        }
         PreviewSecret::Unsealed(SecretKind::Agent { comment_filter }) => {
             hasher.update(b"agent\0");
             hasher.update(comment_filter.as_deref().unwrap_or("").as_bytes());
@@ -350,6 +382,31 @@ mod tests {
         assert!(parse_bool("1"));
         assert!(!parse_bool("false"));
         assert!(!parse_bool(""));
+    }
+
+    #[test]
+    fn an_address_gives_up_its_port_and_keeps_an_ipv6_literal_whole() {
+        assert_eq!(split_address("dc01"), Some(("dc01".to_owned(), None)));
+        assert_eq!(
+            split_address(" dc01.contoso.com:3390 "),
+            Some(("dc01.contoso.com".to_owned(), Some(3390)))
+        );
+        assert_eq!(
+            split_address("[2001:db8::1]:3390"),
+            Some(("[2001:db8::1]".to_owned(), Some(3390)))
+        );
+        assert_eq!(
+            split_address("[2001:db8::1]"),
+            Some(("[2001:db8::1]".to_owned(), None))
+        );
+        assert_eq!(
+            split_address("2001:db8::1"),
+            Some(("[2001:db8::1]".to_owned(), None))
+        );
+        assert_eq!(split_address("dc01:rdp"), None);
+        assert_eq!(split_address("dc01:0"), None);
+        assert_eq!(split_address("[2001:db8::1]x"), None);
+        assert_eq!(split_address("a:b:c"), None);
     }
 
     #[test]

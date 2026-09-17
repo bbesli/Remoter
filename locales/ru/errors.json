@@ -599,7 +599,7 @@
       ]
     },
     "unknown-format": {
-      "message": "Этот файл не в том формате, который импортирует Remoter: это ни архив или JSON-экспорт Remoter, ни документ mRemoteNG, ни конфигурация OpenSSH, ни экспорт CSV.",
+      "message": "Этот файл не в том формате, который импортирует Remoter: это ни архив или JSON-экспорт Remoter, ни документ mRemoteNG, ни документ Remote Desktop Connection Manager, ни файл .rdp, ни конфигурация OpenSSH, ни экспорт CSV.",
       "actions": [
         "Выбрать исходный формат вручную",
         "Экспортировать подключения заново в CSV"

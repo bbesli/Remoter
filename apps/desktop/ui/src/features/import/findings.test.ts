@@ -34,4 +34,36 @@ describe("describeFinding", () => {
     const view = describeFinding(t, { severity: "warning", kind: "secrets_not_carried", count: 1 });
     expect(view.title).toBe("1 credential arrives without its password or key.");
   });
+
+  it("says a password Windows protected stayed behind, and what happens instead", () => {
+    const view = describeFinding(t, {
+      severity: "warning",
+      kind: "protected_passwords_not_carried",
+      count: 2,
+    });
+    expect(view.title).toBe("2 saved passwords stay behind with Windows.");
+    expect(view.body).toMatch(/asks for its password the first time it is used/);
+  });
+
+  it("names the gateway a connection will no longer go through", () => {
+    const view = describeFinding(t, {
+      severity: "warning",
+      kind: "rd_gateway_not_supported",
+      item: "Billing",
+      host: "rdgw.example.com",
+    });
+    expect(view.title).toContain("Billing");
+    expect(view.code).toBe("rdgw.example.com");
+  });
+
+  it("names the credential profile the file does not contain", () => {
+    const view = describeFinding(t, {
+      severity: "warning",
+      kind: "credential_profile_missing",
+      item: "Payroll",
+      profile: "Helpdesk",
+    });
+    expect(view.title).toContain("Helpdesk");
+    expect(view.title).toContain("Payroll");
+  });
 });

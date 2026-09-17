@@ -8,6 +8,8 @@
 #   cargo +nightly fuzz run import_csv
 #   cargo +nightly fuzz run import_archive
 #   cargo +nightly fuzz run import_json
+#   cargo +nightly fuzz run import_rdp_file
+#   cargo +nightly fuzz run import_rdcman
 #
 # `docs/development/testing-strategy.md`: fuzzing runs nightly and on any pull
 # request touching a parser, and a crash is a release blocker.
@@ -63,6 +65,20 @@ bench = false
 [[bin]]
 name = "import_json"
 path = "fuzz_targets/import_json.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "import_rdp_file"
+path = "fuzz_targets/import_rdp_file.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "import_rdcman"
+path = "fuzz_targets/import_rdcman.rs"
 test = false
 doc = false
 bench = false

@@ -24,7 +24,7 @@ use remoter_core::{Node, NodeId, NodeKind, SecretKind, Tree, TreePatch};
 use remoter_import::conflicts::{self, Candidate, ConflictPolicy};
 use remoter_import::{
     ImportPreview, ImportReport, ImportedSecret, Limits, NodeSummary, PreviewNode, Severity,
-    SourceFormat, csv, mremoteng, native, ssh_config,
+    SourceFormat, csv, mremoteng, native, rdcman, rdp_file, ssh_config,
 };
 use remoter_vault::archive::{self, ArchiveError};
 use remoter_vault::{AuditEvent, AuditOutcome, Secret, Vault};
@@ -155,6 +155,16 @@ fn import_parse_impl(
     let preview = match format {
         SourceFormat::MRemoteNg => mremoteng::parse(&bytes, password.as_ref(), &limits),
         SourceFormat::Csv => csv::parse(&bytes, &limits),
+        SourceFormat::RdcMan => rdcman::parse(&bytes, &limits),
+        // Named after the file, the way Remote Desktop Connection lists one.
+        SourceFormat::RdpFile => rdp_file::parse(
+            &bytes,
+            &path
+                .file_stem()
+                .map(|stem| stem.to_string_lossy().into_owned())
+                .unwrap_or_default(),
+            &limits,
+        ),
         SourceFormat::OpenSshConfig => {
             // Includes are followed, confined to the directory the chosen file
             // lives in: an `Include /etc/shadow` in a file a colleague sent is
@@ -448,8 +458,10 @@ fn import_commit_impl(state: &AppState, req: ImportCommitDto) -> Result<ImportRe
 
         // Copied out before `into_node` consumes the preview and drops the
         // plaintext. Both buffers wipe themselves; neither is written anywhere
-        // but into the vault's sealing call.
-        let sealed = if node.needs_sealing() {
+        // but into the vault's sealing call. A password the file did not carry
+        // gets the placeholder and nothing to seal, which is what makes it ask
+        // for one the first time it is used.
+        let sealed = if node.holds_password() {
             if let Some(secret) = node.secret() {
                 incoming.secrets.push((
                     node.id,
@@ -826,8 +838,10 @@ const fn source_wire(format: SourceFormat) -> &'static str {
         SourceFormat::Csv => "csv",
         SourceFormat::RemoterArchive => ARCHIVE_WIRE,
         SourceFormat::RemoterJson => JSON_WIRE,
+        SourceFormat::RdpFile => "rdp-file",
+        SourceFormat::RdcMan => "rdcman",
         // `SourceFormat` is `#[non_exhaustive]`: a format added upstream is
-        // named rather than mistaken for one of these three.
+        // named rather than mistaken for one of these.
         _ => "unknown",
     }
 }
@@ -839,11 +853,13 @@ fn parse_source(name: &str) -> Result<SourceFormat, IpcError> {
         "csv" => Ok(SourceFormat::Csv),
         ARCHIVE_WIRE => Ok(SourceFormat::RemoterArchive),
         JSON_WIRE => Ok(SourceFormat::RemoterJson),
+        "rdp-file" => Ok(SourceFormat::RdpFile),
+        "rdcman" => Ok(SourceFormat::RdcMan),
         other => Err(IpcError::invalid_request(
             "source",
             format!(
-                "`{other}` is not an importer; expected mremoteng, ssh-config, csv, \
-                 remoter-archive or remoter-json"
+                "`{other}` is not an importer; expected mremoteng, rdcman, rdp-file, ssh-config, \
+                 csv, remoter-archive or remoter-json"
             ),
         )),
     }
@@ -853,7 +869,8 @@ fn unknown_format() -> IpcError {
     IpcError::new(
         "import.unknown-format",
         "That file is not in a format Remoter imports: it is not a Remoter archive or JSON \
-         export, an mRemoteNG document, an OpenSSH config or a CSV export.",
+         export, an mRemoteNG document, a Remote Desktop Connection Manager document, an .rdp \
+         file, an OpenSSH config or a CSV export.",
     )
     .with_actions([
         "Choose the source format yourself",
@@ -1020,6 +1037,8 @@ mod tests {
             SourceFormat::Csv,
             SourceFormat::RemoterArchive,
             SourceFormat::RemoterJson,
+            SourceFormat::RdpFile,
+            SourceFormat::RdcMan,
         ] {
             let wire = source_wire(format);
             assert_eq!(parse_source(wire).ok(), Some(format), "wire: {wire}");
@@ -1391,6 +1410,154 @@ mod vault_tests {
             vault.borrow_secret(uuid, "password", remoter_vault::Purpose::SshPassword),
             Err(remoter_vault::VaultError::NoSuchSecret { .. })
         ));
+    }
+
+    #[test]
+    #[expect(
+        clippy::panic,
+        reason = "an import test without a vault has nothing left to assert"
+    )]
+    fn an_rdp_file_saved_by_mstsc_comes_in_asking_for_its_password() {
+        let scratch = Scratch::new();
+        let Some(state) = open_vault(&scratch) else {
+            panic!("the vault could not be created");
+        };
+        let file = scratch.join("Domain controller.rdp");
+        let mut bytes = vec![0xff, 0xfe];
+        for unit in "screen mode id:i:2\r\nfull address:s:dc01.contoso.com:3390\r\n\
+                     username:s:CONTOSO\\administrator\r\n\
+                     password 51:b:01000000D08C9DDF0115D1118C7A00C04FC297EB\r\n"
+            .encode_utf16()
+        {
+            bytes.extend_from_slice(&unit.to_le_bytes());
+        }
+        std::fs::write(&file, &bytes).unwrap_or_else(|err| panic!("writing failed: {err}"));
+
+        let path = file.display().to_string();
+        let detected = import_detect_impl(path.clone())
+            .unwrap_or_else(|err| panic!("detecting failed: {}", err.message));
+        assert_eq!(detected.format.as_deref(), Some("rdp-file"));
+        let preview = import_parse_impl(&state, path, None, None)
+            .unwrap_or_else(|err| panic!("parsing failed: {}", err.message));
+        let rendered = serde_json::to_string(&preview.report).unwrap_or_default();
+        assert!(
+            rendered.contains("protected_passwords_not_carried"),
+            "{rendered}"
+        );
+        assert!(!rendered.contains("D08C9DDF"), "{rendered}");
+
+        let committed = import_commit_impl(
+            &state,
+            ImportCommitDto {
+                import_id: preview.import_id,
+                destination_id: None,
+                excluded_ids: None,
+                conflict_policy: None,
+            },
+        )
+        .unwrap_or_else(|err| panic!("committing failed: {}", err.message));
+        assert_eq!(committed.connections, 1);
+        assert_eq!(committed.credentials, 1);
+        assert_eq!(committed.secrets_stored, 0);
+
+        let tree = tree_list_impl(&state).unwrap_or_default();
+        let connection = tree
+            .iter()
+            .find(|node| node.name == "Domain controller")
+            .unwrap_or_else(|| panic!("the connection is not in the tree: {tree:?}"));
+        assert_eq!(connection.protocol.as_deref(), Some("rdp"));
+        assert_eq!(connection.host.as_deref(), Some("dc01.contoso.com"));
+        assert_eq!(connection.port, Some(3390));
+        let credential = connection
+            .credential_id
+            .clone()
+            .unwrap_or_else(|| panic!("no credential: {connection:?}"));
+        let account = tree
+            .iter()
+            .find(|node| node.id == credential)
+            .unwrap_or_else(|| panic!("the credential is not in the tree: {tree:?}"));
+        assert_eq!(account.username.as_deref(), Some("administrator"));
+        assert_eq!(account.secret_kind.as_deref(), Some("password"));
+
+        let mut guard = state.lock();
+        let Ok(vault) = guard.vault_mut() else {
+            panic!("the vault closed");
+        };
+        let uuid = uuid::Uuid::parse_str(&credential).unwrap_or_default();
+        assert!(matches!(
+            vault.borrow_secret(uuid, "password", remoter_vault::Purpose::RdpCredentials),
+            Err(remoter_vault::VaultError::NoSuchSecret { .. })
+        ));
+    }
+
+    #[test]
+    #[expect(
+        clippy::panic,
+        reason = "an import test without a vault has nothing left to assert"
+    )]
+    fn an_rdcman_document_keeps_its_groups() {
+        let scratch = Scratch::new();
+        let Some(state) = open_vault(&scratch) else {
+            panic!("the vault could not be created");
+        };
+        let file = scratch.join("lab.rdg");
+        std::fs::write(
+            &file,
+            r#"<?xml version="1.0" encoding="utf-8"?>
+<RDCMan programVersion="2.93" schemaVersion="3">
+  <file>
+    <properties><name>Lab</name></properties>
+    <group>
+      <properties><name>Web</name></properties>
+      <connectionSettings inherit="None"><port>3390</port></connectionSettings>
+      <server><properties><displayName>web01</displayName><name>192.0.2.10</name></properties></server>
+      <server><properties><displayName>web02</displayName><name>192.0.2.11</name></properties></server>
+    </group>
+  </file>
+</RDCMan>"#,
+        )
+        .unwrap_or_else(|err| panic!("writing failed: {err}"));
+
+        let path = file.display().to_string();
+        let detected = import_detect_impl(path.clone())
+            .unwrap_or_else(|err| panic!("detecting failed: {}", err.message));
+        assert_eq!(detected.format.as_deref(), Some("rdcman"));
+        let preview = import_parse_impl(&state, path, None, None)
+            .unwrap_or_else(|err| panic!("parsing failed: {}", err.message));
+        let committed = import_commit_impl(
+            &state,
+            ImportCommitDto {
+                import_id: preview.import_id,
+                destination_id: None,
+                excluded_ids: None,
+                conflict_policy: None,
+            },
+        )
+        .unwrap_or_else(|err| panic!("committing failed: {}", err.message));
+        assert_eq!((committed.folders, committed.connections), (2, 2));
+
+        let tree = tree_list_impl(&state).unwrap_or_default();
+        let web = tree
+            .iter()
+            .find(|node| node.name == "Web")
+            .unwrap_or_else(|| panic!("no Web folder: {tree:?}"));
+        for name in ["web01", "web02"] {
+            let server = tree
+                .iter()
+                .find(|node| node.name == name)
+                .unwrap_or_else(|| panic!("no {name}: {tree:?}"));
+            assert_eq!(server.parent_id.as_deref(), Some(web.id.as_str()));
+            // Set once on the group, and resolved from there.
+            let effective = crate::commands::node_resolve_impl(&state, server.id.clone())
+                .unwrap_or_else(|err| panic!("resolving {name} failed: {}", err.message));
+            let port = effective
+                .fields
+                .iter()
+                .find(|field| field.field == "port")
+                .unwrap_or_else(|| panic!("no port for {name}: {effective:?}"));
+            assert_eq!(port.value.as_deref(), Some("3390"), "{name}: {port:?}");
+            assert_eq!(port.source_name.as_deref(), Some("Web"), "{name}: {port:?}");
+        }
     }
 
     #[test]

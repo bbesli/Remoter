@@ -599,7 +599,7 @@
       ]
     },
     "unknown-format": {
-      "message": "Bu dosya, Remoter'ın içe aktardığı bir biçimde değil: ne Remoter arşivi ya da JSON dışa aktarımı, ne mRemoteNG belgesi, ne OpenSSH yapılandırması, ne de CSV dışa aktarımı.",
+      "message": "Bu dosya, Remoter'ın içe aktardığı bir biçimde değil: ne Remoter arşivi ya da JSON dışa aktarımı, ne mRemoteNG belgesi, ne Remote Desktop Connection Manager belgesi, ne .rdp dosyası, ne OpenSSH yapılandırması, ne de CSV dışa aktarımı.",
       "actions": [
         "Kaynak biçimi kendin seç",
         "Bağlantıları yeniden CSV olarak dışa aktar"

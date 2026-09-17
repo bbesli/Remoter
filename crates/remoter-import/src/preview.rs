@@ -20,6 +20,7 @@ use remoter_core::{
     SecretKind, Tag, validate_node,
 };
 use serde::{Deserialize, Serialize};
+use sha1::{Digest, Sha1};
 
 use crate::error::ImportError;
 use crate::limits::Limits;
@@ -53,6 +54,16 @@ pub enum PreviewSecret {
     /// A password recovered from the file. The vault seals it at commit time;
     /// until then it is a [`ImportedSecret`] and nothing else.
     Password(ImportedSecret),
+    /// A password the source has and cannot hand over — encrypted with Windows
+    /// data protection to the account that saved it, or never saved at all.
+    /// The credential is created as a password credential with nothing stored,
+    /// and asks for its password the first time it is used.
+    ///
+    /// The digest is of whatever identifies the password in the source — the
+    /// protected blob, a profile's name — so that two references to one saved
+    /// password become one credential and two different ones stay two. It is
+    /// never the password: the importer does not have it.
+    PasswordNotCarried([u8; 20]),
     /// A secret that needs no sealing because no material came across: an
     /// agent delegation, or a reference to a key file left on disk.
     Unsealed(SecretKind),
@@ -63,6 +74,21 @@ impl PreviewSecret {
     #[must_use]
     pub const fn needs_sealing(&self) -> bool {
         matches!(self, Self::Password(_))
+    }
+
+    /// A password that did not come with the file, identified by `identity` —
+    /// the source's protected blob, or the name the source filed it under.
+    #[must_use]
+    pub fn not_carried(identity: &[u8]) -> Self {
+        let mut hasher = Sha1::new();
+        hasher.update(identity);
+        Self::PasswordNotCarried(hasher.finalize().into())
+    }
+
+    /// Whether this becomes a password credential, stored or not.
+    #[must_use]
+    pub const fn is_password(&self) -> bool {
+        matches!(self, Self::Password(_) | Self::PasswordNotCarried(_))
     }
 }
 
@@ -158,10 +184,22 @@ impl PreviewNode {
         self.secret().is_some()
     }
 
+    /// Whether this node becomes a password credential — one whose password
+    /// field holds sealed material, or the vault's placeholder until the user
+    /// enters a password the file did not carry.
+    #[must_use]
+    pub const fn holds_password(&self) -> bool {
+        matches!(
+            &self.kind,
+            PreviewKind::Credential(PreviewCredential { secret, .. }) if secret.is_password()
+        )
+    }
+
     /// The node this preview becomes.
     ///
-    /// `sealed` is the ciphertext the vault produced from [`Self::secret`], and
-    /// must be present exactly when [`Self::needs_sealing`] is true. The
+    /// `sealed` is the ciphertext the vault produced from [`Self::secret`] — or
+    /// its placeholder, for a password that did not come with the file — and
+    /// must be present exactly when [`Self::holds_password`] is true. The
     /// plaintext is dropped — and therefore zeroed — as this function returns,
     /// so a caller that seals and commits never holds two copies.
     ///
@@ -181,7 +219,7 @@ impl PreviewNode {
             PreviewKind::Connection(props) => NodeKind::Connection(props),
             PreviewKind::Credential(credential) => {
                 let secret = match credential.secret {
-                    PreviewSecret::Password(_) => {
+                    PreviewSecret::Password(_) | PreviewSecret::PasswordNotCarried(_) => {
                         let sealed = sealed.filter(|bytes| !bytes.is_empty()).ok_or(
                             ImportError::Validation(
                                 remoter_core::ValidationError::SealedMaterialEmpty,

@@ -66,7 +66,14 @@ export type AuditOutcome = "success" | "failure" | "denied";
 export type AuditExportFormat = "json" | "csv";
 
 /** The importers this build has. */
-export type ImportSource = "remoter-archive" | "remoter-json" | "mremoteng" | "ssh-config" | "csv";
+export type ImportSource =
+  | "remoter-archive"
+  | "remoter-json"
+  | "mremoteng"
+  | "rdcman"
+  | "rdp-file"
+  | "ssh-config"
+  | "csv";
 
 /** How much attention an import finding needs. */
 export type FindingSeverity = "info" | "warning" | "alert";
@@ -1207,6 +1214,20 @@ export type ImportFinding =
   | { severity: FindingSeverity; kind: "full_file_encryption" }
   | { severity: FindingSeverity; kind: "secrets_recovered"; count: number }
   | { severity: FindingSeverity; kind: "secrets_not_carried"; count: number }
+  /**
+   * Saved passwords only Windows can open — data protection bound to the
+   * account that saved them, or a certificate left on that machine.
+   */
+  | { severity: FindingSeverity; kind: "protected_passwords_not_carried"; count: number }
+  /** A Remote Desktop Gateway this build cannot use; `host` is the gateway. */
+  | { severity: FindingSeverity; kind: "rd_gateway_not_supported"; item: string; host: string }
+  /** A credential profile the file names and does not contain. */
+  | {
+      severity: FindingSeverity;
+      kind: "credential_profile_missing";
+      item: string;
+      profile: string;
+    }
   | {
       severity: FindingSeverity;
       kind: "credentials_deduplicated";

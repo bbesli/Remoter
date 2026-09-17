@@ -1,8 +1,9 @@
 # Import and Export
 
-> **What ships: five importers and four of the five export formats.** Remoter's
-> own `.rmtr` archive and JSON export, mRemoteNG `confCons.xml`, `~/.ssh/config`
-> and CSV are imported, each with format detection, a preview the user selects
+> **What ships: seven importers and four of the five export formats.** Remoter's
+> own `.rmtr` archive and JSON export, mRemoteNG `confCons.xml`, Remote Desktop
+> Connection Manager `.rdg`, `.rdp` files, `~/.ssh/config` and CSV are
+> imported, each with format detection, a preview the user selects
 > from, a choice about what the vault already has, an all-or-nothing commit and
 > a findings report; every one parses boundedly under a `cargo-fuzz` target.
 > ✅ Export writes the encrypted `.rmtr` archive, secrets included, for another
@@ -22,7 +23,7 @@ none of them touches the vault until the user confirms a preview.
 
 ## Supported sources
 
-Five of these are built. The parser for anything marked ⏳ does not exist, and
+Seven of these are built. The parser for anything marked ⏳ does not exist, and
 `import_parse` refuses its name — asking for `royalts` is answered with
 "`royalts` is not an importer" and the names of the ones that are.
 
@@ -35,8 +36,8 @@ Five of these are built. The parser for anything marked ⏳ does not exist, and
 | **Generic** | CSV | Depends | ✅ shipped |
 | **Royal TS / Royal TSX** | `.rtsz`, `.rtsx` | ✅ with the document password | ⏳ v0.5 |
 | **PuTTY** | Registry (Windows), `~/.putty/sessions` (Unix) | Keys only | ⏳ v0.5 — though `.ppk` key *files* are read today, by the SSH adapter |
-| **Remote Desktop Connection Manager** | `.rdg` | ✅ where not DPAPI-bound | ⏳ v1.0 |
-| **Windows RDP** | `.rdp` files | — | ⏳ v1.0 |
+| **Remote Desktop Connection Manager** | `.rdg` | Only schema 1's clear-text passwords; DPAPI-protected ones stay with Windows | ✅ shipped |
+| **Windows RDP** | `.rdp` files | — the saved password is DPAPI-bound | ✅ shipped |
 | **Termius** | JSON export | ✅ | ⏳ v1.1 |
 | **SecureCRT** | Session folder | Partial | ⏳ v1.1 |
 | **Devolutions RDM** | XML export | ✅ | ⏳ v1.1 |
@@ -148,6 +149,57 @@ passphrase if one is supplied.
 
 PuTTY stores no session passwords, so only key material comes across.
 
+### Remote Desktop Connection Manager — ✅ shipped
+
+An `.rdg` is XML, read through the same hardened reader as `confCons.xml`. The
+document's own top group becomes a folder, and groups and servers keep their
+places under it. Both layouts RDCMan has written are read: schema 3 (2.7 and
+later) keeps a node's name inside `<properties>`, schema 1 (2.2) beside its
+settings.
+
+Every settings block says `inherit="FromParent"` or `inherit="None"`, which is
+Remoter's inherited-or-explicit exactly, so a port or an account set once on a
+group arrives set once on its folder. A server's `displayName` is its name and
+its `name` its host; a desktop size, a start program and a working directory
+become the RDP adapter's own settings; everything else a node sets is kept in
+`custom_fields` as `rdcman.<block>.<setting>`.
+
+Credentials are inline, a profile the document defines (`scope="File"`), or a
+profile RDCMan kept in its settings on the machine that wrote the document
+(`scope="Local"`). The last is not in the file: the report names it, and an
+empty credential named after it stands in, so the server does not silently
+inherit someone else's account.
+
+**Saved passwords stay behind.** RDCMan encrypts them with Windows data
+protection for the account that saved them, or with a certificate that stayed on
+that machine, and nothing else can open either. Each credential arrives with its
+account name as a password credential with nothing stored, and asks for the
+password the first time it is used; the report counts them. Schema 1's
+`<password storeAsClearText="True">` is the one exception, and is imported like
+any other recovered password.
+
+A Remote Desktop Gateway is reported rather than used — this build connects
+directly — with its host kept in the node's custom fields, and a gateway
+password is dropped and named. Smart groups are rules over the rest of the
+document, not groups of servers, and are left out by name. See
+`remoter_import::rdcman`.
+
+### `.rdp` files — ✅ shipped
+
+One file is one connection, named after the file. The format is Microsoft's
+documented `name:type:value` property list, saved by `mstsc` as UTF-16.
+`full address` gives the host and port, `username` the account —
+`DOMAIN\user` is split — and `desktopwidth`, `desktopheight`,
+`enablecredsspsupport`, `alternate shell` and `shell working directory` become
+the RDP adapter's settings. Every other property is kept as `rdp.<property>`;
+one whose name mentions a password is never kept.
+
+`password 51` is a DPAPI blob bound to the Windows account that saved it, so it
+does not come across: the credential asks for its password the first time it is
+used, and the report says why. A gateway is reported the same way RDCMan's is.
+⏳ A folder of `.rdp` files is not read in one go; each file is its own import.
+See `remoter_import::rdp_file`.
+
 ### OpenSSH config — ✅ shipped
 
 `~/.ssh/config` is parsed properly rather than line-by-line: `Host` and `Match`
@@ -217,7 +269,7 @@ deliberately crafted.
 |---|---|---|
 | XXE / entity expansion | A `<!DOCTYPE` declaration is a hard error, not a skipped one, and there is no entity table for a document to add to — an unknown entity is a named failure rather than an empty string | ✅ |
 | Memory exhaustion | Bounded parse with an explicit `Limits` struct: input bytes, depth, item count, attribute count, value bytes, node count, findings, custom fields, included files and include depth | ✅ |
-| Malformed input | `cargo-fuzz` targets for all five shipped importers — `import_archive`, `import_csv`, `import_json`, `import_mremoteng`, `import_sshconfig` | ✅ |
+| Malformed input | `cargo-fuzz` targets for all seven shipped importers — `import_archive`, `import_csv`, `import_json`, `import_mremoteng`, `import_rdcman`, `import_rdp_file`, `import_sshconfig` | ✅ |
 | Credential misuse | Imported credentials carry a `Purpose` restriction matching their source protocol | ✅ |
 | Zip slip | Archive entries with absolute paths, `..` segments or symlinks rejected | ⏳ — no importer reads an archive yet; this is for Royal TS |
 | Decompression bombs | Hard cap on decompressed size and entry count | ⏳ — same |

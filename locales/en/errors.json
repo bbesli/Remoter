@@ -599,7 +599,7 @@
       ]
     },
     "unknown-format": {
-      "message": "That file is not in a format Remoter imports: it is not a Remoter archive or JSON export, an mRemoteNG document, an OpenSSH config or a CSV export.",
+      "message": "That file is not in a format Remoter imports: it is not a Remoter archive or JSON export, an mRemoteNG document, a Remote Desktop Connection Manager document, an .rdp file, an OpenSSH config or a CSV export.",
       "actions": [
         "Choose the source format yourself",
         "Export the connections again as CSV"

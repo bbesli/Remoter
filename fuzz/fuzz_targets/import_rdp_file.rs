@@ -1,19 +1,23 @@
-//! Fuzzes the CSV reader.
+//! Fuzzes the `.rdp` file reader.
 //!
-//! The state machine is small — quoted, unquoted, escaped quote, delimiter,
-//! record end — which is exactly why it is worth fuzzing: an off-by-one in a
-//! five-state reader is easy to write and hard to see. The delimiter is chosen
-//! from the header row, so an input whose first line is unlike its body reaches
-//! a different reader than the one it looks like it should.
+//! A line format, so the interesting inputs are the ones that are nearly
+//! lines: a property with a colon too few, an address that is half a bracketed
+//! IPv6 literal, a port glued on twice, a UTF-16 mark in front of bytes that
+//! are not UTF-16. The name is fuzzed too, because it becomes the connection's
+//! name and goes through the same cleaning a hostile one would.
 
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
 use remoter_core::{Node, Tree};
-use remoter_import::{Limits, csv};
+use remoter_import::{Limits, rdp_file};
 
 fuzz_target!(|data: &[u8]| {
-    let Ok(preview) = csv::parse(data, &Limits::small()) else {
+    let (name, body) = match data.iter().position(|byte| *byte == 0) {
+        Some(split) => (String::from_utf8_lossy(&data[..split]).into_owned(), &data[split + 1..]),
+        None => (String::new(), data),
+    };
+    let Ok(preview) = rdp_file::parse(body, &name, &Limits::small()) else {
         return;
     };
 
