@@ -23,6 +23,8 @@
 //! `known_hosts` (`docs/security/transport-security.md`). Poisoning it
 //! therefore requires opening the vault.
 
+use std::io::Read as _;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use parking_lot::Mutex;
@@ -35,8 +37,11 @@ use remoter_proto_rdp::RDP_ID;
 use remoter_proto_ssh::SSH_ID;
 use remoter_proto_ssh::sftp::SFTP_ID;
 use remoter_proto_vnc::VNC_ID;
-use remoter_vault::{ExposeSecret as _, Purpose, Secret, Vault, VaultError};
+use remoter_vault::{
+    AuditEvent, AuditOutcome, ExposeSecret as _, Purpose, Secret, Vault, VaultError,
+};
 use serde::{Deserialize, Serialize};
+use zeroize::Zeroizing;
 
 use crate::error::IpcError;
 use crate::state::Inner;
@@ -185,6 +190,148 @@ fn private_key_purpose(protocol: &ProtocolId) -> Option<Purpose> {
         SFTP_ID => Some(Purpose::SftpPrivateKey),
         _ => None,
     }
+}
+
+/// The external providers that are a private key file on this computer rather
+/// than a secret store: an `IdentityFile` read out of an OpenSSH config, and a
+/// `PublicKeyFile` out of a PuTTY session. `remoter-import` writes both names,
+/// and nothing else in the build reads a file a credential points at.
+const KEY_FILE_PROVIDERS: &[&str] = &["openssh-identity-file", "putty-key-file"];
+
+/// The largest file lent as a private key.
+///
+/// A 16 384-bit RSA key — the largest `ssh-keygen` makes — is under 13 KiB in
+/// either OpenSSH's container or PuTTY's, so this is room to spare for a key
+/// and a refusal for anything else: a log, a disk image, a device a link was
+/// pointed at.
+const MAX_KEY_FILE_BYTES: u64 = 64 * 1024;
+
+/// Why a referenced key file could not be lent.
+///
+/// Each is a fixed phrase. Nothing from the file and nothing from the
+/// operating system's error reaches the message: an imported credential can
+/// point anywhere, and the only thing a path the user did not choose may learn
+/// about a file is that it is not a key.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum KeyFileProblem {
+    NotAbsolute,
+    NotFound,
+    Denied,
+    NotAFile,
+    TooLarge,
+    Unreadable,
+    NotAKey,
+}
+
+impl KeyFileProblem {
+    const fn phrase(self) -> &'static str {
+        match self {
+            Self::NotAbsolute => "is not a full path on this computer",
+            Self::NotFound => "does not exist",
+            Self::Denied => "cannot be opened by this account",
+            Self::NotAFile => "is not a file",
+            Self::TooLarge => "is too large to be a private key",
+            Self::Unreadable => "could not be read",
+            Self::NotAKey => "is not a private key Remoter can read",
+        }
+    }
+
+    fn of(error: &std::io::Error) -> Self {
+        match error.kind() {
+            std::io::ErrorKind::NotFound => Self::NotFound,
+            std::io::ErrorKind::PermissionDenied => Self::Denied,
+            _ => Self::Unreadable,
+        }
+    }
+}
+
+/// The home directory a leading `~` stands for.
+///
+/// `USERPROFILE` first on Windows, which is where OpenSSH for Windows and PuTTY
+/// both keep `.ssh`; a `HOME` there is usually a Unix shell's idea of one.
+fn home_directory() -> Option<PathBuf> {
+    #[cfg(windows)]
+    const VARIABLES: &[&str] = &["USERPROFILE", "HOME"];
+    #[cfg(not(windows))]
+    const VARIABLES: &[&str] = &["HOME"];
+    VARIABLES
+        .iter()
+        .filter_map(std::env::var_os)
+        .find(|home| !home.is_empty())
+        .map(PathBuf::from)
+}
+
+/// The path a credential's reference names, with a leading `~` expanded.
+///
+/// `~` and `~/…` — or `~\…` — only. `~user` is another account's home, which
+/// this process has no business resolving, and is left as written; it is then
+/// not a full path and is refused as one.
+fn expand_key_path(reference: &str, home: Option<&Path>) -> PathBuf {
+    let rest = if reference == "~" {
+        Some("")
+    } else {
+        reference
+            .strip_prefix("~/")
+            .or_else(|| reference.strip_prefix("~\\"))
+    };
+    match (rest, home) {
+        (Some(rest), Some(home)) => home.join(rest),
+        _ => PathBuf::from(reference),
+    }
+}
+
+/// Reads a private key file a credential points at.
+///
+/// The read is bounded and lands in a buffer that wipes itself, reserved up
+/// front so a growing buffer never leaves a copy of the key behind on the heap.
+/// Anything that is not a regular file — a directory, a FIFO that would block
+/// the read, a device — is refused before it is opened. What comes back has
+/// been recognised as a key container and nothing more: an encrypted key is
+/// lent as it is, and the SSH adapter asks for its passphrase.
+///
+/// Small and local, and read here under the state lock beside the vault's own
+/// reads for the same attempt; a key on a stalled network share stalls that
+/// attempt the way an unreachable vault file would.
+fn read_key_file(path: &Path) -> Result<Secret<Vec<u8>>, KeyFileProblem> {
+    if !path.is_absolute() {
+        return Err(KeyFileProblem::NotAbsolute);
+    }
+    let metadata = std::fs::metadata(path).map_err(|err| KeyFileProblem::of(&err))?;
+    if !metadata.is_file() {
+        return Err(KeyFileProblem::NotAFile);
+    }
+    if metadata.len() > MAX_KEY_FILE_BYTES {
+        return Err(KeyFileProblem::TooLarge);
+    }
+
+    let file = std::fs::File::open(path).map_err(|err| KeyFileProblem::of(&err))?;
+    let limit = usize::try_from(MAX_KEY_FILE_BYTES).unwrap_or(usize::MAX);
+    let mut bytes = Zeroizing::new(Vec::with_capacity(limit.saturating_add(1)));
+    file.take(MAX_KEY_FILE_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|_| KeyFileProblem::Unreadable)?;
+    // Checked again after the read: the file can grow between the two looks.
+    if bytes.len() > limit {
+        return Err(KeyFileProblem::TooLarge);
+    }
+    if remoter_proto_ssh::keyfmt::detect_key_format(&bytes).is_none() {
+        return Err(KeyFileProblem::NotAKey);
+    }
+    Ok(Secret::new(std::mem::take(&mut *bytes)))
+}
+
+/// "The key file `/home/alex/.ssh/deploy` that the credential `deploy` points
+/// at does not exist."
+fn key_file_failure(path: &Path, credential: &str, problem: KeyFileProblem) -> IpcError {
+    IpcError::new(
+        "session.key-file-unreadable",
+        format!(
+            "The key file `{}` that the credential `{credential}` points at {}.",
+            path.display(),
+            problem.phrase()
+        ),
+    )
+    .with_actions(["Choose a credential", "Open the credential's settings"])
 }
 
 /// "The credential `db-01 root` is restricted to ssh and cannot be used for
@@ -375,6 +522,51 @@ pub(crate) fn acquire(
             private_key: None,
             passphrase: None,
         }),
+        // A key file on disk, recorded by an importer rather than moved into the
+        // vault. The restriction was checked above; this is the same "does the
+        // protocol use a key at all" question the stored-key arm asks.
+        SecretKind::External {
+            provider,
+            reference,
+        } if KEY_FILE_PROVIDERS.contains(&provider.as_str()) => {
+            if private_key_purpose(protocol).is_none() {
+                return Err(IpcError::new(
+                    "session.credential-unsupported",
+                    format!(
+                        "The credential `{}` points at a private key file, which `{}` sessions do \
+                         not use.",
+                        node.name,
+                        protocol.as_str()
+                    ),
+                )
+                .with_actions(["Choose a credential"]));
+            }
+            let path = expand_key_path(&reference, home_directory().as_deref());
+            let key = read_key_file(&path)
+                .map_err(|problem| key_file_failure(&path, &node.name, problem))?;
+            // Recorded the way a stored key's borrow is: which credential, for
+            // what, and never what was in it.
+            vault
+                .audit_in_session(
+                    AuditEvent::SecretUsed,
+                    AuditOutcome::Success,
+                    Some(id),
+                    None,
+                    Some("key_file"),
+                )
+                .map_err(|err| IpcError::from_vault(&err, subject))?;
+            Ok(VaultCredentials {
+                username,
+                domain,
+                agent_filter: None,
+                kind: CredentialKind::PrivateKey,
+                password: None,
+                private_key: Some(key),
+                // An encrypted key asks: the SSH adapter reads the container's
+                // own header and raises the passphrase prompt.
+                passphrase: None,
+            })
+        }
         SecretKind::External { provider, .. } => Err(IpcError::new(
             "session.credential-external",
             format!(
@@ -785,6 +977,261 @@ mod tests {
         assert_eq!(creds.with_password(&mut |bytes| bytes.len()), Some(13));
         assert_eq!(creds.username(), Some("ada"));
         assert!(creds.with_private_key(&mut |_, _| ()).is_none());
+    }
+
+    /// A credential an importer recorded as a path to a key file, with nothing
+    /// stored in the vault for it.
+    fn key_file_credential(
+        state: &AppState,
+        name: &str,
+        allowed: &[&str],
+        provider: &str,
+        reference: &str,
+    ) -> CredentialRef {
+        let mut guard = state.lock();
+        let vault = guard.vault_mut().unwrap();
+        let mut tree = vault.tree().unwrap();
+        let mut props = CredentialProps::new(
+            "deploy",
+            SecretKind::External {
+                provider: provider.to_owned(),
+                reference: reference.to_owned(),
+            },
+        );
+        props.allowed_protocols = allowed.iter().map(|id| protocol(id)).collect();
+        let node = Node::new(NodeKind::Credential(props), name, 1_700_000_000_000);
+        let id = node.id;
+        let patch = tree.insert(node).unwrap();
+        vault.apply(&tree, &patch).unwrap();
+        CredentialRef::live(id)
+    }
+
+    /// A real Ed25519 key in OpenSSH's container, made now: no key file is
+    /// committed, even for a test.
+    fn openssh_key(passphrase: Option<&str>) -> (russh::keys::PrivateKey, String) {
+        use russh::keys::ssh_key::{Algorithm, LineEnding};
+        let key =
+            russh::keys::PrivateKey::random(&mut russh::keys::key::safe_rng(), Algorithm::Ed25519)
+                .unwrap();
+        let stored = match passphrase {
+            Some(passphrase) => key
+                .encrypt(&mut russh::keys::key::safe_rng(), passphrase)
+                .unwrap(),
+            None => key.clone(),
+        };
+        let text = stored.to_openssh(LineEnding::LF).unwrap().to_string();
+        (key, text)
+    }
+
+    #[test]
+    fn a_key_file_an_import_pointed_at_is_lent_as_the_private_key() {
+        let scratch = Scratch::new();
+        let Some(state) = open_vault(&scratch) else {
+            panic!("the vault could not be created");
+        };
+        let (key, text) = openssh_key(None);
+        let file = scratch.join("id_ed25519");
+        std::fs::write(&file, &text).unwrap();
+
+        for (provider, id) in [("openssh-identity-file", "ssh"), ("putty-key-file", "sftp")] {
+            let reference = key_file_credential(
+                &state,
+                provider,
+                &[id],
+                provider,
+                &file.display().to_string(),
+            );
+            let mut guard = state.lock();
+            let borrowed = acquire(&mut guard, &reference, &protocol(id), "web-01")
+                .unwrap_or_else(|err| panic!("{provider}: {} — {}", err.code, err.message));
+            assert_eq!(borrowed.kind(), CredentialKind::PrivateKey);
+            assert_eq!(borrowed.username(), Some("deploy"));
+            // What the SSH adapter does with it: parse the container it was
+            // lent, with the passphrase it was lent — none.
+            let parsed = borrowed
+                .with_private_key(&mut |bytes, passphrase| {
+                    assert!(passphrase.is_none());
+                    remoter_proto_ssh::keyfmt::parse_private_key(bytes, passphrase)
+                })
+                .unwrap_or_else(|| panic!("{provider}: no key was lent"))
+                .unwrap_or_else(|err| panic!("{provider}: the key did not parse: {err:?}"));
+            assert_eq!(parsed.public_key(), key.public_key());
+
+            let recent = guard.vault_ref().unwrap().audit_recent(5).unwrap();
+            assert!(
+                recent
+                    .iter()
+                    .any(|(_, event, outcome, detail)| event == "secret_used"
+                        && outcome == "success"
+                        && detail.as_deref() == Some("key_file")),
+                "{provider}: the use was not recorded: {recent:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn an_encrypted_key_file_is_lent_without_a_passphrase_so_the_adapter_asks() {
+        let scratch = Scratch::new();
+        let Some(state) = open_vault(&scratch) else {
+            panic!("the vault could not be created");
+        };
+        let (_, text) = openssh_key(Some("correct horse"));
+        let file = scratch.join("id_encrypted");
+        std::fs::write(&file, &text).unwrap();
+        let reference = key_file_credential(
+            &state,
+            "encrypted",
+            &["ssh"],
+            "openssh-identity-file",
+            &file.display().to_string(),
+        );
+
+        let mut guard = state.lock();
+        let borrowed = acquire(&mut guard, &reference, &protocol("ssh"), "web-01").unwrap();
+        let outcome = borrowed
+            .with_private_key(&mut |bytes, passphrase| {
+                assert!(remoter_proto_ssh::keyfmt::needs_passphrase(bytes));
+                remoter_proto_ssh::keyfmt::parse_private_key(bytes, passphrase)
+            })
+            .unwrap();
+        // The shape the authentication ladder turns into a passphrase prompt.
+        assert!(
+            matches!(&outcome, Err(ProtocolError::CredentialMissing { name }) if name == "key passphrase"),
+            "{outcome:?}"
+        );
+    }
+
+    #[test]
+    fn a_key_file_that_cannot_be_lent_says_which_file_and_why_and_nothing_else() {
+        let scratch = Scratch::new();
+        let Some(state) = open_vault(&scratch) else {
+            panic!("the vault could not be created");
+        };
+        let not_a_key = scratch.join("shadow-like");
+        std::fs::write(
+            &not_a_key,
+            "root:$6$saltsalt$zzq-hash-7c1e:19000:0:99999:7:::\n",
+        )
+        .unwrap();
+        let too_large = scratch.join("huge");
+        std::fs::write(&too_large, vec![b'A'; 70_000]).unwrap();
+        let missing = scratch.join("gone");
+
+        let cases = [
+            (missing.display().to_string(), "does not exist"),
+            (
+                not_a_key.display().to_string(),
+                "is not a private key Remoter can read",
+            ),
+            (
+                too_large.display().to_string(),
+                "is too large to be a private key",
+            ),
+            (scratch.join("").display().to_string(), "is not a file"),
+            (
+                String::from("keys/id_ed25519"),
+                "is not a full path on this computer",
+            ),
+            (
+                String::from(r"C:relative\id"),
+                "is not a full path on this computer",
+            ),
+        ];
+        for (path, reason) in cases {
+            let reference =
+                key_file_credential(&state, "imported", &[], "openssh-identity-file", &path);
+            let mut guard = state.lock();
+            let Err(failure) = acquire(&mut guard, &reference, &protocol("ssh"), "web-01") else {
+                panic!("{path}: a key was lent");
+            };
+            assert_eq!(failure.code, "session.key-file-unreadable", "{path}");
+            assert!(
+                failure.message.contains(reason),
+                "{path}: {}",
+                failure.message
+            );
+            assert!(failure.message.contains("imported"), "{}", failure.message);
+            assert_eq!(
+                failure.actions,
+                ["Choose a credential", "Open the credential's settings"]
+            );
+            // Nothing from the file and nothing from the operating system.
+            let everything = format!("{} {:?}", failure.message, failure.detail);
+            for leak in ["zzq-hash", "root:", "os error", "No such file", "AAAA"] {
+                assert!(!everything.contains(leak), "{path}: {everything}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_key_file_is_never_read_for_a_protocol_that_cannot_use_one_or_against_its_restriction() {
+        let scratch = Scratch::new();
+        let Some(state) = open_vault(&scratch) else {
+            panic!("the vault could not be created");
+        };
+        // A path that does not exist: had it been read, the failure would say so.
+        let path = scratch.join("never-read").display().to_string();
+
+        let unrestricted = key_file_credential(&state, "any", &[], "putty-key-file", &path);
+        let mut guard = state.lock();
+        let Err(failure) = acquire(&mut guard, &unrestricted, &protocol("rdp"), "WIN-DC01") else {
+            panic!("a key file was lent to an RDP session");
+        };
+        assert_eq!(failure.code, "session.credential-unsupported");
+        drop(guard);
+
+        let sftp_only =
+            key_file_credential(&state, "sftp only", &["sftp"], "putty-key-file", &path);
+        let mut guard = state.lock();
+        let Err(failure) = acquire(&mut guard, &sftp_only, &protocol("ssh"), "web-01") else {
+            panic!("a key file restricted to SFTP was lent to SSH");
+        };
+        assert_eq!(failure.code, "session.credential-purpose");
+    }
+
+    #[test]
+    fn any_other_external_provider_is_still_not_fetched() {
+        let scratch = Scratch::new();
+        let Some(state) = open_vault(&scratch) else {
+            panic!("the vault could not be created");
+        };
+        let reference =
+            key_file_credential(&state, "vaulted", &[], "hashicorp-vault", "/etc/passwd");
+        let mut guard = state.lock();
+        let Err(failure) = acquire(&mut guard, &reference, &protocol("ssh"), "web-01") else {
+            panic!("an unknown provider's reference was read as a file");
+        };
+        assert_eq!(failure.code, "session.credential-external");
+    }
+
+    #[test]
+    fn a_leading_tilde_is_this_accounts_home_and_nothing_else_is() {
+        let home = Path::new("/home/alex");
+        assert_eq!(
+            expand_key_path("~", Some(home)),
+            PathBuf::from("/home/alex")
+        );
+        assert_eq!(
+            expand_key_path("~/.ssh/id_ed25519", Some(home)),
+            PathBuf::from("/home/alex/.ssh/id_ed25519")
+        );
+        assert_eq!(
+            expand_key_path("~\\.ssh\\id", Some(home)),
+            home.join(".ssh\\id")
+        );
+        // Another account's home is not resolved, and no home leaves `~` as it is.
+        assert_eq!(
+            expand_key_path("~bob/.ssh/id", Some(home)),
+            PathBuf::from("~bob/.ssh/id")
+        );
+        assert_eq!(
+            expand_key_path("~/.ssh/id", None),
+            PathBuf::from("~/.ssh/id")
+        );
+        assert_eq!(
+            expand_key_path("/etc/ssh/key", Some(home)),
+            PathBuf::from("/etc/ssh/key")
+        );
     }
 
     #[test]

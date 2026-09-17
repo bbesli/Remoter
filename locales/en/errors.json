@@ -916,7 +916,10 @@
       "message": "That credential is held by another provider, and this build has no plugin that can fetch it."
     },
     "credential-unsupported": {
-      "message": "That credential is a certificate, which sessions of this protocol do not use."
+      "message": "Sessions of this protocol do not use the kind of secret that credential holds."
+    },
+    "key-file-unreadable": {
+      "message": "The key file this credential points at could not be used: it is missing, this account cannot read it, or it is not a private key. Choose the key file again in the credential's settings, or choose another credential."
     },
     "dns": {
       "message": "That address could not be resolved. Check the name, or your DNS."

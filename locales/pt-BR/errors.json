@@ -916,7 +916,10 @@
       "message": "Essa credencial é mantida por outro provedor, e esta versão não tem plugin que possa buscá-la."
     },
     "credential-unsupported": {
-      "message": "Essa credencial é um certificado, que as sessões deste protocolo não usam."
+      "message": "As sessões deste protocolo não usam o tipo de segredo que essa credencial guarda."
+    },
+    "key-file-unreadable": {
+      "message": "Não foi possível usar o arquivo de chave para o qual esta credencial aponta: ele não existe, esta conta não consegue lê-lo ou não é uma chave privada. Escolha o arquivo de chave de novo nas configurações da credencial ou escolha outra credencial."
     },
     "dns": {
       "message": "Esse endereço não pôde ser resolvido. Confira o nome, ou o seu DNS."

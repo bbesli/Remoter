@@ -70,6 +70,11 @@ confidence-threshold = 0.9
 #                                             remoter-import to read hashed
 #                                             `known_hosts` names
 #
+# `russh` 0.63 is also a dev-dependency of `remoter-ipc`, with the same `ring`
+# backend `remoter-proto-ssh` builds: the key-file credential tests make a real
+# Ed25519 key when they run instead of committing one. Nothing new enters the
+# graph.
+#
 # Every one offers a permissive arm GPL-3.0 permits incorporating, and none
 # carries an additional restriction, a non-commercial clause or a
 # source-availability obligation.

@@ -4340,6 +4340,7 @@ dependencies = [
  "remoter-proto-ssh",
  "remoter-proto-vnc",
  "remoter-vault",
+ "russh",
  "serde",
  "serde_json",
  "tauri",

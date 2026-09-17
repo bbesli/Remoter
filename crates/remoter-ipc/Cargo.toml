@@ -85,6 +85,11 @@ data-encoding.workspace = true
 # is refused. `test-fixtures` builds them; it is a dev-dependency feature and
 # cannot reach a shipped binary.
 remoter-vault = { workspace = true, features = ["test-fixtures"] }
+# A credential that points at a key file is tested with a real key in that
+# file, made when the test runs: `CLAUDE.md` §9 forbids committing one. The
+# same `russh` `remoter-proto-ssh` already builds, with the same backend, so
+# the dependency graph does not grow.
+russh = { version = "0.63", default-features = false, features = ["ring"] }
 
 [lints]
 workspace = true

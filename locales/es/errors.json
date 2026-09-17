@@ -916,7 +916,10 @@
       "message": "Esa credencial la custodia otro proveedor, y esta compilación no tiene ningún complemento que pueda obtenerla."
     },
     "credential-unsupported": {
-      "message": "Esa credencial es un certificado, y las sesiones de este protocolo no usan certificados."
+      "message": "Las sesiones de este protocolo no usan el tipo de secreto que guarda esa credencial."
+    },
+    "key-file-unreadable": {
+      "message": "No se pudo usar el archivo de clave al que apunta esta credencial: no existe, esta cuenta no puede leerlo o no es una clave privada. Vuelva a elegir el archivo de clave en la configuración de la credencial o elija otra credencial."
     },
     "dns": {
       "message": "Esa dirección no se ha podido resolver. Comprueba el nombre, o tu DNS."

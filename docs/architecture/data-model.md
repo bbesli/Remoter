@@ -366,4 +366,8 @@ migration:
    asset tags, ticket references, rack positions; plugins can attach their own
    namespaced data. Preserved verbatim on export and round-trip.
 3. **`SecretKind::External`** means a credential can live in HashiCorp Vault,
-   Bitwarden or 1Password without the core knowing those products exist.
+   Bitwarden or 1Password without the core knowing those products exist. Two
+   provider names are the core's own: `openssh-identity-file` and
+   `putty-key-file` are a private key file on this computer, recorded by the
+   importers and read by `remoter-ipc` when a session opens. Every other
+   provider is refused until a plugin can fetch it.

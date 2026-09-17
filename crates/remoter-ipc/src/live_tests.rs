@@ -144,6 +144,66 @@ fn fixture_for(protocol: &str, key_path: &str, passphrase: Option<&str>) -> Fixt
     }
 }
 
+/// The same connection, with a credential an importer recorded as a path to
+/// a key file rather than a key in the vault.
+fn key_file_fixture(provider: &str, key_path: &str) -> Fixture {
+    use remoter_core::{CredentialProps, Node, NodeKind, SecretKind};
+
+    let scratch = Scratch::new();
+    let Some(state) = open_vault(&scratch) else {
+        panic!("the fixture vault could not be created");
+    };
+    let state = Arc::new(state);
+
+    let credential_id = {
+        let mut guard = state.lock();
+        let vault = guard.vault_mut().expect("the fixture vault should be open");
+        let mut tree = vault.tree().expect("the tree should read");
+        let props = CredentialProps::new(
+            account(),
+            SecretKind::External {
+                provider: provider.to_owned(),
+                reference: key_path.to_owned(),
+            },
+        );
+        let node = Node::new(
+            NodeKind::Credential(props),
+            "imported key file",
+            1_700_000_000_000,
+        );
+        let id = node.id;
+        let patch = tree.insert(node).expect("the credential should insert");
+        vault
+            .apply(&tree, &patch)
+            .expect("the credential should apply");
+        id.as_uuid().to_string()
+    };
+
+    let connection = node_create_impl(
+        &state,
+        &mut CreateNodeDto {
+            parent_id: None,
+            kind: String::from("connection"),
+            name: String::from("dev sshd"),
+            protocol: Some(String::from("ssh")),
+            host: Some(String::from(HOST)),
+            port: Some(PORT),
+            username: None,
+            password: None,
+            credential: None,
+            credential_id: Some(credential_id),
+            gateway: None,
+        },
+    )
+    .expect("the connection node should be created");
+
+    Fixture {
+        _scratch: scratch,
+        state,
+        node_id: connection.id,
+    }
+}
+
 /// What came out of one session's channel.
 #[derive(Default)]
 struct Collected {
@@ -321,6 +381,74 @@ async fn an_encrypted_key_authenticates_with_its_stored_passphrase() {
     session_close_impl(&fixture.state, opened.session_id)
         .await
         .expect("closing should succeed");
+}
+
+/// A credential imported from an `IdentityFile` or a PuTTY `PublicKeyFile`
+/// authenticates with the key in that file, read when the session opens.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_key_file_an_import_points_at_opens_the_session() {
+    for provider in ["openssh-identity-file", "putty-key-file"] {
+        let fixture = key_file_fixture(provider, KEY);
+        let (opened, _collected) = open_accepting(&fixture.state, &fixture.node_id).await;
+        let opened = match opened {
+            Ok(opened) => opened,
+            Err(error) => panic!(
+                "{provider}: the session did not open: {} — {}",
+                error.code, error.message
+            ),
+        };
+        assert_eq!(opened.auth_method, "publickey", "{provider}");
+        session_close_impl(&fixture.state, opened.session_id)
+            .await
+            .expect("closing should succeed");
+    }
+}
+
+/// An encrypted key file is lent without a passphrase, and the session asks for
+/// one rather than failing.
+#[tokio::test(flavor = "multi_thread")]
+async fn an_encrypted_key_file_asks_for_its_passphrase() {
+    let fixture = key_file_fixture("openssh-identity-file", ENCRYPTED_KEY);
+    let (channel, _collected, mut control) = recording_channel();
+    let opening = tokio::spawn({
+        let state = Arc::clone(&fixture.state);
+        let node_id = fixture.node_id.clone();
+        async move { session_open_impl(&state, node_id, channel).await }
+    });
+
+    let mut session_id = None;
+    let asked = tokio::time::timeout(Duration::from_secs(20), async {
+        while let Some(message) = control.recv().await {
+            match message {
+                SessionMessageDto::Opening { session_id: id } => session_id = Some(id),
+                SessionMessageDto::HostKey(prompt) => {
+                    let Some(id) = session_id else { continue };
+                    let _ = host_key_decide_impl(
+                        &fixture.state,
+                        id,
+                        HostKeyDecisionDto::Accept {
+                            prompt_id: prompt.prompt_id,
+                        },
+                    )
+                    .await;
+                }
+                SessionMessageDto::Prompt(prompt) => return Some(prompt.kind),
+                _ => {}
+            }
+        }
+        None
+    })
+    .await;
+    assert_eq!(
+        asked.ok().flatten().as_deref(),
+        Some("key_passphrase"),
+        "the session did not ask for the key's passphrase"
+    );
+
+    if let Some(id) = session_id {
+        let _ = session_close_impl(&fixture.state, id).await;
+    }
+    opening.abort();
 }
 
 /// Declining a first-use host key refuses the session, and says which host and

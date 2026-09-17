@@ -265,6 +265,15 @@ this project adheres to [Semantic Versioning](https://semver.org/).
   instead of being dropped quietly
 
 #### Import
+- **Imported SSH connections that use a key file now connect.** A credential
+  that points at a key on disk — an `IdentityFile` from an OpenSSH config, a
+  `PublicKeyFile` from PuTTY — used to fail with "held by another provider";
+  the file is now read when the session opens, a leading `~` meaning this
+  account's home, and lent to the SSH adapter as the private key. The
+  credential's protocol restriction still applies, the use is recorded in the
+  audit log, and a file that is missing, unreadable or not a key is named with
+  the reason — never with anything read from it. An encrypted key file raises
+  the passphrase prompt, which the interface cannot answer yet
 - **SSH host keys import from `known_hosts`.** *Import SSH host keys* in the
   command palette, or the link on the import wizard's first step, reads the
   account's own `~/.ssh/known_hosts` — hashed and wildcard entries matched

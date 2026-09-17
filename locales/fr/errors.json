@@ -916,7 +916,10 @@
       "message": "Cet identifiant est détenu par un autre fournisseur, et cette version n'a aucun greffon capable de le récupérer."
     },
     "credential-unsupported": {
-      "message": "Cet identifiant est un certificat, or les sessions de ce protocole n'en utilisent pas."
+      "message": "Les sessions de ce protocole n'utilisent pas le type de secret que contient cet identifiant."
+    },
+    "key-file-unreadable": {
+      "message": "Le fichier de clé désigné par cet identifiant n'a pas pu être utilisé : il est absent, ce compte ne peut pas le lire, ou ce n'est pas une clé privée. Choisissez de nouveau le fichier de clé dans les réglages de l'identifiant, ou choisissez un autre identifiant."
     },
     "dns": {
       "message": "Cette adresse n'a pas pu être résolue. Vérifiez le nom, ou votre DNS."

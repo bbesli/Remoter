@@ -916,7 +916,10 @@
       "message": "Diese Anmeldedaten liegen bei einem anderen Anbieter, und dieser Build hat kein Plugin, das sie abrufen kann."
     },
     "credential-unsupported": {
-      "message": "Diese Anmeldedaten sind ein Zertifikat, und Sitzungen dieses Protokolls verwenden keine Zertifikate."
+      "message": "Sitzungen dieses Protokolls verwenden die Art von Geheimnis nicht, die diese Anmeldedaten enthalten."
+    },
+    "key-file-unreadable": {
+      "message": "Die Schlüsseldatei, auf die diese Anmeldedaten verweisen, konnte nicht verwendet werden: Sie fehlt, dieses Konto kann sie nicht lesen, oder sie ist kein privater Schlüssel. Wählen Sie die Schlüsseldatei in den Einstellungen der Anmeldedaten erneut aus, oder wählen Sie andere Anmeldedaten."
     },
     "dns": {
       "message": "Diese Adresse konnte nicht aufgelöst werden. Prüfen Sie den Namen oder Ihr DNS."

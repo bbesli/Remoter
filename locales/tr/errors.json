@@ -916,7 +916,10 @@
       "message": "O kimlik bilgisi başka bir sağlayıcıda duruyor ve bu sürümde onu getirebilecek bir eklenti yok."
     },
     "credential-unsupported": {
-      "message": "O kimlik bilgisi bir sertifika; bu protokolün oturumları sertifika kullanmaz."
+      "message": "Bu protokolün oturumları, o kimlik bilgisinin tuttuğu türde bir sırrı kullanmaz."
+    },
+    "key-file-unreadable": {
+      "message": "Bu kimlik bilgisinin gösterdiği anahtar dosyası kullanılamadı: dosya yok, bu hesap onu okuyamıyor ya da bir özel anahtar değil. Anahtar dosyasını kimlik bilgisinin ayarlarında yeniden seçin ya da başka bir kimlik bilgisi seçin."
     },
     "dns": {
       "message": "Bu adres çözümlenemedi. Adı ya da DNS'inizi denetleyin."

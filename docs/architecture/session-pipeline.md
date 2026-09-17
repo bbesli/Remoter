@@ -62,6 +62,13 @@ marked "SSH only" cannot be borrowed for an RDP attempt, which prevents an
 importer mistake or a mistyped protocol from spraying a password at the wrong
 service.
 
+A credential an importer recorded as a key file on disk —
+`SecretKind::External` with the provider `openssh-identity-file` or
+`putty-key-file` — is acquired by reading that file, bounded and into a
+self-wiping buffer, after the same restriction check; the use is audited as a
+borrow is. A file that is not there or not a key is a failure at this stage,
+naming the path, never the file's content.
+
 If no credential resolves, the user is prompted, with an option to save the
 answer back to the vault at the level they choose (this connection, or the
 folder, so it is inherited).

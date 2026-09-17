@@ -168,11 +168,25 @@ forwarding, compression. Fonts, colours and the bell describe PuTTY's window,
 not the server.
 
 PuTTY saves no login passwords. A `.ppk` file is recorded as a reference and
-stays on disk; `remoter-proto-ssh`'s key reader parses PuTTY v2 and v3 key
-files, encrypted or not. ⏳ A credential that only *references* a key file —
-imported from PuTTY or from an `IdentityFile` — is not yet opened at connect
-time: the session says the credential is held elsewhere and asks for one. See
-`remoter_import::putty`.
+stays on disk. See `remoter_import::putty`.
+
+✅ **A key file an import points at is read when the session opens** — a PuTTY
+`PublicKeyFile` or an OpenSSH `IdentityFile` alike. A leading `~` is this
+account's home; the path must then be a full one on this computer, the file a
+regular file of at most 64 KiB, and its content a key container
+`remoter-proto-ssh`'s reader recognises: OpenSSH, PEM, PKCS#8 or PuTTY v2 and
+v3. It is read into a buffer that wipes itself, lent to the SSH adapter as the
+credential's private key for that one attempt, and recorded as a
+`secret_used` entry with the detail `key_file`. The credential's protocol
+restriction holds exactly as it does for a key in the vault, and an RDP or VNC
+session never reads the file at all. A file that is missing, unreadable, not a
+file, too large or not a key is refused with the path and which of those it
+was — and nothing from the file or from the operating system's error, so a
+reference to `/etc/shadow` learns only that it is not a key. ◐ An encrypted key
+is lent without a passphrase and the session raises the passphrase prompt, but
+this build's interface has no way to answer a passphrase prompt yet; choosing
+the key file again in the credential's settings stores it, with its passphrase,
+in the vault.
 
 ### Remote Desktop Connection Manager — ✅ shipped
 
@@ -234,6 +248,10 @@ blocks, `Include` directives, wildcards, and `ProxyJump`/`ProxyCommand`.
 satisfying part of this importer — an existing bastion setup arrives fully
 configured. `ProxyCommand` cannot always be mapped; where it cannot, the command
 is preserved in a custom field and flagged in the report rather than dropped.
+
+An `IdentityFile` becomes a credential that references the key file rather than
+a copy of the key, and the file is read when a session opens — see the PuTTY
+section above for exactly what is read and what is refused.
 
 ✅ **`known_hosts` is imported into the trust store**, from its own dialog —
 *Import SSH host keys* in the command palette, or the link on the import
