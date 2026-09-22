@@ -1,0 +1,3 @@
+# Every change needs a review from the maintainer before it can be merged
+# into main (enforced by the "Protect main" ruleset).
+* @bbesli
