@@ -6,7 +6,7 @@
  * fill rather than as a silent difference from the real application.
  */
 
-import type { AppSettings, AuditQuery, SessionOpened } from "@/lib/ipc";
+import type { AppSettings, AuditQuery, RevealedSecret, SessionOpened } from "@/lib/ipc";
 
 import {
   AUDIT,
@@ -30,6 +30,13 @@ interface ChannelLike {
 
 const params = new URLSearchParams(window.location.search);
 const theme = (params.get("theme") ?? "dark") as AppSettings["theme"];
+const shot = params.get("shot") ?? "main";
+
+/**
+ * The window the reveal shot opens on: nine minutes and forty-one seconds
+ * left, so the corner countdown reads like a confirmation made a moment ago.
+ */
+const REVEAL_WINDOW_MS = shot === "reveal" ? 581_400 : null;
 
 let nextSession = 1;
 
@@ -101,6 +108,12 @@ export function handle(cmd: string, args: Record<string, unknown> | undefined): 
         explanation: "",
         acceptable: true,
       };
+    case "secret_reveal_window":
+      return { remainingMs: REVEAL_WINDOW_MS };
+    case "secret_reveal_end":
+      return null;
+    case "secret_reveal":
+      return revealed(String(args?.["nodeId"] ?? ""));
     case "session_open":
       return openSession(String(args?.["nodeId"] ?? ""), args?.["channel"] as ChannelLike);
     case "session_resize":
@@ -144,4 +157,17 @@ function openSession(nodeId: string, channel: ChannelLike): SessionOpened {
     channel.onmessage(new TextEncoder().encode(TERMINAL_OUTPUT).buffer);
   }, 50);
   return opened;
+}
+
+/** An invented password, for an invented server. */
+function revealed(nodeId: string): RevealedSecret {
+  const node = NODES.find((candidate) => candidate.id === nodeId);
+  return {
+    nodeId,
+    credentialName: node?.name ?? "web-01",
+    shared: false,
+    username: "deploy",
+    password: "Tulip-Harbor-7-Quartz",
+    windowRemainingMs: REVEAL_WINDOW_MS ?? 600_000,
+  };
 }

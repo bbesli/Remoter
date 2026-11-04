@@ -29,9 +29,13 @@ if (shot !== "picker") {
     screen: { name: "main" },
     expanded: new Set(["f-prod", "f-web", "f-db", "f-win"]),
     selectedNodeId: "c-web1",
-    // Open on the export shot too: the status bar is then the width it is on
-    // the main shot, which keeps the renderer's GPU name off the picture.
-    inspectorOpen: shot === "main" || shot === "export",
+    // Open on the export and reveal shots too: the status bar is then the
+    // width it is on the main shot, which keeps the renderer's GPU name off
+    // the picture.
+    inspectorOpen: shot === "main" || shot === "export" || shot === "reveal",
+    // The reveal shot opens inside the window a confirmation started, so the
+    // dialog shows the password straight away and the corner counts down.
+    revealUntil: shot === "reveal" ? Date.now() + 581_400 : null,
   });
 }
 
@@ -48,11 +52,12 @@ ReactDOM.createRoot(root).render(
 );
 
 window.setTimeout(() => {
-  if (shot === "main" || shot === "export") {
+  if (shot === "main" || shot === "export" || shot === "reveal") {
     const web = NODES.find((node) => node.id === "c-web1");
     if (web !== undefined) openSession(web);
   }
   if (shot === "export") useApp.getState().openExport("f-prod");
+  if (shot === "reveal") useApp.getState().openReveal("c-web1");
   if (shot === "audit") useApp.getState().go({ name: "audit" });
   if (shot === "editor") useConnectionEditor.getState().open({ mode: "edit", nodeId: "c-dbp" });
 }, 300);

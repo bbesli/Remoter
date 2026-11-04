@@ -13,7 +13,11 @@
  *     node scripts/readme-screenshots.cjs
  *
  * FIREFOX names the browser binary when it is not /usr/bin/firefox, and
- * DEMO_URL the dev server when it is not on its usual port.
+ * DEMO_URL the dev server when it is not on its usual port. On a machine with
+ * Chrome or Edge and no Firefox — a stock Windows one — set BROWSER=chrome and
+ * BROWSER_PATH to the executable instead:
+ *
+ *   BROWSER=chrome BROWSER_PATH="C:/Program Files/Google/Chrome/Application/chrome.exe"  *     PUPPETEER_CORE=… node scripts/readme-screenshots.cjs
  */
 
 "use strict";
@@ -22,6 +26,8 @@ const path = require("node:path");
 const puppeteer = require(process.env.PUPPETEER_CORE || "puppeteer-core");
 
 const DEMO = process.env.DEMO_URL || "http://localhost:5273/demo.html";
+const BROWSER = process.env.BROWSER || "firefox";
+const EXECUTABLE = process.env.BROWSER_PATH || process.env.FIREFOX || "/usr/bin/firefox";
 const OUT = path.join(__dirname, "..", "docs", "images");
 
 const SHOTS = [
@@ -31,12 +37,15 @@ const SHOTS = [
   { file: "export.png", query: "shot=export&theme=dark", ready: "Another application" },
   { file: "editor.png", query: "shot=editor&theme=light", ready: "Connect through" },
   { file: "audit.png", query: "shot=audit&theme=light", ready: "Data exported" },
+  // The dialog opens inside an open window, so it shows the password at once
+  // and the corner countdown is on the same picture.
+  { file: "reveal.png", query: "shot=reveal&theme=dark", ready: "Passwords shown without asking" },
 ];
 
 async function main() {
   const browser = await puppeteer.launch({
-    browser: "firefox",
-    executablePath: process.env.FIREFOX || "/usr/bin/firefox",
+    browser: BROWSER,
+    executablePath: EXECUTABLE,
     headless: true,
     defaultViewport: { width: 1440, height: 900, deviceScaleFactor: 1 },
   });

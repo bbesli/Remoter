@@ -62,6 +62,12 @@ three commitments:
     <td align="center">The connection editor: every inherited value says where it comes from</td>
   </tr>
   <tr>
+    <td colspan="2"><img src="docs/images/reveal.png" alt="The Show password dialog over an SSH session, showing the username and an invented password for web-01, with a countdown in the bottom corner reading that passwords are shown without asking for the next nine minutes, and an End now button"></td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center">New in 0.2.0 — <em>Show password</em> asks for the vault password once, then shows passwords without asking for ten minutes, counting down in the corner</td>
+  </tr>
+  <tr>
     <td colspan="2"><img src="docs/images/audit.png" alt="The audit log in the light theme: sessions, secret use, a file download, a refused host key and an export, each with the account and computer that wrote it"></td>
   </tr>
   <tr>
