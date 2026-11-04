@@ -440,6 +440,26 @@
         "Ввести секрет заново",
         "Открыть резервную копию рядом с хранилищем"
       ]
+    },
+    "_comment_reveal-confirm": "Not shown as a failure: the interface treats this code as its cue to ask for the vault password. Translated because it is still a sentence the core can send.",
+    "reveal-confirm": {
+      "message": "Введите пароль этого хранилища, чтобы показать сохранённый пароль. В течение десяти минут он не будет запрашиваться повторно."
+    },
+    "_comment_reveal-refused": "SECURITY-RELEVANT. The vault password typed before showing a stored password was wrong. Like the unlock failure, it must not hint at what the right one looks like.",
+    "reveal-refused": {
+      "message": "Это не пароль этого хранилища, поэтому ничего не показано."
+    },
+    "reveal-nothing": {
+      "message": "Здесь нет пароля для показа: у подключения нет учётных данных, или оно входит по ключу или через агент."
+    },
+    "reveal-no-password-slot": {
+      "message": "В этом хранилище нет слота ключа с паролем, поэтому перед показом нечего подтверждать паролем.",
+      "actions": [
+        "Добавьте пароль в настройках хранилища"
+      ]
+    },
+    "reveal-interrupted": {
+      "message": "Показ пароля прервался, не завершившись, и ничего не было показано."
     }
   },
   "export": {

@@ -61,7 +61,7 @@ as — show **Not recorded**, never a blank that would read as *nobody*.
 | Connections | Created, updated, deleted, moved | ✅ |
 | Sessions | Started, ended | ✅ |
 | Security | Host key or certificate pinned; host key or certificate refused | ✅ |
-| Credentials | Stored, removed, used, revealed, exported | ✅ |
+| Credentials | Stored, removed, used, revealed, exported — *revealed* is written by **Show password**, and a wrong vault password typed there is a failed unlock | ✅ |
 | Settings | Changed | ✅ |
 | Sessions, detail | Duration and close reason, in the `session_history` table beside the log | ◐ — `bytes_in` and `bytes_out` are written as zero, because nothing counts them |
 | Security, detail | Legacy algorithm enabled, agent forwarding enabled | ⏳ |

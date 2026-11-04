@@ -197,11 +197,23 @@ Rules enforced in review:
   has enabled reconnect-without-prompt for that connection — in which case the
   cache is bounded, per-session, and cleared on lock
 - Secrets never cross the IPC boundary into the WebView. The frontend asks for
-  *an action*; the Rust core performs it
+  *an action*; the Rust core performs it. The one exception is showing a stored
+  password on request, below
 - Secrets never appear in `argv`, environment variables or temporary files. When
   an external helper needs one, it arrives over a pipe
-- "Reveal password" is an explicit, audited action, and the revealed value is
-  cleared from the clipboard after a configurable timeout (default 30 s)
+- ✅ "Show password" is an explicit, audited action
+  ([ADR-0016](../architecture/decisions/0016-show-a-stored-password.md)). The
+  first password shown asks for the **vault** password, checked with the same
+  Argon2id derivation and the same backoff as an unlock; for ten minutes after
+  that, further passwords are shown without asking. The window is held in the
+  core, is not extended by use, ends when the vault locks, and a countdown in a
+  corner of the window offers to end it early. Every password shown is written
+  to the audit log as `secret_revealed`; a refused vault password as a failed
+  unlock. Only a password is ever shown — never a private key, a passphrase or a
+  TOTP seed
+- ⏳ There is no copy button, so nothing to clear from the clipboard yet. When
+  one is added, the copied value must be cleared after a configurable timeout
+  (default 30 s)
 
 ## SSH agent integration
 

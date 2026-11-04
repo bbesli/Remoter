@@ -9,7 +9,7 @@ rust-version.workspace = true
 repository.workspace = true
 
 [dependencies]
-remoter-plugin-abi = { path = "../remoter-plugin-abi", version = "0.1.0" }
+remoter-plugin-abi = { path = "../remoter-plugin-abi", version = "0.2.0" }
 serde.workspace = true
 
 [lints]

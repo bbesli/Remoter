@@ -7,7 +7,7 @@
 RDP · SSH · VNC · SFTP — every session in a tab, every secret in a vault you control.
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
-[![Status: Alpha](https://img.shields.io/badge/status-alpha%20%C2%B7%20v0.1.0-yellow.svg)](docs/roadmap.md)
+[![Status: Alpha](https://img.shields.io/badge/status-alpha%20%C2%B7%20v0.2.0-yellow.svg)](docs/roadmap.md)
 [![Platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey.svg)](#platform-support)
 
 </div>
@@ -62,6 +62,12 @@ three commitments:
     <td align="center">The connection editor: every inherited value says where it comes from</td>
   </tr>
   <tr>
+    <td colspan="2"><img src="docs/images/reveal.png" alt="The Show password dialog over an SSH session, showing the username and an invented password for web-01, with a countdown in the bottom corner reading that passwords are shown without asking for the next nine minutes, and an End now button"></td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center">New in 0.2.0 — <em>Show password</em> asks for the vault password once, then shows passwords without asking for ten minutes, counting down in the corner</td>
+  </tr>
+  <tr>
     <td colspan="2"><img src="docs/images/audit.png" alt="The audit log in the light theme: sessions, secret use, a file download, a refused host key and an export, each with the account and computer that wrote it"></td>
   </tr>
   <tr>
@@ -82,6 +88,7 @@ what the [docs](docs/) still describe as the destination.
 |---|---|---|
 | **Vault** | XChaCha20-Poly1305 body, Argon2id KDF, atomic saves, rolling backups, migrations | — |
 | **Key slots** | Master password, password + key file, recovery key, OS keychain | **FIDO2 / hardware key** — the slot kind is reserved in the format and every code path refuses it |
+| **Stored passwords** | Right-click a connection or a password credential → *Show password…*. The vault password is asked for first; for ten minutes after, other passwords are shown without asking, with a countdown and an *End now* button in the window's corner. Locking the vault ends the ten minutes. Every password shown is in the audit log ([ADR-0016](docs/architecture/decisions/0016-show-a-stored-password.md)) | A copy button with a clipboard timeout; a configurable window length; showing a key's passphrase (by design, never) |
 | **Locking** | Manual lock, idle auto-lock, lock on resume from suspend (Linux) | Lock on screen lock or minimise — neither event is observable from this build, and the settings screen says so |
 | **Tree** | Folders, connections, credential nodes, drag-and-drop, inheritance with per-field provenance and override, search with `tag:` `proto:` `host:` `user:` filters, a favourites section projected from the `favourite` tag, command palette | Multi-select and bulk edit, cut/copy/paste, undo, quick-connect address bar, "test connection", recently-used ordering, the inheritance diff shown before a move |
 | **SSH** | A terminal that copies, pastes and clicks the way the platform's own does — Windows Terminal, Terminal.app, GNOME Terminal — including the Linux PRIMARY selection ([ADR-0015](docs/architecture/decisions/0015-terminal-follows-the-platform.md)); PTY shell and `exec`, public key / password / keyboard-interactive, with a key passphrase, a 2FA code or an expired password typed into the tab's own dialog when nothing stored answers it (never saved), host key TOFU and pinning, agent auth and agent forwarding (both off by default), environment variables, initial command, compression, keep-alive | GSSAPI/Kerberos, SSH certificates, X11 forwarding, per-connection algorithm preferences |

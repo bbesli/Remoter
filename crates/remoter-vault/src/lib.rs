@@ -25,6 +25,7 @@
 mod actor;
 pub mod archive;
 mod audit;
+mod confirm;
 mod credential;
 mod crypto;
 mod error;
@@ -43,6 +44,7 @@ mod vault;
 
 pub use actor::{AuditActor, AuditActorRecord, AuditActorSummary, audit_actor, set_audit_actor};
 pub use audit::{AuditCategory, AuditQuery, AuditRecord};
+pub use confirm::PasswordCheck;
 pub use credential::{ImportedKey, PrivateKeyMaterial, agent_credential, private_key_credential};
 pub use error::{UnlockError, VaultError};
 pub use header::{FORMAT_VERSION, KdfParams, MAGIC, SlotInfo, SlotKind, VaultHeader, VaultInfo};

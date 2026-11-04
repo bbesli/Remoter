@@ -440,6 +440,26 @@
         "Volver a introducir el secreto",
         "Abrir una copia de seguridad junto a la bóveda"
       ]
+    },
+    "_comment_reveal-confirm": "Not shown as a failure: the interface treats this code as its cue to ask for the vault password. Translated because it is still a sentence the core can send.",
+    "reveal-confirm": {
+      "message": "Introduzca la contraseña de esta bóveda para mostrar una contraseña guardada. No se vuelve a pedir durante diez minutos."
+    },
+    "_comment_reveal-refused": "SECURITY-RELEVANT. The vault password typed before showing a stored password was wrong. Like the unlock failure, it must not hint at what the right one looks like.",
+    "reveal-refused": {
+      "message": "Esa no es la contraseña de esta bóveda, así que no se ha mostrado nada."
+    },
+    "reveal-nothing": {
+      "message": "Aquí no hay ninguna contraseña que mostrar: la conexión no tiene credencial, o inicia sesión con una clave o un agente."
+    },
+    "reveal-no-password-slot": {
+      "message": "Esta bóveda no tiene ninguna ranura de clave con contraseña, así que no hay contraseña que confirmar antes de mostrar una.",
+      "actions": [
+        "Añada una contraseña en la configuración de la bóveda"
+      ]
+    },
+    "reveal-interrupted": {
+      "message": "La operación para mostrar la contraseña se detuvo antes de terminar y no se mostró nada."
     }
   },
   "export": {

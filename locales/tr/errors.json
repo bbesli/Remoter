@@ -440,6 +440,26 @@
         "Gizli değeri yeniden gir",
         "Kasanın yanındaki bir yedeği aç"
       ]
+    },
+    "_comment_reveal-confirm": "Not shown as a failure: the interface treats this code as its cue to ask for the vault password. Translated because it is still a sentence the core can send.",
+    "reveal-confirm": {
+      "message": "Kayıtlı bir parolayı göstermek için bu kasanın parolasını girin. On dakika boyunca yeniden sorulmaz."
+    },
+    "_comment_reveal-refused": "SECURITY-RELEVANT. The vault password typed before showing a stored password was wrong. Like the unlock failure, it must not hint at what the right one looks like.",
+    "reveal-refused": {
+      "message": "Bu, kasanın parolası değil; hiçbir şey gösterilmedi."
+    },
+    "reveal-nothing": {
+      "message": "Burada gösterilecek parola yok: bağlantının kimlik bilgisi yok ya da anahtarla veya ajanla oturum açıyor."
+    },
+    "reveal-no-password-slot": {
+      "message": "Bu kasada parola anahtar yuvası yok; bu yüzden bir parola göstermeden önce doğrulanacak parola da yok.",
+      "actions": [
+        "Kasa ayarlarından bir parola ekleyin"
+      ]
+    },
+    "reveal-interrupted": {
+      "message": "Parolayı gösterme işlemi tamamlanmadan durdu; hiçbir şey gösterilmedi."
     }
   },
   "export": {

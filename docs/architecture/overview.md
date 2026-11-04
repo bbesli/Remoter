@@ -178,7 +178,10 @@ UI                remoter-ipc      remoter-core     remoter-vault    remoter-pro
 
 Note what happens to the secret: it is borrowed for the duration of
 authentication, held in a `Zeroizing` buffer, and dropped as soon as the
-handshake completes. **It never crosses the IPC boundary into the WebView.**
+handshake completes. **It never crosses the IPC boundary into the WebView** —
+with one exception, by decision: *Show password* hands a stored password to the
+user who asked for it, after they confirm the vault password
+([ADR-0016](decisions/0016-show-a-stored-password.md)).
 
 ## The `Protocol` trait
 

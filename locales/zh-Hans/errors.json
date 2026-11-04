@@ -440,6 +440,26 @@
         "重新输入该机密",
         "打开保险库旁边的备份"
       ]
+    },
+    "_comment_reveal-confirm": "Not shown as a failure: the interface treats this code as its cue to ask for the vault password. Translated because it is still a sentence the core can send.",
+    "reveal-confirm": {
+      "message": "输入此保险库的密码以显示已保存的密码。十分钟内不会再次询问。"
+    },
+    "_comment_reveal-refused": "SECURITY-RELEVANT. The vault password typed before showing a stored password was wrong. Like the unlock failure, it must not hint at what the right one looks like.",
+    "reveal-refused": {
+      "message": "这不是此保险库的密码，因此未显示任何内容。"
+    },
+    "reveal-nothing": {
+      "message": "这里没有可显示的密码：该连接没有凭据，或者使用密钥或代理登录。"
+    },
+    "reveal-no-password-slot": {
+      "message": "此保险库没有密码密钥槽，因此在显示密码前没有可用于确认的密码。",
+      "actions": [
+        "在保险库设置中添加密码"
+      ]
+    },
+    "reveal-interrupted": {
+      "message": "显示密码的操作在完成前中断，未显示任何内容。"
     }
   },
   "export": {

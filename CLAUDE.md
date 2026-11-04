@@ -288,7 +288,11 @@ Importers additionally get `cargo-fuzz` targets — they parse hostile input.
 - Components that render remote content (hostnames, banners, MOTD, directory
   listings) must treat it as untrusted text. Never `dangerouslySetInnerHTML`
 - The frontend never holds a decrypted secret. It requests an action; the Rust
-  core performs it with the secret and returns a result
+  core performs it with the secret and returns a result. **One exception, by
+  decision:** `secret_reveal` shows a stored password to a user who asked for it
+  and confirmed the vault password
+  ([ADR-0016](docs/architecture/decisions/0016-show-a-stored-password.md)). The
+  dialog holds it in component state only. Do not add a second without an ADR
 
 ---
 

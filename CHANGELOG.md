@@ -7,6 +7,53 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-04
+
+### Added
+
+#### Showing a stored password
+- **Right-click a connection → Show password…** shows the username and password
+  stored for it. The same item is on a password credential. A connection whose
+  credential is inherited shows the one it actually resolves to — the credential
+  a session would log in with — and the dialog says when that credential is
+  shared by other connections
+- **The vault password is asked for first.** An open vault is not proof of who
+  is at the keyboard, so the first password shown asks for the vault's own
+  password, checked with the same Argon2id derivation and the same backoff after
+  repeated failures as the unlock screen. A key-file slot is confirmed with the
+  key file the vault was last opened with
+- **Then ten minutes without asking.** Once the vault password is confirmed,
+  other passwords are shown without asking again for ten minutes, counted from
+  the confirmation and not extended by use. A countdown in the bottom corner of
+  the window says how long is left and has an **End now** button; locking the
+  vault, by hand or automatically, ends it too
+- **Every password shown is in the audit log** as *Secret shown on screen*, and
+  a wrong vault password typed into the dialog as a failed unlock
+- Only a password is ever shown. A connection that signs in with a key or the
+  agent says it has no password to show; a key's passphrase is never shown
+- Its strings are in all ten languages, so none of them drops off the Language
+  screen. The nine translations were written with the feature and have not yet
+  had a native reader
+
+### Changed
+- **One command now returns a secret to the interface**, by decision:
+  `secret_reveal`, behind the vault password and the ten-minute window. The
+  reasoning and what it costs — a password in a JavaScript string the engine
+  will not wipe, and ten minutes in which an unattended, unlocked screen shows
+  passwords without asking — are in
+  [ADR-0016](docs/architecture/decisions/0016-show-a-stored-password.md). The
+  dialog keeps the password in its own state, never in a cache or a store, and
+  drops it when it closes or the vault locks
+- The vault password is checked without holding the vault: the one-second key
+  derivation runs on a background thread with the vault released, so the rest
+  of the application — and the window — stay responsive while it runs
+- The README's screenshots were retaken, with a new one of the dialog and the
+  countdown. `scripts/readme-screenshots.cjs` takes `BROWSER` and
+  `BROWSER_PATH`, so they can be taken with Chrome or Edge on a machine with no
+  Firefox
+
+## [0.1.0] - 2026-09-17
+
 ### Added
 
 #### Localisation

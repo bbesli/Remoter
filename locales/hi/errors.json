@@ -440,6 +440,26 @@
         "गुप्त मान फिर से दर्ज करें",
         "वॉल्ट के बगल में रखा बैकअप खोलें"
       ]
+    },
+    "_comment_reveal-confirm": "Not shown as a failure: the interface treats this code as its cue to ask for the vault password. Translated because it is still a sentence the core can send.",
+    "reveal-confirm": {
+      "message": "सहेजा गया पासवर्ड देखने के लिए इस वॉल्ट का पासवर्ड दर्ज करें। दस मिनट तक यह दोबारा नहीं पूछा जाएगा।"
+    },
+    "_comment_reveal-refused": "SECURITY-RELEVANT. The vault password typed before showing a stored password was wrong. Like the unlock failure, it must not hint at what the right one looks like.",
+    "reveal-refused": {
+      "message": "यह इस वॉल्ट का पासवर्ड नहीं है, इसलिए कुछ नहीं दिखाया गया।"
+    },
+    "reveal-nothing": {
+      "message": "यहाँ दिखाने के लिए कोई पासवर्ड नहीं है: कनेक्शन का कोई क्रेडेंशियल नहीं है, या वह की या एजेंट से साइन इन करता है।"
+    },
+    "reveal-no-password-slot": {
+      "message": "इस वॉल्ट में कोई पासवर्ड की-स्लॉट नहीं है, इसलिए पासवर्ड दिखाने से पहले पुष्टि करने के लिए कोई पासवर्ड नहीं है।",
+      "actions": [
+        "वॉल्ट सेटिंग्स में एक पासवर्ड जोड़ें"
+      ]
+    },
+    "reveal-interrupted": {
+      "message": "पासवर्ड दिखाना पूरा होने से पहले रुक गया, और कुछ नहीं दिखाया गया।"
     }
   },
   "export": {

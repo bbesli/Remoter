@@ -440,6 +440,26 @@
         "Re-enter the secret",
         "Open a backup beside the vault"
       ]
+    },
+    "_comment_reveal-confirm": "Not shown as a failure: the interface treats this code as its cue to ask for the vault password. Translated because it is still a sentence the core can send.",
+    "reveal-confirm": {
+      "message": "Enter this vault's password to show a stored password. It is not asked for again for ten minutes."
+    },
+    "_comment_reveal-refused": "SECURITY-RELEVANT. The vault password typed before showing a stored password was wrong. Like the unlock failure, it must not hint at what the right one looks like.",
+    "reveal-refused": {
+      "message": "That is not this vault's password, so nothing was shown."
+    },
+    "reveal-nothing": {
+      "message": "There is no password to show here: the connection has no credential, or signs in with a key or an agent."
+    },
+    "reveal-no-password-slot": {
+      "message": "This vault has no password key slot, so there is no password to confirm before showing one.",
+      "actions": [
+        "Add a password in Vault settings"
+      ]
+    },
+    "reveal-interrupted": {
+      "message": "Showing the password stopped before it finished, and nothing was shown."
     }
   },
   "export": {

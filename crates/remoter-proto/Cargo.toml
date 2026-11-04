@@ -10,7 +10,7 @@ repository.workspace = true
 
 [dependencies]
 remoter-core.workspace = true
-remoter-plugin-abi = { path = "../remoter-plugin-abi", version = "0.1.0" }
+remoter-plugin-abi = { path = "../remoter-plugin-abi", version = "0.2.0" }
 
 async-trait = "0.1"
 bytes = "1"

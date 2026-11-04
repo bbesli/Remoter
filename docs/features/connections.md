@@ -200,6 +200,25 @@ schema, so a plugin protocol gets exactly the same editing experience as SSH.
 - Cancel discards; there is no autosave, because a half-edited connection that
   silently persists is worse than one that is lost
 
+## Showing a stored password
+
+✅ Right-click a connection, or a password credential, and choose **Show
+password…**. The dialog asks for the **vault** password first; once it is
+confirmed, the username and password are shown, and for the next ten minutes
+any other password is shown without asking again. A countdown in the bottom
+corner of the window says how long is left and has an **End now** button. Locking
+the vault, by hand or automatically, ends the ten minutes too.
+
+A connection whose credential is inherited shows the password of the credential
+it actually resolves to — the same one a session would log in with — and says so
+when that credential is shared. A connection that signs in with a key or the
+agent has no password to show and is told so; a key's passphrase is never shown.
+
+Every password shown is a `secret_revealed` row in the audit log, and a wrong
+vault password a failed unlock. ⏳ There is no copy button: select the text. The
+reasoning, and what the ten minutes cost, are in
+[ADR-0016](../architecture/decisions/0016-show-a-stored-password.md).
+
 ## Keyboard
 
 | Action | Shortcut | |

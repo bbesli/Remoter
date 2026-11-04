@@ -4279,7 +4279,7 @@ checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 
 [[package]]
 name = "remoter-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "proptest",
  "serde",
@@ -4290,7 +4290,7 @@ dependencies = [
 
 [[package]]
 name = "remoter-desktop"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "remoter-ipc",
  "tauri",
@@ -4303,7 +4303,7 @@ dependencies = [
 
 [[package]]
 name = "remoter-import"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aes 0.9.2",
  "aes-gcm",
@@ -4325,7 +4325,7 @@ dependencies = [
 
 [[package]]
 name = "remoter-ipc"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "arboard",
  "bytes",
@@ -4355,14 +4355,14 @@ dependencies = [
 
 [[package]]
 name = "remoter-plugin-abi"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "remoter-plugin-sdk"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "remoter-plugin-abi",
  "serde",
@@ -4370,7 +4370,7 @@ dependencies = [
 
 [[package]]
 name = "remoter-proto"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "bytes",
@@ -4390,7 +4390,7 @@ dependencies = [
 
 [[package]]
 name = "remoter-proto-rdp"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "bytes",
@@ -4419,7 +4419,7 @@ dependencies = [
 
 [[package]]
 name = "remoter-proto-ssh"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "bytes",
@@ -4441,7 +4441,7 @@ dependencies = [
 
 [[package]]
 name = "remoter-proto-vnc"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "bytes",
@@ -4458,7 +4458,7 @@ dependencies = [
 
 [[package]]
 name = "remoter-vault"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aes 0.9.2",
  "argon2",
