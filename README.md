@@ -7,7 +7,7 @@
 RDP · SSH · VNC · SFTP — every session in a tab, every secret in a vault you control.
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
-[![Status: Alpha](https://img.shields.io/badge/status-alpha%20%C2%B7%20v0.1.0-yellow.svg)](docs/roadmap.md)
+[![Status: Alpha](https://img.shields.io/badge/status-alpha%20%C2%B7%20v0.2.0-yellow.svg)](docs/roadmap.md)
 [![Platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey.svg)](#platform-support)
 
 </div>

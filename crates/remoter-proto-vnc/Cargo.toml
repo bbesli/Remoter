@@ -16,7 +16,7 @@ integration-tests = []
 
 [dependencies]
 remoter-core.workspace = true
-remoter-proto = { path = "../remoter-proto", version = "0.1.0" }
+remoter-proto = { path = "../remoter-proto", version = "0.2.0" }
 
 # `vnc-rs` 0.5, the version CLAUDE.md §8 pins. MIT OR Apache-2.0, both
 # GPL-3.0 compatible; recorded in `deny.toml`. The library target is named
