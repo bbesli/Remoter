@@ -1,0 +1,80 @@
+/*
+ * The corner countdown.
+ *
+ * Fixed to the inline-end corner, above the status bar and the session footer,
+ * and below every modal (their backdrops sit at z-index 60). It is mounted at
+ * the shell rather than inside the session area: that area is swept by a
+ * layout test that fails on anything positioned out of flow inside it, because
+ * chrome over a remote desktop once covered the Start button.
+ */
+
+.badge {
+  position: fixed;
+  /* Clear of the status bar and of the session footer above it, so it never
+     sits on the connection details a session shows there. */
+  inset-block-end: calc(var(--statusbar-h) + var(--footer-h) + var(--space-3));
+  inset-inline-end: var(--space-4);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  max-width: calc(100vw - 2 * var(--space-4));
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-elevated);
+  border: 1px solid var(--warning);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-3);
+  color: var(--fg-default);
+}
+
+.badge > svg {
+  flex: none;
+  color: var(--warning);
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.title {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.time {
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.end {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex: none;
+  padding: var(--space-1) var(--space-2);
+  background: transparent;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  color: var(--fg-default);
+  font: inherit;
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.end:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  background: var(--bg-inset);
+}
+
+.end:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.end:disabled {
+  cursor: default;
+  opacity: 0.6;
+}

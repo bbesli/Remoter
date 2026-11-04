@@ -504,6 +504,7 @@ impl AppState {
             unlock_failures: BTreeMap::new(),
             lock_failure: None,
             pending_import: None,
+            reveal_until: None,
             sessions: Arc::clone(&sessions),
         }));
 
@@ -549,6 +550,7 @@ impl AppState {
                 unlock_failures: BTreeMap::new(),
                 lock_failure: None,
                 pending_import: None,
+                reveal_until: None,
                 sessions: Arc::clone(&sessions),
             })),
             sessions,
@@ -613,6 +615,11 @@ pub(crate) struct Inner {
     /// rather than sent to the interface because it carries the passwords
     /// recovered from the file in plaintext.
     pending_import: Option<PendingImport>,
+    /// Until when a stored password may be shown without the vault's password
+    /// being asked for again. Set when that password is confirmed, cleared by
+    /// every path that closes or replaces the vault. Monotonic, so moving the
+    /// system clock cannot stretch it. See `reveal.rs`.
+    reveal_until: Option<Instant>,
     /// The same registry `AppState` holds. Here so that locking the vault —
     /// which happens on this side of the mutex, including from the idle
     /// timeout, which has no caller — can apply the vault's own
@@ -690,6 +697,8 @@ impl Inner {
         self.vault = Some(vault);
         self.activity.touch();
         self.lock_reason = None;
+        // A confirmation belongs to the vault it was given for.
+        self.reveal_until = None;
         // Whatever a previous lock froze is thawed: the keys are back, so the
         // reason to hold input is gone.
         self.sessions.thaw();
@@ -800,6 +809,9 @@ impl Inner {
         // file. Locking is supposed to leave none in memory, and a preview
         // that survived the lock would be exactly that.
         self.pending_import = None;
+        // Locking ends the window in which a password is shown without asking
+        // again: the next unlock is a new proof, not a continuation.
+        self.reveal_until = None;
         match self.vault.take() {
             Some(vault) => {
                 vault.lock();
@@ -931,6 +943,7 @@ impl Inner {
             vault.lock();
         }
         self.pending_import = None;
+        self.reveal_until = None;
         self.lock_reason = Some(reason);
     }
 
@@ -966,6 +979,39 @@ impl Inner {
             Some(LockReason::Idle(minutes)) => IpcError::auto_locked(minutes),
             Some(LockReason::Trigger(trigger)) => IpcError::locked_by_trigger(trigger.describe()),
             None => IpcError::locked(),
+        }
+    }
+
+    // ------------------------------------------------------ reveal window ---
+
+    /// How much longer a stored password may be shown without the vault's
+    /// password being asked for, or `None` when it must be asked.
+    ///
+    /// Always `None` while no vault is open, whatever is recorded: a window is
+    /// a property of the open vault, never of the process.
+    pub(crate) fn reveal_window_remaining(&self) -> Option<Duration> {
+        self.vault.as_ref()?;
+        let remaining = self.reveal_until?.saturating_duration_since(Instant::now());
+        (!remaining.is_zero()).then_some(remaining)
+    }
+
+    /// Starts the window, now that the vault's password has been confirmed.
+    /// It runs from this moment and is not extended by what is shown in it.
+    pub(crate) fn open_reveal_window(&mut self, length: Duration) {
+        self.reveal_until = Instant::now().checked_add(length);
+    }
+
+    /// Ends the window early, so the next password shown asks again.
+    pub(crate) fn end_reveal_window(&mut self) {
+        self.reveal_until = None;
+    }
+
+    /// Moves the window's end to now, so a test can watch it close without
+    /// waiting ten minutes.
+    #[cfg(test)]
+    pub(crate) fn expire_reveal_window(&mut self) {
+        if self.reveal_until.is_some() {
+            self.reveal_until = Some(Instant::now());
         }
     }
 
@@ -1626,6 +1672,7 @@ mod tests {
             unlock_failures: BTreeMap::new(),
             lock_failure: None,
             pending_import: None,
+            reveal_until: None,
             sessions: Arc::new(SessionHub::new()),
         }
     }

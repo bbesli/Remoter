@@ -206,7 +206,10 @@ export function ConnectionTree({ nodes, selectedId, onSelect }: ConnectionTreePr
 | Ephemeral component state | `useState` |
 
 **The frontend never holds a decrypted secret.** It asks for an action; the
-Rust core performs it.
+Rust core performs it. The single exception is the *Show password* dialog,
+which receives one stored password after the user confirms the vault password,
+keeps it in `useState` — never a query cache or a store — and drops it when it
+closes ([ADR-0016](../architecture/decisions/0016-show-a-stored-password.md)).
 
 ### IPC
 

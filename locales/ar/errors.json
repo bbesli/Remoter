@@ -440,6 +440,26 @@
         "إعادة إدخال السرّ",
         "فتح نسخة احتياطية بجوار الخزنة"
       ]
+    },
+    "_comment_reveal-confirm": "Not shown as a failure: the interface treats this code as its cue to ask for the vault password. Translated because it is still a sentence the core can send.",
+    "reveal-confirm": {
+      "message": "أدخل كلمة مرور هذه الخزنة لإظهار كلمة مرور محفوظة. لن تُطلب مجددًا لمدة عشر دقائق."
+    },
+    "_comment_reveal-refused": "SECURITY-RELEVANT. The vault password typed before showing a stored password was wrong. Like the unlock failure, it must not hint at what the right one looks like.",
+    "reveal-refused": {
+      "message": "هذه ليست كلمة مرور هذه الخزنة، لذا لم يُعرض شيء."
+    },
+    "reveal-nothing": {
+      "message": "لا توجد كلمة مرور لإظهارها هنا: الاتصال ليس له بيانات اعتماد، أو يسجّل الدخول بمفتاح أو بوكيل."
+    },
+    "reveal-no-password-slot": {
+      "message": "لا تحتوي هذه الخزنة على خانة مفتاح بكلمة مرور، لذا لا توجد كلمة مرور لتأكيدها قبل إظهار أي كلمة مرور.",
+      "actions": [
+        "أضف كلمة مرور في إعدادات الخزنة"
+      ]
+    },
+    "reveal-interrupted": {
+      "message": "توقّف إظهار كلمة المرور قبل أن يكتمل، ولم يُعرض شيء."
     }
   },
   "export": {

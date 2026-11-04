@@ -440,6 +440,26 @@
         "Saisir à nouveau le secret",
         "Ouvrir une sauvegarde à côté du coffre-fort"
       ]
+    },
+    "_comment_reveal-confirm": "Not shown as a failure: the interface treats this code as its cue to ask for the vault password. Translated because it is still a sentence the core can send.",
+    "reveal-confirm": {
+      "message": "Saisissez le mot de passe de ce coffre-fort pour afficher un mot de passe enregistré. Il ne sera pas redemandé pendant dix minutes."
+    },
+    "_comment_reveal-refused": "SECURITY-RELEVANT. The vault password typed before showing a stored password was wrong. Like the unlock failure, it must not hint at what the right one looks like.",
+    "reveal-refused": {
+      "message": "Ce n’est pas le mot de passe de ce coffre-fort ; rien n’a été affiché."
+    },
+    "reveal-nothing": {
+      "message": "Il n’y a aucun mot de passe à afficher ici : la connexion n’a pas d’identifiant, ou elle s’authentifie avec une clé ou un agent."
+    },
+    "reveal-no-password-slot": {
+      "message": "Ce coffre-fort n’a aucun emplacement de clé par mot de passe ; il n’y a donc aucun mot de passe à confirmer avant d’en afficher un.",
+      "actions": [
+        "Ajoutez un mot de passe dans les paramètres du coffre-fort"
+      ]
+    },
+    "reveal-interrupted": {
+      "message": "L’affichage du mot de passe s’est interrompu avant la fin, et rien n’a été affiché."
     }
   },
   "export": {

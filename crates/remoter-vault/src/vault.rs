@@ -34,6 +34,7 @@ use uuid::Uuid;
 use crate::Purpose;
 use crate::actor::AuditActorSummary;
 use crate::audit::{AuditQuery, AuditRecord};
+use crate::confirm::PasswordCheck;
 use crate::credential::{ImportedKey, PrivateKeyMaterial};
 use crate::crypto::{self, MAC_LEN, NONCE_LEN, VaultKeys};
 use crate::error::{UnlockError, VaultError};
@@ -748,6 +749,24 @@ impl Vault {
             Ok(vmk) => Ok(crypto::ct_eq(vmk.as_slice(), self.keys.vmk.as_slice())),
             Err(_) => Ok(false),
         }
+    }
+
+    /// What it takes to confirm this vault's password later, without holding
+    /// the vault while the KDF runs.
+    ///
+    /// Cheap: it copies the password slots and a commitment to the master key,
+    /// and derives nothing. See [`PasswordCheck`] for why the expensive half
+    /// is separate, and why the master key itself is not part of it.
+    #[must_use]
+    pub fn password_check(&self) -> PasswordCheck {
+        let slots = self
+            .header
+            .slots()
+            .iter()
+            .filter(|slot| slot.kind == SlotKind::Password)
+            .cloned()
+            .collect();
+        PasswordCheck::new(slots, &self.keys.vmk)
     }
 
     /// The same description [`Vault::probe`] returns, for an open vault.

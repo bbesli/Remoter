@@ -24,6 +24,7 @@ import { AuditViewer } from "@/features/audit/AuditViewer";
 import { ImportWizard } from "@/features/import/ImportWizard";
 import { TreeExportDialog } from "@/features/export";
 import { KnownHostsDialog } from "@/features/knownHosts";
+import { RevealPasswordDialog, RevealWindowBadge } from "@/features/reveal";
 
 import { useAppliedTheme } from "./theme";
 
@@ -33,6 +34,8 @@ export function App() {
   const closeExport = useApp((state) => state.closeExport);
   const knownHostsOpen = useApp((state) => state.knownHostsOpen);
   const closeKnownHosts = useApp((state) => state.closeKnownHosts);
+  const revealRequest = useApp((state) => state.revealRequest);
+  const closeReveal = useApp((state) => state.closeReveal);
   // The stored theme, applied from the first frame rather than when Settings
   // is first opened. See `app/theme.ts`.
   useAppliedTheme();
@@ -57,6 +60,18 @@ export function App() {
           <TreeExportDialog rootId={exportRequest.rootId} onClose={closeExport} />
         )}
         {knownHostsOpen && <KnownHostsDialog onClose={closeKnownHosts} />}
+        {/* On this branch only, so the vault locking unmounts the dialog and
+            the countdown together — and the password the dialog holds with
+            them. Keyed by node, so a second request starts a fresh dialog
+            rather than inheriting the first one's state. */}
+        {revealRequest !== null && (
+          <RevealPasswordDialog
+            key={revealRequest.nodeId}
+            nodeId={revealRequest.nodeId}
+            onClose={closeReveal}
+          />
+        )}
+        <RevealWindowBadge />
       </>
     );
   }

@@ -41,6 +41,8 @@ vi.mock("@/lib/ipc", async (importOriginal) => {
       protocolSchemas: vi.fn(),
       getSettings: vi.fn(),
       listRecentVaults: vi.fn(),
+      revealWindow: vi.fn(),
+      endRevealWindow: vi.fn(),
     },
   };
 });
@@ -60,6 +62,7 @@ const listTunnels = vi.mocked(ipc.listTunnels);
 const unlockVault = vi.mocked(ipc.unlockVault);
 const probeVault = vi.mocked(ipc.probeVault);
 const getSettings = vi.mocked(ipc.getSettings);
+const revealWindow = vi.mocked(ipc.revealWindow);
 
 /*
  * `App` resolves the "system" theme through `matchMedia`, which jsdom does not
@@ -181,6 +184,7 @@ beforeEach(() => {
   probeVault.mockResolvedValue(PROBE);
   getSettings.mockRejectedValue(new Error("settings are not part of these tests"));
   unlockVault.mockResolvedValue(UNLOCKED);
+  revealWindow.mockResolvedValue({ remainingMs: null });
 
   useSessions.setState({ order: [], byId: {}, activeTabId: null });
   useApp.setState({
@@ -269,6 +273,19 @@ describe("when the vault locks itself", () => {
     // And not merely hidden: the cache the tree was drawing from is gone, so
     // nothing can put it back without asking an unlocked vault for it.
     expect(client.getQueryData(qk.nodes())).toBeUndefined();
+  });
+
+  it("ends the password countdown with it", async () => {
+    // The window in which stored passwords are shown without asking is the
+    // open vault's, and the corner countdown goes with the estate.
+    revealWindow.mockResolvedValue({ remainingMs: 300_000 });
+    await renderUnlockedShell();
+    expect(await screen.findByText("Passwords shown without asking")).toBeInTheDocument();
+
+    revealWindow.mockResolvedValue({ remainingMs: null });
+    await coreLocksTheVault();
+    await screen.findByText("This vault is locked");
+    expect(screen.queryByText("Passwords shown without asking")).toBeNull();
   });
 
   it("asks for the password instead of reporting a failed read", async () => {

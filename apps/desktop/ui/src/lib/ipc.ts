@@ -8,9 +8,12 @@
  * Every type here mirrors a struct in `crates/remoter-ipc/src/dto.rs`. When you
  * change one, change both in the same commit.
  *
- * A secret never crosses this boundary. There is no command that returns a
- * password, a recovery key that has already been shown, or any key material;
- * the frontend asks for an action and the core performs it. Types that carry a
+ * A secret never crosses this boundary, with one deliberate exception:
+ * `revealSecret` returns a stored password to a user who asked to see it and
+ * confirmed the vault's password (see {@link RevealedSecret}). There is no
+ * other command that returns a password, a recovery key that has already been
+ * shown, or any key material; the frontend asks for an action and the core
+ * performs it. Types that carry a
  * secret inward — `UnlockRequest`, `CreateVaultRequest`, `CredentialInput`,
  * `AddPasswordSlot`, `ChangePassword`, `SlotCredential` — travel one way only.
  * Do not put one in a query cache, a Zustand store or a log line.
@@ -486,6 +489,33 @@ export interface PrivateKeyInfo {
   formatLabel: string;
   encrypted: boolean;
   sizeBytes: number;
+}
+
+/**
+ * A stored password, shown because the user asked to see it.
+ *
+ * **The one type here that carries a secret outward.** See
+ * `crates/remoter-ipc/src/reveal.rs` for why it exists and what keeps it
+ * narrow. Hold it in component state for as long as the dialog is open and
+ * no longer: never in a query cache, a mutation result, a Zustand store or a
+ * log line.
+ */
+export interface RevealedSecret {
+  nodeId: string;
+  /** The credential the password is stored on. */
+  credentialName: string;
+  /** Whether that credential is shared by several connections. */
+  shared: boolean;
+  username: string | null;
+  password: string;
+  /** How much longer passwords can be shown without asking again. */
+  windowRemainingMs: number;
+}
+
+/** Whether a stored password can be shown without asking for the vault's password. */
+export interface RevealWindow {
+  /** Milliseconds left, or `null` when the next one asks. */
+  remainingMs: number | null;
 }
 
 /** Carries a credential's password; see {@link UnlockRequest}. */
@@ -2320,6 +2350,23 @@ export const ipc = {
    * wiped when the command returns. The result is a format, a flag and a size.
    */
   inspectKey: (path: string) => invoke<PrivateKeyInfo>("key_inspect", { path }),
+
+  // --- showing a stored password ---
+  /**
+   * The password stored for a connection, or on a credential.
+   *
+   * `password` is the **vault's** password. `null` succeeds only while an
+   * earlier confirmation's ten-minute window is open, and otherwise rejects
+   * with `secret.reveal-confirm` — the cue to ask for it. Every password shown
+   * is written to the audit log. See {@link RevealedSecret} for where the
+   * result may and may not be kept.
+   */
+  revealSecret: (nodeId: string, password: string | null) =>
+    invoke<RevealedSecret>("secret_reveal", { nodeId, password }),
+  /** Whether the window is open, and for how long. Cheap; asks the core's clock. */
+  revealWindow: () => invoke<RevealWindow>("secret_reveal_window"),
+  /** Ends the window now, so the next password shown asks again. */
+  endRevealWindow: () => invoke<void>("secret_reveal_end"),
 
   // --- key slots ---
   vaultSlots: () => invoke<VaultSlots>("vault_slots"),

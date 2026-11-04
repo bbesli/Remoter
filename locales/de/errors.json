@@ -440,6 +440,26 @@
         "Das Geheimnis erneut eingeben",
         "Eine Sicherung neben dem Tresor öffnen"
       ]
+    },
+    "_comment_reveal-confirm": "Not shown as a failure: the interface treats this code as its cue to ask for the vault password. Translated because it is still a sentence the core can send.",
+    "reveal-confirm": {
+      "message": "Geben Sie das Passwort dieses Tresors ein, um ein gespeichertes Passwort anzuzeigen. Zehn Minuten lang wird nicht erneut gefragt."
+    },
+    "_comment_reveal-refused": "SECURITY-RELEVANT. The vault password typed before showing a stored password was wrong. Like the unlock failure, it must not hint at what the right one looks like.",
+    "reveal-refused": {
+      "message": "Das ist nicht das Passwort dieses Tresors, daher wurde nichts angezeigt."
+    },
+    "reveal-nothing": {
+      "message": "Hier gibt es kein Passwort anzuzeigen: Die Verbindung hat keine Anmeldeinformation oder meldet sich mit einem Schlüssel oder einem Agenten an."
+    },
+    "reveal-no-password-slot": {
+      "message": "Dieser Tresor hat keinen Passwort-Schlüsselplatz, daher gibt es kein Passwort, das vor dem Anzeigen bestätigt werden könnte.",
+      "actions": [
+        "Fügen Sie in den Tresor-Einstellungen ein Passwort hinzu"
+      ]
+    },
+    "reveal-interrupted": {
+      "message": "Das Anzeigen des Passworts wurde vorzeitig abgebrochen, und es wurde nichts angezeigt."
     }
   },
   "export": {

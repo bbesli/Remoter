@@ -6,9 +6,11 @@
 //! down.
 //!
 //! **A secret never crosses this boundary.** The frontend asks for an action;
-//! the core performs it with the secret and returns a result. There is no
-//! command that returns a password, and adding one requires an explicit
-//! review note explaining why the rule does not apply.
+//! the core performs it with the secret and returns a result. Exactly one
+//! command returns a password — `secret_reveal`, which shows a stored password
+//! to the person who asked for it, after they confirm the vault's password —
+//! and its review note in `reveal.rs` says why the rule does not apply there.
+//! Adding another requires a review note of its own.
 
 #![doc(html_no_source)]
 
@@ -26,6 +28,7 @@ mod known_hosts;
 mod live_tests;
 mod lock_watch;
 mod recents;
+mod reveal;
 mod session;
 mod sftp;
 mod state;
@@ -36,6 +39,7 @@ mod vault_admin;
 
 pub use dto::*;
 pub use error::IpcError;
+pub use reveal::{RevealWindowDto, RevealedSecretDto};
 pub use session::{
     CapabilitiesDto, HostKeyDecisionDto, HostKeyPromptDto, ProgressDto, PromptDto,
     PromptResponseDto, SessionFailureDto, SessionMessageDto, SessionOpenedDto, SessionSummaryDto,
@@ -102,6 +106,10 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         commands::protocol_schemas,
         // --- credentials ---
         commands::key_inspect,
+        // --- showing a stored password (the one secret that crosses; see reveal.rs) ---
+        reveal::secret_reveal,
+        reveal::secret_reveal_window,
+        reveal::secret_reveal_end,
         // --- key slots ---
         vault_admin::vault_slots,
         vault_admin::vault_add_password_slot,

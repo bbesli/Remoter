@@ -95,6 +95,25 @@ interface AppStore {
   closeKnownHosts: () => void;
 
   /**
+   * The "show password" dialog, when it is open: which node it was asked
+   * about. Never the password itself — that lives in the dialog's own state
+   * and goes when the dialog does.
+   */
+  revealRequest: { nodeId: string } | null;
+  openReveal: (nodeId: string) => void;
+  closeReveal: () => void;
+
+  /**
+   * When the core's window for showing passwords without asking ends, as a
+   * `Date.now()` timestamp, or null when the next one asks. A mirror of the
+   * core's clock for the corner countdown, refreshed from every answer; the
+   * core decides, so a stale value here can only cost a prompt, never skip
+   * one.
+   */
+  revealUntil: number | null;
+  setRevealUntil: (until: number | null) => void;
+
+  /**
    * The session tabs that have a file pane docked under them.
    *
    * A set rather than a single id, because a docked pane is not a view of the
@@ -184,6 +203,11 @@ export const useApp = create<AppStore>((set) => ({
   knownHostsOpen: false,
   openKnownHosts: () => set({ knownHostsOpen: true }),
   closeKnownHosts: () => set({ knownHostsOpen: false }),
+  revealRequest: null,
+  openReveal: (nodeId) => set({ revealRequest: { nodeId } }),
+  closeReveal: () => set({ revealRequest: null }),
+  revealUntil: null,
+  setRevealUntil: (revealUntil) => set({ revealUntil }),
 
   filePaneTabs: new Set<string>(),
   toggleFilePane: (tabId) =>

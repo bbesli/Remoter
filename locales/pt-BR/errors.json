@@ -440,6 +440,26 @@
         "Digitar o segredo de novo",
         "Abrir um backup ao lado do cofre"
       ]
+    },
+    "_comment_reveal-confirm": "Not shown as a failure: the interface treats this code as its cue to ask for the vault password. Translated because it is still a sentence the core can send.",
+    "reveal-confirm": {
+      "message": "Digite a senha deste cofre para mostrar uma senha salva. Ela não é pedida de novo por dez minutos."
+    },
+    "_comment_reveal-refused": "SECURITY-RELEVANT. The vault password typed before showing a stored password was wrong. Like the unlock failure, it must not hint at what the right one looks like.",
+    "reveal-refused": {
+      "message": "Essa não é a senha deste cofre, então nada foi mostrado."
+    },
+    "reveal-nothing": {
+      "message": "Não há senha para mostrar aqui: a conexão não tem credencial, ou entra com uma chave ou um agente."
+    },
+    "reveal-no-password-slot": {
+      "message": "Este cofre não tem um slot de chave por senha, então não há senha a confirmar antes de mostrar uma.",
+      "actions": [
+        "Adicione uma senha nas configurações do cofre"
+      ]
+    },
+    "reveal-interrupted": {
+      "message": "A exibição da senha parou antes de terminar, e nada foi mostrado."
     }
   },
   "export": {

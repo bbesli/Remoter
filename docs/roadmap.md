@@ -31,6 +31,10 @@ today* table in [README.md](../README.md#what-works-today).
   ⏳ screen lock and minimise cannot be observed from this build, and the
   settings screen disables those switches and says why
 - ✅ Connection tree: create, edit, move, delete, search
+- ✅ Show a stored password, after the vault password is confirmed, with ten
+  minutes of further passwords shown without asking and a countdown in the
+  corner — shipped in 0.2.0
+  ([ADR-0016](architecture/decisions/0016-show-a-stored-password.md))
 - ✅ Light and dark themes — and the high-contrast pair from v0.5 arrived early, so there are four
 - ✅ `remoter-plugin-abi` and `remoter-plugin-sdk` crates established under
   Apache-2.0 OR MIT, and `LICENSE-EXCEPTION` published
@@ -54,7 +58,7 @@ today* table in [README.md](../README.md#what-works-today).
   captured a log line to search. What is tested instead is narrower and does
   run: `Debug` is redacted on every secret-bearing type — `Secret`,
   `ImportedSecret`, `RecoveryKey`, `InputEvent`, `ClipboardData` and the
-  credential DTO in `remoter-ipc` — which is the form a secret would take in a
+  credential DTO and the shown-password DTO in `remoter-ipc` — which is the form a secret would take in a
   log line, but is not the same as looking at one
 - ⏳ A vault survives 1000 save/load cycles with no corruption
 - ⏳ The frame path harness produces latency and throughput numbers on all three

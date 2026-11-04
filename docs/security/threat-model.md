@@ -157,7 +157,13 @@ entity expansion, zip files with traversal paths, INI files with unbounded keys.
   is, the unlock screen states what became of the sessions before the password
   is asked for
 - Passwords are never shown in clear by default; revealing one requires an
-  explicit action and is written to the audit log
+  explicit action and is written to the audit log. ✅ The action asks for the
+  vault password — an open vault is not proof of who is at the keyboard — and
+  a confirmation lasts ten minutes, ended early by a lock or by the countdown's
+  own button ([ADR-0016](../architecture/decisions/0016-show-a-stored-password.md)).
+  For those ten minutes, someone at the unlocked screen can read every stored
+  password without knowing the vault's; the countdown in the corner is there so
+  that the window is never open without it showing
 
 ### T8 — Local unprivileged process
 

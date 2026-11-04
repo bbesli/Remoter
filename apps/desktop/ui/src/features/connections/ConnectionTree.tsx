@@ -98,6 +98,20 @@ function exportable(node: TreeNode): boolean {
   return node.kind === "folder" || node.kind === "connection";
 }
 
+/**
+ * Whether the tree's menu offers to show a node's stored password.
+ *
+ * Connections and password credentials. A connection whose own credential is
+ * a key or the agent is left out because the answer is already known; one
+ * whose credential is inherited is offered, because only the core can resolve
+ * the inheritance — and it says so if there turns out to be nothing to show.
+ */
+function revealable(node: TreeNode): boolean {
+  if (node.kind === "credential") return node.secretKind === "password";
+  if (node.kind !== "connection") return false;
+  return node.secretKind === null || node.secretKind === "password";
+}
+
 /** Keeps the context menu clear of the window edge it was opened against. */
 const MENU_MARGIN = 180;
 
@@ -657,6 +671,7 @@ export function ConnectionTree() {
   const toggleExpanded = useApp((st) => st.toggleExpanded);
   const setPaletteOpen = useApp((st) => st.setPaletteOpen);
   const openExport = useApp((st) => st.openExport);
+  const openReveal = useApp((st) => st.openReveal);
   const openEditor = useConnectionEditor((st) => st.open);
 
   const queryClient = useQueryClient();
@@ -2121,6 +2136,20 @@ export function ConnectionTree() {
           >
             <Icon name="settings" size={13} />
             {t("menu.edit")}
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className={s.menuItem}
+            disabled={menuNode === null || !revealable(menuNode)}
+            onClick={() => {
+              if (menuNode === null || !revealable(menuNode)) return;
+              setMenu(null);
+              openReveal(menuNode.id);
+            }}
+          >
+            <Icon name="key" size={13} />
+            {t("menu.showPassword")}
           </button>
           {/* A folder or a connection exports itself and what is under it;
               empty space exports the vault. A credential on its own is not a
