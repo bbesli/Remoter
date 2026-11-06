@@ -52,6 +52,29 @@ this project adheres to [Semantic Versioning](https://semver.org/).
   `BROWSER_PATH`, so they can be taken with Chrome or Edge on a machine with no
   Firefox
 
+### Security
+- **Nine published advisories in the dependency graph are closed** by taking
+  the patch release each one names. No dependency was added or removed, and no
+  manifest changed — only `Cargo.lock`:
+  - `rustls` 0.23.45 → 0.23.46: TLS secrets in `Debug` output of client session
+    values, application data sent to the outer server after an ECH rejection,
+    up to 1 GiB allocated by Brotli certificate decompression before
+    authentication, and an unauthenticated ServerHello able to downgrade later
+    connections to classical key exchange (RUSTSEC-2026-0346 to 0349)
+  - `rustls-webpki` 0.103.15 → 0.103.16: certificate verification could accept
+    distrusted intermediates (RUSTSEC-2026-0382)
+  - `webpki-roots` 1.0.9 → 1.0.11: bundled roots trusted distrusted emSign
+    intermediates (RUSTSEC-2026-0381)
+  - `tokio` 1.53.1 → 1.53.3: `AsyncFd::new` violated I/O safety
+    (RUSTSEC-2026-0386, unsound)
+  - `crypto-bigint` 0.7.5 → 0.7.10 and `ctutils` 0.4.2 → 0.4.8: timing
+    variability in operations meant to be constant-time (RUSTSEC-2026-0387,
+    RUSTSEC-2026-0385)
+- Three yanked versions — `async-executor`, `clipboard-win`, `crypto-bigint` —
+  replaced by their current patch releases
+- The one advisory still in the graph is RUSTSEC-2023-0071 in `rsa`, which has
+  no fixed release; its reasoning and review date are in `deny.toml`, unchanged
+
 ## [0.1.0] - 2026-09-17
 
 ### Added
